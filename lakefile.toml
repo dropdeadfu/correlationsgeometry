@@ -1,0 +1,30 @@
+name = "CorrelationsGeometry"
+version = "0.1.0"
+keywords = ["math"]
+defaultTargets = ["CorrelationsGeometry"]
+
+[[require]]
+name = "mathlib"
+scope = "leanprover-community"
+rev = "v4.36.0-rc2"
+
+[[lean_lib]]
+name = "CorrelationsGeometry"
+
+# These options apply to the library above only (they were package-wide before the
+# OAI library was added, which must be compiled with its own upstream options).
+[lean_lib.leanOptions]
+pp.unicode.fun = true # pretty-prints `fun a ↦ b`
+relaxedAutoImplicit = false
+weak.linter.mathlibStandardSet = true
+maxSynthPendingDepth = 3
+
+# 26 files copied from github.com/openai/math (Apache-2.0); see vendor/openai-math/README.md.
+# Not part of the default build. Build with `lake build OAI`.
+[[lean_lib]]
+name = "OAI"
+srcDir = "vendor/openai-math"
+globs = ["OAI.+"]
+
+[lean_lib.leanOptions]
+autoImplicit = false
