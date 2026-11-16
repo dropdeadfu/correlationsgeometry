@@ -7,6 +7,7 @@ This covers the algebraic and finite-dimensional results of the paper and the an
 Proposition 4.2. It does **not** cover the reconstruction theorems on manifolds, the field-theory
 results or the physical interpretation; Mathlib does not yet contain the mathematics those need.
 
+`HANDOVER.md` gives the current state and next steps for anyone picking the work up.
 `PLAN.md` describes the planned work on the quantum half of Proposition 4.2.
 `vendor/openai-math/` holds 26 files copied from github.com/openai/math for that work; nothing in
 `CorrelationsGeometry/` imports them yet.
