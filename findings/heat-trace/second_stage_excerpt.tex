@@ -1,0 +1,136 @@
+\begin{proposition}[Reduction of the trace to a polynomial statistic]\label{prop:reduction}
+In the situation of Theorem~\ref{thm:kernel} let
+\[
+\theta^1_{bi}=-\epsilon_i-\epsilon_b+(\tilde P\epsilon)_b,\qquad
+\hat h^{(i)}_m(b)=\sum_j\tilde P_{bj}\,(1-\epsilon_j)\,\big(p_m(x_j-x_i)-p_{m+1}(x_b-x_i)\big),
+\]
+and, for $k\ge1$,
+\[
+\Pi_k=\frac1{N^2}\sum_{i,b}p_k(x_i-x_b)\,p(x_b-x_i)\,\theta^1_{bi}
++\sum_{m=1}^{k-1}\frac1{N^2}\sum_{i,b}p_{k-m}(x_i-x_b)\,\hat h^{(i)}_m(b)
++\frac1N\sum_i\hat h^{(i)}_k(i).
+\]
+Let $\varphi_d(k)=1$ for $d\le2$, $\varphi_3(k)=1+\log k$ and $\varphi_d(k)=k^{(d-3)/2}$ for $d\ge4$. There is a constant $C_2$ depending only on $d$ such that on the event of Lemma~\ref{lem:consistency}, for all integers $1\le k<(C_1\delta')^{-2}$,
+\[
+\big|\Tr P^{k+1}-m_{k+1}-\Pi_k\big|\le C_2\,\delta'^2\,k\,\varphi_d(k)\,m_{k+1}.
+\]
+$\Pi_k$ is a polynomial of degree at most four in the values of the kernels $p_s(x_a-x_b)$.
+\end{proposition}
+
+\begin{proof}
+$C$ denotes constants that depend only on $d$. We use the notation of the proofs of Lemma~\ref{lem:consistency} and Theorem~\ref{thm:kernel}; in particular $\delta\le6\delta'\le\frac18$, $u_j=(1+\epsilon_j)^{-1}$, $r_b=\sum_j\tilde P_{bj}u_j$, and the proof of the lemma shows that on its event, besides (ii), also $A\le C\,m^{-1/2}p_{6m}(x_b-x_i)$ for the quantity $A=\frac1N\sum_jp(x_b-x_j)|p_m(x_j-x_i)-p_{m+1}(x_b-x_i)|$.
+
+\emph{Step 1: an identity.} By Step~2 of the proof of Theorem~\ref{thm:kernel}, $N(P^{k+1})_{ii}=(P^kRg_i)(i)+\sum_b(P^k)_{ib}\,p(x_b-x_i)\,\theta_{bi}$, and by \eqref{eq:kernel-telescope} with $a=i$,
+\[
+\Tr P^{k+1}-m_{k+1}=\frac1N\sum_i\sum_b(P^k)_{ib}\,p(x_b-x_i)\,\theta_{bi}+\frac1N\sum_i\sum_{m=1}^k\big(P^{k-m}h^{(i)}_m\big)(i).
+\]
+\emph{Step 2: linearisation in $\epsilon$.} Since $\sum_j\tilde P_{bj}=1+\epsilon_b$ and $u_j\in[\frac1{1+\delta},\frac1{1-\delta}]$, $|r_b-1|\le\frac{2\delta}{1-\delta}\le\frac{16}7\delta$. Write $u_j=1-\epsilon_j+\vartheta_j$ with $0\le\vartheta_j=\epsilon_j^2/(1+\epsilon_j)\le\frac87\delta^2$; then $r_b-1=\epsilon_b-(\tilde P\epsilon)_b+(\tilde P\vartheta)_b$ and $|(\tilde P\vartheta)_b|\le\frac97\delta^2$. With $\varrho=r_b-1$ and $(1+\varrho)^{-1}=1-\varrho+\varrho^2/(1+\varrho)$,
+\[
+\theta_{bi}=\frac{u_i}{r_b}-1=\theta^1_{bi}-(\tilde P\vartheta)_b+\epsilon_i\varrho+\vartheta_i(1-\varrho)+u_i\frac{\varrho^2}{1+\varrho},\qquad\text{hence}\qquad|\theta_{bi}-\theta^1_{bi}|\le14\,\delta^2 .
+\]
+For the defect, \eqref{eq:cons-split} gives $r_b\,h^{(i)}_m(b)=S_1+S_2$ and $S_2=-\sum_j\tilde P_{bj}\epsilon_j(g(x_j)-c_b)+\sum_j\tilde P_{bj}\vartheta_j(g(x_j)-c_b)$, so that $S_1+S_2=\hat h^{(i)}_m(b)+E'$ with $|E'|\le\frac87\delta^2A$, and
+\[
+h^{(i)}_m(b)-\hat h^{(i)}_m(b)=(1-r_b)\,h^{(i)}_m(b)+E',\qquad\big|h^{(i)}_m(b)-\hat h^{(i)}_m(b)\big|\le C\,\delta'^2\,m^{-1/2}\,p_{6m}(x_b-x_i).
+\]
+With (ii) and (iii) of the lemma: $\max_b|h-\hat h|\le C\delta'^2m^{-1/2}m_{6m}$, $\frac1N\sum_b|h-\hat h|\le C\delta'^2m^{-1/2}$ and $\frac1N\sum_b|\hat h^{(i)}_m(b)|\le C\delta'm^{-1/2}$.
+
+\emph{Step 3: the three kinds of terms.} (a) The last step of the walk. Since $|(P^k)_{ib}-p_k(x_i-x_b)/N|\le D_k/N$, $|\theta_{bi}|\le4\delta$, $p_k\le m_k$ and $\frac1N\sum_bp(x_b-x_i)\le1+\delta$,
+\[
+\begin{aligned}
+\Big|\frac1N\sum_{i,b}(P^k)_{ib}\,p(x_b-x_i)\,\theta_{bi}-\frac1{N^2}\sum_{i,b}p_k(x_i-x_b)\,p(x_b-x_i)\,\theta^1_{bi}\Big|&\le(1+\delta)\big(4\delta\,D_k+14\,\delta^2m_k\big)\\
+&\le C\,\delta'^2\sqrt k\;m_k .
+\end{aligned}
+\]
+(b) For $1\le m\le k-1$ and $l=k-m\ge1$,
+\[
+\begin{aligned}
+\frac1N\sum_i\big(P^lh^{(i)}_m\big)(i)-\frac1{N^2}\sum_{i,b}p_l(x_i-x_b)\,\hat h^{(i)}_m(b)
+={}&\frac1N\sum_{i,b}(P^l)_{ib}\,\big(h-\hat h\big)^{(i)}_m(b)\\
+&+\frac1N\sum_{i,b}\Big[(P^l)_{ib}-\frac{p_l(x_i-x_b)}N\Big]\hat h^{(i)}_m(b).
+\end{aligned}
+\]
+The first sum is at most $(m_l+D_l)\max_i\frac1N\sum_b|h-\hat h|\le C\delta'^2m^{-1/2}m_l$ in absolute value, the second at most $D_l\max_i\frac1N\sum_b|\hat h|\le C\delta'^2\sqrt l\,m^{-1/2}m_l$, by Theorem~\ref{thm:kernel}. (c) For $m=k$: $|(h-\hat h)^{(i)}_k(i)|\le C\delta'^2k^{-1/2}m_{6k}\le C\delta'^2m_k$.
+
+\emph{Step 4: summation.} For $l\le k$, $m_l\le(k/l)^{d/2}m_k$, because $\gamma_a\le(t/a)^{d/2}\gamma_t$ for $a\le t$. Hence
+\[
+\sum_{l=1}^{k-1}\frac{\sqrt l\;m_l}{\sqrt{k-l}}\le m_k\,k^{d/2}\Big[\Big(\frac2k\Big)^{1/2}\sum_{l\le k/2}l^{(1-d)/2}+\Big(\frac2k\Big)^{(d-1)/2}\sum_{k/2<l<k}(k-l)^{-1/2}\Big]\le C\,k\,\varphi_d(k)\,m_k,
+\]
+since $\sum_{l\le k/2}l^{(1-d)/2}$ is at most $k/2$, $\sqrt{2k}$, $1+\log k$ and a constant for $d=1$, $d=2$, $d=3$ and $d\ge4$, and $\sum_{k/2<l<k}(k-l)^{-1/2}\le2\sqrt k$. Adding (a), (b) and (c) and using $m_k\le2^{d/2}m_{k+1}$ gives the claim. The degree of $\Pi_k$: $\hat h$ and $\theta^1$ are linear in $\epsilon$, and $\epsilon_j=\frac1N\sum_v(p(x_j-x_v)-1)$.
+\end{proof}
+
+\begin{lemma}[Statistics that are degenerate in one index]\label{lem:degenerate}
+Let $x_1,\dots,x_N$ be independent and uniform on $\M=\R^d/\mathbb Z^d$, let $p$ be as in Proposition~\ref{prop:bias} with $M=\sup p\le N$, and let $c_{jv}=p(x_j-x_v)-1$ for all $j,v$, so that $c_{jj}=p(0)-1$. Let $F\colon\M^n\to\R$ be bounded, measurable and invariant under simultaneous translations of its arguments, and write $\|F\|_1=\mathbb E|F(y)|$, $\|F\|_2=(\mathbb E\,F(y)^2)^{1/2}$ for independent uniform $y_1,\dots,y_n$, $\|F\|_\infty=\sup|F|$, and $\varrho(F)$ for the largest of the numbers $\mathbb E|F(y)|$ in which two of the arguments are set equal and the remaining $n-1$ points are independent and uniform. With the sums over all maps $\iota\colon\{1,\dots,n\}\to\{1,\dots,N\}$ and all $v\in\{1,\dots,N\}$, and a constant $C_n$ depending only on $n$:
+\begin{enumerate}[label=\textup{(\alph*)}]
+\item if $\int_\M F(y_1,\dots,y_n)\,\dd y_n=0$ for all $y_1,\dots,y_{n-1}$, then $Z^0=N^{-n}\sum_\iota F(x_{\iota(1)},\dots,x_{\iota(n)})$ satisfies
+\[
+\mathbb E|Z^0|\le C_n\Big[\frac{\|F\|_2}N+\frac{\varrho(F)}N+\frac{\|F\|_\infty}{N^2}\Big];
+\]
+\item for every $a\in\{1,\dots,n\}$, $Z^1=N^{-n-1}\sum_{\iota,v}F(x_{\iota(1)},\dots,x_{\iota(n)})\,c_{\iota(a)v}$ satisfies
+\[
+\mathbb E|Z^1|\le C_n\Big[\frac{M\|F\|_1+\varrho(F)}N+\Big(\frac MN\Big)^{1/2}\frac{\|F\|_2}N+\frac{\|F\|_\infty}{N^2}\Big].
+\]
+\end{enumerate}
+\end{lemma}
+
+\begin{proof}
+By the translation invariance, the conditional expectation of $F(y)$ or of $|F(y)|$ given one of the points is constant. We use $|c|\le M$, $\int c(y)\,\dd y=0$, $\int|c|\le2$, $\int c^2=m_2-1\le M$ and $|\int c(y-v)c(z-v)\,\dd v|=|p_2(y-z)-1|\le M$.
+
+\emph{The maps that are not injective.} Those with an image of $n-1$ elements identify one pair of positions; there are at most $\binom n2N^{n-1}$ of them and each contributes at most $\varrho(F)$ to $\mathbb E\sum|F|$. The others are at most $C_nN^{n-2}$. Hence $\mathbb E\,N^{-n}\sum_{\iota\ \text{not injective}}|F(x_\iota)|\le C_n(\varrho(F)/N+\|F\|_\infty/N^2)$.
+
+\emph{(a).} Let $U$ be the part of $Z^0$ from the injective maps. For two injective maps $\iota,\iota'$ the expectation of $F(x_\iota)F(x_{\iota'})$ vanishes if $\iota(n)$ is not in the image of $\iota'$ (integrate $x_{\iota(n)}$), or $\iota'(n)$ not in the image of $\iota$; and if the images have exactly one common element, which is then $\iota(n)=\iota'(n)$, because given that point the two factors are independent with the conditional mean $\mathbb E\,F=0$. The remaining pairs have two common elements, are at most $n^4N^{2n-2}$, and contribute at most $\|F\|_2^2$ each. Hence $\mathbb E\,U^2\le n^4\|F\|_2^2/N^2$.
+
+\emph{(b).} Let $V$ be the part of $Z^1$ from the pairs $(\iota,v)$ with $\iota$ injective and $v$ outside its image. For two such pairs the expectation of the product vanishes unless $v$ occurs in $(\iota',v')$ and $v'$ in $(\iota,v)$. If $v=v'$ and the images are disjoint, it vanishes because given $x_v$ the factors are independent with a constant conditional mean, equal to $\mathbb E[F\,c]=0$. If $v=v'$ and the images have exactly one common element, integrate $x_v$ first; this gives a factor bounded by $M$, and $\mathbb E|F(x_\iota)||F(x_{\iota'})|=\|F\|_1^2$, so the expectation is at most $M\|F\|_1^2$; there are at most $n^2N^{2n}$ such pairs of pairs. If $v\ne v'$, $v$ lies in the image of $\iota'$, $v'$ in that of $\iota$ and the images are disjoint, the expectation is at most $M^2\|F\|_1^2$, again for at most $n^2N^{2n}$ pairs. In all other cases $(\iota,v)$ and $(\iota',v')$ have three common indices; there are at most $C_nN^{2n-1}$ such pairs and each contributes at most $\mathbb E[(F\,c)^2]\le M\|F\|_2^2$. Hence $\mathbb E\,V^2\le C_nN^{-2}\big[M^2\|F\|_1^2+\frac MN\|F\|_2^2\big]$. The pairs with $\iota$ injective and $v$ in its image contribute at most $nM\|F\|_1/N$ in the mean, because $|c|\le M$. For the maps that are not injective, $\frac1N\sum_v|c_{\iota(a)v}|$ has, given the points of $\iota$, a conditional mean of at most $2+nM/N\le2+n$, and the first step applies.
+\end{proof}
+
+\begin{lemma}[The size of $\Pi_k$]\label{lem:pibound}
+In the situation of Proposition~\ref{prop:reduction}, if $M\le N$, then for all $k\ge1$
+\[
+\mathbb E\,|\Pi_k|\le C_\Pi\,\frac MN\,k\,m_k,
+\]
+with a constant $C_\Pi$ depending only on $d$.
+\end{lemma}
+
+\begin{proof}
+With $\epsilon_j=\frac1N\sum_vc_{jv}$ and $(\tilde P\epsilon)_b=\frac1{N^2}\sum_{q,v}p(x_b-x_q)c_{qv}$, $\Pi_k$ is a sum of statistics of the two kinds of Lemma~\ref{lem:degenerate}. Let $u=y_1-y_2$ and
+\begin{align*}
+F_A(y_1,y_2)&=p_k(u)\,p(u),&F_A'(y_1,y_2,y_3)&=p_k(u)\,p(u)\,p(y_2-y_3),\\
+\Psi(y_1,y_2)&=p(u)\,\big(p_k(u)-m_{k+1}\big),\\
+K_m(y_1,y_2,y_3)&=\rlap{$p_{k-m}(u)\,p(y_2-y_3)\,\big(p_m(y_3-y_1)-p_{m+1}(u)\big).$}
+\end{align*}
+Then the first term of $\Pi_k$ is $-Z^1[F_A,a=1]-Z^1[F_A,a=2]+Z^1[F_A',a=3]$, the term with $m$ is $Z^0[K_m]-Z^1[K_m,a=3]$ and the last term is $Z^0[\Psi]-Z^1[\Psi,a=2]$. $K_m$ and $\Psi$ integrate to zero in their last argument, because $\int p(y_2-y_3)p_m(y_3-y_1)\,\dd y_3=p_{m+1}(u)$ and $\int p\,p_k=m_{k+1}$. We use $p_s\le m_s\le M$, $\int p_sp_{s'}=m_{s+s'}$, the monotonicity of $m_s$ and $m_sm_{s'}\le2^{d/2}M\,m_{s+s'}$ (the larger index is at least $(s+s')/2$). With $l=k-m$ this gives, with constants depending only on $d$:
+\[
+\begin{array}{lllll}
+&\|\cdot\|_1&\|\cdot\|_2^2&\varrho&\|\cdot\|_\infty\\\hline
+F_A&m_{k+1}&M\,m_k^2&M\,m_k&M\,m_k\\
+F_A'&m_{k+1}&M^2m_k^2&M\,m_k&M^2m_k\\
+\Psi&2m_{k+1}&M\,m_k^2&M\,m_k&M\,m_k\\
+K_m&2m_{k+1}&C\,M^2m_k^2&C\,M\,m_k&C\,M^2m_k
+\end{array}
+\]
+For $K_m$: $K_m^2\le2p_l(u)^2p(w)^2p_m(u+w)^2+2p_l(u)^2p(w)^2p_{m+1}(u)^2$ with $w=y_2-y_3$, whose means are at most $2m_lMm_m\,m_{k+1}$ and $2m_lm_{m+1}m_{k+1}M$; and the three ways of setting two arguments equal give means of at most $2m_lm_{m+1}$, $m_mm_{l+1}+Mm_{k+1}$ and $M(m_k+m_{k+1})$. The other entries are similar and simpler. Inserting the table into Lemma~\ref{lem:degenerate} and using $M\le N$, every one of the $2k+3$ statistics has a mean absolute value of at most $C\frac MNm_k$.
+\end{proof}
+
+\begin{corollary}[The joint regime, second stage]\label{cor:secondstage}
+Let $\M=\R^d/\mathbb Z^d$ with $d\le3$, the uniform density and the periodised Gaussian kernel with self-loops, and let $\xi_N\to0$ and $N\xi_N^{d+2}/\log N\to\infty$. Then for every sequence $t_N\in[\xi_N^2,1]$, with $\tau=2t_N/\xi_N^2$ and $J=\lceil8\tau\rceil+\lceil2\log N\rceil$,
+\[
+\frac{\Tr e^{-t_N\Lc}-Ne^{-\tau}}{T_\sigma(t_N)}=1+O_{\mathbb P}\Big(\frac{M\log N}{N}\,J\,\varphi_d(J)\Big),
+\]
+and the error is $o_{\mathbb P}(\xi_N^2)$ if $N\xi_N^{d+4}/\log N\to\infty$ for $d\le2$, respectively $N\xi_N^{7}/(\log N)^2\to\infty$ for $d=3$. In that case
+\[
+\frac{\Tr e^{-t_N\Lc}-Ne^{-\tau}}{\Tr e^{t_N\Delta}}=1+\frac{d(d+2)}{8\tau}+O(\tau^{-2})+O(\xi_N^2)+o_{\mathbb P}(\xi_N^2):
+\]
+the rate $\xi^2/t$ holds with the sharp coefficient, in probability, in this regime.
+\end{corollary}
+
+\begin{proof}
+Let $E$ be the event of Lemma~\ref{lem:consistency}; $\mathbb P(E^c)\to0$, and $J\le(C_1\delta')^{-2}$ and $M\le N$ for large $N$. For $2\le j\le J$, Proposition~\ref{prop:reduction} with $k=j-1$ gives on $E$ that $|\Tr P^j-m_j|\le|\Pi_{j-1}|+C_2\delta'^2j\varphi_d(j)m_j$. For $j=1$, $\Tr P-m_1=\frac MN\sum_i\theta_{ii}$, and by Step~2 of the proof of the proposition and $\frac1N\sum_i\theta^1_{ii}=-\bar\epsilon+\frac1N\sum_l\epsilon_l^2$ (as in the proof of Proposition~\ref{prop:estimated}), $|\Tr P-m_1|\le M\big(|\bar\epsilon|+\frac1N\sum_l\epsilon_l^2+14\delta^2\big)$ on $E$, with $\mathbb E|\bar\epsilon|\le CM/N$ and $\mathbb E\,\epsilon_l^2\le4M/N$. With Lemma~\ref{lem:pibound}, $m_{j-1}\le2^{d/2}m_j$ and $\delta'^2=M\log N/N$,
+\[
+\mathbb E\Big[\mathbf 1_E\sum_{1\le j\le J}w_j\big|\Tr P^j-m_j\big|\Big]\le C\,\frac{M\log N}{N}\,J\,\varphi_d(J)\sum_{j\ge1}w_jm_j=C\,\frac{M\log N}{N}\,J\,\varphi_d(J)\,T_\sigma .
+\]
+The terms with $j>J$ are treated as in Corollary~\ref{cor:kernel-trace}, and Markov's inequality gives the first statement. If $\log N\le\xi_N^{-2}$, then $J\le19\xi_N^{-2}$ and the error is $O(\log N\,\varphi_d(\xi_N^{-2})/N\xi_N^{d+2})$ with $\varphi_3(\xi_N^{-2})\le1+\log N$; otherwise $J\le20\log N$, $M\le C(\log N)^{d/2}$, and the error is a power of $\log N$ divided by $N$, while $\xi_N^2>1/\log N$. The last statement follows as in Corollary~\ref{cor:kernel-trace}.
+\end{proof}
+
+\begin{remark}[On the second stage]\label{rem:secondstage}
+(i) Corollary~\ref{cor:secondstage} improves the exponent $d+6$ of Corollary~\ref{cor:kernel-trace} to $d+4$ in dimensions one and two, at the price of convergence in probability instead of almost sure convergence. The idea is to use Theorem~\ref{thm:kernel} once more inside the telescoping sum for the trace: replacing $P^l$ by the heat kernel there costs the product of two first-order errors, and what remains is an explicit polynomial in the kernel values whose mean and fluctuations can be computed. (ii) The polynomial $\Pi_k$ is not the leading part of the error. For one sample on the flat two-torus with $\xi=0.05$ and $N=3000$ the relative error $(\Tr P^{k+1}-m_{k+1})/m_{k+1}$ is $0.0063$, $0.0207$ and $0.0244$ for $k=1,4,16$, of which $\Pi_k$ accounts for $-0.0142$, $0.0072$ and $0.0069$ and the remainder for $0.0205$, $0.0135$ and $0.0176$; the remainder divided by $\delta'^2k\,m_{k+1}$ is $0.12$, $0.02$ and $0.007$, so the bound of Proposition~\ref{prop:reduction} holds with room, and divided by $(M/N)\,m_{k+1}$ it is $0.97$, $0.64$ and $0.83$. The terms of the second order in $\epsilon$ thus contribute to the mean at the same order $M/N$ as $\Pi_k$, in agreement with Proposition~\ref{prop:bias}. A third stage, towards the exponent $d+2$ of Remark~\ref{rem:bias}(v), would need these terms explicitly and uniformly in $k$; this is open. (iii) Proposition~\ref{prop:reduction}, Lemmas~\ref{lem:degenerate} and~\ref{lem:pibound} and Corollary~\ref{cor:secondstage} were written by one session of an AI system, after the plan for the bound on $\Pi_k$ had been proposed by a second one; they have not yet been read by the second session, nor by a person.
+\end{remark}
+

@@ -3372,7 +3372,7 @@ end CTG.TwoMode
 namespace CTG.HeatTrace
 open Lean.Grind
 
-/-! ### Theorem G.33 (eigenvalues of the sampled graph on a flat torus): from powers to eigenvalues -/
+/-! ### Theorem G.38 (eigenvalues of the sampled graph on a flat torus): from powers to eigenvalues -/
 
 section PowersToEigenvalues
 variable {α : Type} [Field α] [LE α] [LT α] [Std.LawfulOrderLT α] [Std.IsLinearOrder α] [OrderedRing α]
@@ -3419,7 +3419,7 @@ end CTG.HeatTrace
 namespace CTG.HeatTrace
 open Lean.Grind
 
-/-! ### Corollaries G.34 and G.35 (eigenspaces, delocalisation): the deterministic steps -/
+/-! ### Corollaries G.39 and G.40 (eigenspaces, delocalisation): the deterministic steps -/
 
 section EigenSteps
 variable {α : Type} [Field α] [LE α] [LT α] [Std.LawfulOrderLT α] [Std.IsLinearOrder α] [OrderedRing α]
@@ -3445,7 +3445,7 @@ theorem msum_cauchy_schwarz : ∀ (I : List ι) (A u : ι → α),
     have q := msum_quadform (u i) (A i) I A u
     simp only [msum]; grind
 
-/-- Corollary G.35, the step `|u_a| ≤ c (sum_i B_i^2)^{1/2}` in squared form: if
+/-- Corollary G.40, the step `|u_a| ≤ c (sum_i B_i^2)^{1/2}` in squared form: if
     `u_a = c sum_i B_i u_i` and `sum_i u_i^2 ≤ 1`, then `u_a^2 ≤ c^2 sum_i B_i^2`. -/
 theorem delocalisation_step (I : List ι) (B u : ι → α) (c ua : α)
     (h : ua = c * msum I (fun i => B i * u i)) (hu : msum I (fun i => u i * u i) ≤ 1) :
@@ -3458,7 +3458,7 @@ theorem delocalisation_step (I : List ι) (B u : ι → α) (c ua : α)
     (mul_self_nonneg c)
   rw [h]; grind
 
-/-- Corollary G.34, the spectral step: if `w` has the coefficients `c_i` in an eigenbasis with
+/-- Corollary G.39, the spectral step: if `w` has the coefficients `c_i` in an eigenbasis with
     eigenvalues `mu_i`, and `f_i` is `c_i^2` on the eigenvalues at a distance at least `rho` from
     `a` and zero on the others, then `rho^2 sum f_i ≤ sum (mu_i - a)^2 c_i^2 = |(B - a) w|^2`. -/
 theorem spectral_step (I : List ι) (mu c f : ι → α) (a rho : α)
@@ -3476,7 +3476,7 @@ theorem spectral_step (I : List ι) (mu c f : ι → α) (a rho : α)
   have e := msum_mul_left (rho * rho) I f
   grind
 
-/-- Corollary G.34, the separation of the powers: for `u ≤ v`,
+/-- Corollary G.39, the separation of the powers: for `u ≤ v`,
     `e^{-u} - e^{-v} ≥ e^{-v} (v - u)`. -/
 theorem exp_gap (h : IsExp exp) {u v : α} (huv : u ≤ v) :
     exp (-v) * (v - u) ≤ exp (-u) - exp (-v) := by
@@ -3491,11 +3491,11 @@ end CTG.HeatTrace
 namespace CTG.HeatTrace
 open Lean.Grind
 
-/-! ### Theorems G.28 and G.33, Corollary G.35: the deterministic deductions as a whole
+/-! ### Theorems G.28 and G.38, Corollary G.40: the deterministic deductions as a whole
 
   Each statement below is the complete deterministic part of the proof in the paper. What is
   not formalised enters as a HYPOTHESIS: the consistency lemma G.27 and the kernel-matrix lemma
-  G.32 (probability), Weyl's inequality for symmetric matrices, and the spectral theorem. -/
+  G.37 (probability), Weyl's inequality for symmetric matrices, and the spectral theorem. -/
 
 section MainDeductions
 variable {α : Type} [Field α] [LE α] [LT α] [Std.LawfulOrderLT α] [Std.IsLinearOrder α] [OrderedRing α]
@@ -3533,7 +3533,7 @@ theorem kernel_induction (D mu S W : Nat → α) (d d' : α) (K : Nat)
   intro k hk1 hkK
   exact step k hk1 hkK (all k (by omega))
 
-/-- Theorem G.33, from (i) to (ii): if `|s^{k+1} - a^{k+1}| ≤ eta` and `a^{k+1} ≥ 2 eta` for
+/-- Theorem G.38, from (i) to (ii): if `|s^{k+1} - a^{k+1}| ≤ eta` and `a^{k+1} ≥ 2 eta` for
     `s, a ∈ [0, 1]`, then `(k+1) a^{k+1} |s - a| ≤ 2 eta`. With `sigma lambda^N = 1 - s` and
     `sigma lambda^pop = 1 - a` this is `|lambda^N - lambda^pop| ≤ 2 eta / ((k+1) sigma a^{k+1})`. -/
 theorem eigenvalue_from_power {s a eta : α} (hs0 : 0 ≤ s) (hs1 : s ≤ 1) (ha0 : 0 ≤ a) (ha1 : a ≤ 1)
@@ -3554,8 +3554,8 @@ theorem eigenvalue_from_power {s a eta : α} (hs0 : 0 ≤ s) (hs1 : s ≤ 1) (ha
     have p := OrderedRing.mul_nonneg hna (show (0 : α) ≤ a - s by grind)
     constructor <;> grind
 
-/-- Theorem G.33 (ii) in the variables of the paper. HYPOTHESIS `hpow`: part (i) of the theorem
-    for one `k` (which rests on Theorem G.28, Lemma G.32 and Weyl's inequality). -/
+/-- Theorem G.38 (ii) in the variables of the paper. HYPOTHESIS `hpow`: part (i) of the theorem
+    for one `k` (which rests on Theorem G.28, Lemma G.37 and Weyl's inequality). -/
 theorem eigtorus_ii {s a eta sigma lamN lamPop : α} (hs0 : 0 ≤ s) (hs1 : s ≤ 1) (ha0 : 0 ≤ a)
     (ha1 : a ≤ 1) (k : Nat) (hsig : 0 ≤ sigma) (hN : sigma * lamN = 1 - s)
     (hP : sigma * lamPop = 1 - a)
@@ -3568,7 +3568,7 @@ theorem eigtorus_ii {s a eta sigma lamN lamPop : α} (hs0 : 0 ≤ s) (hs1 : s �
   have e2 : sigma * (lamN - lamPop) = a - s := by grind
   rw [e1, e2]; exact r
 
-/-- Corollary G.35 as a whole. HYPOTHESES: `B` is the symmetric matrix `S^k`, `u` an eigenvector
+/-- Corollary G.40 as a whole. HYPOTHESES: `B` is the symmetric matrix `S^k`, `u` an eigenvector
     with eigenvalue `t ≥ t0 > 0` and `sum u_i^2 ≤ 1`, and `kappa` bounds the diagonal entry
     `(S^{2k})_{aa} = sum_i B_{ai} B_{ia}` (from Theorem G.28).
     CONCLUSION: `t0^2 u_a^2 ≤ kappa`. -/

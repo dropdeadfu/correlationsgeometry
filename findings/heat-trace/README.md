@@ -23,26 +23,27 @@ unless the table says otherwise, has been read formula by formula by a second AI
 | Corollary G.29 (`cor:kernel-trace`) | Almost surely: the trace converges for `N xi^(d+2)/log N -> infinity`; the rate `xi^2/t` with the sharp coefficient holds for `N xi^(d+6)/log N -> infinity`, in every dimension (Theorem G.14 has `2d+6`, in probability, `d >= 2`) | proven given G.28; read by the second session |
 | Corollary G.30 (`cor:kernel-corrected`) | The corrected estimator `T - (sigma t/2) T''` of the sampled graph deviates from the heat trace by `O(tau^-2) + O(tau delta' sqrt(tau + log N))` | proven given G.28; written by the author-side session; the second session checked the statement and a summary of the proof (not the text in the paper) and found no error. The error is smaller than the gain of the correction only for `N xi^(d+10)/log N -> infinity` at a fixed time |
 | Corollary G.31 (`cor:kernel-noloops`) | G.28 and G.29 for the graph without self-loops: `D_1 = m_1`, the bound holds from `k = 2` on, and the subtracted trace is compared with `T_sigma - tau e^(-tau) M` | proven given G.27, G.28; written by the author-side session, read by the second session |
-| Lemma G.32, Theorem G.33 (`lem:kernelmatrix`, `thm:eigtorus`) | Eigenvalues of the sampled graph on the flat torus, uniformly in the index and with multiplicities: `|lambda_j^N - (1 - exp(-sigma lambda_j))/sigma| <= C (delta'/xi) max(1, lambda_j)^((d+1)/2)`; the hypothesis `eq:eigrate2` of the paper holds on the torus for `N xi^(3d)/log N -> infinity` | proven given G.28; written by the author-side session, NOT yet read by the second session; numerics |
-| Corollary G.34 (`cor:eigspace`) | Eigenspaces on the torus in the Euclidean norm on the points: every sampled Fourier mode of an eigenvalue `Lambda` lies within `C (delta'/xi) Lambda^((d+1)/2) / gap` of the corresponding eigenspace of the graph | proven given G.33; written by the author-side session, NOT yet read by the second session |
-| Corollary G.35 (`cor:deloc`) | Delocalisation: a unit eigenvector `u` of `S` with eigenvalue index `j` satisfies `max |u_a| <= C max(1, lambda_j)^(d/4) N^(-1/2)` | proven given G.33; written by the author-side session, NOT yet read by the second session |
-| Second stage, reduction (`second_stage_reduction.tex`, DRAFT, not in the paper) | On the event of G.27: `|Tr P^(k+1) - m_(k+1) - Pi_k| <= C delta'^2 k phi_d(k) m_(k+1)` for an explicit polynomial statistic `Pi_k` of degree four | proven in the draft by the author-side session; NOT yet read by the second session |
-| Second stage, bound for `Pi_k` | `E|Pi_k| <= C (M/N) k m_k` uniformly in `k`; together with the reduction this would give the sharp rate in probability for `N xi^(d+4)/log N -> infinity` in dimensions one and two | in progress (second session); plan checked numerically, NOT proven |
-| Sharp rate for `N xi^(d+2) -> infinity` | would need the averaging over the diagonal (bias `M/N` instead of the entrywise error `delta'`) | open; conjecture |
+| Proposition G.32 (`prop:reduction`) | Second stage. On the event of G.27: `|Tr P^(k+1) - m_(k+1) - Pi_k| <= C delta'^2 k phi_d(k) m_(k+1)` for an explicit polynomial statistic `Pi_k` of degree four (`phi_d = 1` for `d <= 2`, `1 + log k` for `d = 3`, `k^((d-3)/2)` for `d >= 4`) | proven given G.28; written by the author-side session, NOT yet read by the second session; numerics |
+| Lemmas G.33, G.34 (`lem:degenerate`, `lem:pibound`) | Moment bounds for statistics that are degenerate in one index, and from them `E|Pi_k| <= C (M/N) k m_k` uniformly in `k` | proven; plan by the second session, written out by the author-side session, NOT yet read by the second session |
+| Corollary G.35 (`cor:secondstage`) | The rate `xi^2/t` with the sharp coefficient holds in probability for `N xi^(d+4)/log N -> infinity` in dimensions one and two, and for `N xi^7/(log N)^2 -> infinity` in dimension three | proven given G.32 to G.34; NOT yet read by anyone but its author session |
+| Lemma G.37, Theorem G.38 (`lem:kernelmatrix`, `thm:eigtorus`) | Eigenvalues of the sampled graph on the flat torus, uniformly in the index and with multiplicities: `|lambda_j^N - (1 - exp(-sigma lambda_j))/sigma| <= C (delta'/xi) max(1, lambda_j)^((d+1)/2)`; the hypothesis `eq:eigrate2` of the paper holds on the torus for `N xi^(3d)/log N -> infinity` | proven given G.28; written by the author-side session, NOT yet read by the second session; numerics |
+| Corollary G.39 (`cor:eigspace`) | Eigenspaces on the torus in the Euclidean norm on the points: every sampled Fourier mode of an eigenvalue `Lambda` lies within `C (delta'/xi) Lambda^((d+1)/2) / gap` of the corresponding eigenspace of the graph | proven given G.38; written by the author-side session, NOT yet read by the second session |
+| Corollary G.40 (`cor:deloc`) | Delocalisation: a unit eigenvector `u` of `S` with eigenvalue index `j` satisfies `max |u_a| <= C max(1, lambda_j)^(d/4) N^(-1/2)` | proven given G.38; written by the author-side session, NOT yet read by the second session |
+| Sharp rate below `(log N/N)^(1/(d+4))`, down to `N xi^(d+2) -> infinity` | would need the terms of second order in the normalisation errors explicitly and uniformly in `k` (numerically they contribute at the same order `M/N` as `Pi_k`) | open; conjecture |
 | Theorem G.14, proof | Six small gaps closed (self-term in Step 1, tail `j > J`, bounds on Theta, uniform form of the expansion, two presentational points); statement unchanged | done in the paper; not part of this folder |
 
 ## Files
 
-- `appendix_G22_G37.pdf` — the pages of the paper with G.22 to G.37 (the first and the last page
+- `appendix_G22_G44.pdf` — the pages of the paper with G.22 to G.44 (the first and the last page
   also show the end of the preceding and the beginning of the following item).
 - `bias_variance_excerpt.tex` — TeX of Propositions G.22, G.24 and Remarks G.23, G.25.
-- `kernel_bound_excerpt.tex` — TeX of Lemmas G.26, G.27, Theorem G.28, Corollaries G.29 to G.31, Lemma G.32, Theorem G.33, Corollaries G.34, G.35, Remarks G.36, G.37.
+- `kernel_bound_excerpt.tex` — TeX of Lemmas G.26, G.27, Theorem G.28, Corollaries G.29 to G.31, Lemma G.37, Theorem G.38, Corollaries G.39, G.40, Remarks G.41, G.42 (numbers as in `appendix_G22_G44.pdf`).
   Both are fragments that use the macros and labels of the paper; they do not compile on their own.
-- `scripts/torus_eigenvalues.py` — eigenvalues of the graph Laplacian against the population values of G.33.
+- `scripts/torus_eigenvalues.py` — eigenvalues of the graph Laplacian against the population values of G.38.
 - `scripts/kernel_sup_norm.py` — for one sample, the entrywise error of `P^k` against the heat kernel and
   the size of the consistency defect relative to the bound of Lemma G.27.
-- `second_stage_reduction.tex` — draft of the reduction of the trace error to a polynomial statistic (see the
-  table for its status).
+- `second_stage_excerpt.tex` — TeX of G.32 to G.36 (reduction, degenerate statistics, bound for `Pi_k`, corollary, remark).
+- `scripts/second_stage_reduction.py` — for one sample, the trace error, `Pi_k` and the remainder of G.32.
 - `scripts/normalised_walk_bias.py` — Monte Carlo for `Tr P^k - m_k` on the torus (`d = 1, 2, 3`, with
   and without self-loops) against `beta_k/N`.
 - `scripts/normalised_walk_variance.py` — `N` times the standard deviation of `Tr P^k` against
@@ -54,7 +55,7 @@ unless the table says otherwise, has been read formula by formula by a second AI
   G.24 (`gamma_expansion`, `bias_sum`, `bias_loops`, `variance_kernel_sum`, `bias_is_diagonal`) and the
   stability of a row-stochastic matrix in the supremum norm (`Stoch.app_le`, `lax_stability`,
   `weighted_sum_bound`) and the telescoping identity of Theorem G.28, Step 1 (`telescope`), the step inequality (`kernel_step`) and the logic of its induction (`bootstrap`). As whole deductions, with the non-formalised inputs as explicit hypotheses: `kernel_induction` (Step 4 of
-  G.28), `eigtorus_ii` (part (i) implies part (ii) of G.33), `delocalisation` (G.35). The probabilistic parts are not formalised. The namespace `CTG.TwoMode` at the end
+  G.28), `eigtorus_ii` (part (i) implies part (ii) of G.38), `delocalisation` (G.40). The probabilistic parts are not formalised. The namespace `CTG.TwoMode` at the end
   contains the algebra of work package WP1 of `PLAN.md` (symplectic spectrum of the two-mode covariance
   matrix: `xp_eigenvalues`, `xp_charpoly`, `rotation_diagonalises`, `squeeze`, `symplectic_block`,
   `symplectic_diagonal`), without Mathlib and with the square roots as hypotheses; it does not replace
@@ -83,7 +84,7 @@ configuration; they are not evidence for a rate.
   deviation of the graph eigenvalues from the population value is -0.99, -1.06, -1.31 times `M/N` for
   `lambda = 39.5, 79.0, 157.9` at `N = 3000`, and the spread within the group is 0.6 to 1.4 times
   `N^(-1/2)`. Reading (not proven): a bias of order `M/N` and a random splitting of relative order
-  `N^(-1/2)` for a single eigenvalue; the bound of G.33 is far from sharp.
+  `N^(-1/2)` for a single eigenvalue; the bound of G.38 is far from sharp.
 - Falsification test (`scripts/torus_eigenvalue_groups.py`, `xi = 0.1`, `lambda = 39.5`, 120/80/40 samples at
   `N = 400/800/1600`): the standard deviation of the mean of a group of eigenvalues times `N` is 3.5, 3.7, 3.3,
   that of the lowest eigenvalue of the group times `sqrt(N)` is 0.53, 0.48, 0.51. The alternative that the group
