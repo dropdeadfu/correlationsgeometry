@@ -15,6 +15,8 @@
   How to check: see `docs/HANDOFF.md`, Section 13.
 -/
 import Mathlib.Analysis.Complex.Exponential
+import Mathlib.Topology.Algebra.InfiniteSum.Real
+import Mathlib.Analysis.SpecificLimits.Basic
 import CorrelationsToGeometry
 
 namespace CTG.Reals
@@ -72,5 +74,69 @@ theorem real_poisson_identity {tau : ℝ} (ht : 0 ≤ tau) (s : Nat → ℝ) (hs
     (hp : ∀ j, Tends (fun n => psumN (fun k => pw (s k) j) n) (p j)) :
     Tends (jsum fun j => poissonW Real.exp tau j * p j) T :=
   poisson_identity real_isExp real_archimedean ht s hs hT hp
+
+/-! ### Bridge to the notions of Mathlib: limits and infinite sums -/
+
+/-- The limit notion of the core file is convergence in the usual sense. -/
+theorem tends_iff (f : ℕ → ℝ) (L : ℝ) : Tends f L ↔ Filter.Tendsto f Filter.atTop (nhds L) := by
+  rw [Metric.tendsto_atTop]
+  constructor
+  · intro h e he
+    obtain ⟨N, hN⟩ := h e he
+    refine ⟨N, fun n hn => ?_⟩
+    rw [Real.dist_eq, abs_lt]
+    constructor <;> linarith [(hN n hn).1, (hN n hn).2]
+  · intro h e he
+    obtain ⟨N, hN⟩ := h e he
+    refine ⟨N, fun n hn => ?_⟩
+    have h1 := hN n hn
+    rw [Real.dist_eq, abs_lt] at h1
+    constructor <;> linarith [h1.1, h1.2]
+
+theorem psumN_eq (f : ℕ → ℝ) : ∀ n, psumN f n = ∑ k ∈ Finset.range n, f k
+  | 0 => by simp [psumN]
+  | n + 1 => by rw [psumN, psumN_eq f n, Finset.sum_range_succ]
+
+theorem jsum_eq (g : ℕ → ℝ) : ∀ m, jsum g m = ∑ j ∈ Finset.range (m + 1), g j
+  | 0 => by simp [jsum]
+  | m + 1 => by rw [jsum, jsum_eq g m, Finset.sum_range_succ (n := m + 1)]
+
+theorem pw_eq (s : ℝ) : ∀ k, pw s k = s ^ k
+  | 0 => by simp [pw]
+  | k + 1 => by rw [pw, pw_eq s k, pow_succ, mul_comm]
+
+/-- The Poisson identity with the infinite sums of Mathlib. If the sum over the modes of
+    `e^{-tau (1 - s_k)} - e^{-tau}` is `T` (the subtracted trace) and, for every `j`, the sum of
+    the `j`-th powers of the eigenvalues is `p j` (the `j`-th return moment), both in the sense of
+    `HasSum` (HYPOTHESES `hT`, `hp`: these sums exist), then the partial sums of the Poisson
+    series `sum_j e^{-tau} tau^j/j! p_j` converge to `T`. No hypothesis on the exponential. -/
+theorem real_poisson_hasSum {tau : ℝ} (ht : 0 ≤ tau) (s : ℕ → ℝ) (hs : ∀ k, 0 ≤ s k)
+    {p : ℕ → ℝ} {T : ℝ}
+    (hT : HasSum (fun k => Real.exp (-(tau * (1 - s k))) - Real.exp (-tau)) T)
+    (hp : ∀ j, HasSum (fun k => s k ^ j) (p j)) :
+    Filter.Tendsto (fun m => ∑ j ∈ Finset.range (m + 1), poissonW Real.exp tau j * p j)
+      Filter.atTop (nhds T) := by
+  have hT' : Tends (psumN fun k => Real.exp (-(tau * (1 - s k))) - Real.exp (-tau)) T := by
+    rw [tends_iff]
+    have e : (psumN fun k => Real.exp (-(tau * (1 - s k))) - Real.exp (-tau))
+        = fun n => ∑ k ∈ Finset.range n, (Real.exp (-(tau * (1 - s k))) - Real.exp (-tau)) :=
+      funext (psumN_eq _)
+    rw [e]
+    exact hT.tendsto_sum_nat
+  have hp' : ∀ j, Tends (fun n => psumN (fun k => pw (s k) j) n) (p j) := by
+    intro j
+    rw [tends_iff]
+    have e : (fun n => psumN (fun k => pw (s k) j) n) = fun n => ∑ k ∈ Finset.range n, s k ^ j := by
+      funext n
+      rw [psumN_eq]
+      exact Finset.sum_congr rfl (fun k _ => pw_eq (s k) j)
+    rw [e]
+    exact (hp j).tendsto_sum_nat
+  have key := real_poisson_identity ht s hs hT' hp'
+  rw [tends_iff] at key
+  have e : (jsum fun j => poissonW Real.exp tau j * p j)
+      = fun m => ∑ j ∈ Finset.range (m + 1), poissonW Real.exp tau j * p j := funext (jsum_eq _)
+  rw [e] at key
+  exact key
 
 end CTG.Reals
