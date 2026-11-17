@@ -3210,5 +3210,37 @@ theorem weighted_sum_bound (I : List ι) (A h t : ι → α) (c : α)
     rw [e4, e3]; grind
   constructor <;> grind
 
+theorem mapp_add (I : List ι) (P : ι → ι → α) (a b : ι → α) (i : ι) :
+    mapp I P (fun j => a j + b j) i = mapp I P a i + mapp I P b i := by
+  have h1 : msum I (fun j => P i j * (a j + b j)) = msum I (fun j => P i j * a j + P i j * b j) := by
+    apply msum_congr; intro j _; grind
+  have h2 := msum_add I (fun j => P i j * a j) (fun j => P i j * b j)
+  simp only [mapp]; rw [h1, h2]
+
+/-- `P^n` applied to a vector, as an iteration. -/
+def miter (I : List ι) (P : ι → ι → α) (v : ι → α) : Nat → ι → α
+  | 0 => v
+  | n + 1 => mapp I P (miter I P v n)
+
+/-- The telescoping sum of Theorem G.28, Step 1, in recursive form: for a sequence of vectors `w_n`
+    (in the application `w_n = R P_pop^n g`, the population walk restricted to the points) let
+    `tel_0 = 0` and `tel_{k+1} = (P w_k - w_{k+1}) + P tel_k`. Unrolled, `tel_k` is
+    `sum_{l < k} P^l (P w_{k-1-l} - w_{k-l})`. -/
+def tel (I : List ι) (P : ι → ι → α) (w : Nat → ι → α) : Nat → ι → α
+  | 0 => fun _ => 0
+  | k + 1 => fun i => (mapp I P (w k) i - w (k + 1) i) + mapp I P (tel I P w k) i
+
+/-- Theorem G.28, Step 1: `P^k w_0 - w_k` equals the telescoping sum of the one-step defects.
+    No property of `P` is used. -/
+theorem telescope (I : List ι) (P : ι → ι → α) (w : Nat → ι → α) :
+    ∀ k i, miter I P (w 0) k i - w k i = tel I P w k i
+  | 0, i => by simp only [miter, tel]; grind
+  | k + 1, i => by
+    have ih : ∀ j, miter I P (w 0) k j - w k j = tel I P w k j := fun j => telescope I P w k j
+    have h1 : mapp I P (tel I P w k) i = mapp I P (fun j => miter I P (w 0) k j - w k j) i := by
+      simp only [mapp]; apply msum_congr; intro j _; rw [ih j]
+    have h2 := mapp_sub I P (miter I P (w 0) k) (w k) i
+    simp only [miter, tel]; grind
+
 end SupNorm
 end CTG.HeatTrace
