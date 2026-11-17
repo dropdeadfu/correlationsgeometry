@@ -3,7 +3,7 @@
 Working material on Appendix G of M. Neuberger, *From Correlations to Geometry* (the version with
 Appendix G, about 100 pages; `main` of this repository refers to the 74-page version without it).
 Produced on 17 November 2026 by two Claude sessions working together over a mesh: one on the author's
-side (paper, numerics, core-library Lean file) and `kartanwk8-cell01` on the repository owner's side.
+side (paper, numerics, core-library Lean file) and a second session on the repository owner's side ("the second session" below).
 
 This branch does not touch `main` or the Mathlib project in `CorrelationsGeometry/`.
 
@@ -14,13 +14,13 @@ unless the table says otherwise, has been read formula by formula by a second AI
 
 | Item | Statement | Status |
 |---|---|---|
-| Proposition G.22 (`prop:bias`) | On the flat torus, for fixed kernel scale and fixed `k`: `E Tr P^k = mu_k + beta_k/N + O(N^(-3/2))` with an explicit `beta_k`, with and without self-loops | proven; proof by `kartanwk8-cell01`, read by the other session; numerics |
+| Proposition G.22 (`prop:bias`) | On the flat torus, for fixed kernel scale and fixed `k`: `E Tr P^k = mu_k + beta_k/N + O(N^(-3/2))` with an explicit `beta_k`, with and without self-loops | proven; proof by the second session, read by the author-side session; numerics |
 | Proposition G.24 (`prop:variance`) | `Var Tr P^k = v_k/N^2 + O(N^(-5/2))`, `v_k = 1/2 int H_k^2`; with self-loops `beta_k = H_k(0)/2` | proven, same provenance; numerics |
 | Remarks G.23 (v), G.25 (v) | Relative bias a bounded multiple of `M/N` and relative fluctuation of order `sqrt(M)/N`, uniformly in `k`; rate `xi^2/t` for `N xi^(d+2) -> infinity` | conjecture; numerics |
 | Self-loops | Most of the `1/N` bias of the sampled trace is due to the self-loops (about `(d/2) M/N` relative); removing the diagonal of the kernel reduces the deviation of the subtracted trace from the population value by about a factor ten in the runs below | numerics for the size; the difference of the two coefficients is part of G.22 |
-| Lemmas G.26, G.27 (`lem:pgauss`, `lem:consistency`) | Consistency of the normalised walk: the one-step defect `h_m` is at most `C delta' m^(-1/2) p_6m`, `delta' = sqrt(M log N/N)`, with probability at least `1 - 7 N^(-3)` | proven; proof by `kartanwk8-cell01`, read line by line by the other session |
-| Theorem G.28 (`thm:kernel`) | `max |N (P^k)_ai - p_k(x_a - x_i)| <= C_1 delta' sqrt(k) m_k` for all `k <= (C_1 delta')^(-2)`: stability plus consistency in the supremum norm, no walk with exact normalisation, no eigenvalues | proven given G.27; written by the author-side session; the structure was attacked by `kartanwk8-cell01` without finding an error, the written-out proof has NOT yet been read by it |
-| Corollary G.29 (`cor:kernel-trace`) | Almost surely: the trace converges for `N xi^(d+2)/log N -> infinity`; the rate `xi^2/t` with the sharp coefficient holds for `N xi^(d+6)/log N -> infinity`, in every dimension (Theorem G.14 has `2d+6`, in probability, `d >= 2`) | proven given G.28; same caveat |
+| Lemmas G.26, G.27 (`lem:pgauss`, `lem:consistency`) | Consistency of the normalised walk: the one-step defect `h_m` is at most `C delta' m^(-1/2) p_6m`, `delta' = sqrt(M log N/N)`, with probability at least `1 - 7 N^(-3)` | proven; proof by the second session, read line by line by the author-side session |
+| Theorem G.28 (`thm:kernel`) | `max |N (P^k)_ai - p_k(x_a - x_i)| <= C_1 delta' sqrt(k) m_k` for all `k <= (C_1 delta')^(-2)`: stability plus consistency in the supremum norm, no walk with exact normalisation, no eigenvalues | proven given G.27; written by the author-side session; the written-out proof has been read by the second session, which found no error and four points of presentation, now included |
+| Corollary G.29 (`cor:kernel-trace`) | Almost surely: the trace converges for `N xi^(d+2)/log N -> infinity`; the rate `xi^2/t` with the sharp coefficient holds for `N xi^(d+6)/log N -> infinity`, in every dimension (Theorem G.14 has `2d+6`, in probability, `d >= 2`) | proven given G.28; read by the second session |
 | Sharp rate for `N xi^(d+2) -> infinity` | would need the averaging over the diagonal (bias `M/N` instead of the entrywise error `delta'`) | open; conjecture |
 | Theorem G.14, proof | Six small gaps closed (self-term in Step 1, tail `j > J`, bounds on Theta, uniform form of the expansion, two presentational points); statement unchanged | done in the paper; not part of this folder |
 
