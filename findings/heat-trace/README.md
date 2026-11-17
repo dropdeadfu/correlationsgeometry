@@ -9,8 +9,8 @@ This branch does not touch `main` or the Mathlib project in `CorrelationsGeometr
 
 ## Status of each item
 
-No statement here has been read by a person. "Proven" means: a complete proof is written out and has
-been read formula by formula by a second AI session.
+No statement here has been read by a person. "Proven" means: a complete proof is written out and,
+unless the table says otherwise, has been read formula by formula by a second AI session.
 
 | Item | Statement | Status |
 |---|---|---|
@@ -18,16 +18,21 @@ been read formula by formula by a second AI session.
 | Proposition G.24 (`prop:variance`) | `Var Tr P^k = v_k/N^2 + O(N^(-5/2))`, `v_k = 1/2 int H_k^2`; with self-loops `beta_k = H_k(0)/2` | proven, same provenance; numerics |
 | Remarks G.23 (v), G.25 (v) | Relative bias a bounded multiple of `M/N` and relative fluctuation of order `sqrt(M)/N`, uniformly in `k`; rate `xi^2/t` for `N xi^(d+2) -> infinity` | conjecture; numerics |
 | Self-loops | Most of the `1/N` bias of the sampled trace is due to the self-loops (about `(d/2) M/N` relative); removing the diagonal of the kernel reduces the deviation of the subtracted trace from the population value by about a factor ten in the runs below | numerics for the size; the difference of the two coefficients is part of G.22 |
-| Uniformity in `k` | Stability plus consistency in the supremum norm for the normalised walk; would give `sup |N P^k(a,i) - p_k| <= C sqrt(M log N/N) sqrt(k) m_k` almost surely and the sharp rate for `N xi^(d+6)/log N -> infinity` | in progress, NOT proven; the consistency lemma is being written out |
+| Lemmas G.26, G.27 (`lem:pgauss`, `lem:consistency`) | Consistency of the normalised walk: the one-step defect `h_m` is at most `C delta' m^(-1/2) p_6m`, `delta' = sqrt(M log N/N)`, with probability at least `1 - 7 N^(-3)` | proven; proof by `kartanwk8-cell01`, read line by line by the other session |
+| Theorem G.28 (`thm:kernel`) | `max |N (P^k)_ai - p_k(x_a - x_i)| <= C_1 delta' sqrt(k) m_k` for all `k <= (C_1 delta')^(-2)`: stability plus consistency in the supremum norm, no walk with exact normalisation, no eigenvalues | proven given G.27; written by the author-side session; the structure was attacked by `kartanwk8-cell01` without finding an error, the written-out proof has NOT yet been read by it |
+| Corollary G.29 (`cor:kernel-trace`) | Almost surely: the trace converges for `N xi^(d+2)/log N -> infinity`; the rate `xi^2/t` with the sharp coefficient holds for `N xi^(d+6)/log N -> infinity`, in every dimension (Theorem G.14 has `2d+6`, in probability, `d >= 2`) | proven given G.28; same caveat |
+| Sharp rate for `N xi^(d+2) -> infinity` | would need the averaging over the diagonal (bias `M/N` instead of the entrywise error `delta'`) | open; conjecture |
 | Theorem G.14, proof | Six small gaps closed (self-term in Step 1, tail `j > J`, bounds on Theta, uniform form of the expansion, two presentational points); statement unchanged | done in the paper; not part of this folder |
 
 ## Files
 
-- `bias_variance_excerpt.pdf` — the six pages of the paper with Propositions G.22, G.24 and Remarks
-  G.23, G.25 (the first and the last page also show the end of the preceding and the beginning of the
-  following item).
-- `bias_variance_excerpt.tex` — the TeX of the same part. A fragment that uses the macros and labels of
-  the paper; it does not compile on its own.
+- `appendix_G22_G30.pdf` — the ten pages of the paper with G.22 to G.30 (the first and the last page
+  also show the end of the preceding and the beginning of the following item).
+- `bias_variance_excerpt.tex` — TeX of Propositions G.22, G.24 and Remarks G.23, G.25.
+- `kernel_bound_excerpt.tex` — TeX of Lemmas G.26, G.27, Theorem G.28, Corollary G.29, Remark G.30.
+  Both are fragments that use the macros and labels of the paper; they do not compile on their own.
+- `scripts/kernel_sup_norm.py` — for one sample, the entrywise error of `P^k` against the heat kernel and
+  the size of the consistency defect relative to the bound of Lemma G.27.
 - `scripts/normalised_walk_bias.py` — Monte Carlo for `Tr P^k - m_k` on the torus (`d = 1, 2, 3`, with
   and without self-loops) against `beta_k/N`.
 - `scripts/normalised_walk_variance.py` — `N` times the standard deviation of `Tr P^k` against
@@ -55,3 +60,7 @@ configuration; they are not evidence for a rate.
 - Variance, `d = 2`, `xi = 0.15`, `N = 800`, 600 samples: `N sd` = 3.69, 2.36, 2.98, 1.54 for
   `k = 1, 2, 4, 8` (statistical error three percent) against `sqrt(v_k)` = 3.49, 2.33, 2.93, 1.48.
   At larger `M/N` the observed values exceed `sqrt(v_k)` by up to about twenty percent.
+- Kernel, `d = 2`, `xi = 0.05`, `N = 4000`, one sample (`delta' = 0.36`, so the hypotheses of Lemma G.27
+  do not hold; the run shows the shape of the bounds only): `max |N P^k - p_k| / m_k` = 0.51, 0.39, 0.32,
+  0.24, 0.21, 0.20, 0.20 for `k = 1, 2, 4, ..., 64`; `max |h_m| sqrt(m) / p_6m` divided by `delta'` =
+  1.45, 1.66, 1.71, 1.58, 1.01, 0.46, 0.12 for `m = 1, 2, 4, ..., 64`.

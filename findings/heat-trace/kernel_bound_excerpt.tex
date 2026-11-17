@@ -1,0 +1,153 @@
+% Excerpt of Appendix G of "From Correlations to Geometry" (working copy of 17 November 2026).
+% A fragment, not a standalone document; it uses the macros and labels of the paper.
+% The typeset pages are in appendix_G22_G30.pdf.
+
+% Lemmas G.26, G.27, Theorem G.28, Corollary G.29, Remark G.30.
+
+\paragraph{The kernel of the sampled walk} The remaining statements of this subsection concern the walk itself and not only its trace. For $t>0$ let $\gamma_t(v)=(2\pi t)^{-d/2}e^{-|v|^2/2t}$ on $\R^d$ and $p^{(t)}(w)=\sum_{n\in\mathbb Z^d}\gamma_t(w+n)$ on $\M=\R^d/\mathbb Z^d$, the heat kernel of $\M$ at the time $t/2$. Thus $p=p^{(\xi^2)}$, $p_m=p^{*m}=p^{(m\xi^2)}$, $M=p(0)$, $m_m=p_m(0)$, and $(\mathcal Pf)(x)=\int_\M p(x-y)f(y)\,\dd y$. The points $x_1,\dots,x_N$ are independent and uniform on $\M$, $\tilde P_{bj}=p(x_b-x_j)/N$ (self-loops included), $\epsilon_b=\sum_j\tilde P_{bj}-1$, $\delta=\max_b|\epsilon_b|$, $u_j=(1+\epsilon_j)^{-1}$, $r_b=\sum_j\tilde P_{bj}u_j$ and $P_{bj}=\tilde P_{bj}u_j/r_b$. For $1\le i\le N$ and $m\ge1$,
+\[
+h^{(i)}_m(b)=\sum_jP_{bj}\,p_m(x_j-x_i)-p_{m+1}(x_b-x_i).
+\]
+
+\begin{lemma}[Facts on the periodised Gaussian]\label{lem:pgauss}
+There is a constant $C_d\ge1$ such that for all $t>0$, $0<a\le\min(t,1)$ and $u,z\in\M$:
+\begin{enumerate}[label=\textup{(P\arabic*)}]
+\item $p^{(a)}\le(t/a)^{d/2}\,p^{(t)}$ pointwise;
+\item $\sup p^{(t)}=p^{(t)}(0)$ is non-increasing in $t$; $p^{(t)}(0)\le C_dt^{-d/2}$ for $t\le2$, $p^{(t)}(0)\le C_d$ for $t\ge2$, and $p^{(t)}\ge\frac12$ for $t\ge6$;
+\item $|\nabla p^{(t)}|\le2^{d/2}\,t^{-1/2}\,p^{(2t)}$ pointwise;
+\item $p^{(a)}(u)\,p^{(t)}(z-u)\le C_d\,(2\pi a)^{-d/2}\,p^{(3t)}(z)$;
+\item $\big(p^{(2t)}(0)\,p^{(3t)}(z)\big)^{1/2}\le C_d\,p^{(6t)}(z)$.
+\end{enumerate}
+\end{lemma}
+
+\begin{proof}
+(P1): $\gamma_a\le(t/a)^{d/2}\gamma_t$ for $a\le t$. (P2): $p^{(t)}(w)=\sum_{k\in\mathbb Z^d}e^{-2\pi^2|k|^2t}e^{2\pi ik\cdot w}$ has positive coefficients that decrease in $t$; $p^{(t)}(0)=(2\pi t)^{-d/2}\big(\sum_{j\in\mathbb Z}e^{-j^2/2t}\big)^d\le(2\pi t)^{-d/2}\big(1+2\sum_{j\ge1}e^{-j^2/4}\big)^d$ for $t\le2$; and $|p^{(t)}-1|\le\sum_{k\ne0}e^{-2\pi^2|k|^2t}\le\frac12$ for $t\ge6$. (P3): $\nabla\gamma_t(v)=-(v/t)\gamma_t(v)$ and $re^{-r^2/2}\le e^{-r^2/4}$ for $r\ge0$ give $|\nabla\gamma_t|\le t^{-1/2}2^{d/2}\gamma_{2t}$; sum over the lattice. (P4): for $v,v'\in\R^d$, $\frac{|v|^2}{2a}+\frac{|v'|^2}{2t}\ge\frac{|v|^2}{4a}+\frac{|v+v'|^2}{2(t+2a)}$, because $\frac{|v|^2}{4a}+\frac{|v'|^2}{2t}\ge\frac{|v+v'|^2}{4a+2t}$ by the Cauchy--Schwarz inequality. With $v=u+n$, $v'=z-u+n'$ and $n''=n+n'$,
+\[
+\begin{aligned}
+p^{(a)}(u)\,p^{(t)}(z-u)&\le(2\pi a)^{-d/2}(2\pi t)^{-d/2}\sum_ne^{-|u+n|^2/4a}\ \sum_{n''}e^{-|z+n''|^2/2(t+2a)}\\
+&\le C\,(2\pi a)^{-d/2}\Big(\frac{t+2a}{t}\Big)^{d/2}p^{(t+2a)}(z),
+\end{aligned}
+\]
+since $\sum_ne^{-|u+n|^2/4a}\le(2+2\sum_{j\ge1}e^{-j^2/4})^d$ for $a\le1$; now use $t+2a\le3t$ and (P1). (P5): for $t\le1$, $\big(p^{(3t)}(z)\big)^{1/2}\le\sum_n\gamma_{3t}(z+n)^{1/2}=(24\pi t)^{d/4}p^{(6t)}(z)$ and $p^{(2t)}(0)\le C_d(2t)^{-d/2}$; for $t\ge1$ the left-hand side is bounded and $p^{(6t)}\ge\frac12$, by (P2).
+\end{proof}
+
+\begin{lemma}[Consistency of the normalised walk]\label{lem:consistency}
+Let $d\ge1$, $0<\xi\le1$, $N\ge3$, $M\log N\le N$, $\delta'=\sqrt{M\log N/N}$ and $6\delta'\le\frac18$. There is a constant $C$ depending only on $d$ such that, with probability at least $1-7N^{-3}$, the following hold for all $b,i\in\{1,\dots,N\}$ and all integers $1\le m\le\delta'^{-2}$:
+\begin{enumerate}[label=\textup{(\roman*)}]
+\item $\delta\le6\delta'$;
+\item $\big|h^{(i)}_m(b)\big|\le C\,\delta'\,m^{-1/2}\,p_{6m}(x_b-x_i)$;
+\item $\frac1N\sum_bp_{6m}(x_b-x_i)\le1+9\delta'$.
+\end{enumerate}
+In particular $\max_b|h^{(i)}_m(b)|\le C\delta'm^{-1/2}m_{6m}$ and $\frac1N\sum_b|h^{(i)}_m(b)|\le2C\delta'm^{-1/2}$.
+\end{lemma}
+
+\begin{proof}
+We use Bernstein's inequality in the following form: if $X_1,\dots,X_n$ are independent and centred, $|X_j|\le B$ and $\mathbb EX_j^2\le v$, then for every $L>0$, with probability at least $1-2e^{-L}$, $|\sum_jX_j|\le\sqrt{2nvL}+\frac23BL$. Throughout $L=6\log N$, and $C$ denotes constants that depend only on $d$.
+
+\emph{\textup{(i)}} is Step~1 of the proof of Theorem~\ref{thm:jointpoly} and fails with probability at most $2N^{-3}$.
+
+\emph{\textup{(iii)}.} Fix $i$ and $m$. Given $x_i$, the variables $p_{6m}(x_b-x_i)-1$, $b\ne i$, are independent and centred, bounded by $\max(m_{6m},1)\le M$ and of variance at most $\int p_{6m}^2=m_{12m}\le M$, by (P2). With probability at least $1-2N^{-6}$ their sum is at most $\sqrt{12MN\log N}+4M\log N$ in absolute value, that is, at most $N(\sqrt{12}\,\delta'+4\delta'^2)$; the term $b=i$ contributes $m_{6m}/N\le\delta'^2$. Since $\delta'\le1$ this gives (iii), and the union over $i$ and $m\le\delta'^{-2}\le N$ costs at most $2N^{-4}$.
+
+\emph{\textup{(ii)}.} Fix $b$, $i$, $m$, put $s=m\xi^2$, $z=x_b-x_i$, $g=p_m(\cdot-x_i)$ and $c_b=(\mathcal Pg)(x_b)=p_{m+1}(z)$. Since $\sum_jP_{bj}=1$,
+\begin{equation}\label{eq:cons-split}
+h^{(i)}_m(b)=\frac1{r_b}\,(S_1+S_2),\qquad S_1=\sum_j\tilde P_{bj}\big(g(x_j)-c_b\big),\qquad S_2=\sum_j\tilde P_{bj}(u_j-1)\big(g(x_j)-c_b\big).
+\end{equation}
+On the event (i), $\delta\le\frac18$, hence $1/r_b\le\frac{10}7$ and $|u_j-1|\le\frac87\delta$, so that
+\[
+\big|h^{(i)}_m(b)\big|\le\tfrac{10}7\big(|S_1|+\tfrac87\,\delta\,A\big),\qquad A=\frac1N\sum_jp(x_b-x_j)\,\big|g(x_j)-c_b\big| .
+\]
+For $j\notin\{b,i\}$ let $Y_j=p(x_b-x_j)\,(g(x_j)-c_b)$. Given $x_b$ and $x_i$ the $Y_j$ are independent and identically distributed, and $\mathbb EY_j=\int p(x_b-y)p_m(y-x_i)\,\dd y-c_b=0$.
+
+\emph{A bound for $Y_j$.} By (P4) with $a=\xi^2$, $t=s$ and $(2\pi\xi^2)^{-d/2}\le M$, $p(x_b-y)\,p_m(y-x_i)\le CM\,p^{(3s)}(z)$ for all $y$, and $c_b=p^{(s+\xi^2)}(z)\le3^{d/2}p^{(3s)}(z)$ by (P1). Hence
+\begin{equation}\label{eq:cons-B}
+|Y_j|\le B:=C\,M\,p^{(3s)}(z).
+\end{equation}
+\emph{The variance.} For a function $f$ on $\M$, $\int_\M p(x_b-y)f(y)\,\dd y=\mathbb E\,f(x_b+\xi Z)$ with a standard Gaussian vector $Z$ in $\R^d$ ($f$ extended periodically). Hence $c_b=\mathbb E\,g(x_b+\xi Z)$ and, by the Gaussian Poincar\'e inequality, (P3), (P2) and $\mathcal Pp^{(2s)}=p^{(2s+\xi^2)}\le(\frac32)^{d/2}p^{(3s)}$,
+\begin{align}
+\mathbb EY_j^2&\le M\int p(x_b-y)\,(g(y)-c_b)^2\,\dd y=M\operatorname{Var}g(x_b+\xi Z)\le M\,\xi^2\,\big(\mathcal P|\nabla p_m|^2\big)(z)\notag\\
+&\le M\,\xi^2\,\frac{2^d}{s}\,p^{(2s)}(0)\,\big(\mathcal Pp^{(2s)}\big)(z)\le v:=\frac{C\,M}{m}\,p^{(2s)}(0)\,p^{(3s)}(z),\label{eq:cons-v}
+\end{align}
+and $\mathbb E|Y_j|\le(v/M)^{1/2}$ by the Cauchy--Schwarz inequality.
+
+\emph{Bernstein.} With probability at least $1-2N^{-6}$, by \eqref{eq:cons-B}, \eqref{eq:cons-v}, (P1) and (P5),
+\[
+\begin{aligned}
+\Big|\frac1N\sum_{j\notin\{b,i\}}Y_j\Big|&\le\sqrt{\frac{12\,v\log N}{N}}+\frac{4B\log N}{N}\le C\,\delta'\,m^{-1/2}\big(p^{(2s)}(0)\,p^{(3s)}(z)\big)^{1/2}+C\,\delta'^2\,p^{(3s)}(z)\\
+&\le C\,\delta'\,m^{-1/2}\,p^{(6s)}(z),
+\end{aligned}
+\]
+where the last step uses $\delta'\le m^{-1/2}$. The same bound holds, with the same probability, for $\frac1N\sum_{j\notin\{b,i\}}(|Y_j|-\mathbb E|Y_j|)$, because $\big||Y_j|-\mathbb E|Y_j|\big|\le B$ and $\operatorname{Var}|Y_j|\le v$.
+
+\emph{The two exceptional terms.} The term $j=b$ of $S_1$ and of $A$ is at most $\frac MN\,(p_m(z)+p_{m+1}(z))\le C\,\frac MN\,p^{(3s)}(z)$ in absolute value, by (P1). For $b\ne i$ the term $j=i$ is at most $\frac1N\,(p(z)\,p_m(0)+M\,c_b)\le C\,\frac MN\,p^{(3s)}(z)$, by (P4) with $u=z$. Since $M/N\le\delta'^2\le\delta'm^{-1/2}$ and $p^{(3s)}\le2^{d/2}p^{(6s)}$, both are at most $C\delta'm^{-1/2}p^{(6s)}(z)$.
+
+\emph{Conclusion.} On the intersection of these events, $|S_1|\le C\delta'm^{-1/2}p^{(6s)}(z)$ and
+\[
+\begin{aligned}
+A&\le\mathbb E|Y_j|+C\,\delta'm^{-1/2}p^{(6s)}(z)\le C\,m^{-1/2}\big(p^{(2s)}(0)p^{(3s)}(z)\big)^{1/2}+C\,\delta'm^{-1/2}p^{(6s)}(z)\\
+&\le C\,m^{-1/2}\,p^{(6s)}(z),
+\end{aligned}
+\]
+again by (P5). With $\delta\le6\delta'$ and $p^{(6s)}=p_{6m}$ this is (ii). There are at most $N^2\delta'^{-2}\le N^3$ triples $(b,i,m)$ and two events for each, so (ii) fails with probability at most $4N^{-3}$; together with (i) and (iii) the total is at most $7N^{-3}$. The last two statements follow from $p_{6m}\le m_{6m}$ and from (iii) with $9\delta'\le1$.
+\end{proof}
+
+\begin{theorem}[The kernel of the sampled walk, uniformly in the number of steps]\label{thm:kernel}
+In the situation of Lemma~\ref{lem:consistency} let $m_s=p^{(s\xi^2)}(0)$ for real $s>0$, let
+\[
+D_k=\max_{a,i}\big|N(P^k)_{ai}-p_k(x_a-x_i)\big|,
+\]
+and let $C_1=24+3\cdot2^{d+3}C$ with the constant $C$ of the lemma. On the event of the lemma, for all integers $k$ with $1\le k\le(C_1\delta')^{-2}$,
+\[
+D_k\le C_1\,\delta'\,\sqrt k\;m_k,\qquad\text{in particular}\qquad\big|\Tr P^k-m_k\big|\le C_1\,\delta'\,\sqrt k\;m_k .
+\]
+\end{theorem}
+
+\begin{proof}
+By (P2) and (P1), $s\mapsto m_s$ is non-increasing and $m_s\le2^{d/2}m_{2s}$.
+
+\emph{Step 1: telescoping.} Let $R$ be the restriction of functions on $\M$ to the points, and write $(Pg)(b)=\sum_jP_{bj}\,g(x_j)$. For every $g$ and $k\ge1$,
+\[
+P^kRg-R\mathcal P^kg=\sum_{l=0}^{k-1}P^l\,(PR-R\mathcal P)\,\mathcal P^{k-1-l}g .
+\]
+For $g_i=p(\cdot-x_i)$ one has $\mathcal P^ng_i=p_{n+1}(\cdot-x_i)$ and $(PR-R\mathcal P)\,p_m(\cdot-x_i)=h^{(i)}_m$. With $m=k-l$,
+\begin{equation}\label{eq:kernel-telescope}
+(P^kRg_i)(a)=p_{k+1}(x_a-x_i)+\sum_{m=1}^k\big(P^{k-m}h^{(i)}_m\big)(a).
+\end{equation}
+\emph{Step 2: the last step of the walk.} As in Step~2 of the proof of Theorem~\ref{thm:jointpoly}, $NP_{bi}=p(x_b-x_i)(1+\theta_{bi})$ with $|\theta_{bi}|\le4\delta$ for $\delta\le\frac18$. Since $N(P^{k+1})_{ai}=\sum_b(P^k)_{ab}\,NP_{bi}$ and the entries of $P^k$ are nonnegative, $|N(P^{k+1})_{ai}-(P^kRg_i)(a)|\le4\delta\,(P^kRg_i)(a)$. With \eqref{eq:kernel-telescope} and $p_{k+1}\le m_{k+1}$,
+\begin{equation}\label{eq:kernel-rec}
+D_{k+1}\le4\delta\,m_{k+1}+(1+4\delta)\,S_k,\qquad S_k=\max_{a,i}\Big|\sum_{m=1}^k\big(P^{k-m}h^{(i)}_m\big)(a)\Big| .
+\end{equation}
+\emph{Step 3: two bounds for one term.} $P^l$ is row-stochastic, hence $|(P^lh)(a)|\le\max_b|h(b)|$; and for $l\ge1$, $|(P^lh)(a)|\le\max_bN(P^l)_{ab}\cdot\frac1N\sum_b|h(b)|\le(m_l+D_l)\,\frac1N\sum_b|h(b)|$. By the lemma, $\max_b|h^{(i)}_m(b)|\le C\delta'm^{-1/2}m_{6m}$ and $\frac1N\sum_b|h^{(i)}_m(b)|\le2C\delta'm^{-1/2}$.
+
+\emph{Step 4: induction.} We show $D_k\le C_1\delta'\sqrt k\,m_k$ for $1\le k\le(C_1\delta')^{-2}$. For $k=1$, $|NP_{ai}-p(x_a-x_i)|\le4\delta M\le24\,\delta'm_1$. Let the claim hold up to $k$, with $k+1\le(C_1\delta')^{-2}$; then $D_l\le m_l$ for $l\le k$, and all $m\le k$ are in the range of the lemma. In $S_k$ use the first bound of Step~3 for $m>k/2$ and the second for $m\le k/2$. For $m>k/2$, $6m\ge k+1$ and $m_{6m}\le m_{k+1}$. For $m\le k/2$, $k-m\ge k/2\ge(k+1)/4$, so $m_{k-m}+D_{k-m}\le2m_{(k+1)/4}\le2^{d+1}m_{k+1}$. Hence
+\[
+S_k\le C\,\delta'\,m_{k+1}\Big[\sum_{k/2<m\le k}m^{-1/2}+2^{d+2}\sum_{m\le k/2}m^{-1/2}\Big]\le2^{d+3}C\,\delta'\,\sqrt k\;m_{k+1},
+\]
+and by \eqref{eq:kernel-rec}, with $\delta\le6\delta'\le\frac18$, $D_{k+1}\le\big(24+\tfrac32\cdot2^{d+3}C\big)\delta'\sqrt{k+1}\,m_{k+1}\le C_1\delta'\sqrt{k+1}\,m_{k+1}$. Finally $\Tr P^k-m_k=\frac1N\sum_i\big(N(P^k)_{ii}-p_k(0)\big)$.
+\end{proof}
+
+\begin{corollary}[The joint regime, almost surely]\label{cor:kernel-trace}
+Let $\M=\R^d/\mathbb Z^d$, $d\ge1$, with the uniform density and the periodised Gaussian kernel, and let $\xi_N\to0$ and $N\xi_N^{d+2}/\log N\to\infty$. Then almost surely, for all large $N$, all $t\in[\xi_N^2,1]$ and all integers $1\le k\le20\,\xi_N^{-2}$, with $\sigma=\xi_N^2/2$, $\tau=2t/\xi_N^2$ and $\delta'=\sqrt{M\log N/N}$,
+\[
+\Big|\frac{\Tr P^k}{\Tr e^{k\sigma\Delta}}-1\Big|\le C_1\,\delta'\sqrt k,\qquad\Big|\frac{\Tr e^{-t\Lc}-Ne^{-\tau}}{T_\sigma(t)}-1\Big|\le C_1\,\delta'\sqrt{8\tau+2\log N+2}+\frac{4M}{N^2},
+\]
+and both right-hand sides are at most $C\big(\log N\,(1+\xi_N^2\log N)/N\xi_N^{d+2}\big)^{1/2}$, which tends to zero. If moreover $N\xi_N^{d+6}/\log N\to\infty$, they are $o(\xi_N^2)$, and almost surely
+\[
+\frac{\Tr e^{-t_N\Lc}-Ne^{-\tau}}{\Tr e^{t_N\Delta}}=1+\frac{d(d+2)}{8\tau}+O(\tau^{-2})+O(\xi_N^2)+o(\xi_N^2)
+\]
+for every sequence $t_N\in[\xi_N^2,1]$: the rate $\xi^2/t$ of open problem~2 holds with the sharp coefficient, almost surely, in this regime.
+\end{corollary}
+
+\begin{proof}
+The probabilities $7N^{-3}$ are summable, so almost surely the event of Lemma~\ref{lem:consistency} holds for all large $N$. Let $J=\lceil8\tau\rceil+\lceil2\log N\rceil$; then $J\le16\,\xi_N^{-2}+2\log N+2$ and $\delta'^2J\le CM\log N\,(\xi_N^{-2}+\log N)/N\to0$, so that $J$ and $20\,\xi_N^{-2}$ are at most $(C_1\delta')^{-2}$ for large $N$, and the conditions $M\log N\le N$ and $6\delta'\le\frac18$ hold. The first statement is the theorem with $m_k=\Tr e^{k\sigma\Delta}$. For the second, $\Tr e^{-t\Lc}-Ne^{-\tau}=\sum_{j\ge1}w_j\Tr P^j$ by Theorem~\ref{thm:poisson} and $T_\sigma(t)=\sum_{j\ge1}w_jm_j$ by Theorem~\ref{thm:rate}(i), with $w_j=e^{-\tau}\tau^j/j!$. For $j\le J$ use the theorem and $\sqrt j\le\sqrt J$. For $j>J$: $\Tr P^j\le\Tr P^2\le2m_2\le2M$ by Proposition~\ref{prop:moments}(ii) and the theorem, $m_j\le M$, and $\sum_{j>J}w_j\le N^{-2}$ as in Step~4 of the proof of Theorem~\ref{thm:jointpoly}. Finally $T_\sigma(t)\ge\sum_{j\ge1}w_j=1-e^{-\tau}\ge\frac34$, because $m_j\ge1$ and $\tau\ge2$. If $N\xi_N^{d+6}/\log N\to\infty$, then $\delta'^2J=o(\xi_N^4)$: for $\log N\le\xi_N^{-2}$ it is at most $CM\log N\,\xi_N^{-2}/N$, and otherwise at most $CM(\log N)^2/N$ with $\xi_N^2>1/\log N$. The last statement follows from the uniform form of \eqref{eq:rateexact} in Step~5 of the proof of Theorem~\ref{thm:jointpoly}.
+\end{proof}
+
+\begin{remark}[Scope and status of the kernel estimate]\label{rem:kernel}
+(i) The argument is the comparison of two recursions in the supremum norm: the sampled walk is stable, because $P$ is row-stochastic, and consistent with the population walk by Lemma~\ref{lem:consistency}. It uses neither the walk $\tilde P$ with the exact normalisation nor an expansion in $\epsilon$, and no eigenvalues. Corollary~\ref{cor:kernel-trace} contains the second statement of Theorem~\ref{thm:jointpoly} and its first statement in a larger regime, in every dimension and almost surely: the exponent $2d+6$ is replaced by $d+6$ for the sharp rate, and the trace converges, with the rate $(\log N/N\xi_N^{d+2})^{1/2}$ up to a logarithm, as soon as $N\xi_N^{d+2}/\log N\to\infty$. Theorem~\ref{thm:jointpoly} and its proof are kept because the count of closed walks is of independent use (Propositions~\ref{prop:bias}, \ref{prop:variance}).
+
+(ii) The estimate is not sharp for the trace. It bounds every entry of $P^k$, and the supremum over the entries is of the order $\delta'$; the mean over the diagonal is much smaller, of the order $M/N$ according to Propositions~\ref{prop:bias} and~\ref{prop:variance} and Remarks~\ref{rem:bias}(v), \ref{rem:variance}(v). The sharp rate under the condition $N\xi_N^{d+2}\to\infty$ of those remarks would need this averaging and remains a conjecture.
+
+(iii) \emph{Numerical illustration.} For one sample on the flat two-torus with $\xi=0.05$ and $N=4000$, where $\delta'=0.36$, the ratio $D_k/m_k$ is $0.51$, $0.39$, $0.32$, $0.24$, $0.21$, $0.20$, $0.20$ for $k=1,2,4,\dots,64$, and $\max_{b,i}|h^{(i)}_m(b)|\,m^{1/2}/p_{6m}(x_b-x_i)$ divided by $\delta'$ is $1.45$, $1.66$, $1.71$, $1.58$, $1.01$, $0.46$, $0.12$ for $m=1,2,4,\dots,64$; for $N=2000$ the numbers are similar. In these runs $\delta'$ is not small and the hypotheses of the lemma do not hold; they show the shape of the two bounds and not their validity.
+
+(iv) \emph{Provenance.} Lemmas~\ref{lem:pgauss} and~\ref{lem:consistency} and Theorem~\ref{thm:kernel} with its corollary were written on one day by two sessions of an AI system, each reading the part of the other line by line. No person has read them. Of all statements of this appendix these are the ones for which an independent check matters most.
+\end{remark}
+
