@@ -22,7 +22,9 @@ unless the table says otherwise, has been read formula by formula by a second AI
 | Theorem G.28 (`thm:kernel`) | `max |N (P^k)_ai - p_k(x_a - x_i)| <= C_1 delta' sqrt(k) m_k` for all `k <= (C_1 delta')^(-2)`: stability plus consistency in the supremum norm, no walk with exact normalisation, no eigenvalues | proven given G.27; written by the author-side session; the written-out proof has been read by the second session, which found no error and four points of presentation, now included |
 | Corollary G.29 (`cor:kernel-trace`) | Almost surely: the trace converges for `N xi^(d+2)/log N -> infinity`; the rate `xi^2/t` with the sharp coefficient holds for `N xi^(d+6)/log N -> infinity`, in every dimension (Theorem G.14 has `2d+6`, in probability, `d >= 2`) | proven given G.28; read by the second session |
 | Corollary G.30 (`cor:kernel-corrected`) | The corrected estimator `T - (sigma t/2) T''` of the sampled graph deviates from the heat trace by `O(tau^-2) + O(tau delta' sqrt(tau + log N))` | proven given G.28; written by the author-side session; the second session checked the statement and a summary of the proof (not the text in the paper) and found no error. The error is smaller than the gain of the correction only for `N xi^(d+10)/log N -> infinity` at a fixed time |
-| Corollary G.31 (`cor:kernel-noloops`) | G.28 and G.29 for the graph without self-loops: `D_1 = m_1`, the bound holds from `k = 2` on, and the subtracted trace is compared with `T_sigma - tau e^(-tau) M` | proven given G.27, G.28; written by the author-side session, NOT yet read by the second session |
+| Corollary G.31 (`cor:kernel-noloops`) | G.28 and G.29 for the graph without self-loops: `D_1 = m_1`, the bound holds from `k = 2` on, and the subtracted trace is compared with `T_sigma - tau e^(-tau) M` | proven given G.27, G.28; written by the author-side session, read by the second session |
+| Second stage, reduction (`second_stage_reduction.tex`, DRAFT, not in the paper) | On the event of G.27: `|Tr P^(k+1) - m_(k+1) - Pi_k| <= C delta'^2 k phi_d(k) m_(k+1)` for an explicit polynomial statistic `Pi_k` of degree four | proven in the draft by the author-side session; NOT yet read by the second session |
+| Second stage, bound for `Pi_k` | `E|Pi_k| <= C (M/N) k m_k` uniformly in `k`; together with the reduction this would give the sharp rate in probability for `N xi^(d+4)/log N -> infinity` in dimensions one and two | in progress (second session); plan checked numerically, NOT proven |
 | Sharp rate for `N xi^(d+2) -> infinity` | would need the averaging over the diagonal (bias `M/N` instead of the entrywise error `delta'`) | open; conjecture |
 | Theorem G.14, proof | Six small gaps closed (self-term in Step 1, tail `j > J`, bounds on Theta, uniform form of the expansion, two presentational points); statement unchanged | done in the paper; not part of this folder |
 
@@ -35,6 +37,8 @@ unless the table says otherwise, has been read formula by formula by a second AI
   Both are fragments that use the macros and labels of the paper; they do not compile on their own.
 - `scripts/kernel_sup_norm.py` — for one sample, the entrywise error of `P^k` against the heat kernel and
   the size of the consistency defect relative to the bound of Lemma G.27.
+- `second_stage_reduction.tex` — draft of the reduction of the trace error to a polynomial statistic (see the
+  table for its status).
 - `scripts/normalised_walk_bias.py` — Monte Carlo for `Tr P^k - m_k` on the torus (`d = 1, 2, 3`, with
   and without self-loops) against `beta_k/N`.
 - `scripts/normalised_walk_variance.py` — `N` times the standard deviation of `Tr P^k` against
