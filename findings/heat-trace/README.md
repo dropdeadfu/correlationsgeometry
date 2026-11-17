@@ -46,10 +46,14 @@ unless the table says otherwise, has been read formula by formula by a second AI
 - `scripts/subtracted_trace_loops.py` — the subtracted trace with and without self-loops against the
   population value and against the first-order prediction.
 - `lean-core/CorrelationsToGeometry.lean` — the author's Lean file (Lean 4.29.0, core library only, no
-  Mathlib; 237 theorems, no `sorry`, no `axiom`). Its last section contains the algebra of G.22 and
+  Mathlib; 244 theorems, no `sorry`, no `axiom`). Its last section contains the algebra of G.22 and
   G.24 (`gamma_expansion`, `bias_sum`, `bias_loops`, `variance_kernel_sum`, `bias_is_diagonal`) and the
   stability of a row-stochastic matrix in the supremum norm (`Stoch.app_le`, `lax_stability`,
-  `weighted_sum_bound`) and the telescoping identity of Theorem G.28, Step 1 (`telescope`), the step inequality (`kernel_step`) and the logic of its induction (`bootstrap`). The probabilistic parts are not formalised. Check with
+  `weighted_sum_bound`) and the telescoping identity of Theorem G.28, Step 1 (`telescope`), the step inequality (`kernel_step`) and the logic of its induction (`bootstrap`). The probabilistic parts are not formalised. The namespace `CTG.TwoMode` at the end
+  contains the algebra of work package WP1 of `PLAN.md` (symplectic spectrum of the two-mode covariance
+  matrix: `xp_eigenvalues`, `xp_charpoly`, `rotation_diagonalises`, `squeeze`, `symplectic_block`,
+  `symplectic_diagonal`), without Mathlib and with the square roots as hypotheses; it does not replace
+  milestone M1 of the Mathlib project. Check with
   `lean CorrelationsToGeometry.lean` (no output and exit code 0 means accepted).
 
 The scripts need `numpy`. All numbers come from single runs with a fixed seed and a few samples per

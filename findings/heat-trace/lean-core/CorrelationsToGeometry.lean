@@ -3273,3 +3273,98 @@ theorem bootstrap (D mu : Nat → α) (K : Nat) (h1 : D 1 ≤ mu 1)
 
 end SupNorm
 end CTG.HeatTrace
+
+namespace CTG.TwoMode
+open Lean.Grind
+
+/-! ## Proposition 4.2 (mutual information of two modes): the symplectic spectrum, algebra only
+
+  The covariance matrix of the pair in the order `(phi_A, phi_B, pi_A, pi_B)` is block diagonal
+  with `X = [[x0, x], [x, x0]]` and `P = [[p0, p], [p, p0]]`. Checked here: the eigenvalues of
+  `X P`, and the explicit symplectic matrix `S = diag(A, B)` with `A = D R`, `B = D⁻¹ R`
+  (`R` the rotation by 45 degrees, `D = diag(s₊, s₋)`) that brings the covariance matrix to
+  `diag(nu₊, nu₋, nu₊, nu₋)`.
+
+  HYPOTHESES (no square roots exist in an arbitrary ordered field): a number `r` with
+  `2 r² = 1`, and numbers `a₊ = s₊²`, `a₋ = s₋²` with `a±² (x0 ± x) = p0 ± p`.
+  NOT CHECKED: that the entropy of a Gaussian state is the sum of `f` over its symplectic
+  eigenvalues, and everything else about quantum states. -/
+
+section Symplectic
+variable {α : Type} [Field α] [LE α] [LT α] [Std.LawfulOrderLT α] [Std.IsLinearOrder α] [OrderedRing α]
+
+/-- `X P = [[A, B], [B, A]]` with `A = x0 p0 + x p`, `B = x0 p + x p0`; `(1, 1)` and `(1, -1)`
+    are eigenvectors with the eigenvalues `(x0 + x)(p0 + p)` and `(x0 - x)(p0 - p)`. -/
+theorem xp_eigenvalues (x0 x p0 p : α) :
+    (x0 * p0 + x * p) + (x0 * p + x * p0) = (x0 + x) * (p0 + p)
+      ∧ (x0 * p0 + x * p) - (x0 * p + x * p0) = (x0 - x) * (p0 - p) := by
+  constructor <;> grind
+
+/-- The characteristic polynomial of `X P`. -/
+theorem xp_charpoly (x0 x p0 p lam : α) :
+    (x0 * p0 + x * p - lam) * (x0 * p0 + x * p - lam) - (x0 * p + x * p0) * (x0 * p + x * p0)
+      = ((x0 + x) * (p0 + p) - lam) * ((x0 - x) * (p0 - p) - lam) := by grind
+
+/-- Negative control: `(x0 + x)(p0 - p)` is not an eigenvalue in general
+    (`x0 = 2, x = 1, p0 = 2, p = 1`). -/
+theorem xp_charpoly_control :
+    ¬ ((2 * 2 + 1 * 1 - (2 + 1) * (2 - 1)) * (2 * 2 + 1 * 1 - (2 + 1) * (2 - 1))
+        - (2 * 1 + 1 * 2) * (2 * 1 + 1 * 2) = (0 : Int)) := by decide
+
+/-- The rotation `R = r [[1, 1], [1, -1]]` with `2 r² = 1` is orthogonal and diagonalises
+    `X = [[x0, x], [x, x0]]`: `R X Rᵀ = diag(x0 + x, x0 - x)`. Entries `(1,1)`, `(1,2)`, `(2,2)`. -/
+theorem rotation_diagonalises (r x0 x : α) (hr : 2 * (r * r) = 1) :
+    r * (r * x0 + r * x) + r * (r * x + r * x0) = x0 + x
+      ∧ r * (r * x0 + r * x) - r * (r * x + r * x0) = 0
+      ∧ r * (r * x0 - r * x) - r * (r * x - r * x0) = x0 - x
+      ∧ r * r + r * r = 1 ∧ r * r - r * r = 0 := by
+  refine ⟨?_, ?_, ?_, ?_, ?_⟩ <;> grind
+
+/-- Squeezing: if `a² X = P` (so that `a = sqrt(P / X)`), then `nu := a X` satisfies
+    `nu² = X P` and `a nu = P`, that is `P / a = nu`: the rescaled variances of position and of
+    momentum are both equal to the symplectic eigenvalue. -/
+theorem squeeze (a X P : α) (h : a * a * X = P) :
+    (a * X) * (a * X) = X * P ∧ a * (a * X) = P := by
+  constructor <;> grind
+
+/-- `S = diag(A, B)` with `A = D R`, `B = D⁻¹ R` is symplectic: `A Bᵀ = 1`. Here `t₊ = 1/s₊`,
+    `t₋ = 1/s₋`. Entries `(1,1)`, `(1,2)`, `(2,1)`, `(2,2)` of `A Bᵀ`. -/
+theorem symplectic_block (r sp sm tp tm : α) (hr : 2 * (r * r) = 1) (hp : sp * tp = 1)
+    (hm : sm * tm = 1) :
+    (sp * r) * (tp * r) + (sp * r) * (tp * r) = 1
+      ∧ (sp * r) * (tm * r) - (sp * r) * (tm * r) = 0
+      ∧ (sm * r) * (tp * r) - (sm * r) * (tp * r) = 0
+      ∧ (sm * r) * (tm * r) + (sm * r) * (tm * r) = 1 := by
+  have e1 : (sp * r) * (tp * r) = (sp * tp) * (r * r) := by grind
+  have e2 : (sm * r) * (tm * r) = (sm * tm) * (r * r) := by grind
+  refine ⟨?_, ?_, ?_, ?_⟩ <;> grind
+
+/-- The diagonal form: with `A = D R` and `B = D⁻¹ R`, the `(1,1)` entries of `A X Aᵀ` and of
+    `B P Bᵀ` are `s₊² (x0 + x)` and `(p0 + p) / s₊²`; if `s₊⁴ (x0 + x) = p0 + p` both equal
+    `nu₊` with `nu₊² = (x0 + x)(p0 + p)`. (The entries `(2,2)` are the same with `x → -x`,
+    `p → -p`, and the off-diagonal entries vanish by `rotation_diagonalises`.) -/
+theorem symplectic_diagonal (r sp tp x0 x p0 p : α) (hr : 2 * (r * r) = 1) (hp : sp * tp = 1)
+    (hs : (sp * sp) * (sp * sp) * (x0 + x) = p0 + p) :
+    (sp * r) * ((sp * r) * x0 + (sp * r) * x) + (sp * r) * ((sp * r) * x + (sp * r) * x0)
+        = (sp * sp) * (x0 + x)
+      ∧ (tp * r) * ((tp * r) * p0 + (tp * r) * p) + (tp * r) * ((tp * r) * p + (tp * r) * p0)
+        = (sp * sp) * (x0 + x)
+      ∧ ((sp * sp) * (x0 + x)) * ((sp * sp) * (x0 + x)) = (x0 + x) * (p0 + p) := by
+  have e1 : (sp * r) * ((sp * r) * x0 + (sp * r) * x) + (sp * r) * ((sp * r) * x + (sp * r) * x0)
+      = (sp * sp) * (2 * (r * r)) * (x0 + x) := by grind
+  have e2 : (tp * r) * ((tp * r) * p0 + (tp * r) * p) + (tp * r) * ((tp * r) * p + (tp * r) * p0)
+      = (tp * tp) * (2 * (r * r)) * (p0 + p) := by grind
+  have e3 : (tp * tp) * ((sp * sp) * (sp * sp)) = (sp * tp) * (sp * tp) * (sp * sp) := by grind
+  have e4 : (tp * tp) * (p0 + p) = (sp * sp) * (x0 + x) := by
+    rw [← hs]
+    have : (tp * tp) * ((sp * sp) * (sp * sp) * (x0 + x))
+        = (tp * tp) * ((sp * sp) * (sp * sp)) * (x0 + x) := by grind
+    rw [this, e3, hp]; grind
+  refine ⟨?_, ?_, ?_⟩
+  · rw [e1, hr]; grind
+  · rw [e2, hr]; grind
+  · have h2 := (squeeze (sp * sp) (x0 + x) (p0 + p) hs).1
+    exact h2
+
+end Symplectic
+end CTG.TwoMode
