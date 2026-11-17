@@ -1,8 +1,8 @@
 % Excerpt of Appendix G of "From Correlations to Geometry" (working copy of 17 November 2026).
 % A fragment, not a standalone document; it uses the macros and labels of the paper.
-% The typeset pages are in appendix_G22_G32.pdf.
+% The typeset pages are in appendix_G22_G35.pdf.
 
-% Lemmas G.26, G.27, Theorem G.28, Corollaries G.29, G.30, G.31, Remark G.32.
+% Lemmas G.26, G.27, Theorem G.28, Corollaries G.29-G.31, Lemma G.32, Theorem G.33, Remarks G.34, G.35.
 
 \paragraph{The kernel of the sampled walk} The remaining statements of this subsection concern the walk itself and not only its trace. For $t>0$ let $\gamma_t(v)=(2\pi t)^{-d/2}e^{-|v|^2/2t}$ on $\R^d$ and $p^{(t)}(w)=\sum_{n\in\mathbb Z^d}\gamma_t(w+n)$ on $\M=\R^d/\mathbb Z^d$, the heat kernel of $\M$ at the time $t/2$. Thus $p=p^{(\xi^2)}$, $p_m=p^{*m}=p^{(m\xi^2)}$, $M=p(0)$, $m_m=p_m(0)$, and $(\mathcal Pf)(x)=\int_\M p(x-y)f(y)\,\dd y$. The points $x_1,\dots,x_N$ are independent and uniform on $\M$, $\tilde P_{bj}=p(x_b-x_j)/N$ (self-loops included), $\epsilon_b=\sum_j\tilde P_{bj}-1$, $\delta=\max_b|\epsilon_b|$, $u_j=(1+\epsilon_j)^{-1}$, $r_b=\sum_j\tilde P_{bj}u_j$ and $P_{bj}=\tilde P_{bj}u_j/r_b$. For $1\le i\le N$ and $m\ge1$,
 \[
@@ -184,6 +184,62 @@ For $k=1$ the diagonal entry gives $D_1=m_1$, the other entries being at most $4
 
 \emph{The trace.} Here $\Tr P=0$, so that $\Tr e^{-t\Lc}-Ne^{-\tau}=\sum_{j\ge2}w_j\Tr P^j$, to be compared with $\sum_{j\ge2}w_jm_j=T_\sigma(t)-\tau e^{-\tau}M$. The terms with $2\le j\le J$ and with $j>J$ are estimated as in the proof of Corollary~\ref{cor:kernel-trace}. Finally $M\le C\sigma^{-d/2}$ and $\Tr e^{t\Delta}\ge(4\pi t)^{-d/2}$ give $M\le C\tau^{d/2}\Tr e^{t\Delta}$.
 \end{proof}
+
+\begin{lemma}[The spectrum of the kernel matrix of the heat kernel]\label{lem:kernelmatrix}
+Let $\M=\R^d/\mathbb Z^d$ with independent uniform points $x_1,\dots,x_N$, let $0=\lambda_1\le\lambda_2\le\dots$ be the eigenvalues of $-\Delta$ on $\M$ with multiplicities, and for an integer $k\ge1$ let $Q_k$ be the symmetric matrix with the entries $p_k(x_a-x_i)/N$ and the eigenvalues $\mu_1(Q_k)\ge\dots\ge\mu_N(Q_k)$. There are $C$ and $N_0$ depending only on $d$ such that for $N\ge N_0$ and $M\log N\le N$, with probability at least $1-4\cdot3^dN^{-5}$, for all $k\ge1$ and all $1\le j\le N$,
+\[
+\big|\mu_j(Q_k)-e^{-k\sigma\lambda_j}\big|\le C\,\sqrt{\frac{\log N}{N}}\;m_k .
+\]
+\end{lemma}
+
+\begin{proof}
+For $n\in\mathbb Z^d$ let $a_n=e^{-4\pi^2\sigma|n|^2}$, so that $p_k(x)=\sum_na_n^ke^{2\pi in\cdot x}$ and $m_k=\sum_na_n^k$. With $(v_n)_a=e^{2\pi in\cdot x_a}$, $Q_k=\frac1N\sum_na_n^kv_nv_n^*=XX^*$ for the Hilbert--Schmidt operator $X\colon\ell^2(\mathbb Z^d)\to\mathbb C^N$, $Xe_n=N^{-1/2}a_n^{k/2}v_n$. The non-zero eigenvalues of $XX^*$ and of $X^*X$ coincide with multiplicities, and $X^*X=A^{1/2}GA^{1/2}$ with $A=\operatorname{diag}(a_n^k)$ and $G_{nn'}=\frac1N\sum_ae^{2\pi i(n'-n)\cdot x_a}=:\hat g(n'-n)$, $G_{nn}=1$. The eigenvalues of $A$ in decreasing order are $e^{-k\sigma\lambda_j}$. By the min-max principle for compact self-adjoint operators,
+\[
+\big|\mu_j(Q_k)-e^{-k\sigma\lambda_j}\big|\le\big\|A^{1/2}(G-1)A^{1/2}\big\|\le\Big(\sum_{n\ne n'}a_n^ka_{n'}^k\,|\hat g(n'-n)|^2\Big)^{1/2}.
+\]
+For $m\ne0$ the real and the imaginary part of $\hat g(m)$ are means of $N$ independent centred variables with values in $[-1,1]$; by Hoeffding's inequality and the union bound over the at most $(3N)^d$ vectors with $0<|m|_\infty\le N$, with probability at least $1-4\cdot3^dN^{-5}$ all of them satisfy $|\hat g(m)|\le\gamma:=2\sqrt{2(d+5)\log N/N}$. The pairs with $|n'-n|_\infty\le N$ then contribute at most $\gamma^2m_k^2$ to the sum. In the remaining pairs one of the two vectors has $|\cdot|_\infty>N/2$; with $|\hat g|\le1$ they contribute at most $2m_k\sum_{|n|_\infty>N/2}a_n^k\le2m_k\,e^{-k\sigma\pi^2N^2/2}\,m_{k/2}\le2^{1+d/2}m_k^2\,e^{-\sigma\pi^2N^2/2}$. Finally $M\log N\le N$ and $M\ge(2\pi\xi^2)^{-d/2}$ give $\sigma N^2\ge\frac1{4\pi}N^{2-2/d}(\log N)^{2/d}$, so that $e^{-\sigma\pi^2N^2/2}\le N^{-2}$ for $N\ge N_0$.
+\end{proof}
+
+\begin{theorem}[The eigenvalues of the sampled graph on a flat torus, uniformly]\label{thm:eigtorus}
+In the situation of Theorem~\ref{thm:kernel} (flat torus, uniform density, periodised Gaussian kernel, graph with self-loops) let $1=s_1\ge s_2\ge\dots\ge s_N\ge0$ be the eigenvalues of $S$, let $\lambda^N_j=(1-s_j)/\sigma$ be the eigenvalues of $\Lc$, and let $\lambda_j$ be as in Lemma~\ref{lem:kernelmatrix}. On the intersection of the events of Lemmas~\ref{lem:consistency} and~\ref{lem:kernelmatrix}:
+\begin{enumerate}[label=\textup{(\roman*)}]
+\item for all integers $1\le k\le(C_1\delta')^{-2}$ and all $1\le j\le N$,
+\[
+\big|s_j^k-e^{-k\sigma\lambda_j}\big|\le C_3\,\delta'\,\sqrt k\;m_k ;
+\]
+\item for all $j\le N$ with $\lambda_j\le\xi^{-2}$ and $C_4\,\frac{\delta'}{\xi}\,(1\vee\lambda_j)^{(d-1)/2}\le1$,
+\[
+\Big|\lambda^N_j-\frac{1-e^{-\sigma\lambda_j}}{\sigma}\Big|\le C_4\,\frac{\delta'}{\xi}\,(1\vee\lambda_j)^{(d+1)/2},\qquad\text{and}\qquad0\le\lambda_j-\frac{1-e^{-\sigma\lambda_j}}{\sigma}\le\frac{\xi^2\lambda_j^2}{4}.
+\]
+\end{enumerate}
+The constants $C_3$, $C_4$ depend only on $d$. In particular, if $\xi_N\to0$ and $N\xi_N^{d+2}/\log N\to\infty$, the two events hold almost surely for all large $N$.
+\end{theorem}
+
+\begin{proof}
+$C$ denotes constants that depend only on $d$.
+
+\emph{The matrix $S^k$.} $S$ is positive semidefinite, because $K_{ij}=p(x_i-x_j)$ is the Gram matrix of a function with positive Fourier coefficients and $S$ is obtained from $K$ by a congruence with a diagonal matrix. $S=D^{1/2}PD^{-1/2}$, hence $(S^k)_{ai}=(D_a/D_i)^{1/2}(P^k)_{ai}$, and $D_a=\sum_jW_{aj}=N\,u_ar_a$ in the notation of the proof of Lemma~\ref{lem:consistency}. For $\delta\le\frac18$, $u_ar_a\in[1-4\delta,1+4\delta]$ as in Step~2 of the proof of Theorem~\ref{thm:jointpoly}, so that $|(D_a/D_i)^{1/2}-1|\le8\delta$ and
+\[
+\big|N(S^k)_{ai}-p_k(x_a-x_i)\big|\le8\delta\,(m_k+D_k)+D_k\le16\,\delta\,m_k+D_k .
+\]
+$S^k-Q_k$ is a symmetric matrix whose entries are at most $(16\delta m_k+D_k)/N$ in absolute value; its operator norm is at most its largest row sum, $16\delta m_k+D_k$. The eigenvalues of $S^k$ in decreasing order are $s_j^k$. By Weyl's inequality, Theorem~\ref{thm:kernel} and Lemma~\ref{lem:kernelmatrix},
+\[
+\big|s_j^k-e^{-k\sigma\lambda_j}\big|\le16\,\delta\,m_k+D_k+C\sqrt{\frac{\log N}{N}}\,m_k\le C_3\,\delta'\sqrt k\,m_k ,
+\]
+which is (i); here $\delta\le6\delta'$ and $\sqrt{\log N/N}\le\delta'$.
+
+\emph{From powers to eigenvalues.} For $x,y\in[0,1]$, $|x^k-y^k|\ge k\min(x,y)^{k-1}|x-y|$. Let $a=e^{-\sigma\lambda_j}$ and $\eta=C_3\delta'\sqrt k\,m_k$, and suppose $a^k\ge2\eta$. Then $s_j^k\ge\frac12a^k$, $\min(s_j,a)^{k-1}\ge(\frac12a^k)^{(k-1)/k}\ge\frac12a^k$, and by (i)
+\begin{equation}\label{eq:eig-step}
+\big|s_j-a\big|\le\frac{2\eta}{k\,a^k},\qquad\Big|\lambda^N_j-\frac{1-a}{\sigma}\Big|\le\frac{2\,\eta\,e^{k\sigma\lambda_j}}{k\sigma}.
+\end{equation}
+\emph{The choice of $k$.} Let $\lambda_*=1\vee\lambda_j\le\xi^{-2}$, so that $\sigma\lambda_*\le\frac12$, and $k=\lfloor1/\sigma\lambda_*\rfloor\ge1$. Then $\frac12\le k\sigma\lambda_*\le1$, hence $e^{k\sigma\lambda_j}\le e$, $\sqrt k\le(\sigma\lambda_*)^{-1/2}$, and $m_k=p^{(2k\sigma)}(0)\le C\lambda_*^{d/2}$ by (P2), because $2k\sigma\ge1/\lambda_*$ and $\lambda_*\ge1$. Therefore $\eta\le C\,\delta'\,\sigma^{-1/2}\lambda_*^{(d-1)/2}$, and the right-hand side of \eqref{eq:eig-step} is at most $4e\,\lambda_*\eta\le C\,\frac{\delta'}\xi\,\lambda_*^{(d+1)/2}$. The two conditions used, $a^k\ge e^{-1}\ge2\eta$ and $k\le1/\sigma\le(C_1\delta')^{-2}$, hold if $C_4\frac{\delta'}\xi\lambda_*^{(d-1)/2}\le1$ with a suitable $C_4$. The last inequality of (ii) is $0\le y-(1-e^{-y})\le\frac12y^2$ for $y=\sigma\lambda_j\ge0$.
+
+\emph{Almost sure validity.} The probabilities $7N^{-3}$ and $4\cdot3^dN^{-5}$ are summable, and the conditions $M\log N\le N$, $6\delta'\le\frac18$ hold for large $N$ if $N\xi_N^{d}/\log N\to\infty$.
+\end{proof}
+
+\begin{remark}[On the uniform estimate of the eigenvalues]\label{rem:eigtorus}
+(i) Theorem~\ref{thm:eigtorus} compares the eigenvalues of the sampled graph with those of the population walk, $(1-e^{-\sigma\lambda_j})/\sigma=\lambda_j-\frac14\xi^2\lambda_j^2+O(\xi^4\lambda_j^3)$, in the order of their size and with multiplicities, uniformly in $j$ as long as $\frac{\delta'}\xi\lambda_j^{(d-1)/2}$ is small. The bias of the eigenvalues is thus of second order in $\xi$ with an explicit coefficient, and the random error is $C\frac{\delta'}\xi\lambda_j^{(d+1)/2}$ with $\frac{\delta'}\xi\le C(\log N/N\xi^{d+2})^{1/2}$; for a fixed eigenvalue this is the rate of Theorem~\ref{thm:rate2}, here without the assumption that the eigenvalue is simple. (ii) In the form \eqref{eq:eigrate2}: for $\lambda_j\ge1$ and $\xi\sqrt{\lambda_j}\le1$, $|\lambda^N_j-\lambda_j|\le\big(C\frac{\delta'}\xi\lambda_j^{(d-1)/2}+\frac14\xi^2\lambda_j\big)\lambda_j$, so that \eqref{eq:eigrate2} holds on the flat torus with $\eta_N=C\delta'\xi_N^{-d}\le C(\log N/N\xi_N^{3d})^{1/2}$, provided $N\xi_N^{3d}/\log N\to\infty$; in dimension one this is the condition $N\xi_N^3/\log N\to\infty$. For the trace this adds nothing to Corollary~\ref{cor:kernel-trace}. Open problem~1 is answered by this for the flat torus with the Gaussian profile in the stated regime, and not beyond: the factor $\lambda_j^{(d-1)/2}$ in the random error comes from the bound of the kernel in the supremum norm and is probably not sharp, and the eigenvectors are not treated. (iii) \emph{Numerical illustration.} For one sample on the flat two-torus with $\xi=0.1$ and $N=3000$ the fifth, ninth and twenty-first eigenvalue of $\Lc$ in increasing order, counting from zero, are $62.45$, $105.56$ and $156.34$; the population values $(1-e^{-\sigma\lambda_j})/\sigma$ are $65.23$, $109.19$ and $158.77$, and $\lambda_j$ itself is $78.96$, $157.91$ and $315.83$. In this run $\delta'/\xi=2.1$, so the hypotheses of the theorem do not hold; the numbers show that the eigenvalues follow the population values and not $\lambda_j$. (iv) Lemma~\ref{lem:kernelmatrix} and Theorem~\ref{thm:eigtorus} were written by one session of an AI system and have not yet been read by a second one, nor by a person.
+\end{remark}
 
 \begin{remark}[Scope and status of the kernel estimate]\label{rem:kernel}
 (i) The argument is the comparison of two recursions in the supremum norm: the sampled walk is stable, because $P$ is row-stochastic, and consistent with the population walk by Lemma~\ref{lem:consistency}. It uses neither the walk $\tilde P$ with the exact normalisation nor an expansion in $\epsilon$, and no eigenvalues. Corollary~\ref{cor:kernel-trace} contains the second statement of Theorem~\ref{thm:jointpoly} and its first statement in a larger regime, in every dimension and almost surely: the exponent $2d+6$ is replaced by $d+6$ for the sharp rate, and the trace converges, with the rate $(\log N/N\xi_N^{d+2})^{1/2}$ up to a logarithm, as soon as $N\xi_N^{d+2}/\log N\to\infty$. Theorem~\ref{thm:kernel} and Corollaries~\ref{cor:kernel-trace}, \ref{cor:kernel-corrected} are stated for the graph with self-loops; Corollary~\ref{cor:kernel-noloops} treats the graph without them. Theorem~\ref{thm:jointpoly} and its proof are kept because the count of closed walks is of independent use (Propositions~\ref{prop:bias}, \ref{prop:variance}).
