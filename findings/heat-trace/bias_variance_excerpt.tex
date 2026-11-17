@@ -1,0 +1,183 @@
+% Excerpt of Appendix G of "From Correlations to Geometry" (working copy of 17 November 2026):
+% Propositions G.22 and G.24 with proofs, Remarks G.23 and G.25. A fragment, not a standalone document;
+% it uses the macros and labels of the paper. The typeset pages are in bias_variance_excerpt.pdf.
+
+\begin{proposition}[The bias of the normalised walk at a fixed kernel scale]\label{prop:bias}
+Let $\M=\R^d/\mathbb Z^d$ and let $x_1,\dots,x_N$ be independent and uniformly distributed on $\M$. Let $p\colon\M\to[0,\infty)$ be bounded and even with $\int p=1$, and put $M=\sup p$, $p_c=p^{*c}$, $m_1=p(0)$ and $m_c=p_c(0)$ for $c\ge2$. Fix $\rho\in\{p(0),0\}$ (the graph with or without self-loops) and let
+\[
+g_{ij}=p(x_i-x_j)\ \ (i\ne j),\qquad g_{ii}=\rho,\qquad\tilde P_{ij}=\frac{g_{ij}}N,\qquad\epsilon_i=\sum_j\tilde P_{ij}-1,\qquad P_{ij}=\frac{\tilde P_{ij}\,(1+\epsilon_j)^{-1}}{\sum_l\tilde P_{il}\,(1+\epsilon_l)^{-1}},
+\]
+with $\Tr P^k:=0$ on the event that some $1+\epsilon_i$ vanishes. For $k\ge1$ let $\mu_1=\rho$, $\mu_k=m_k$ for $k\ge2$,
+\[
+\Sigma_0=\sum_{l=1}^{k-1}\mu_l\,\mu_{k-l},\qquad\Sigma_c=\sum_{l=1}^{k-1}\int_\M p_l\,p_{k-l}\,p_c\quad(c\ge1),
+\]
+\[
+\beta_k=k\Big[\tfrac12\Sigma_0-2\Sigma_1+3\Sigma_2-2\Sigma_3+\tfrac12\Sigma_4\Big]+k\,\mu_k\big(m_4-3m_3+3m_2-\rho\big).
+\]
+Then for every $k\ge1$ there are constants $C$ and $N_0$, depending only on $k$ and $M$, such that
+\[
+\Big|\,\mathbb E\,\Tr P^k-\mu_k-\frac{\beta_k}{N}\Big|\le C\,N^{-3/2}\qquad(N\ge N_0).
+\]
+\end{proposition}
+
+For $\rho=p(0)$ this is the walk \eqref{eq:W}, \eqref{eq:L} with the estimated normalisation, as in Proposition~\ref{prop:estimated}; for $\rho=0$ it is the same construction with the diagonal of the kernel removed.
+
+\begin{proof}
+Throughout, $c_{ij}=g_{ij}-1$, so that $\epsilon_i=\frac1N\sum_jc_{ij}$ and $c_{ii}=\rho-1$. Note $M\ge1$, $0\le g_{ij}\le M$, $|c_{ij}|\le M$, $\int(p-1)=0$, $\int(p-1)^2=m_2-1$, and, $p$ being even, $\int(p(y-v)-1)(p(z-v)-1)\,\dd v=p_2(y-z)-1$. The matrix $\tilde P$ is symmetric.
+
+\emph{Step 1: an exact identity.} Let $\delta=\max_i|\epsilon_i|$ and $E_N=\{\delta\le\frac18\}$. On $E_N$ put $u_i=(1+\epsilon_i)^{-1}$, $r_i=\sum_l\tilde P_{il}u_l>0$ and $\gamma_i=u_i/r_i$. Then $P_{ij}=\tilde P_{ij}u_j/r_i$, and in a closed walk every vertex is once a head and once a tail, so
+\begin{equation}\label{eq:bias-identity}
+\Tr P^k=\sum_{i_1,\dots,i_k}\ \prod_{a=1}^k\tilde P_{i_ai_{a+1}}\ \prod_{a=1}^k\gamma_{i_a},\qquad i_{k+1}=i_1 .
+\end{equation}
+
+\emph{Step 2: expansion of $\gamma_i$.} Fix $i$ and write $e=\epsilon_i$, $b=(\tilde P\epsilon)_i$, $s=(\tilde P\epsilon^2)_i$, $h=(\tilde P|\epsilon|^3)_i$ and $\omega_i=|e|^3+h$. Let
+\[
+\varphi^1_i=-2e+b,\qquad\varphi^2_i=3e^2-3eb+b^2-s .
+\]
+We claim that on $E_N$, with an absolute constant $C_0$,
+\begin{equation}\label{eq:bias-gamma}
+\gamma_i=1+\varphi^1_i+\varphi^2_i+R_i,\qquad|R_i|+|\varphi^1_i|^3+|\varphi^2_i|^{3/2}\le C_0\,\omega_i,\qquad|\gamma_i-1|\le4\delta,\qquad\omega_i\le1 .
+\end{equation}
+The row sum of $\tilde P$ is $w=1+e\in[\frac78,\frac98]$, so by H\"older's inequality $|b|^3\le w^2h$ and $s^{3/2}\le w^{1/2}h$. Write $u_l=1-\epsilon_l+\epsilon_l^2+\vartheta_l$ with $|\vartheta_l|=|\epsilon_l|^3/(1+\epsilon_l)\le\frac87|\epsilon_l|^3$, and $z=(\tilde P\vartheta)_i$, $|z|\le\frac87h$. Then $r_i=1+\chi$ with $\chi=e-b+s+z$, $|\chi|\le\frac{3}{10}$, and $1/r_i=1-\chi+\chi^2-\chi^3/(1+\chi)$. Multiplying out,
+\[
+\gamma_i=\big(1-e+e^2+\vartheta_i\big)\Big(1-\chi+\chi^2-\frac{\chi^3}{1+\chi}\Big)=1+\varphi^1_i+\varphi^2_i+R_i,
+\]
+\[
+\begin{aligned}
+R_i={}&-z+(s+z)(2e-2b+s+z)-\frac{\chi^3}{1+\chi}+e\Big(s+z-\chi^2+\frac{\chi^3}{1+\chi}\Big)\\
+&+e^2\Big(-\chi+\chi^2-\frac{\chi^3}{1+\chi}\Big)+\frac{\vartheta_i}{1+\chi}.
+\end{aligned}
+\]
+Every term of $R_i$ is a product of total order at least three in $(e,b,s^{1/2},z^{1/3})$; by Young's inequality ($|ab|\le\frac13|a|^3+\frac23|b|^{3/2}$) and the bounds on $b$, $s$, $z$ each is at most a constant times $|e|^3+h$. The bounds on $\varphi^1_i$ and $\varphi^2_i$ follow in the same way, $|\gamma_i-1|\le4\delta$ from $\gamma_i\in\big[\frac{1-\delta}{(1+\delta)^2},\frac{1+\delta}{(1-\delta)^2}\big]$, and $\omega_i\le\delta^3(1+w)\le1$.
+
+\emph{Step 3: expansion of the trace.} Let
+\[
+Q_0=\Tr\tilde P^k,\qquad Q_1=k\sum_i(\tilde P^k)_{ii}\,\varphi^1_i,\qquad Q_2=k\sum_i(\tilde P^k)_{ii}\,\varphi^2_i,\qquad Q_3=\frac k2\sum_{l=1}^{k-1}\sum_{i,j}(\tilde P^l)_{ij}(\tilde P^{k-l})_{ji}\,\varphi^1_i\varphi^1_j ;
+\]
+these are polynomials in the $g_{ij}$ and are defined everywhere. We claim that on $E_N$
+\begin{equation}\label{eq:bias-trace}
+\big|\Tr P^k-(Q_0+Q_1+Q_2+Q_3)\big|\le C_1\sum_i(\tilde P^k)_{ii}\,\omega_i\le C_1\,M\,(\tfrac98)^{k-1}\,\frac1N\sum_i\omega_i ,
+\end{equation}
+with $C_1$ depending only on $k$. Put $\phi_i=\gamma_i-1$ and expand the second product in \eqref{eq:bias-identity}: $\prod_a(1+\phi_{i_a})=1+\sum_a\phi_{i_a}+\sum_{a<b}\phi_{i_a}\phi_{i_b}+E_3$, where $E_3$ is the sum over the subsets $S$ of positions with $|S|\ge3$. Since $|\phi_i|\le\frac12$, each such product is at most $\frac13\sum_{a\in S}|\phi_{i_a}|^3$, so $|E_3|\le\frac{2^k}{3}\sum_{a=1}^k|\phi_{i_a}|^3$. The weights $\prod_a\tilde P_{i_ai_{a+1}}$ are nonnegative, and summing a function of one position, or of two positions at cyclic distance $l$, against them gives $\sum_i(\tilde P^k)_{ii}f(i)$, respectively $\sum_{i,j}(\tilde P^l)_{ij}(\tilde P^{k-l})_{ji}f(i,j)$; there are $k-l$ pairs $a<b$ with $b-a=l$, and for $f(i,j)=f(j,i)$ the expression is symmetric under $l\mapsto k-l$ (rename $i\leftrightarrow j$). Hence
+\[
+\Tr P^k=Q_0+k\sum_i(\tilde P^k)_{ii}\phi_i+\frac k2\sum_{l=1}^{k-1}\sum_{i,j}(\tilde P^l)_{ij}(\tilde P^{k-l})_{ji}\phi_i\phi_j+E,\qquad|E|\le\frac{2^kk}{3}\sum_i(\tilde P^k)_{ii}|\phi_i|^3 .
+\]
+Insert $\phi=\varphi^1+\varphi^2+R$ in the linear term and $\phi_i\phi_j=\varphi^1_i\varphi^1_j+\varphi^1_i(\phi_j-\varphi^1_j)+(\phi_i-\varphi^1_i)\phi_j$ in the quadratic one. By \eqref{eq:bias-gamma}, where $\omega_i\le1$ gives $|\phi_i-\varphi^1_i|\le C\omega_i^{2/3}$ and $|\phi_i|\le C\omega_i^{1/3}$, and by Young's inequality, $|\phi_i|^3$, $|R_i|$, $|\varphi^1_i(\phi_j-\varphi^1_j)|$ and $|(\phi_i-\varphi^1_i)\phi_j|$ are bounded by constants times $\omega_i$, respectively $\omega_i+\omega_j$, and $\sum_j(\tilde P^l)_{ij}(\tilde P^{k-l})_{ji}=(\tilde P^k)_{ii}$. This gives the first inequality of \eqref{eq:bias-trace}; the second holds because $\tilde P_{ji}\le M/N$ and the row sums of $\tilde P^{k-1}$ are at most $(1+\delta)^{k-1}$.
+
+\emph{Step 4: the remainder is $O(N^{-3/2})$ in expectation.} Given $x_1$, the variables $Y_l=p(x_1-x_l)-1$, $l\ge2$, are independent, centred, bounded by $M$ and of variance at most $M$, and $\epsilon_1=\frac{\rho-1}N+\frac1N\sum_{l\ge2}Y_l$. From $\mathbb E(\sum_lY_l)^4\le NM^3+3N^2M^2\le4N^2M^3$ we get, for $N\ge M$, $\mathbb E|\epsilon_1|^3\le16\,M^{9/4}N^{-3/2}$, and therefore
+\[
+\mathbb E\,\omega_i\le\mathbb E|\epsilon_i|^3+\frac MN\sum_l\mathbb E|\epsilon_l|^3\le16\,(1+M)\,M^{9/4}\,N^{-3/2}.
+\]
+By Bernstein's inequality and the union bound, $\mathbb P(E_N^c)\le2N\exp(-N/(523M))$ for $N\ge16M$. Finally $0\le\Tr P^k\le N$, and $|Q_0|+\dots+|Q_3|\le C_2M^{k+4}$ always, because $|\epsilon_i|\le M$ and $(\tilde P^k)_{ii}\le M^k/N$. With \eqref{eq:bias-trace},
+\begin{equation}\label{eq:bias-reduce}
+\Big|\,\mathbb E\,\Tr P^k-\mathbb E\,(Q_0+Q_1+Q_2+Q_3)\Big|\le C_3\,N^{-3/2}+\big(N+C_2M^{k+4}\big)\,2N\,e^{-N/(523M)} .
+\end{equation}
+
+\emph{Step 5: expectations of polynomial statistics.} Let $V$ be a finite index set with $n$ elements, and let a finite list of edges $(a,b)\in V^2$ be given, each labelled $g$ or $c$. For $\iota\colon V\to\{1,\dots,N\}$ let $G(\iota)$ be the product of the factors $g_{\iota(a)\iota(b)}$, respectively $c_{\iota(a)\iota(b)}$, over the edges. Sorting the maps $\iota$ by the partition $\pi$ of $V$ into their level sets,
+\begin{equation}\label{eq:bias-diagram}
+N^{-n}\,\mathbb E\sum_\iota G(\iota)=\sum_\pi\frac{N(N-1)\cdots(N-|\pi|+1)}{N^n}\,I_\pi ,
+\end{equation}
+where $I_\pi=\mathbb E\,G(\iota)$ for any $\iota$ with level sets $\pi$: an integral over $|\pi|$ independent uniform points, with every edge whose two ends lie in the same block replaced by its constant $\rho$ or $\rho-1$. We use: (a) $|I_\pi|\le M^{\#\mathrm{edges}}$; (b) $I_\pi=0$ if some block of $\pi$ is a single index that lies on exactly one edge, and that edge is labelled $c$ and its other end lies in a different block (integrate that point first: $\int(p-1)=0$); (c) the partitions with $|\pi|\le n-2$ contribute $O(N^{-2})$ in total, those with $|\pi|=n-1$ (one pair of indices identified) carry the factor $\frac1N(1+O(\frac1N))$, and the partition into singletons the factor $1-\binom n2\frac1N+O(N^{-2})$. The constants depend only on $n$, the number of edges and $M$.
+
+\emph{Step 6: the nine expectations.} A cycle $i_1,\dots,i_k$ of $g$-edges with distinct indices has $I=\mu_k$. In each statistic below only the listed identifications of one pair survive rule (b); all equalities are up to $O(N^{-2})$.
+
+\smallskip\noindent$Q_0=N^{-k}\sum\prod_ag_{i_ai_{a+1}}$. No identification: $\mu_k(1-\binom k2\frac1N)$. Positions $a<b$ identified, $b-a=l$: two cycles with a common vertex, $I=\mu_l\mu_{k-l}$, where a cycle of length one is a loop and contributes $\mu_1=\rho$; there are $k-l$ such pairs. Hence
+\[
+\mathbb E\,Q_0=\mu_k+\frac1N\Big[\frac k2\Sigma_0-\frac{k(k-1)}2\mu_k\Big].
+\]
+\noindent$A=\sum_i(\tilde P^k)_{ii}\epsilon_i=N^{-k-1}\sum\prod_ag_{i_ai_{a+1}}\;c_{i_1v}$. Surviving: $v=i_1$ ($I=(\rho-1)\mu_k$) and, for $k\ge2$, $v=i_r$ with $2\le r\le k$ ($I=\int p_{r-1}p_{k-r+1}p-\mu_k$, since $\int p_{r-1}p_{k-r+1}=m_k$). Hence $\mathbb E\,A=\frac1N[\rho\mu_k+\Sigma_1-k\mu_k]$.
+
+\noindent$B=\sum_i(\tilde P^k)_{ii}(\tilde P\epsilon)_i=N^{-k-2}\sum\prod_ag_{i_ai_{a+1}}\;g_{i_1q}\,c_{qv}$. Surviving: $v=q$ ($(\rho-1)\mu_k$), $v=i_1$ ($\mu_k(m_2-1)$), $v=i_r$, $r\ge2$ (integrating $x_q$ gives $p_2(x_{i_1}-x_{i_r})-1$, so $I=\int p_{r-1}p_{k-r+1}p_2-\mu_k$). Hence $\mathbb E\,B=\frac1N[\rho\mu_k+m_2\mu_k+\Sigma_2-(k+1)\mu_k]$, and
+\[
+\mathbb E\,Q_1=k\,\mathbb E(-2A+B)=\frac kN\Big[-\rho\mu_k+m_2\mu_k-2\Sigma_1+\Sigma_2+(k-1)\mu_k\Big].
+\]
+\noindent The four parts of $Q_2$. In each the two $c$-edges end in two indices $v,v'$ of degree one, so only $v=v'$ survives:
+\begin{align*}
+\textstyle\sum_i(\tilde P^k)_{ii}\epsilon_i^2&:\ c_{i_1v}c_{i_1v'},&I&=\mu_k(m_2-1),\\
+\textstyle\sum_i(\tilde P^k)_{ii}\epsilon_i(\tilde P\epsilon)_i&:\ c_{i_1v}\,g_{i_1q}c_{qv'},&I&=\mu_k(m_3-1),\\
+\textstyle\sum_i(\tilde P^k)_{ii}(\tilde P\epsilon)_i^2&:\ g_{i_1q}c_{qv}\,g_{i_1q'}c_{q'v'},&I&=\mu_k(m_4-1),\\
+\textstyle\sum_i(\tilde P^k)_{ii}(\tilde P\epsilon^2)_i&:\ g_{i_1q}c_{qv}c_{qv'},&I&=\mu_k(m_2-1),
+\end{align*}
+so that $\mathbb E\,Q_2=\frac{k\mu_k}N\,[3(m_2-1)-3(m_3-1)+(m_4-1)-(m_2-1)]=\frac{k\mu_k}N(2m_2-3m_3+m_4)$.
+
+\noindent The parts of $Q_3$, for fixed $l$: the cycle with the factors attached at the positions $1$ and $l+1$; write $F_l=p_lp_{k-l}$, a function of $x_{i_1}-x_{i_{l+1}}$. Again only $v=v'$ survives:
+\begin{align*}
+\epsilon_i\epsilon_j&:\ c_{i_1v}c_{i_{l+1}v'},&I&=\textstyle\int F_l\,(p_2-1),\\
+\epsilon_i(\tilde P\epsilon)_j\ \text{and}\ (\tilde P\epsilon)_i\epsilon_j&:\ c_{i_1v}\,g_{i_{l+1}q}c_{qv'},&I&=\textstyle\int F_l\,(p_3-1),\\
+(\tilde P\epsilon)_i(\tilde P\epsilon)_j&:\ g_{i_1q}c_{qv}\,g_{i_{l+1}q'}c_{q'v'},&I&=\textstyle\int F_l\,(p_4-1).
+\end{align*}
+With $\varphi^1_i\varphi^1_j=4\epsilon_i\epsilon_j-2\epsilon_i(\tilde P\epsilon)_j-2(\tilde P\epsilon)_i\epsilon_j+(\tilde P\epsilon)_i(\tilde P\epsilon)_j$ and $\int F_l=\mu_k$,
+\[
+\mathbb E\,Q_3=\frac k{2N}\Big[4\Sigma_2-4\Sigma_3+\Sigma_4-(k-1)\mu_k\Big].
+\]
+\emph{Step 7: conclusion.} In $\mathbb E(Q_0+Q_1+Q_2+Q_3)$ the terms $k(k-1)\mu_k/N$ cancel ($-\frac12+1-\frac12=0$), and the sum is $\mu_k+\beta_k/N+O(N^{-2})$. With \eqref{eq:bias-reduce} this proves the proposition.
+\end{proof}
+
+\begin{remark}[Self-loops and the size of the bias]\label{rem:bias}
+(i) With self-loops, $\rho=p(0)=m_1$ and
+\[
+\beta_k=\frac k2\sum_{l=1}^{k-1}\big[(1-\mathcal P)^4(p_lp_{k-l})\big](0)-k\,m_k\,\Tr\big[\mathcal P(1-\mathcal P)^3\big],
+\]
+where $\mathcal P$ is the convolution with $p$, $[(1-\mathcal P)^4F](0):=\sum_{c=0}^4(-1)^c\binom4c\int F\,p_c$ with $\int F\,p_0:=F(0)$, and $\Tr[\mathcal P(1-\mathcal P)^3]:=m_1-3m_2+3m_3-m_4$, the trace of that operator when the Fourier series of $p$ is absolutely summable: the bias sees $p_lp_{k-l}$ only through the fourth power of the high-pass filter $1-\mathcal P$. (ii) Without self-loops, for $k\ge3$, $\beta_k^{\rho=0}=\beta_k^{\rho=p(0)}-k\,m_1(m_{k-1}-m_k)$; the difference is the first-order effect of a walk that stays where it is with probability $m_1/N$ in each step, and for the heat kernel with $k\sigma\ll1$ it is close to $\tfrac d2\,m_1m_k$. (iii) The constants $C$, $N_0$ of the proof grow exponentially in $k$ and polynomially in $M$; the proposition says nothing about a regime in which $k$ or $M$ grow with $N$.
+
+(iv) \emph{Numerical check.} For the Gaussian profile on the flat two-torus with $\xi=0.05$ and $N=3000$ (six samples) the mean of $\Tr P^k-m_k$, divided by $m_kM/N$, is $-0.240$, $0.317$, $0.860$, $1.148$, $1.144$ and $1.001$ for $k=1,2,4,8,16,32$, against $-0.250$, $0.313$, $0.893$, $1.200$, $1.186$ and $1.025$ from $\beta_k$; without self-loops ($N=1500$, twelve samples) it is $0.295$, $-0.422$, $0.058$, $0.126$ and $0.038$ for $k=2,4,8,16,32$, against $0.313$, $-0.440$, $0.057$, $0.119$ and $0.039$. In dimensions one and three the agreement is similar. For the subtracted trace at $\xi=0.05$, $N=1500$ (twelve samples) the relative deviation from $T_\sigma$ at $\tau=10,20,40$ is $0.053$, $0.056$ and $0.046$ with self-loops and $-0.002$, $0.007$ and $0.003$ without; the difference of the two traces exceeds the first-order prediction $\frac1N\sum_kw_k(\beta_k^{\rho=p(0)}-\beta_k^{\rho=0})$ by five to eleven percent. These are few samples from one seed and are not evidence for a rate.
+
+(v) \emph{A conjecture.} The proposition and these numbers suggest that for the heat kernel the relative bias of $\Tr P^k$ is a bounded multiple of $M/N$, uniformly in $k$ with $k\sigma\le1$: about $\tfrac d2M/N$ with self-loops and several times smaller without them for $k\ge8$. If this and a corresponding bound for the fluctuations (Remark~\ref{rem:variance}(v)) hold in the joint regime, the rate $\xi^2/t$ holds whenever $N\xi_N^{d+2}\to\infty$, which is much weaker than the condition of Theorem~\ref{thm:jointpoly}. We have no proof: the expansion in $\epsilon$ has a remainder of the order $k^3\delta^3$, the first-order term alone overshoots the difference $\Tr P^k-\Tr\tilde P^k$ in simulations, and the cancellation of the terms of the order $k^2/N$ appears only in the expectation and only when the second order is included.
+\end{remark}
+
+\begin{proposition}[The variance of the normalised walk at a fixed kernel scale]\label{prop:variance}
+In the setting of Proposition~\ref{prop:bias} let $\Gamma_k=\sum_{l=1}^{k-1}p_l\,p_{k-l}$ (a function on $\M$; $\Gamma_1=0$), let $(1-\mathcal P)^jf=\sum_{c=0}^j(-1)^c\binom jc\,p_c*f$ with $p_0*f=f$, and
+\[
+H_k=k\,(1-\mathcal P)^4\Gamma_k-2k\,\mu_k\,(1-\mathcal P)^3p,\qquad v_k=\frac12\int_\M H_k^2 .
+\]
+Then $\int_\M H_k=0$, and for every $k\ge1$ there are $C$, $N_0$ depending only on $k$ and $M$ with
+\[
+\Big|\operatorname{Var}\Tr P^k-\frac{v_k}{N^2}\Big|\le C\,N^{-5/2}\qquad(N\ge N_0).
+\]
+With self-loops, $\beta_k=\frac12H_k(0)$.
+\end{proposition}
+
+\begin{proof}
+Let $Q=Q_0+Q_1+Q_2+Q_3$ be the polynomial statistic of Step~3 of the proof of Proposition~\ref{prop:bias}.
+
+\emph{Step 1: $\|\Tr P^k-Q\|_{L^2}\le CN^{-3/2}$.} On $E_N$, by \eqref{eq:bias-trace} and the Cauchy--Schwarz inequality, $(\Tr P^k-Q)^2\le C\,\frac1N\sum_i\omega_i^2$, and $\omega_i^2\le2\epsilon_i^6+2\big(\sum_l\tilde P_{il}|\epsilon_l|^3\big)^2\le2\epsilon_i^6+\frac{3M}N\sum_l\epsilon_l^6$, the row sum being at most $\frac98$. As in Step~4 there, $\mathbb E(\sum_lY_l)^6\le NM^5+25N^2M^4+15N^3M^3\le41N^3M^5$, hence $\mathbb E\,\epsilon_1^6\le CM^5N^{-3}$ for $N\ge M$. On $E_N^c$ use $|\Tr P^k-Q|\le N+C_2M^{k+4}$ and $\mathbb P(E_N^c)\le2Ne^{-N/(523M)}$. Consequently $|(\operatorname{Var}\Tr P^k)^{1/2}-(\operatorname{Var}Q)^{1/2}|\le CN^{-3/2}$, and it suffices to show $\operatorname{Var}Q=v_k/N^2+O(N^{-3})$.
+
+\emph{Step 2: Hoeffding decomposition.} $Q$ is a symmetric function of $x_1,\dots,x_N$. For $J\subset\{1,\dots,N\}$ let $\eta_J=\sum_{R\subseteq J}(-1)^{|J|-|R|}\,\mathbb E[Q\mid x_R]$; then $Q-\mathbb EQ=\sum_{J\ne\emptyset}\eta_J$ with orthogonal summands, and $\operatorname{Var}Q=\sum_{j\ge1}\binom Nj\,\mathbb E\,\eta_{\{1,\dots,j\}}^2$. Since $Q$ is invariant under a simultaneous translation of all points and the points are uniform, $\mathbb E[Q\mid x_1]$ is constant: $\eta_{\{1\}}=0$.
+
+$Q$ is a finite linear combination of statistics $Z=N^{-n}\sum_\iota G(\iota)$ as in Step~5 there, with $n\le k+4$. If the image of $\iota$ misses some $s\in J$, then $G(\iota)$ does not depend on $x_s$ and its contribution to $\eta_J$ vanishes. There are at most $n^{|J|}N^{n-|J|}$ maps $\iota$ whose image contains $J$, and $|G|\le M^{\#\mathrm{edges}}$; hence $|\eta_J|\le C\,N^{-|J|}$, $\eta_J=0$ for $|J|>k+4$, and $\sum_{j\ge3}\binom Nj\,\mathbb E\,\eta_{\{1,\dots,j\}}^2=O(N^{-3})$.
+
+For $J=\{1,2\}$ and $y=x_1-x_2$: up to $O(N^{-3})$, only the maps contribute that send exactly one position $\alpha$ to the index $1$, exactly one position $\beta\ne\alpha$ to the index $2$, and are injective on the remaining positions, with values outside $\{1,2\}$. For such a map the contribution is $\tilde I_{\alpha\beta}(y)-\int_\M\tilde I_{\alpha\beta}$, where $\tilde I_{\alpha\beta}(y)$ is the integral of the product over the other points; by translation invariance the conditional expectations given $x_1$ or given $x_2$ alone equal $\int\tilde I_{\alpha\beta}$. Therefore
+\begin{equation}\label{eq:var-kernel}
+N^2\,\eta_{\{1,2\}}=H_Z(y)+O(N^{-1}),\qquad H_Z=\sum_{(\alpha,\beta)}\Big(\tilde I_{\alpha\beta}-\int_\M\tilde I_{\alpha\beta}\Big),
+\end{equation}
+the sum over the ordered pairs of distinct positions, uniformly in $y$. As in rule (b), $\tilde I_{\alpha\beta}\equiv0$ if an unmarked index lies on exactly one edge and that edge is labelled $c$. With $H=\sum_ZH_Z$, the sum over the statistics $Z$ with their coefficients in $Q$, this gives $\operatorname{Var}Q=\binom N2N^{-4}\int H^2+O(N^{-3})=\frac1{2N^2}\int H^2+O(N^{-3})$.
+
+\emph{Step 3: the marked integrals.} Write $F_s=p_sp_{k-s}$, so that $\Gamma_k=\sum_{s=1}^{k-1}F_s$ and $\int F_s=\mu_k$ for $k\ge2$. In the list the constants $\int\tilde I_{\alpha\beta}$ are already subtracted.
+
+\smallskip\noindent$Q_0$: both marked positions on the cycle, at cyclic distance $s$: $\tilde I=F_s(y)$; summing over the ordered pairs, $H_{Q_0}=k\,\Gamma_k-k(k-1)\mu_k$.
+
+\noindent$A$ (the index $v$ must be marked): with $i_1$: $\mu_k(p(y)-1)$; with $i_r$, $r\ge2$: $(p*F_{r-1})(y)-\mu_k$. There are two orders, so $H_A=2[\mu_k\,p+p*\Gamma_k-k\mu_k]$.
+
+\noindent$B$ ($v$ must be marked): with $q$: $\mu_k(p(y)-1)$; with $i_1$: $\mu_k(p_2(y)-1)$; with $i_r$, $r\ge2$: $(p_2*F_{r-1})(y)-\mu_k$. Hence $H_B=2[\mu_k(p+p_2)+p_2*\Gamma_k-(k+1)\mu_k]$ and
+\[
+H_{Q_1}=k(-2H_A+H_B)=2k\big[\mu_k(p_2-p)+(p_2-2p)*\Gamma_k+(k-1)\mu_k\big].
+\]
+\noindent$Q_2$ (both $v$ and $v'$ must be marked; two orders): the four parts give $\mu_k(p_2-1)$, $\mu_k(p_3-1)$, $\mu_k(p_4-1)$ and $\mu_k(p_2-1)$, so
+\[
+H_{Q_2}=2k\,\mu_k\,(2p_2-3p_3+p_4).
+\]
+\noindent$Q_3$ (both $v$ and $v'$ must be marked; two orders), for fixed $l$: $p_2*F_l-\mu_k$, $p_3*F_l-\mu_k$ (twice) and $p_4*F_l-\mu_k$, so
+\[
+H_{Q_3}=k\,(4p_2-4p_3+p_4)*\Gamma_k-k(k-1)\mu_k .
+\]
+\emph{Step 4: conclusion.} In $H=H_{Q_0}+H_{Q_1}+H_{Q_2}+H_{Q_3}$ the constants cancel ($-1+2-1=0$), the terms with $\Gamma_k$ add up to $k\,(1-4p+6p_2-4p_3+p_4)*\Gamma_k=k(1-\mathcal P)^4\Gamma_k$, and those with $\mu_k$ to $2k\mu_k(-p+3p_2-3p_3+p_4)=-2k\mu_k(1-\mathcal P)^3p$. Hence $H=H_k$. Finally $\int H_k=0$ because $\int(f-p*f)=0$ for every integrable $f$.
+\end{proof}
+
+\begin{remark}[The size of the fluctuations]\label{rem:variance}
+(i) $H_k$ does not depend on $\rho$ for $k\ge2$: self-loops change the mean of $\Tr P^k$ at the order $1/N$, but its variance only at a higher order. (ii) Formally $\Tr P^k\approx\mu_k+\frac1{N^2}\sum_{a<b}H_k(x_a-x_b)+\frac{\beta_k}N$, and with self-loops the last term is the diagonal $a=b$ of the double sum, $\frac1{2N}H_k(0)$; this is a way to read the two propositions together and not a statement that we prove. (iii) For the heat kernel, with $a_n=e^{-\sigma\lambda_n}$, the Fourier coefficients are $\hat H_k(n)=k(1-a_n)^4\hat\Gamma_k(n)-2k\mu_ka_n(1-a_n)^3$ with $\hat\Gamma_k(n)=\sum_l\sum_{n_1}a_{n_1}^l\,a_{n-n_1}^{k-l}$, and $v_k=\frac12\sum_{n\ne0}\hat H_k(n)^2$.
+
+(iv) \emph{Numerical check.} On the flat two-torus with $\xi=0.15$ and $N=800$ (600 samples, with self-loops), $N$ times the standard deviation of $\Tr P^k$ is $3.69$, $2.36$, $2.98$, $1.54$ for $k=1,2,4,8$, with a statistical error of three percent, against $\sqrt{v_k}=3.49$, $2.33$, $2.93$, $1.48$. For $\xi=0.08$ and $N=1000$ (200 samples), where $M/N$ is about three times larger, the observed values $27.6$, $16.9$, $21.8$, $15.8$ exceed $\sqrt{v_k}=23.4$, $15.9$, $19.2$, $13.8$ by $7$ to $18$ percent, with a statistical error of five percent: the terms of higher order are not small there.
+
+(v) For the heat kernel and $k\sigma\ll1$ one finds numerically $v_k\approx c_k\,M\,m_k^2$ with $c_k$ of order one (between $0.04$ and $0.8$ for $k\le16$ in dimension two), so that the relative fluctuation of $\Tr P^k$ is of the order $\sqrt M/N$, smaller than the relative bias of the order $M/N$ of Remark~\ref{rem:bias}(v). In this form the conjecture of that remark reads $\Tr P^k/m_k=1+b_kM/N+O_{\mathbb P}(\sqrt M/N)$ with bounded $b_k$, uniformly in $k$ with $k\sigma\le1$. It is not proven: the constants of the two propositions are not uniform in $k$ and $M$.
+\end{remark}
+
