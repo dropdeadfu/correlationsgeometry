@@ -3242,5 +3242,34 @@ theorem telescope (I : List ι) (P : ι → ι → α) (w : Nat → ι → α) :
     have h2 := mapp_sub I P (miter I P (w 0) k) (w k) i
     simp only [miter, tel]; grind
 
+/-- Theorem G.28, Step 2 and the end of Step 4: from `D ≤ 4 delta mu + (1 + 4 delta) S`,
+    `delta ≤ 6 delta'`, `6 delta' ≤ 1/8` and `S ≤ c mu` one gets `D ≤ (24 delta' + (3/2) c) mu`. -/
+theorem kernel_step {D S mu d d' c : α} (hmu : 0 ≤ mu) (hc : 0 ≤ c) (hd0 : 0 ≤ d) (hd : d ≤ 6 * d')
+    (hd' : 6 * d' ≤ 1 / 8) (hS : S ≤ c * mu) (hD : D ≤ 4 * d * mu + (1 + 4 * d) * S) :
+    D ≤ (24 * d' + 3 / 2 * c) * mu := by
+  have a1 := OrderedRing.mul_le_mul_of_nonneg_left hS (show (0 : α) ≤ 1 + 4 * d by grind)
+  have a2 := OrderedRing.mul_nonneg hc hmu
+  have a3 := OrderedRing.mul_nonneg (show (0 : α) ≤ 1 / 2 - 4 * d by grind) a2
+  have a4 := OrderedRing.mul_nonneg (show (0 : α) ≤ 6 * d' - d by grind) hmu
+  grind
+
+/-- Theorem G.28, Step 4, the logic of the induction: if `D_1 ≤ mu_1` and the bound for `k + 1`
+    follows from the bounds for all `1 ≤ l ≤ k` (as long as `k < K`), then `D_l ≤ mu_l` for all
+    `1 ≤ l ≤ K`. The constants do not accumulate, because the hypothesis is used only in the
+    form `D_l ≤ mu_l`. -/
+theorem bootstrap (D mu : Nat → α) (K : Nat) (h1 : D 1 ≤ mu 1)
+    (step : ∀ k, 1 ≤ k → k < K → (∀ l, 1 ≤ l → l ≤ k → D l ≤ mu l) → D (k + 1) ≤ mu (k + 1)) :
+    ∀ k, k ≤ K → ∀ l, 1 ≤ l → l ≤ k → D l ≤ mu l
+  | 0, _, l, hl1, hl => by omega
+  | k + 1, hk, l, hl1, hl => by
+    have ih : ∀ l, 1 ≤ l → l ≤ k → D l ≤ mu l := bootstrap D mu K h1 step k (by omega)
+    by_cases hlk : l ≤ k
+    · exact ih l hl1 hlk
+    · have e : l = k + 1 := by omega
+      subst e
+      by_cases hk0 : k = 0
+      · subst hk0; exact h1
+      · exact step k (by omega) (by omega) ih
+
 end SupNorm
 end CTG.HeatTrace
