@@ -25,6 +25,7 @@ unless the table says otherwise, has been read formula by formula by a second AI
 | Corollary G.31 (`cor:kernel-noloops`) | G.28 and G.29 for the graph without self-loops: `D_1 = m_1`, the bound holds from `k = 2` on, and the subtracted trace is compared with `T_sigma - tau e^(-tau) M` | proven given G.27, G.28; written by the author-side session, read by the second session |
 | Lemma G.32, Theorem G.33 (`lem:kernelmatrix`, `thm:eigtorus`) | Eigenvalues of the sampled graph on the flat torus, uniformly in the index and with multiplicities: `|lambda_j^N - (1 - exp(-sigma lambda_j))/sigma| <= C (delta'/xi) max(1, lambda_j)^((d+1)/2)`; the hypothesis `eq:eigrate2` of the paper holds on the torus for `N xi^(3d)/log N -> infinity` | proven given G.28; written by the author-side session, NOT yet read by the second session; numerics |
 | Corollary G.34 (`cor:eigspace`) | Eigenspaces on the torus in the Euclidean norm on the points: every sampled Fourier mode of an eigenvalue `Lambda` lies within `C (delta'/xi) Lambda^((d+1)/2) / gap` of the corresponding eigenspace of the graph | proven given G.33; written by the author-side session, NOT yet read by the second session |
+| Corollary G.35 (`cor:deloc`) | Delocalisation: a unit eigenvector `u` of `S` with eigenvalue index `j` satisfies `max |u_a| <= C max(1, lambda_j)^(d/4) N^(-1/2)` | proven given G.33; written by the author-side session, NOT yet read by the second session |
 | Second stage, reduction (`second_stage_reduction.tex`, DRAFT, not in the paper) | On the event of G.27: `|Tr P^(k+1) - m_(k+1) - Pi_k| <= C delta'^2 k phi_d(k) m_(k+1)` for an explicit polynomial statistic `Pi_k` of degree four | proven in the draft by the author-side session; NOT yet read by the second session |
 | Second stage, bound for `Pi_k` | `E|Pi_k| <= C (M/N) k m_k` uniformly in `k`; together with the reduction this would give the sharp rate in probability for `N xi^(d+4)/log N -> infinity` in dimensions one and two | in progress (second session); plan checked numerically, NOT proven |
 | Sharp rate for `N xi^(d+2) -> infinity` | would need the averaging over the diagonal (bias `M/N` instead of the entrywise error `delta'`) | open; conjecture |
@@ -32,10 +33,10 @@ unless the table says otherwise, has been read formula by formula by a second AI
 
 ## Files
 
-- `appendix_G22_G36.pdf` — the pages of the paper with G.22 to G.36 (the first and the last page
+- `appendix_G22_G37.pdf` — the pages of the paper with G.22 to G.37 (the first and the last page
   also show the end of the preceding and the beginning of the following item).
 - `bias_variance_excerpt.tex` — TeX of Propositions G.22, G.24 and Remarks G.23, G.25.
-- `kernel_bound_excerpt.tex` — TeX of Lemmas G.26, G.27, Theorem G.28, Corollaries G.29 to G.31, Lemma G.32, Theorem G.33, Corollary G.34, Remarks G.35, G.36.
+- `kernel_bound_excerpt.tex` — TeX of Lemmas G.26, G.27, Theorem G.28, Corollaries G.29 to G.31, Lemma G.32, Theorem G.33, Corollaries G.34, G.35, Remarks G.36, G.37.
   Both are fragments that use the macros and labels of the paper; they do not compile on their own.
 - `scripts/torus_eigenvalues.py` — eigenvalues of the graph Laplacian against the population values of G.33.
 - `scripts/kernel_sup_norm.py` — for one sample, the entrywise error of `P^k` against the heat kernel and
