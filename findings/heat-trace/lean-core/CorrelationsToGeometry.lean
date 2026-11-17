@@ -3624,5 +3624,35 @@ theorem theta_linearisation_control :
     ¬ ((1 - (1 : Int) + 0) * (1 - 1 + 0) - 1 = (-1 - 1 + 0) + (-0 + 0 * (1 - 1) + (1 - 1 + 0) * 0)) := by
   decide
 
+/-- Corollary "second stage", the case `j = 1`: the sum over the diagonal of
+    `theta^1_{ii} = -2 eps_i + (P eps)_i` equals `-sum eps_i + sum eps_i^2`.
+    HYPOTHESIS `hcol`: the column sums of the kernel matrix `A = p(x_i - x_j)/N` are `1 + eps_j`
+    (in the paper `A` is symmetric and `eps` is defined by its row sums). -/
+theorem theta1_diagonal_sum (I : List ι) (A : ι → ι → α) (e : ι → α)
+    (hcol : ∀ j ∈ I, msum I (fun i => A i j) = 1 + e j) :
+    msum I (fun i => -2 * e i + msum I (fun j => A i j * e j))
+      = -msum I e + msum I (fun i => e i * e i) := by
+  have h1 : msum I (fun i => -2 * e i + msum I (fun j => A i j * e j))
+      = msum I (fun i => -2 * e i) + msum I (fun i => msum I (fun j => A i j * e j)) :=
+    msum_add I _ _
+  have h2 : msum I (fun i => -2 * e i) = -2 * msum I e := msum_mul_left (-2) I e
+  have h3 : msum I (fun i => msum I (fun j => A i j * e j))
+      = msum I (fun j => msum I (fun i => A i j * e j)) := msum_comm I I (fun i j => A i j * e j)
+  have h4 : msum I (fun j => msum I (fun i => A i j * e j)) = msum I (fun j => e j + e j * e j) := by
+    apply msum_congr
+    intro j hj
+    have h5 : msum I (fun i => A i j * e j) = msum I (fun i => e j * A i j) :=
+      msum_congr I _ _ (fun i _ => by grind)
+    have h6 : msum I (fun i => e j * A i j) = e j * msum I (fun i => A i j) := msum_mul_left (e j) I _
+    have h7 := hcol j hj
+    rw [h5, h6, h7]; grind
+  have h8 : msum I (fun j => e j + e j * e j) = msum I e + msum I (fun j => e j * e j) :=
+    msum_add I _ _
+  rw [h1, h2, h3, h4, h8]; grind
+
+/-- Negative control for `theta1_diagonal_sum`: without the sum of squares the identity fails
+    (one point, `A = 2`, `eps = 1`: the left side is `-2 + 2 = 0`, and `-eps = -1`). -/
+theorem theta1_diagonal_sum_control : ¬ ((-2 * 1 + 2 * 1 : Int) = -1) := by decide
+
 end Reduction
 end CTG.HeatTrace
