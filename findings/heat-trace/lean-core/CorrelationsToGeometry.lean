@@ -3588,3 +3588,41 @@ theorem delocalisation (I : List ι) (B : ι → ι → α) (u : ι → α) (t t
 
 end MainDeductions
 end CTG.HeatTrace
+
+namespace CTG.HeatTrace
+open Lean.Grind
+
+/-! ### Reduction of the trace to a polynomial statistic (draft, second stage): the algebra of Step 2 -/
+
+section Reduction
+variable {α : Type} [Field α] [LE α] [LT α] [Std.LawfulOrderLT α] [Std.IsLinearOrder α] [OrderedRing α]
+
+/-- The linearisation of `theta_{bi} = u_i / r_b - 1` in the normalisation errors. Here
+    `u_i = 1 - e + th` (with `th = e^2/(1+e)`), `r_b = 1 + rho` with
+    `rho = eb - pe + pth` (`eb = eps_b`, `pe = (P eps)_b`, `pth = (P theta)_b`), and
+    `1/(1 + rho) = 1 - rho + y` with `y = rho^2/(1 + rho)`. The first bracket is `theta^1_{bi}`. -/
+theorem theta_linearisation (e eb pe pth th rho y : α) (hrho : rho = eb - pe + pth) :
+    (1 - e + th) * (1 - rho + y) - 1
+      = (-e - eb + pe) + (-pth + e * rho + th * (1 - rho) + (1 - e + th) * y) := by
+  rw [hrho]; grind
+
+/-- The bound `|theta - theta^1| ≤ 14 delta^2`, given the bounds for the four terms of the
+    remainder that are derived in the text from `delta ≤ 1/8`. -/
+theorem theta_linearisation_bound {t1 t2 t3 t4 d2 : α} (hd : 0 ≤ d2)
+    (h1 : t1 ≤ 9 / 7 * d2 ∧ -(9 / 7 * d2) ≤ t1) (h2 : t2 ≤ 16 / 7 * d2 ∧ -(16 / 7 * d2) ≤ t2)
+    (h3 : t3 ≤ 3 / 2 * d2 ∧ -(3 / 2 * d2) ≤ t3) (h4 : t4 ≤ 17 / 2 * d2 ∧ -(17 / 2 * d2) ≤ t4) :
+    -t1 + t2 + t3 + t4 ≤ 14 * d2 ∧ -(14 * d2) ≤ -t1 + t2 + t3 + t4 := by
+  constructor <;> grind
+
+/-- The defect and its linearisation: from `r h = hhat + E` one gets `h - hhat = (1 - r) h + E`. -/
+theorem defect_linearisation (r h hhat E : α) (hr : r * h = hhat + E) :
+    h - hhat = (1 - r) * h + E := by grind
+
+/-- Negative control for `theta_linearisation`: without the term `e * rho` the identity fails
+    (`e = 1`, `eb = 1`, all other variables zero, so that `rho = 1`). -/
+theorem theta_linearisation_control :
+    ¬ ((1 - (1 : Int) + 0) * (1 - 1 + 0) - 1 = (-1 - 1 + 0) + (-0 + 0 * (1 - 1) + (1 - 1 + 0) * 0)) := by
+  decide
+
+end Reduction
+end CTG.HeatTrace
