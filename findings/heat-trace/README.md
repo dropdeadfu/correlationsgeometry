@@ -84,3 +84,7 @@ configuration; they are not evidence for a rate.
   `lambda = 39.5, 79.0, 157.9` at `N = 3000`, and the spread within the group is 0.6 to 1.4 times
   `N^(-1/2)`. Reading (not proven): a bias of order `M/N` and a random splitting of relative order
   `N^(-1/2)` for a single eigenvalue; the bound of G.33 is far from sharp.
+- Falsification test (`scripts/torus_eigenvalue_groups.py`, `xi = 0.1`, `lambda = 39.5`, 120/80/40 samples at
+  `N = 400/800/1600`): the standard deviation of the mean of a group of eigenvalues times `N` is 3.5, 3.7, 3.3,
+  that of the lowest eigenvalue of the group times `sqrt(N)` is 0.53, 0.48, 0.51. The alternative that the group
+  mean fluctuates at order `N^(-1/2)` is rejected by these numbers; the single eigenvalue does.
