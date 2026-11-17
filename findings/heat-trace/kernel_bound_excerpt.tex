@@ -1,8 +1,8 @@
-% Excerpt of Appendix G of "From Correlations to Geometry" (working copy of 17 November 2026).
+% Excerpt of Appendix G of "From Correlations to Geometry" (working copy of 18 November 2026).
 % A fragment, not a standalone document; it uses the macros and labels of the paper.
-% The typeset pages are in appendix_G22_G31.pdf.
+% The typeset pages are in appendix_G22_G32.pdf.
 
-% Lemmas G.26, G.27, Theorem G.28, Corollaries G.29, G.30, Remark G.31.
+% Lemmas G.26, G.27, Theorem G.28, Corollaries G.29, G.30, G.31, Remark G.32.
 
 \paragraph{The kernel of the sampled walk} The remaining statements of this subsection concern the walk itself and not only its trace. For $t>0$ let $\gamma_t(v)=(2\pi t)^{-d/2}e^{-|v|^2/2t}$ on $\R^d$ and $p^{(t)}(w)=\sum_{n\in\mathbb Z^d}\gamma_t(w+n)$ on $\M=\R^d/\mathbb Z^d$, the heat kernel of $\M$ at the time $t/2$. Thus $p=p^{(\xi^2)}$, $p_m=p^{*m}=p^{(m\xi^2)}$, $M=p(0)$, $m_m=p_m(0)$, and $(\mathcal Pf)(x)=\int_\M p(x-y)f(y)\,\dd y$. The points $x_1,\dots,x_N$ are independent and uniform on $\M$, $\tilde P_{bj}=p(x_b-x_j)/N$ (self-loops included), $\epsilon_b=\sum_j\tilde P_{bj}-1$, $\delta=\max_b|\epsilon_b|$, $u_j=(1+\epsilon_j)^{-1}$, $r_b=\sum_j\tilde P_{bj}u_j$ and $P_{bj}=\tilde P_{bj}u_j/r_b$. For $1\le i\le N$ and $m\ge1$,
 \[
@@ -157,13 +157,41 @@ Let $a_j=\Tr P^j$ and $e_j=a_j-m_j$ for $j\ge1$, and $w_j=e^{-\tau}\tau^j/j!$ fo
 Let $J$ be as in the proof of Corollary~\ref{cor:kernel-trace}; for large $N$, $J+2\le(C_1\delta')^{-2}$. For the indices up to $J+2$, $|e_j|\le C_1\delta'\sqrt{J+2}\,m_j$ by Theorem~\ref{thm:kernel}, and $\sum_{i\ge0}w_im_{i+2}\le\sum_{i\ge0}w_im_{i+1}\le e^{-\tau}M+T_\sigma\le\frac32T_\sigma$, because $m_j$ is non-increasing, $T_\sigma\ge w_1m_1=\tau e^{-\tau}M$ and $\tau\ge2$. The terms with $i\le J$ therefore contribute at most $\frac{11}2C_1\delta'\sqrt{J+2}\,T_\sigma$. For $i>J$ all indices are at least two, $|e_j|\le a_j+m_j\le3M$ as in the proof of Corollary~\ref{cor:kernel-trace}, and $\sum_{i>J}w_i\le N^{-2}$, which gives at most $12MN^{-2}$. Since $t=\sigma\tau$, $\frac{\sigma t}2\frac{\dd^2}{\dd t^2}=\frac\tau2\frac{\dd^2}{\dd\tau^2}$; together with $|T^N-T_\sigma|\le C_1\delta'\sqrt J\,T_\sigma+3MN^{-2}$ from the same proof this is the first statement, with $J+2\le8\tau+2\log N+4$. The second follows from Theorem~\ref{thm:corrected} and $T_\sigma\le C\,\Theta$.
 \end{proof}
 
+\begin{corollary}[The graph without self-loops]\label{cor:kernel-noloops}
+Let $P$ be built as in Lemma~\ref{lem:consistency}, but with the diagonal of the kernel removed, that is, with $\tilde P_{bb}=0$ (the case $\rho=0$ of Proposition~\ref{prop:bias}). Then Lemma~\ref{lem:consistency} holds without change, $D_1=m_1$, and on the event of the lemma, with $C_1'=C_1+3\cdot2^{d/2}$,
+\[
+D_k\le C_1'\,\delta'\,\sqrt k\;m_k\qquad\text{for all integers }2\le k\le(C_1'\delta')^{-2}.
+\]
+In the situation of Corollary~\ref{cor:kernel-trace}, almost surely for all large $N$ and all $t\in[\xi_N^2,1]$,
+\[
+\Big|\Tr e^{-t\Lc}-Ne^{-\tau}-\big(T_\sigma(t)-\tau e^{-\tau}M\big)\Big|\le\Big(C_1'\,\delta'\sqrt{8\tau+2\log N+2}+\frac{4M}{N^2}\Big)\,T_\sigma(t),
+\]
+and $\tau e^{-\tau}M\le C\,\tau^{1+d/2}e^{-\tau}\,\Tr e^{t\Delta}$: the statements of Corollary~\ref{cor:kernel-trace} on the rate hold for the graph without self-loops as well.
+\end{corollary}
+
+\begin{proof}
+\emph{The lemma.} In its proof the term $j=b$ of $S_1$ and of $A$ is absent, and in (i) the term $l=i$; nothing else changes.
+
+\emph{The recursion.} Now $NP_{bi}=p(x_b-x_i)(1+\theta_{bi})$ for $b\ne i$ and $NP_{ii}=0$, hence
+\[
+N(P^{k+1})_{ai}=\sum_b(P^k)_{ab}\,g_i(x_b)(1+\theta_{bi})-M\,(1+\theta_{ii})\,(P^k)_{ai},
+\]
+with $\theta_{ii}$ defined by the same formula as for $b\ne i$, $|\theta_{ii}|\le4\delta$. Since $N(P^k)_{ai}\le m_k+D_k$, \eqref{eq:kernel-rec} becomes
+\[
+D_{k+1}\le4\delta\,m_{k+1}+(1+4\delta)\,S_k+(1+4\delta)\,\frac MN\,(m_k+D_k).
+\]
+For $k=1$ the diagonal entry gives $D_1=m_1$, the other entries being at most $4\delta M$ apart. In the induction of Step~4 the hypothesis is used only in the form $D_l\le m_l$, which holds for $l=1$; the additional term is at most $3\frac MNm_k\le3\cdot2^{d/2}\delta'^2m_{k+1}$, because $M/N\le\delta'^2$ and $m_k\le2^{d/2}m_{2k}\le2^{d/2}m_{k+1}$. For $k=1$ one has $S_1\le C\delta'm_6\le C\delta'm_2$, so that $D_2\le C_1'\delta'\sqrt2\,m_2$, and the induction proceeds as before with $C_1'$ in place of $C_1$.
+
+\emph{The trace.} Here $\Tr P=0$, so that $\Tr e^{-t\Lc}-Ne^{-\tau}=\sum_{j\ge2}w_j\Tr P^j$, to be compared with $\sum_{j\ge2}w_jm_j=T_\sigma(t)-\tau e^{-\tau}M$. The terms with $2\le j\le J$ and with $j>J$ are estimated as in the proof of Corollary~\ref{cor:kernel-trace}. Finally $M\le C\sigma^{-d/2}$ and $\Tr e^{t\Delta}\ge(4\pi t)^{-d/2}$ give $M\le C\tau^{d/2}\Tr e^{t\Delta}$.
+\end{proof}
+
 \begin{remark}[Scope and status of the kernel estimate]\label{rem:kernel}
-(i) The argument is the comparison of two recursions in the supremum norm: the sampled walk is stable, because $P$ is row-stochastic, and consistent with the population walk by Lemma~\ref{lem:consistency}. It uses neither the walk $\tilde P$ with the exact normalisation nor an expansion in $\epsilon$, and no eigenvalues. Corollary~\ref{cor:kernel-trace} contains the second statement of Theorem~\ref{thm:jointpoly} and its first statement in a larger regime, in every dimension and almost surely: the exponent $2d+6$ is replaced by $d+6$ for the sharp rate, and the trace converges, with the rate $(\log N/N\xi_N^{d+2})^{1/2}$ up to a logarithm, as soon as $N\xi_N^{d+2}/\log N\to\infty$. Theorem~\ref{thm:kernel} and its corollary are stated for the graph with self-loops; without them Step~2 of the proof has the additional term $-p(0)(P^k)_{ai}$, of the size $(M/N)(m_k+D_k)$, and the lemma is unchanged. Theorem~\ref{thm:jointpoly} and its proof are kept because the count of closed walks is of independent use (Propositions~\ref{prop:bias}, \ref{prop:variance}).
+(i) The argument is the comparison of two recursions in the supremum norm: the sampled walk is stable, because $P$ is row-stochastic, and consistent with the population walk by Lemma~\ref{lem:consistency}. It uses neither the walk $\tilde P$ with the exact normalisation nor an expansion in $\epsilon$, and no eigenvalues. Corollary~\ref{cor:kernel-trace} contains the second statement of Theorem~\ref{thm:jointpoly} and its first statement in a larger regime, in every dimension and almost surely: the exponent $2d+6$ is replaced by $d+6$ for the sharp rate, and the trace converges, with the rate $(\log N/N\xi_N^{d+2})^{1/2}$ up to a logarithm, as soon as $N\xi_N^{d+2}/\log N\to\infty$. Theorem~\ref{thm:kernel} and Corollaries~\ref{cor:kernel-trace}, \ref{cor:kernel-corrected} are stated for the graph with self-loops; Corollary~\ref{cor:kernel-noloops} treats the graph without them. Theorem~\ref{thm:jointpoly} and its proof are kept because the count of closed walks is of independent use (Propositions~\ref{prop:bias}, \ref{prop:variance}).
 
 (ii) The estimate is not sharp for the trace. It bounds every entry of $P^k$, and the supremum over the entries is of the order $\delta'$; the mean over the diagonal is much smaller, of the order $M/N$ according to Propositions~\ref{prop:bias} and~\ref{prop:variance} and Remarks~\ref{rem:bias}(v), \ref{rem:variance}(v). The sharp rate under the condition $N\xi_N^{d+2}\to\infty$ of those remarks would need this averaging and remains a conjecture.
 
 (iii) \emph{Numerical illustration.} For one sample on the flat two-torus with $\xi=0.05$ and $N=4000$, where $\delta'=0.36$, the ratio $D_k/m_k$ is $0.51$, $0.39$, $0.32$, $0.24$, $0.21$, $0.20$, $0.20$ for $k=1,2,4,\dots,64$, and $\max_{b,i}|h^{(i)}_m(b)|\,m^{1/2}/p_{6m}(x_b-x_i)$ divided by $\delta'$ is $1.45$, $1.66$, $1.71$, $1.58$, $1.01$, $0.46$, $0.12$ for $m=1,2,4,\dots,64$; for $N=2000$ the numbers are similar. In these runs $\delta'$ is not small and the hypotheses of the lemma do not hold; they show the shape of the two bounds and not their validity.
 
-(iv) \emph{Provenance.} Lemmas~\ref{lem:pgauss} and~\ref{lem:consistency} and Theorem~\ref{thm:kernel} with Corollary~\ref{cor:kernel-trace} were written on one day by two sessions of an AI system, each reading the part of the other line by line; of Corollary~\ref{cor:kernel-corrected} the second session has read the statement and a summary of the proof, not the text above. No person has read them. Of all statements of this appendix these are the ones for which an independent check matters most.
+(iv) \emph{Provenance.} Lemmas~\ref{lem:pgauss} and~\ref{lem:consistency} and Theorem~\ref{thm:kernel} with Corollary~\ref{cor:kernel-trace} were written on one day by two sessions of an AI system, each reading the part of the other line by line; of Corollary~\ref{cor:kernel-corrected} the second session has read the statement and a summary of the proof, not the text above, and Corollary~\ref{cor:kernel-noloops} has been read by its author only. No person has read them. Of all statements of this appendix these are the ones for which an independent check matters most.
 \end{remark}
 

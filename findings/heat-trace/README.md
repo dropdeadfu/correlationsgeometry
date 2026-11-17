@@ -22,15 +22,16 @@ unless the table says otherwise, has been read formula by formula by a second AI
 | Theorem G.28 (`thm:kernel`) | `max |N (P^k)_ai - p_k(x_a - x_i)| <= C_1 delta' sqrt(k) m_k` for all `k <= (C_1 delta')^(-2)`: stability plus consistency in the supremum norm, no walk with exact normalisation, no eigenvalues | proven given G.27; written by the author-side session; the written-out proof has been read by the second session, which found no error and four points of presentation, now included |
 | Corollary G.29 (`cor:kernel-trace`) | Almost surely: the trace converges for `N xi^(d+2)/log N -> infinity`; the rate `xi^2/t` with the sharp coefficient holds for `N xi^(d+6)/log N -> infinity`, in every dimension (Theorem G.14 has `2d+6`, in probability, `d >= 2`) | proven given G.28; read by the second session |
 | Corollary G.30 (`cor:kernel-corrected`) | The corrected estimator `T - (sigma t/2) T''` of the sampled graph deviates from the heat trace by `O(tau^-2) + O(tau delta' sqrt(tau + log N))` | proven given G.28; written by the author-side session; the second session checked the statement and a summary of the proof (not the text in the paper) and found no error. The error is smaller than the gain of the correction only for `N xi^(d+10)/log N -> infinity` at a fixed time |
+| Corollary G.31 (`cor:kernel-noloops`) | G.28 and G.29 for the graph without self-loops: `D_1 = m_1`, the bound holds from `k = 2` on, and the subtracted trace is compared with `T_sigma - tau e^(-tau) M` | proven given G.27, G.28; written by the author-side session, NOT yet read by the second session |
 | Sharp rate for `N xi^(d+2) -> infinity` | would need the averaging over the diagonal (bias `M/N` instead of the entrywise error `delta'`) | open; conjecture |
 | Theorem G.14, proof | Six small gaps closed (self-term in Step 1, tail `j > J`, bounds on Theta, uniform form of the expansion, two presentational points); statement unchanged | done in the paper; not part of this folder |
 
 ## Files
 
-- `appendix_G22_G31.pdf` — the pages of the paper with G.22 to G.31 (the first and the last page
+- `appendix_G22_G32.pdf` — the pages of the paper with G.22 to G.32 (the first and the last page
   also show the end of the preceding and the beginning of the following item).
 - `bias_variance_excerpt.tex` — TeX of Propositions G.22, G.24 and Remarks G.23, G.25.
-- `kernel_bound_excerpt.tex` — TeX of Lemmas G.26, G.27, Theorem G.28, Corollaries G.29, G.30, Remark G.31.
+- `kernel_bound_excerpt.tex` — TeX of Lemmas G.26, G.27, Theorem G.28, Corollaries G.29, G.30, G.31, Remark G.32.
   Both are fragments that use the macros and labels of the paper; they do not compile on their own.
 - `scripts/kernel_sup_norm.py` — for one sample, the entrywise error of `P^k` against the heat kernel and
   the size of the consistency defect relative to the bound of Lemma G.27.
