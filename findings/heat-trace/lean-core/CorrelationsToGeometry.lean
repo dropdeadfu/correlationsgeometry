@@ -3654,5 +3654,21 @@ theorem theta1_diagonal_sum (I : List ι) (A : ι → ι → α) (e : ι → α)
     (one point, `A = 2`, `eps = 1`: the left side is `-2 + 2 = 0`, and `-eps = -1`). -/
 theorem theta1_diagonal_sum_control : ¬ ((-2 * 1 + 2 * 1 : Int) = -1) := by decide
 
+/-- Corollary "second stage", the summation over the Poisson weights: if for every index `j` of the
+    list the error `err j` is at most `(a + b) * J * m j` (HYPOTHESES `herr`: in the paper `a` comes
+    from Lemma "size of Pi_k", `b` from the reduction, and `j * phi(j) ≤ J`), with weights `w j ≥ 0`
+    and `m j ≥ 0`, then the weighted sum of the errors is at most `(a + b) * J` times the weighted
+    sum of the `m j`, which is `T_sigma` in the paper. -/
+theorem secondstage_sum (I : List ι) (w err m : ι → α) (a b J : α)
+    (hw : ∀ j ∈ I, 0 ≤ w j) (herr : ∀ j ∈ I, err j ≤ (a + b) * J * m j) :
+    msum I (fun j => w j * err j) ≤ (a + b) * J * msum I (fun j => w j * m j) := by
+  have h1 : msum I (fun j => w j * err j) ≤ msum I (fun j => (a + b) * J * (w j * m j)) := by
+    apply msum_le
+    intro j hj
+    have h2 := OrderedRing.mul_le_mul_of_nonneg_left (herr j hj) (hw j hj)
+    grind
+  have h3 := msum_mul_left ((a + b) * J) I (fun j => w j * m j)
+  grind
+
 end Reduction
 end CTG.HeatTrace

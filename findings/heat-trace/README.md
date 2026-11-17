@@ -44,6 +44,7 @@ unless the table says otherwise, has been read formula by formula by a second AI
   the size of the consistency defect relative to the bound of Lemma G.27.
 - `second_stage_excerpt.tex` — TeX of G.32 to G.36 (reduction, degenerate statistics, bound for `Pi_k`, corollary, remark).
 - `scripts/second_stage_reduction.py` — for one sample, the trace error, `Pi_k` and the remainder of G.32.
+- `scripts/second_stage_remainder_mc.py` — the remainder of G.32 over independent samples: a bias of order `M/N` (0.39 to 0.89 times `(M/N) m`) with smaller fluctuations; numerics only.
 - `scripts/pi_k_bound_mc.py` — Monte Carlo attempt to falsify G.34: `E|Pi_k| / ((M/N) k m_k)` stays between 0.19 and 0.29 for `k = 1` and falls to about 0.01 for `k = 32` (`d = 2`, `N` from 300 to 1200); no contradiction.
 - `scripts/normalised_walk_bias.py` — Monte Carlo for `Tr P^k - m_k` on the torus (`d = 1, 2, 3`, with
   and without self-loops) against `beta_k/N`.
@@ -52,7 +53,7 @@ unless the table says otherwise, has been read formula by formula by a second AI
 - `scripts/subtracted_trace_loops.py` — the subtracted trace with and without self-loops against the
   population value and against the first-order prediction.
 - `lean-core/CorrelationsToGeometry.lean` — the author's Lean file (Lean 4.29.0, core library only, no
-  Mathlib; 262 theorems, no `sorry`, no `axiom`). Its last section contains the algebra of G.22 and
+  Mathlib; 263 theorems, no `sorry`, no `axiom`). Its last section contains the algebra of G.22 and
   G.24 (`gamma_expansion`, `bias_sum`, `bias_loops`, `variance_kernel_sum`, `bias_is_diagonal`) and the
   stability of a row-stochastic matrix in the supremum norm (`Stoch.app_le`, `lax_stability`,
   `weighted_sum_bound`) and the telescoping identity of Theorem G.28, Step 1 (`telescope`), the step inequality (`kernel_step`) and the logic of its induction (`bootstrap`). As whole deductions, with the non-formalised inputs as explicit hypotheses: `kernel_induction` (Step 4 of
