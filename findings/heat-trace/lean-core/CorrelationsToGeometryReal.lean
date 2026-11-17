@@ -17,6 +17,8 @@
 import Mathlib.Analysis.Complex.Exponential
 import Mathlib.Topology.Algebra.InfiniteSum.Real
 import Mathlib.Analysis.SpecificLimits.Basic
+import Mathlib.Analysis.Matrix.Spectrum
+import Mathlib.Analysis.SpecialFunctions.Exponential
 import CorrelationsToGeometry
 
 namespace CTG.Reals
@@ -138,5 +140,55 @@ theorem real_poisson_hasSum {tau : ℝ} (ht : 0 ≤ tau) (s : ℕ → ℝ) (hs :
       = fun m => ∑ j ∈ Finset.range (m + 1), poissonW Real.exp tau j * p j := funext (jsum_eq _)
   rw [e] at key
   exact key
+
+/-! ### The spectral theorem: from the matrix to the eigenvalues -/
+
+section Spectral
+open Matrix
+
+/-- Bridge from the matrix to the sums over eigenvalues (spectral theorem of Mathlib): for a real
+    symmetric matrix the trace of the `k`-th power is the sum of the `k`-th powers of the
+    eigenvalues, with multiplicities. In the paper `A = S` and the trace is the return moment
+    `m_k = Tr P^k`. -/
+theorem trace_pow_eq_sum_eigenvalues {n : Type} [Fintype n] [DecidableEq n] (A : Matrix n n ℝ)
+    (hA : A.IsHermitian) (k : ℕ) : (A ^ k).trace = ∑ i, hA.eigenvalues i ^ k := by
+  have hk : A ^ k = Unitary.conjStarAlgAut ℝ _ hA.eigenvectorUnitary
+      (diagonal (RCLike.ofReal ∘ hA.eigenvalues) ^ k) := by
+    conv_lhs => rw [hA.spectral_theorem]
+    rw [map_pow]
+  rw [hk, diagonal_pow, Unitary.conjStarAlgAut_apply, trace_mul_comm, ← mul_assoc]
+  have hu : (star (hA.eigenvectorUnitary : Matrix n n ℝ)) * (hA.eigenvectorUnitary : Matrix n n ℝ) = 1 :=
+    Unitary.coe_star_mul_self _
+  rw [hu, one_mul, trace_diagonal]
+  simp
+
+/-- The exponential series of the real exponential, as an infinite sum of Mathlib. -/
+theorem real_hasSum_exp (x : ℝ) : HasSum (fun j : ℕ => x ^ j / (j.factorial : ℝ)) (Real.exp x) := by
+  have h := NormedSpace.expSeries_div_hasSum_exp (𝔸 := ℝ) x
+  rwa [← Real.exp_eq_exp_ℝ] at h
+
+/-- Theorem "Poisson representation" (Theorem 3.11 of the paper) in spectral form, for an
+    arbitrary real symmetric matrix `S` and every real `tau`, WITHOUT hypotheses:
+    `sum_i e^{-tau (1 - s_i)} = sum_j e^{-tau} tau^j/j! Tr S^j`, the right side as an infinite sum.
+    The left side is the trace of `e^{-tL}` for `L = (tau/t)(1 - S)` written through the
+    eigenvalues `s_i` of `S`; that this equals the trace of the matrix exponential is not
+    formalised here. -/
+theorem poisson_representation {n : Type} [Fintype n] [DecidableEq n] (S : Matrix n n ℝ)
+    (hS : S.IsHermitian) (tau : ℝ) :
+    HasSum (fun j : ℕ => Real.exp (-tau) * (tau ^ j / (j.factorial : ℝ)) * (S ^ j).trace)
+      (∑ i, Real.exp (-(tau * (1 - hS.eigenvalues i)))) := by
+  have h1 : ∀ i, HasSum (fun j : ℕ => Real.exp (-tau) * ((tau * hS.eigenvalues i) ^ j / (j.factorial : ℝ)))
+      (Real.exp (-tau) * Real.exp (tau * hS.eigenvalues i)) :=
+    fun i => (real_hasSum_exp (tau * hS.eigenvalues i)).mul_left _
+  have h2 := hasSum_sum (s := Finset.univ) (fun i _ => h1 i)
+  convert h2 using 1
+  · funext j
+    rw [trace_pow_eq_sum_eigenvalues S hS j, Finset.mul_sum]
+    refine Finset.sum_congr rfl (fun i _ => ?_)
+    rw [mul_pow]; ring
+  · refine Finset.sum_congr rfl (fun i _ => ?_)
+    rw [← Real.exp_add]; congr 1; ring
+
+end Spectral
 
 end CTG.Reals
