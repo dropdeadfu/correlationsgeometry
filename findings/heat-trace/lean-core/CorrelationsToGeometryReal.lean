@@ -253,6 +253,43 @@ theorem poisson_representation_matrix {n : Type} [Fintype n] [DecidableEq n] (S 
   rw [trace_exp_heat S hS tau]
   exact poisson_representation S hS tau
 
+/-- Lower bound of Theorem "Poisson representation" for matrices: if `tau ≥ 0` and `Tr S ≥ 0`,
+    then `N e^{-tau} ≤ Tr exp(tau (S - 1))`, with `N` the size of the matrix. In fact
+    `e^{-tau} (N + tau Tr S) ≤ Tr exp(tau (S - 1))` for every real `tau` and every real symmetric
+    `S` (second inequality of Proposition "refined bounds"). -/
+theorem heat_two_term_matrix {n : Type} [Fintype n] [DecidableEq n] (S : Matrix n n ℝ)
+    (hS : S.IsHermitian) (tau : ℝ) :
+    Real.exp (-tau) * ((Fintype.card n : ℝ) + tau * S.trace)
+      ≤ (NormedSpace.exp (tau • (S - 1))).trace := by
+  rw [trace_exp_heat S hS tau]
+  have htr : S.trace = ∑ i, hS.eigenvalues i := by
+    have h := hS.trace_eq_sum_eigenvalues (𝕜 := ℝ)
+    simpa using h
+  have hterm : ∀ i, Real.exp (-tau) * (1 + tau * hS.eigenvalues i)
+      ≤ Real.exp (-(tau * (1 - hS.eigenvalues i))) := by
+    intro i
+    have h1 : -(tau * (1 - hS.eigenvalues i)) = -tau + tau * hS.eigenvalues i := by ring
+    rw [h1, Real.exp_add]
+    have h2 : 1 + tau * hS.eigenvalues i ≤ Real.exp (tau * hS.eigenvalues i) := by
+      have := Real.add_one_le_exp (tau * hS.eigenvalues i); linarith
+    exact mul_le_mul_of_nonneg_left h2 (Real.exp_pos _).le
+  calc Real.exp (-tau) * ((Fintype.card n : ℝ) + tau * S.trace)
+      = ∑ i, Real.exp (-tau) * (1 + tau * hS.eigenvalues i) := by
+        rw [htr, ← Finset.mul_sum, Finset.sum_add_distrib, ← Finset.mul_sum]
+        simp
+    _ ≤ ∑ i, Real.exp (-(tau * (1 - hS.eigenvalues i))) :=
+        Finset.sum_le_sum (fun i _ => hterm i)
+
+theorem heat_lower_matrix {n : Type} [Fintype n] [DecidableEq n] (S : Matrix n n ℝ)
+    (hS : S.IsHermitian) {tau : ℝ} (ht : 0 ≤ tau) (htr : 0 ≤ S.trace) :
+    (Fintype.card n : ℝ) * Real.exp (-tau) ≤ (NormedSpace.exp (tau • (S - 1))).trace := by
+  have h := heat_two_term_matrix S hS tau
+  have h2 : (Fintype.card n : ℝ) * Real.exp (-tau)
+      ≤ Real.exp (-tau) * ((Fintype.card n : ℝ) + tau * S.trace) := by
+    have := mul_nonneg ht htr
+    nlinarith [Real.exp_pos (-tau)]
+  linarith
+
 end Spectral
 
 end CTG.Reals
