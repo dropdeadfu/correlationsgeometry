@@ -19,6 +19,7 @@ import Mathlib.Topology.Algebra.InfiniteSum.Real
 import Mathlib.Analysis.SpecificLimits.Basic
 import Mathlib.Analysis.Matrix.Spectrum
 import Mathlib.Analysis.SpecialFunctions.Exponential
+import Mathlib.Analysis.Normed.Algebra.MatrixExponential
 import CorrelationsToGeometry
 
 namespace CTG.Reals
@@ -171,8 +172,8 @@ theorem real_hasSum_exp (x : ℝ) : HasSum (fun j : ℕ => x ^ j / (j.factorial 
     arbitrary real symmetric matrix `S` and every real `tau`, WITHOUT hypotheses:
     `sum_i e^{-tau (1 - s_i)} = sum_j e^{-tau} tau^j/j! Tr S^j`, the right side as an infinite sum.
     The left side is the trace of `e^{-tL}` for `L = (tau/t)(1 - S)` written through the
-    eigenvalues `s_i` of `S`; that this equals the trace of the matrix exponential is not
-    formalised here. -/
+    eigenvalues `s_i` of `S`; see `poisson_representation_matrix` below for the form with the
+    matrix exponential. -/
 theorem poisson_representation {n : Type} [Fintype n] [DecidableEq n] (S : Matrix n n ℝ)
     (hS : S.IsHermitian) (tau : ℝ) :
     HasSum (fun j : ℕ => Real.exp (-tau) * (tau ^ j / (j.factorial : ℝ)) * (S ^ j).trace)
@@ -188,6 +189,69 @@ theorem poisson_representation {n : Type} [Fintype n] [DecidableEq n] (S : Matri
     rw [mul_pow]; ring
   · refine Finset.sum_congr rfl (fun i _ => ?_)
     rw [← Real.exp_add]; congr 1; ring
+
+/-- The trace of the matrix exponential of a real symmetric matrix is the sum of the
+    exponentials of its eigenvalues. -/
+theorem trace_exp_eq_sum_exp_eigenvalues {n : Type} [Fintype n] [DecidableEq n] (A : Matrix n n ℝ)
+    (hA : A.IsHermitian) : (NormedSpace.exp A).trace = ∑ i, Real.exp (hA.eigenvalues i) := by
+  let U : Matrix n n ℝ := hA.eigenvectorUnitary
+  have h1 : U * star U = 1 := Unitary.coe_mul_star_self _
+  have h2 : star U * U = 1 := Unitary.coe_star_mul_self _
+  let u : (Matrix n n ℝ)ˣ := ⟨U, star U, h1, h2⟩
+  have hA' : A = (u : Matrix n n ℝ) * diagonal (RCLike.ofReal ∘ hA.eigenvalues)
+      * ((u⁻¹ : (Matrix n n ℝ)ˣ) : Matrix n n ℝ) := by
+    conv_lhs => rw [hA.spectral_theorem, Unitary.conjStarAlgAut_apply]
+    rfl
+  have hexp : NormedSpace.exp A = (u : Matrix n n ℝ)
+      * NormedSpace.exp (diagonal (RCLike.ofReal ∘ hA.eigenvalues))
+      * ((u⁻¹ : (Matrix n n ℝ)ˣ) : Matrix n n ℝ) :=
+    (congrArg NormedSpace.exp hA').trans (Matrix.exp_units_conj u _)
+  rw [hexp, Matrix.trace_units_conj, Matrix.exp_diagonal, trace_diagonal]
+  simp [Real.exp_eq_exp_ℝ]
+
+/-- The heat trace of the graph Laplacian through the eigenvalues: for a real symmetric `S`
+    with eigenvalues `s_i`, `Tr exp(tau (S - 1)) = sum_i e^{-tau (1 - s_i)}`. In the paper
+    `-t L = tau (S - 1)` with `tau = 2t/(c_h xi^2)`. -/
+theorem trace_exp_heat {n : Type} [Fintype n] [DecidableEq n] (S : Matrix n n ℝ)
+    (hS : S.IsHermitian) (tau : ℝ) :
+    (NormedSpace.exp (tau • (S - 1))).trace = ∑ i, Real.exp (-(tau * (1 - hS.eigenvalues i))) := by
+  let U : Matrix n n ℝ := hS.eigenvectorUnitary
+  have h1 : U * star U = 1 := Unitary.coe_mul_star_self _
+  have h2 : star U * U = 1 := Unitary.coe_star_mul_self _
+  let u : (Matrix n n ℝ)ˣ := ⟨U, star U, h1, h2⟩
+  have hS' : S = (u : Matrix n n ℝ) * diagonal (RCLike.ofReal ∘ hS.eigenvalues)
+      * ((u⁻¹ : (Matrix n n ℝ)ˣ) : Matrix n n ℝ) := by
+    conv_lhs => rw [hS.spectral_theorem, Unitary.conjStarAlgAut_apply]
+    rfl
+  have hD : diagonal (fun i => tau * (hS.eigenvalues i - 1))
+      = tau • (diagonal (RCLike.ofReal ∘ hS.eigenvalues) - 1) := by
+    ext i j
+    by_cases h : i = j
+    · subst h; simp
+    · simp [h]
+  have hsub : S - 1 = (u : Matrix n n ℝ) * (diagonal (RCLike.ofReal ∘ hS.eigenvalues) - 1)
+      * ((u⁻¹ : (Matrix n n ℝ)ˣ) : Matrix n n ℝ) := by
+    rw [mul_sub, sub_mul, mul_one, Units.mul_inv, ← hS']
+  have hL : tau • (S - 1) = (u : Matrix n n ℝ) * diagonal (fun i => tau * (hS.eigenvalues i - 1))
+      * ((u⁻¹ : (Matrix n n ℝ)ˣ) : Matrix n n ℝ) := by
+    rw [hD, hsub, Matrix.mul_smul, Matrix.smul_mul]
+  have hexp := (congrArg NormedSpace.exp hL).trans (Matrix.exp_units_conj u _)
+  rw [hexp, Matrix.trace_units_conj, Matrix.exp_diagonal, trace_diagonal]
+  refine Finset.sum_congr rfl (fun i _ => ?_)
+  simp [Real.exp_eq_exp_ℝ]
+  congr 1; ring
+
+/-- **Theorem "Poisson representation" (Theorem 3.11 of the paper) for matrices, without
+    hypotheses.** For every real symmetric matrix `S` and every real `tau`,
+    `Tr exp(tau (S - 1)) = sum_{j ≥ 0} e^{-tau} tau^j/j! Tr S^j`, the right side as an infinite sum
+    of Mathlib. With `-t L = tau (S - 1)` the left side is `Tr e^{-tL}`, and the term `j = 0` is
+    `N e^{-tau}`. -/
+theorem poisson_representation_matrix {n : Type} [Fintype n] [DecidableEq n] (S : Matrix n n ℝ)
+    (hS : S.IsHermitian) (tau : ℝ) :
+    HasSum (fun j : ℕ => Real.exp (-tau) * (tau ^ j / (j.factorial : ℝ)) * (S ^ j).trace)
+      (NormedSpace.exp (tau • (S - 1))).trace := by
+  rw [trace_exp_heat S hS tau]
+  exact poisson_representation S hS tau
 
 end Spectral
 
