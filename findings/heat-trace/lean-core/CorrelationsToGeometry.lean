@@ -3415,3 +3415,75 @@ theorem root_of_power_bound {x y c eta : α} (hy : 0 ≤ y) (hxy : y ≤ x) (k :
 
 end PowersToEigenvalues
 end CTG.HeatTrace
+
+namespace CTG.HeatTrace
+open Lean.Grind
+
+/-! ### Corollaries G.34 and G.35 (eigenspaces, delocalisation): the deterministic steps -/
+
+section EigenSteps
+variable {α : Type} [Field α] [LE α] [LT α] [Std.LawfulOrderLT α] [Std.IsLinearOrder α] [OrderedRing α]
+variable {ι : Type} {exp : α → α}
+
+/-- `sum_i (s A_i - t u_i)^2 ≥ 0`, written out: `s^2 sum A^2 - 2 s t sum A u + t^2 sum u^2 ≥ 0`. -/
+theorem msum_quadform (s t : α) : ∀ (I : List ι) (A u : ι → α),
+    0 ≤ s * s * msum I (fun i => A i * A i) - 2 * (s * t) * msum I (fun i => A i * u i)
+        + t * t * msum I (fun i => u i * u i)
+  | [], _, _ => by simp [msum] <;> grind
+  | i :: I, A, u => by
+    have ih := msum_quadform s t I A u
+    have sq := mul_self_nonneg (s * A i - t * u i)
+    simp only [msum]; grind
+
+/-- The Cauchy--Schwarz inequality for finite sums. -/
+theorem msum_cauchy_schwarz : ∀ (I : List ι) (A u : ι → α),
+    msum I (fun i => A i * u i) * msum I (fun i => A i * u i)
+      ≤ msum I (fun i => A i * A i) * msum I (fun i => u i * u i)
+  | [], _, _ => by simp [msum] <;> grind
+  | i :: I, A, u => by
+    have ih := msum_cauchy_schwarz I A u
+    have q := msum_quadform (u i) (A i) I A u
+    simp only [msum]; grind
+
+/-- Corollary G.35, the step `|u_a| ≤ c (sum_i B_i^2)^{1/2}` in squared form: if
+    `u_a = c sum_i B_i u_i` and `sum_i u_i^2 ≤ 1`, then `u_a^2 ≤ c^2 sum_i B_i^2`. -/
+theorem delocalisation_step (I : List ι) (B u : ι → α) (c ua : α)
+    (h : ua = c * msum I (fun i => B i * u i)) (hu : msum I (fun i => u i * u i) ≤ 1) :
+    ua * ua ≤ c * c * msum I (fun i => B i * B i) := by
+  have cs := msum_cauchy_schwarz I B u
+  have hB : 0 ≤ msum I (fun i => B i * B i) := msum_nonneg I _ (fun i _ => mul_self_nonneg (B i))
+  have h1 := OrderedRing.mul_le_mul_of_nonneg_left hu hB
+  have h2 := OrderedRing.mul_le_mul_of_nonneg_left
+    (show msum I (fun i => B i * u i) * msum I (fun i => B i * u i) ≤ msum I (fun i => B i * B i) by grind)
+    (mul_self_nonneg c)
+  rw [h]; grind
+
+/-- Corollary G.34, the spectral step: if `w` has the coefficients `c_i` in an eigenbasis with
+    eigenvalues `mu_i`, and `f_i` is `c_i^2` on the eigenvalues at a distance at least `rho` from
+    `a` and zero on the others, then `rho^2 sum f_i ≤ sum (mu_i - a)^2 c_i^2 = |(B - a) w|^2`. -/
+theorem spectral_step (I : List ι) (mu c f : ι → α) (a rho : α)
+    (hf : ∀ i, f i = 0 ∨ (f i = c i * c i ∧ rho * rho ≤ (mu i - a) * (mu i - a))) :
+    rho * rho * msum I f ≤ msum I (fun i => (mu i - a) * (mu i - a) * (c i * c i)) := by
+  have key : ∀ i ∈ I, rho * rho * f i ≤ (mu i - a) * (mu i - a) * (c i * c i) := by
+    intro i _
+    have n1 := OrderedRing.mul_nonneg (mul_self_nonneg (mu i - a)) (mul_self_nonneg (c i))
+    cases hf i with
+    | inl h0 => rw [h0]; grind
+    | inr h1 =>
+      have m := OrderedRing.mul_le_mul_of_nonneg_left h1.2 (mul_self_nonneg (c i))
+      rw [h1.1]; grind
+  have s := msum_le I (fun i => rho * rho * f i) _ key
+  have e := msum_mul_left (rho * rho) I f
+  grind
+
+/-- Corollary G.34, the separation of the powers: for `u ≤ v`,
+    `e^{-u} - e^{-v} ≥ e^{-v} (v - u)`. -/
+theorem exp_gap (h : IsExp exp) {u v : α} (huv : u ≤ v) :
+    exp (-v) * (v - u) ≤ exp (-u) - exp (-v) := by
+  have hadd := h.add (-v) (v - u)
+  rw [show -v + (v - u) = -u by grind] at hadd
+  have m := OrderedRing.mul_le_mul_of_nonneg_left (h.ge (v - u)) (h.nonneg (-v))
+  grind
+
+end EigenSteps
+end CTG.HeatTrace
