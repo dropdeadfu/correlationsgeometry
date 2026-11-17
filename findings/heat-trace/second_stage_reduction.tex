@@ -58,6 +58,22 @@ The first sum is at most $(m_l+D_l)\max_i\frac1N\sum_b|h-\hat h|\le C\delta'^2m^
 since $\sum_{l\le k/2}l^{(1-d)/2}$ is at most $k/2$, $\sqrt{2k}$, $1+\log k$ and a constant for $d=1$, $d=2$, $d=3$ and $d\ge4$, and $\sum_{k/2<l<k}(k-l)^{-1/2}\le2\sqrt k$. Adding (a), (b) and (c) and using $m_k\le2^{d/2}m_{k+1}$ gives the claim. The degree of $\Pi_k$: $\hat h$ and $\theta^1$ are linear in $\epsilon$, and $\epsilon_j=\frac1N\sum_v(p(x_j-x_v)-1)$.
 \end{proof}
 
+\begin{corollary}[The second stage; CONDITIONAL on a bound for $\Pi_k$ that is not yet proven]\label{cor:secondstage}
+Suppose that there is a constant $C_\Pi$ depending only on $d$ such that $\mathbb E\,\big[|\Pi_k|\,\mathbf 1_{E}\big]\le C_\Pi\,\frac MN\,k\,m_k$ for all $k\ge1$ and all $N$ with $M\le N$, where $E$ is the event of Lemma~\ref{lem:consistency}. Let $d\le3$, $\xi_N\to0$ and $N\xi_N^{d+2}/\log N\to\infty$. Then for every sequence $t_N\in[\xi_N^2,1]$, with $\tau=2t_N/\xi_N^2$ and $J=\lceil8\tau\rceil+\lceil2\log N\rceil$,
+\[
+\frac{\Tr e^{-t_N\Lc}-Ne^{-\tau}}{T_\sigma(t_N)}=1+O_{\mathbb P}\Big(\frac{M\log N}{N}\,J\,\varphi_d(J)\Big),
+\]
+and the right-hand side is $o_{\mathbb P}(\xi_N^2)$ if $N\xi_N^{d+4}/\log N\to\infty$ for $d\le2$, respectively $N\xi_N^{7}/(\log N)^2\to\infty$ for $d=3$. In that case the relative deviation of the subtracted trace from the heat trace is $\frac{d(d+2)}{8\tau}(1+o_{\mathbb P}(1))$ whenever $t_N\to0$ and $t_N/\xi_N^2\to\infty$.
+\end{corollary}
+
+\begin{proof}
+On $E$, for $2\le j\le J$ (and $J\le(C_1\delta')^{-2}$ for large $N$), Proposition~\ref{prop:reduction} with $k=j-1$ gives $|\Tr P^j-m_j|\le|\Pi_{j-1}|+C_2\delta'^2j\varphi_d(j)m_j$, and for $j=1$ Theorem~\ref{thm:kernel} gives $|\Tr P-m_1|\le C_1\delta'm_1$ with the weight $w_1=\tau e^{-\tau}$, which is negligible as in Corollary~\ref{cor:kernel-noloops}. Hence, with $m_{j-1}\le2^{d/2}m_j$ and $\delta'^2=M\log N/N$,
+\[
+\mathbb E\Big[\mathbf 1_E\sum_{2\le j\le J}w_j\big|\Tr P^j-m_j\big|\Big]\le C\,\frac{M\log N}{N}\,J\,\varphi_d(J)\sum_jw_jm_j=C\,\frac{M\log N}{N}\,J\,\varphi_d(J)\,T_\sigma .
+\]
+The terms with $j>J$ are treated as in Corollary~\ref{cor:kernel-trace}, $\mathbb P(E^c)\to0$, and Markov's inequality gives the first statement. For the second, $J\le19\xi_N^{-2}$ if $\log N\le\xi_N^{-2}$, so that the error is $O(\log N\,\varphi_d(\xi_N^{-2})/N\xi_N^{d+2})$, and $\varphi_3(\xi_N^{-2})\le1+\log N$; the other case is as in Corollary~\ref{cor:kernel-trace}.
+\end{proof}
+
 % What this is for. If E|Pi_k| <= C (M/N) k m_k uniformly in k (lemma being written by the second session),
 % then Tr P^{k+1}/m_{k+1} - 1 = O_P( (M log N / N) k phi_d(k) ), and the sharp rate xi^2/t holds in
 % probability for N xi^(d+4)/log N -> infinity in dimensions d <= 2 (with a logarithm more for d = 3).
