@@ -3487,3 +3487,104 @@ theorem exp_gap (h : IsExp exp) {u v : α} (huv : u ≤ v) :
 
 end EigenSteps
 end CTG.HeatTrace
+
+namespace CTG.HeatTrace
+open Lean.Grind
+
+/-! ### Theorems G.28 and G.33, Corollary G.35: the deterministic deductions as a whole
+
+  Each statement below is the complete deterministic part of the proof in the paper. What is
+  not formalised enters as a HYPOTHESIS: the consistency lemma G.27 and the kernel-matrix lemma
+  G.32 (probability), Weyl's inequality for symmetric matrices, and the spectral theorem. -/
+
+section MainDeductions
+variable {α : Type} [Field α] [LE α] [LT α] [Std.LawfulOrderLT α] [Std.IsLinearOrder α] [OrderedRing α]
+variable {ι : Type}
+
+theorem pw_succ_le {s : α} (hs0 : 0 ≤ s) (hs1 : s ≤ 1) (k : Nat) : pw s (k + 1) ≤ pw s k := by
+  have m := OrderedRing.mul_nonneg (show (0 : α) ≤ 1 - s by grind) (pw_nonneg hs0 k)
+  have e : pw s (k + 1) = s * pw s k := rfl
+  rw [e]; grind
+
+/-- Theorem G.28, Step 4 as a whole (the induction of the kernel estimate).
+    HYPOTHESES: `hrec` is Step 2 (the last step of the walk), `hS` is Steps 3 and 4 for one `k`
+    given the consistency lemma, with `W k` standing for `2^{d+3} C delta' sqrt k`.
+    CONCLUSION: `D_k ≤ mu_k` for `1 ≤ k ≤ K`, and the bound with the explicit constant. -/
+theorem kernel_induction (D mu S W : Nat → α) (d d' : α) (K : Nat)
+    (hmu : ∀ k, 0 ≤ mu k) (hd0 : 0 ≤ d) (hd : d ≤ 6 * d') (hd' : 6 * d' ≤ 1 / 8)
+    (hD1 : D 1 ≤ mu 1)
+    (hrec : ∀ k, 1 ≤ k → D (k + 1) ≤ 4 * d * mu (k + 1) + (1 + 4 * d) * S k)
+    (hS : ∀ k, 1 ≤ k → k < K → (∀ l, 1 ≤ l → l ≤ k → D l ≤ mu l) → S k ≤ W k * mu (k + 1))
+    (hW : ∀ k, 1 ≤ k → k < K → 0 ≤ W k ∧ 24 * d' + 3 / 2 * W k ≤ 1) :
+    (∀ k, k ≤ K → ∀ l, 1 ≤ l → l ≤ k → D l ≤ mu l)
+      ∧ (∀ k, 1 ≤ k → k < K → D (k + 1) ≤ (24 * d' + 3 / 2 * W k) * mu (k + 1)) := by
+  have step : ∀ k, 1 ≤ k → k < K → (∀ l, 1 ≤ l → l ≤ k → D l ≤ mu l) →
+      D (k + 1) ≤ (24 * d' + 3 / 2 * W k) * mu (k + 1) := by
+    intro k hk1 hkK ih
+    exact kernel_step (hmu (k + 1)) (hW k hk1 hkK).1 hd0 hd hd' (hS k hk1 hkK ih) (hrec k hk1)
+  have all : ∀ k, k ≤ K → ∀ l, 1 ≤ l → l ≤ k → D l ≤ mu l := by
+    apply bootstrap D mu K hD1
+    intro k hk1 hkK ih
+    have b := step k hk1 hkK ih
+    have w := (hW k hk1 hkK).2
+    have m := OrderedRing.mul_nonneg (show (0 : α) ≤ 1 - (24 * d' + 3 / 2 * W k) by grind) (hmu (k + 1))
+    grind
+  refine ⟨all, ?_⟩
+  intro k hk1 hkK
+  exact step k hk1 hkK (all k (by omega))
+
+/-- Theorem G.33, from (i) to (ii): if `|s^{k+1} - a^{k+1}| ≤ eta` and `a^{k+1} ≥ 2 eta` for
+    `s, a ∈ [0, 1]`, then `(k+1) a^{k+1} |s - a| ≤ 2 eta`. With `sigma lambda^N = 1 - s` and
+    `sigma lambda^pop = 1 - a` this is `|lambda^N - lambda^pop| ≤ 2 eta / ((k+1) sigma a^{k+1})`. -/
+theorem eigenvalue_from_power {s a eta : α} (hs0 : 0 ≤ s) (hs1 : s ≤ 1) (ha0 : 0 ≤ a) (ha1 : a ≤ 1)
+    (k : Nat) (h1 : pw s (k + 1) - pw a (k + 1) ≤ eta) (h2 : pw a (k + 1) - pw s (k + 1) ≤ eta)
+    (h3 : 2 * eta ≤ pw a (k + 1)) :
+    ncast (k + 1) * (pw a (k + 1) * (s - a)) ≤ 2 * eta
+      ∧ ncast (k + 1) * (pw a (k + 1) * (a - s)) ≤ 2 * eta := by
+  have hn := ncast_nonneg (α := α) (k + 1)
+  have hA := pw_nonneg ha0 (k + 1)
+  have hna := OrderedRing.mul_nonneg hn hA
+  by_cases hc : a ≤ s
+  · have r := root_of_power_bound ha0 hc k (pw_succ_le ha0 ha1 k) hA h1
+    have p := OrderedRing.mul_nonneg hna (show (0 : α) ≤ s - a by grind)
+    constructor <;> grind
+  · have hsa : s ≤ a := by grind
+    have c1 := pw_succ_le hs0 hs1 k
+    have r := root_of_power_bound (c := 1 / 2 * pw a (k + 1)) hs0 hsa k (by grind) (by grind) h2
+    have p := OrderedRing.mul_nonneg hna (show (0 : α) ≤ a - s by grind)
+    constructor <;> grind
+
+/-- Theorem G.33 (ii) in the variables of the paper. HYPOTHESIS `hpow`: part (i) of the theorem
+    for one `k` (which rests on Theorem G.28, Lemma G.32 and Weyl's inequality). -/
+theorem eigtorus_ii {s a eta sigma lamN lamPop : α} (hs0 : 0 ≤ s) (hs1 : s ≤ 1) (ha0 : 0 ≤ a)
+    (ha1 : a ≤ 1) (k : Nat) (hsig : 0 ≤ sigma) (hN : sigma * lamN = 1 - s)
+    (hP : sigma * lamPop = 1 - a)
+    (hpow : pw s (k + 1) - pw a (k + 1) ≤ eta ∧ pw a (k + 1) - pw s (k + 1) ≤ eta)
+    (h3 : 2 * eta ≤ pw a (k + 1)) :
+    ncast (k + 1) * (pw a (k + 1) * (sigma * (lamPop - lamN))) ≤ 2 * eta
+      ∧ ncast (k + 1) * (pw a (k + 1) * (sigma * (lamN - lamPop))) ≤ 2 * eta := by
+  have r := eigenvalue_from_power hs0 hs1 ha0 ha1 k hpow.1 hpow.2 h3
+  have e1 : sigma * (lamPop - lamN) = s - a := by grind
+  have e2 : sigma * (lamN - lamPop) = a - s := by grind
+  rw [e1, e2]; exact r
+
+/-- Corollary G.35 as a whole. HYPOTHESES: `B` is the symmetric matrix `S^k`, `u` an eigenvector
+    with eigenvalue `t ≥ t0 > 0` and `sum u_i^2 ≤ 1`, and `kappa` bounds the diagonal entry
+    `(S^{2k})_{aa} = sum_i B_{ai} B_{ia}` (from Theorem G.28).
+    CONCLUSION: `t0^2 u_a^2 ≤ kappa`. -/
+theorem delocalisation (I : List ι) (B : ι → ι → α) (u : ι → α) (t t0 kappa : α) (a : ι)
+    (hsym : ∀ i j, B i j = B j i) (heig : msum I (fun i => B a i * u i) = t * u a)
+    (ht : t0 ≤ t) (ht0 : 0 ≤ t0) (hu : msum I (fun i => u i * u i) ≤ 1)
+    (hdiag : msum I (fun i => B a i * B i a) ≤ kappa) :
+    t0 * t0 * (u a * u a) ≤ kappa := by
+  have e : msum I (fun i => B a i * B i a) = msum I (fun i => B a i * B a i) := by
+    apply msum_congr; intro i _; rw [hsym i a]
+  have d1 := delocalisation_step I (B a) u 1 (t * u a) (by rw [heig]; grind) hu
+  have sq := mul_self_nonneg (u a)
+  have m1 := OrderedRing.mul_nonneg (show (0 : α) ≤ t - t0 by grind) (show (0 : α) ≤ t + t0 by grind)
+  have m2 := OrderedRing.mul_nonneg m1 sq
+  rw [e] at hdiag
+  grind
+
+end MainDeductions
+end CTG.HeatTrace
