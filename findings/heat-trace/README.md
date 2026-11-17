@@ -21,15 +21,16 @@ unless the table says otherwise, has been read formula by formula by a second AI
 | Lemmas G.26, G.27 (`lem:pgauss`, `lem:consistency`) | Consistency of the normalised walk: the one-step defect `h_m` is at most `C delta' m^(-1/2) p_6m`, `delta' = sqrt(M log N/N)`, with probability at least `1 - 7 N^(-3)` | proven; proof by the second session, read line by line by the author-side session |
 | Theorem G.28 (`thm:kernel`) | `max |N (P^k)_ai - p_k(x_a - x_i)| <= C_1 delta' sqrt(k) m_k` for all `k <= (C_1 delta')^(-2)`: stability plus consistency in the supremum norm, no walk with exact normalisation, no eigenvalues | proven given G.27; written by the author-side session; the written-out proof has been read by the second session, which found no error and four points of presentation, now included |
 | Corollary G.29 (`cor:kernel-trace`) | Almost surely: the trace converges for `N xi^(d+2)/log N -> infinity`; the rate `xi^2/t` with the sharp coefficient holds for `N xi^(d+6)/log N -> infinity`, in every dimension (Theorem G.14 has `2d+6`, in probability, `d >= 2`) | proven given G.28; read by the second session |
+| Corollary G.30 (`cor:kernel-corrected`) | The corrected estimator `T - (sigma t/2) T''` of the sampled graph deviates from the heat trace by `O(tau^-2) + O(tau delta' sqrt(tau + log N))` | proven given G.28; written by the author-side session, NOT yet read by the second session |
 | Sharp rate for `N xi^(d+2) -> infinity` | would need the averaging over the diagonal (bias `M/N` instead of the entrywise error `delta'`) | open; conjecture |
 | Theorem G.14, proof | Six small gaps closed (self-term in Step 1, tail `j > J`, bounds on Theta, uniform form of the expansion, two presentational points); statement unchanged | done in the paper; not part of this folder |
 
 ## Files
 
-- `appendix_G22_G30.pdf` — the ten pages of the paper with G.22 to G.30 (the first and the last page
+- `appendix_G22_G31.pdf` — the pages of the paper with G.22 to G.31 (the first and the last page
   also show the end of the preceding and the beginning of the following item).
 - `bias_variance_excerpt.tex` — TeX of Propositions G.22, G.24 and Remarks G.23, G.25.
-- `kernel_bound_excerpt.tex` — TeX of Lemmas G.26, G.27, Theorem G.28, Corollary G.29, Remark G.30.
+- `kernel_bound_excerpt.tex` — TeX of Lemmas G.26, G.27, Theorem G.28, Corollaries G.29, G.30, Remark G.31.
   Both are fragments that use the macros and labels of the paper; they do not compile on their own.
 - `scripts/kernel_sup_norm.py` — for one sample, the entrywise error of `P^k` against the heat kernel and
   the size of the consistency defect relative to the bound of Lemma G.27.

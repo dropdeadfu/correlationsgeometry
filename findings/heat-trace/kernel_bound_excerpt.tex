@@ -1,8 +1,8 @@
 % Excerpt of Appendix G of "From Correlations to Geometry" (working copy of 17 November 2026).
 % A fragment, not a standalone document; it uses the macros and labels of the paper.
-% The typeset pages are in appendix_G22_G30.pdf.
+% The typeset pages are in appendix_G22_G31.pdf.
 
-% Lemmas G.26, G.27, Theorem G.28, Corollary G.29, Remark G.30.
+% Lemmas G.26, G.27, Theorem G.28, Corollaries G.29, G.30, Remark G.31.
 
 \paragraph{The kernel of the sampled walk} The remaining statements of this subsection concern the walk itself and not only its trace. For $t>0$ let $\gamma_t(v)=(2\pi t)^{-d/2}e^{-|v|^2/2t}$ on $\R^d$ and $p^{(t)}(w)=\sum_{n\in\mathbb Z^d}\gamma_t(w+n)$ on $\M=\R^d/\mathbb Z^d$, the heat kernel of $\M$ at the time $t/2$. Thus $p=p^{(\xi^2)}$, $p_m=p^{*m}=p^{(m\xi^2)}$, $M=p(0)$, $m_m=p_m(0)$, and $(\mathcal Pf)(x)=\int_\M p(x-y)f(y)\,\dd y$. The points $x_1,\dots,x_N$ are independent and uniform on $\M$, $\tilde P_{bj}=p(x_b-x_j)/N$ (self-loops included), $\epsilon_b=\sum_j\tilde P_{bj}-1$, $\delta=\max_b|\epsilon_b|$, $u_j=(1+\epsilon_j)^{-1}$, $r_b=\sum_j\tilde P_{bj}u_j$ and $P_{bj}=\tilde P_{bj}u_j/r_b$. For $1\le i\le N$ and $m\ge1$,
 \[
@@ -141,6 +141,22 @@ for every sequence $t_N\in[\xi_N^2,1]$: the rate $\xi^2/t$ of open problem~2 hol
 The probabilities $7N^{-3}$ are summable, so almost surely the event of Lemma~\ref{lem:consistency} holds for all large $N$. Let $J=\lceil8\tau\rceil+\lceil2\log N\rceil$; then $J\le16\,\xi_N^{-2}+2\log N+2$ and $\delta'^2J\le CM\log N\,(\xi_N^{-2}+\log N)/N\to0$; for the second summand note that the assumption gives $M\le C\xi_N^{-d}\le C(N/\log N)^{d/(d+2)}$ for large $N$, hence $M(\log N)^2/N\le C(\log N)^{2-d/(d+2)}N^{-2/(d+2)}\to0$. Consequently $J$ and $20\,\xi_N^{-2}$ are at most $(C_1\delta')^{-2}$ for large $N$, and the conditions $M\log N\le N$ and $6\delta'\le\frac18$ hold. The first statement is the theorem with $m_k=\Tr e^{k\sigma\Delta}$. For the second, $\Tr e^{-t\Lc}-Ne^{-\tau}=\sum_{j\ge1}w_j\Tr P^j$ by Theorem~\ref{thm:poisson} and $T_\sigma(t)=\sum_{j\ge1}w_jm_j$ by Theorem~\ref{thm:rate}(i), with $w_j=e^{-\tau}\tau^j/j!$. For $j\le J$ use the theorem and $\sqrt j\le\sqrt J$. For $j>J$, where $j\ge2$: $\Tr P^j\le\Tr P^2$ by Proposition~\ref{prop:moments}(ii), $\Tr P^2\le m_2+D_2\le2m_2\le2M$ by the theorem, $m_j\le M$, and $\sum_{j>J}w_j\le N^{-2}$ as in Step~4 of the proof of Theorem~\ref{thm:jointpoly}. Finally $T_\sigma(t)\ge\sum_{j\ge1}w_j=1-e^{-\tau}\ge\frac34$, because $m_j\ge1$ and $\tau\ge2$. If $N\xi_N^{d+6}/\log N\to\infty$, then $\delta'^2J=o(\xi_N^4)$: for $\log N\le\xi_N^{-2}$ it is at most $CM\log N\,\xi_N^{-2}/N$, and otherwise at most $CM(\log N)^2/N$ with $\xi_N^2>1/\log N$ and $M\le C\xi_N^{-d}\le C(\log N)^{d/2}$. The last statement follows from the uniform form of \eqref{eq:rateexact} in Step~5 of the proof of Theorem~\ref{thm:jointpoly}.
 \end{proof}
 
+\begin{corollary}[The corrected estimator on the sampled graph]\label{cor:kernel-corrected}
+In the situation of Corollary~\ref{cor:kernel-trace} let $T^N(t)=\Tr e^{-t\Lc}-Ne^{-\tau}$. Almost surely, for all large $N$ and all $t\in[\xi_N^2,1]$,
+\[
+\Big|\Big(T^N-\frac{\sigma t}2\,(T^N)''\Big)(t)-\Big(T_\sigma-\frac{\sigma t}2\,T_\sigma''\Big)(t)\Big|\le(1+3\tau)\,C_1\,\delta'\sqrt{8\tau+2\log N+4}\;T_\sigma(t)+(3+6\tau)\frac M{N^2},
+\]
+where the derivatives are taken with respect to $t$. Consequently the relative deviation of the corrected estimator of the sampled graph from $\Tr e^{t\Delta}$ is $O(\tau^{-2})+O\big(\tau\,\delta'\sqrt{\tau+\log N}\big)$.
+\end{corollary}
+
+\begin{proof}
+Let $a_j=\Tr P^j$ and $e_j=a_j-m_j$ for $j\ge1$, and $w_j=e^{-\tau}\tau^j/j!$ for $j\ge0$, $w_{-1}=0$. Then $T^N-T_\sigma=\sum_{j\ge1}w_je_j$, a series that may be differentiated term by term because $|e_j|\le N+M$, and $\frac{\dd^2}{\dd\tau^2}w_j=w_{j-2}-2w_{j-1}+w_j$. Hence
+\[
+\frac{\dd^2}{\dd\tau^2}\big(T^N-T_\sigma\big)=\sum_{i\ge0}w_i\,e_{i+2}-2\sum_{i\ge0}w_i\,e_{i+1}+\sum_{i\ge1}w_i\,e_i .
+\]
+Let $J$ be as in the proof of Corollary~\ref{cor:kernel-trace}; for large $N$, $J+2\le(C_1\delta')^{-2}$. For the indices up to $J+2$, $|e_j|\le C_1\delta'\sqrt{J+2}\,m_j$ by Theorem~\ref{thm:kernel}, and $\sum_{i\ge0}w_im_{i+2}\le\sum_{i\ge0}w_im_{i+1}\le e^{-\tau}M+T_\sigma\le\frac32T_\sigma$, because $m_j$ is non-increasing, $T_\sigma\ge w_1m_1=\tau e^{-\tau}M$ and $\tau\ge2$. The terms with $i\le J$ therefore contribute at most $\frac{11}2C_1\delta'\sqrt{J+2}\,T_\sigma$. For $i>J$ all indices are at least two, $|e_j|\le a_j+m_j\le3M$ as in the proof of Corollary~\ref{cor:kernel-trace}, and $\sum_{i>J}w_i\le N^{-2}$, which gives at most $12MN^{-2}$. Since $t=\sigma\tau$, $\frac{\sigma t}2\frac{\dd^2}{\dd t^2}=\frac\tau2\frac{\dd^2}{\dd\tau^2}$; together with $|T^N-T_\sigma|\le C_1\delta'\sqrt J\,T_\sigma+3MN^{-2}$ from the same proof this is the first statement, with $J+2\le8\tau+2\log N+4$. The second follows from Theorem~\ref{thm:corrected} and $T_\sigma\le C\,\Theta$.
+\end{proof}
+
 \begin{remark}[Scope and status of the kernel estimate]\label{rem:kernel}
 (i) The argument is the comparison of two recursions in the supremum norm: the sampled walk is stable, because $P$ is row-stochastic, and consistent with the population walk by Lemma~\ref{lem:consistency}. It uses neither the walk $\tilde P$ with the exact normalisation nor an expansion in $\epsilon$, and no eigenvalues. Corollary~\ref{cor:kernel-trace} contains the second statement of Theorem~\ref{thm:jointpoly} and its first statement in a larger regime, in every dimension and almost surely: the exponent $2d+6$ is replaced by $d+6$ for the sharp rate, and the trace converges, with the rate $(\log N/N\xi_N^{d+2})^{1/2}$ up to a logarithm, as soon as $N\xi_N^{d+2}/\log N\to\infty$. Theorem~\ref{thm:kernel} and its corollary are stated for the graph with self-loops; without them Step~2 of the proof has the additional term $-p(0)(P^k)_{ai}$, of the size $(M/N)(m_k+D_k)$, and the lemma is unchanged. Theorem~\ref{thm:jointpoly} and its proof are kept because the count of closed walks is of independent use (Propositions~\ref{prop:bias}, \ref{prop:variance}).
 
@@ -148,6 +164,6 @@ The probabilities $7N^{-3}$ are summable, so almost surely the event of Lemma~\r
 
 (iii) \emph{Numerical illustration.} For one sample on the flat two-torus with $\xi=0.05$ and $N=4000$, where $\delta'=0.36$, the ratio $D_k/m_k$ is $0.51$, $0.39$, $0.32$, $0.24$, $0.21$, $0.20$, $0.20$ for $k=1,2,4,\dots,64$, and $\max_{b,i}|h^{(i)}_m(b)|\,m^{1/2}/p_{6m}(x_b-x_i)$ divided by $\delta'$ is $1.45$, $1.66$, $1.71$, $1.58$, $1.01$, $0.46$, $0.12$ for $m=1,2,4,\dots,64$; for $N=2000$ the numbers are similar. In these runs $\delta'$ is not small and the hypotheses of the lemma do not hold; they show the shape of the two bounds and not their validity.
 
-(iv) \emph{Provenance.} Lemmas~\ref{lem:pgauss} and~\ref{lem:consistency} and Theorem~\ref{thm:kernel} with its corollary were written on one day by two sessions of an AI system, each reading the part of the other line by line. No person has read them. Of all statements of this appendix these are the ones for which an independent check matters most.
+(iv) \emph{Provenance.} Lemmas~\ref{lem:pgauss} and~\ref{lem:consistency} and Theorem~\ref{thm:kernel} with Corollary~\ref{cor:kernel-trace} were written on one day by two sessions of an AI system, each reading the part of the other line by line; Corollary~\ref{cor:kernel-corrected} was written by one of them and has not been read by the other. No person has read them. Of all statements of this appendix these are the ones for which an independent check matters most.
 \end{remark}
 
