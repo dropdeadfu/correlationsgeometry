@@ -3670,5 +3670,20 @@ theorem secondstage_sum (I : List ι) (w err m : ι → α) (a b J : α)
   have h3 := msum_mul_left ((a + b) * J) I (fun j => w j * m j)
   grind
 
+/-- Theorem "Other profiles", why the second part of (F2) is needed (negative control found by a
+    reviewing session): `F(u) = 1 - u + 5u^2 - (9/2)u^3` satisfies (F1) exactly with `beta = 10`,
+    `c_3 = 9/2` on `[0,1]`, and `F(1) = 1/2`, but `F(3/5) = 307/250 > 1`, so that a mode with
+    `sigma * lambda = 3/5` is amplified. -/
+theorem profile_F2_needed :
+    (1 : α) < 1 - 3 / 5 + 5 * (3 / 5) * (3 / 5) - 9 / 2 * (3 / 5) * (3 / 5) * (3 / 5)
+    ∧ (1 : α) - 1 + 5 * 1 * 1 - 9 / 2 * 1 * 1 * 1 = 1 / 2 := by
+  constructor <;> grind
+
+/-- (F1) holds for that `F` with equality of the cubic term: for every `u`,
+    `F(u) - (1 - u + (1/2) * 10 * u^2) = -(9/2) u^3`. -/
+theorem profile_F2_needed_F1 (u : α) :
+    (1 - u + 5 * u * u - 9 / 2 * u * u * u) - (1 - u + 10 * u * u / 2) = -(9 / 2 * u * u * u) := by
+  grind
+
 end Reduction
 end CTG.HeatTrace

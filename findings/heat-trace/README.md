@@ -46,6 +46,8 @@ unless the table says otherwise, has been read formula by formula by a second AI
 - `scripts/second_stage_reduction.py` — for one sample, the trace error, `Pi_k` and the remainder of G.32.
 - `scripts/second_stage_remainder_mc.py` — the remainder of G.32 over independent samples: a bias of order `M/N` (0.39 to 0.89 times `(M/N) m`) with smaller fluctuations; numerics only.
 - `scripts/corrected_estimator_sample.py` — the corrected estimator of G.30 on sampled graphs with and without self-loops, against the population walk; numerics only, outside the range where the bound of G.30 is small.
+- `scripts/second_stage_entrywise.py` — the reduction of G.32 entry by entry (remark G.36 (iii)); `scripts/pi_k_large_k.py` — `E|Pi_k|/((M/N) m_k)` for `k` up to 256 (levels off at about 0.4).
+- `scripts/profile_counterexample.py` — counterexample to the earlier wording of the theorem on other profiles (hypothesis (F2) was incomplete; corrected in the paper on 17 November 2026); `scripts/sphere_beta_check.py` — the quartic coefficient of the population walk on the sphere.
 - `scripts/pi_k_bound_mc.py` — Monte Carlo attempt to falsify G.34: `E|Pi_k| / ((M/N) k m_k)` stays between 0.19 and 0.29 for `k = 1` and falls to about 0.01 for `k = 32` (`d = 2`, `N` from 300 to 1200); no contradiction.
 - `scripts/normalised_walk_bias.py` — Monte Carlo for `Tr P^k - m_k` on the torus (`d = 1, 2, 3`, with
   and without self-loops) against `beta_k/N`.
@@ -54,7 +56,7 @@ unless the table says otherwise, has been read formula by formula by a second AI
 - `scripts/subtracted_trace_loops.py` — the subtracted trace with and without self-loops against the
   population value and against the first-order prediction.
 - `lean-core/CorrelationsToGeometry.lean` — the author's Lean file (Lean 4.29.0, core library only, no
-  Mathlib; 263 theorems, no `sorry`, no `axiom`). Its last section contains the algebra of G.22 and
+  Mathlib; 265 theorems, no `sorry`, no `axiom`). Its last section contains the algebra of G.22 and
   G.24 (`gamma_expansion`, `bias_sum`, `bias_loops`, `variance_kernel_sum`, `bias_is_diagonal`) and the
   stability of a row-stochastic matrix in the supremum norm (`Stoch.app_le`, `lax_stability`,
   `weighted_sum_bound`) and the telescoping identity of Theorem G.28, Step 1 (`telescope`), the step inequality (`kernel_step`) and the logic of its induction (`bootstrap`). As whole deductions, with the non-formalised inputs as explicit hypotheses: `kernel_induction` (Step 4 of
@@ -92,3 +94,7 @@ configuration; they are not evidence for a rate.
   `N = 400/800/1600`): the standard deviation of the mean of a group of eigenvalues times `N` is 3.5, 3.7, 3.3,
   that of the lowest eigenvalue of the group times `sqrt(N)` is 0.53, 0.48, 0.51. The alternative that the group
   mean fluctuates at order `N^(-1/2)` is rejected by these numbers; the single eigenvalue does.
+
+## Review on 17 November 2026
+
+Appendix G (G.1 to G.21 and G.32 to G.40) was read by further AI sessions on the author side, each instructed to find errors and unaware of earlier assessments. Result: one error in a statement (a missing hypothesis in the theorem on other profiles, with an explicit counterexample; corrected), otherwise gaps of presentation, which were closed. Cited results were not checked by these readings. No person has read the proofs. A comparison with the literature (abstracts, introductions and main theorems only) is in remark G.41 (v) of the paper: an estimate of graph Laplacian eigenvalues that is uniform in the index up to the scale of the inverse squared bandwidth exists already for Poisson point clouds with the indicator kernel (Armstrong and Venkatraman, arXiv:2312.08149).
