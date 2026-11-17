@@ -3368,3 +3368,50 @@ theorem symplectic_diagonal (r sp tp x0 x p0 p : α) (hr : 2 * (r * r) = 1) (hp 
 
 end Symplectic
 end CTG.TwoMode
+
+namespace CTG.HeatTrace
+open Lean.Grind
+
+/-! ### Theorem G.33 (eigenvalues of the sampled graph on a flat torus): from powers to eigenvalues -/
+
+section PowersToEigenvalues
+variable {α : Type} [Field α] [LE α] [LT α] [Std.LawfulOrderLT α] [Std.IsLinearOrder α] [OrderedRing α]
+
+/-- For `0 ≤ y ≤ x`: `x^{k+1} - y^{k+1} ≥ (k+1) y^k (x - y)`. This is the inequality
+    `|x^k - y^k| ≥ k min(x,y)^{k-1} |x - y|` used to pass from `s_j^k` to `s_j`. -/
+theorem pw_diff_ge {x y : α} (hy : 0 ≤ y) (hxy : y ≤ x) :
+    ∀ k : Nat, ncast (k + 1) * (pw y k * (x - y)) ≤ pw x (k + 1) - pw y (k + 1)
+  | 0 => by simp only [pw, ncast]; grind
+  | k + 1 => by
+    have ih : ncast (k + 1) * (pw y k * (x - y)) ≤ pw x (k + 1) - pw y (k + 1) := pw_diff_ge hy hxy k
+    have hXY := pw_mono hy hxy (k + 1)
+    have m1 := OrderedRing.mul_nonneg (show (0 : α) ≤ x - y by grind)
+      (show (0 : α) ≤ pw x (k + 1) - pw y (k + 1) by grind)
+    have m2 := OrderedRing.mul_le_mul_of_nonneg_left ih hy
+    have e1 : pw x (k + 1 + 1) = x * pw x (k + 1) := rfl
+    have e2 : pw y (k + 1 + 1) = y * pw y (k + 1) := rfl
+    have e3 : pw y (k + 1) = y * pw y k := rfl
+    have e4 : (ncast (k + 1 + 1) : α) = ncast (k + 1) + 1 := rfl
+    have e5 : ncast (k + 1) * (pw y (k + 1) * (x - y)) = y * (ncast (k + 1) * (pw y k * (x - y))) := by
+      rw [e3]; grind
+    have e6 : (ncast (k + 1) + 1) * (pw y (k + 1) * (x - y))
+        = ncast (k + 1) * (pw y (k + 1) * (x - y)) + pw y (k + 1) * (x - y) := by grind
+    have e7 : x * pw x (k + 1) - y * pw y (k + 1)
+        = y * (pw x (k + 1) - pw y (k + 1)) + (x - y) * (pw x (k + 1) - pw y (k + 1))
+          + pw y (k + 1) * (x - y) := by grind
+    rw [e1, e2, e4, e6, e7, e5]
+    grind
+
+/-- Consequently, if `|x^{k+1} - y^{k+1}| ≤ eta` and both `x^k, y^k ≥ c > 0`, then
+    `(k+1) c |x - y| ≤ eta`; stated for `y ≤ x`. -/
+theorem root_of_power_bound {x y c eta : α} (hy : 0 ≤ y) (hxy : y ≤ x) (k : Nat)
+    (hc : c ≤ pw y k) (hc0 : 0 ≤ c) (h : pw x (k + 1) - pw y (k + 1) ≤ eta) :
+    ncast (k + 1) * (c * (x - y)) ≤ eta := by
+  have h1 := pw_diff_ge hy hxy k
+  have h2 := OrderedRing.mul_le_mul_of_nonneg_left hc (show (0 : α) ≤ x - y by grind)
+  have h3 := OrderedRing.mul_le_mul_of_nonneg_left
+    (show c * (x - y) ≤ pw y k * (x - y) by grind) (ncast_nonneg (α := α) (k + 1))
+  grind
+
+end PowersToEigenvalues
+end CTG.HeatTrace
