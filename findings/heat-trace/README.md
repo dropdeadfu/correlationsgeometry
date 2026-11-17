@@ -78,3 +78,8 @@ configuration; they are not evidence for a rate.
   do not hold; the run shows the shape of the bounds only): `max |N P^k - p_k| / m_k` = 0.51, 0.39, 0.32,
   0.24, 0.21, 0.20, 0.20 for `k = 1, 2, 4, ..., 64`; `max |h_m| sqrt(m) / p_6m` divided by `delta'` =
   1.45, 1.66, 1.71, 1.58, 1.01, 0.46, 0.12 for `m = 1, 2, 4, ..., 64`.
+- Eigenvalues, `d = 2`, `xi = 0.05`, three samples each: within a group of equal eigenvalues the mean relative
+  deviation of the graph eigenvalues from the population value is -0.99, -1.06, -1.31 times `M/N` for
+  `lambda = 39.5, 79.0, 157.9` at `N = 3000`, and the spread within the group is 0.6 to 1.4 times
+  `N^(-1/2)`. Reading (not proven): a bias of order `M/N` and a random splitting of relative order
+  `N^(-1/2)` for a single eigenvalue; the bound of G.33 is far from sharp.
