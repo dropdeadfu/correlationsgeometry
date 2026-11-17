@@ -45,6 +45,7 @@ unless the table says otherwise, has been read formula by formula by a second AI
 - `second_stage_excerpt.tex` — TeX of G.32 to G.36 (reduction, degenerate statistics, bound for `Pi_k`, corollary, remark).
 - `scripts/second_stage_reduction.py` — for one sample, the trace error, `Pi_k` and the remainder of G.32.
 - `scripts/second_stage_remainder_mc.py` — the remainder of G.32 over independent samples: a bias of order `M/N` (0.39 to 0.89 times `(M/N) m`) with smaller fluctuations; numerics only.
+- `scripts/corrected_estimator_sample.py` — the corrected estimator of G.30 on sampled graphs with and without self-loops, against the population walk; numerics only, outside the range where the bound of G.30 is small.
 - `scripts/pi_k_bound_mc.py` — Monte Carlo attempt to falsify G.34: `E|Pi_k| / ((M/N) k m_k)` stays between 0.19 and 0.29 for `k = 1` and falls to about 0.01 for `k = 32` (`d = 2`, `N` from 300 to 1200); no contradiction.
 - `scripts/normalised_walk_bias.py` — Monte Carlo for `Tr P^k - m_k` on the torus (`d = 1, 2, 3`, with
   and without self-loops) against `beta_k/N`.
