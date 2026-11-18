@@ -852,6 +852,65 @@ theorem kernel_theorem_conditional {n : Type} [Fintype n] [DecidableEq n] (P : M
   rw [abs_le] at h1 h2' ⊢
   constructor <;> linarith [h1.1, h1.2, h2'.1, h2'.2]
 
+/-- Step 3 of the proof of Theorem "kernel" in the weighted form: the defect `h_m` transported by
+    `P^l`, `l ≥ 1`, is bounded by the largest entry of `P^l` times the sum of `|h_m|`, and the last
+    defect by its supremum. In the paper `w_l = (m_l + D_l)/N` and `hb_m = N` times the mean of
+    `|h_m|`. -/
+theorem lax_kernel_bound_weighted {n : Type} [Fintype n] [DecidableEq n] (P : Matrix n n ℝ)
+    (g : ℕ → n → ℝ) (w hb : ℕ → ℝ) (hs : ℝ) (j : ℕ)
+    (hent : ∀ m < j, ∀ a b, |(P ^ (j - m)) a b| ≤ w (j - m))
+    (hbar : ∀ m < j, ∑ b, |(P *ᵥ g (m + 1) - g (m + 2)) b| ≤ hb (m + 1))
+    (hw : ∀ m < j, 0 ≤ w (j - m))
+    (hsup : ∀ b, |(P *ᵥ g (j + 1) - g (j + 2)) b| ≤ hs) (a : n) :
+    |((P ^ (j + 1)) *ᵥ g 1 - g (j + 2)) a|
+      ≤ ∑ m ∈ Finset.range j, w (j - m) * hb (m + 1) + hs := by
+  rw [lax_telescope P g (j + 1), Finset.sum_apply, Finset.sum_range_succ]
+  have hlast : |((P ^ (j + 1 - 1 - j)) *ᵥ (P *ᵥ g (j + 1) - g (j + 2))) a| ≤ hs := by
+    have e : j + 1 - 1 - j = 0 := by omega
+    rw [e, pow_zero, one_mulVec]; exact hsup a
+  have hterm : ∀ m ∈ Finset.range j,
+      |((P ^ (j + 1 - 1 - m)) *ᵥ (P *ᵥ g (m + 1) - g (m + 2))) a| ≤ w (j - m) * hb (m + 1) := by
+    intro m hm
+    have hm' : m < j := Finset.mem_range.mp hm
+    have e : j + 1 - 1 - m = j - m := by omega
+    rw [e]
+    exact (weighted_mulVec_le (P ^ (j - m)) _ (hent m hm') a).trans
+      (mul_le_mul_of_nonneg_left (hbar m hm') (hw m hm'))
+  calc |∑ m ∈ Finset.range j, ((P ^ (j + 1 - 1 - m)) *ᵥ (P *ᵥ g (m + 1) - g (m + 2))) a
+          + ((P ^ (j + 1 - 1 - j)) *ᵥ (P *ᵥ g (j + 1) - g (j + 2))) a|
+      ≤ |∑ m ∈ Finset.range j, ((P ^ (j + 1 - 1 - m)) *ᵥ (P *ᵥ g (m + 1) - g (m + 2))) a|
+          + |((P ^ (j + 1 - 1 - j)) *ᵥ (P *ᵥ g (j + 1) - g (j + 2))) a| := abs_add_le _ _
+    _ ≤ ∑ m ∈ Finset.range j, w (j - m) * hb (m + 1) + hs :=
+        add_le_add ((Finset.abs_sum_le_sum_abs _ _).trans (Finset.sum_le_sum hterm)) hlast
+
+/-- **The recursion `eq:kernel-rec` of Theorem "kernel" for matrices.** With the last step of the
+    walk (`|c - g_1| ≤ theta g_1`, in the paper `theta = 4 delta`):
+    `|P^{j+1} c - g_{j+2}| ≤ theta g_{j+2} + (1 + theta) S_j` pointwise, where
+    `S_j = sum_{m<j} w_{j-m} hb_{m+1} + hs`. HYPOTHESES: the bounds on the entries of the powers
+    (the induction hypothesis on `D_l`), on the sums of the defects and on the last defect (the
+    consistency lemma). The induction that turns this recursion into `D_k ≤ C delta' sqrt(k) m_k`
+    is `kernel_induction` in the core file. -/
+theorem kernel_recursion_matrix {n : Type} [Fintype n] [DecidableEq n] (P : Matrix n n ℝ)
+    (h0 : ∀ i j, 0 ≤ P i j) (g : ℕ → n → ℝ) (c : n → ℝ) {theta : ℝ} (hth : 0 ≤ theta)
+    (hc : ∀ b, |c b - g 1 b| ≤ theta * g 1 b) (w hb : ℕ → ℝ) (hs : ℝ) (j : ℕ)
+    (hent : ∀ m < j, ∀ a b, |(P ^ (j - m)) a b| ≤ w (j - m))
+    (hbar : ∀ m < j, ∑ b, |(P *ᵥ g (m + 1) - g (m + 2)) b| ≤ hb (m + 1))
+    (hw : ∀ m < j, 0 ≤ w (j - m))
+    (hsup : ∀ b, |(P *ᵥ g (j + 1) - g (j + 2)) b| ≤ hs) (a : n) :
+    |((P ^ (j + 1)) *ᵥ c) a - g (j + 2) a|
+      ≤ theta * g (j + 2) a
+        + (1 + theta) * (∑ m ∈ Finset.range j, w (j - m) * hb (m + 1) + hs) := by
+  have h1 := last_step (P ^ (j + 1)) (pow_entries_nonneg P h0 (j + 1)) c (g 1) hc a
+  have h2 := lax_kernel_bound_weighted P g w hb hs j hent hbar hw hsup a
+  have h2' : |((P ^ (j + 1)) *ᵥ g 1) a - g (j + 2) a|
+      ≤ ∑ m ∈ Finset.range j, w (j - m) * hb (m + 1) + hs := by simpa using h2
+  have h3 : ((P ^ (j + 1)) *ᵥ g 1) a
+      ≤ g (j + 2) a + (∑ m ∈ Finset.range j, w (j - m) * hb (m + 1) + hs) := by
+    linarith [(abs_le.mp h2').2]
+  have h4 := mul_le_mul_of_nonneg_left h3 hth
+  rw [abs_le] at h1 h2' ⊢
+  constructor <;> nlinarith [h1.1, h1.2, h2'.1, h2'.2]
+
 end Spectral
 
 
@@ -1253,6 +1312,123 @@ theorem flatTorus_traces_ae (d : ℕ) {Ω : Type*} {mΩ : MeasurableSpace Ω} {�
           have := Real.exp_le_exp.mpr hexp
           have hM0 : (0 : ℝ) ≤ M := Nat.cast_nonneg M
           nlinarith [Real.exp_pos (-(2 * (q0 / 4) ^ 2 / A ^ 2 * (N : ℝ)))]
+
+/-! ### Bernstein's inequality -/
+
+/-- Moment generating function of a bounded centred variable: if `|X| ≤ b`, `E X = 0` and
+    `0 ≤ t ≤ 1/b`, then `E e^{tX} ≤ exp(t^2 E X^2)`. Uses `|e^x - 1 - x| ≤ x^2` for `|x| ≤ 1`. -/
+theorem bernstein_mgf_le {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] (X : Ω → ℝ) (hm : Measurable X) {b t : ℝ}
+    (hX : ∀ ω, |X ω| ≤ b) (hmean : μ[X] = 0) (ht0 : 0 ≤ t) (ht : t * b ≤ 1) :
+    mgf X μ t ≤ Real.exp (t ^ 2 * ∫ ω, X ω ^ 2 ∂μ) := by
+  have hintX : Integrable X μ :=
+    Integrable.of_bound hm.aestronglyMeasurable b (Filter.Eventually.of_forall (fun ω => by simpa using hX ω))
+  have hintX2 : Integrable (fun ω => X ω ^ 2) μ :=
+    Integrable.of_bound (hm.pow_const 2).aestronglyMeasurable (b ^ 2)
+      (Filter.Eventually.of_forall (fun ω => by
+        simp only [Real.norm_eq_abs, abs_pow]
+        exact pow_le_pow_left₀ (abs_nonneg _) (hX ω) 2))
+  have hpt : ∀ ω, Real.exp (t * X ω) ≤ 1 + t * X ω + t ^ 2 * X ω ^ 2 := by
+    intro ω
+    have h1 : |t * X ω| ≤ 1 := by
+      rw [abs_mul, abs_of_nonneg ht0]
+      exact (mul_le_mul_of_nonneg_left (hX ω) ht0).trans ht
+    have h2 := Real.abs_exp_sub_one_sub_id_le h1
+    have h3 := (abs_le.mp h2).2
+    nlinarith [h3]
+  have hintE : Integrable (fun ω => Real.exp (t * X ω)) μ :=
+    Integrable.of_bound ((hm.const_mul t).exp).aestronglyMeasurable (Real.exp 1)
+      (Filter.Eventually.of_forall (fun ω => by
+        rw [Real.norm_eq_abs, abs_of_pos (Real.exp_pos _)]
+        apply Real.exp_le_exp.mpr
+        have h1 : |t * X ω| ≤ 1 := by
+          rw [abs_mul, abs_of_nonneg ht0]
+          exact (mul_le_mul_of_nonneg_left (hX ω) ht0).trans ht
+        exact (le_abs_self _).trans h1))
+  have hintR : Integrable (fun ω => 1 + t * X ω + t ^ 2 * X ω ^ 2) μ :=
+    ((integrable_const 1).add (hintX.const_mul t)).add (hintX2.const_mul (t ^ 2))
+  calc mgf X μ t = ∫ ω, Real.exp (t * X ω) ∂μ := rfl
+    _ ≤ ∫ ω, (1 + t * X ω + t ^ 2 * X ω ^ 2) ∂μ := integral_mono hintE hintR hpt
+    _ = 1 + t ^ 2 * ∫ ω, X ω ^ 2 ∂μ := by
+        have e1 : ∫ ω, (1 + t * X ω + t ^ 2 * X ω ^ 2) ∂μ
+            = ∫ ω, (1 + t * X ω) ∂μ + ∫ ω, t ^ 2 * X ω ^ 2 ∂μ :=
+          integral_add (f := fun ω => 1 + t * X ω) (g := fun ω => t ^ 2 * X ω ^ 2)
+            ((integrable_const 1).add (hintX.const_mul t)) (hintX2.const_mul (t ^ 2))
+        have e2 : ∫ ω, (1 + t * X ω) ∂μ = ∫ _ω, (1 : ℝ) ∂μ + ∫ ω, t * X ω ∂μ :=
+          integral_add (f := fun _ => (1 : ℝ)) (g := fun ω => t * X ω)
+            (integrable_const 1) (hintX.const_mul t)
+        rw [e1, e2, integral_const_mul, integral_const_mul, hmean]
+        simp
+    _ ≤ Real.exp (t ^ 2 * ∫ ω, X ω ^ 2 ∂μ) := by
+        have := Real.add_one_le_exp (t ^ 2 * ∫ ω, X ω ^ 2 ∂μ); linarith
+
+/-- **An inequality of Bernstein type**, proven here because the library has none (search of
+    18 November 2026): for independent centred random variables with `|X_i| ≤ b` and
+    `sum E X_i^2 ≤ V`, and `eps > 0`,
+    `P(sum X_i ≥ eps) ≤ exp(-eps^2 / (4V + 2 b eps))`.
+    The classical inequality has `2V + (2/3) b eps` in the denominator; the constants here are
+    weaker by a factor of at most three, the dependence on the variance and on `b` is the same.
+    This is what Lemma "consistency" uses. -/
+theorem bernstein_inequality {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {ι : Type*} (X : ι → Ω → ℝ) (h_indep : iIndepFun X μ)
+    (hm : ∀ i, Measurable (X i)) (s : Finset ι) {b V ε : ℝ} (hb : 0 < b)
+    (hX : ∀ i ∈ s, ∀ ω, |X i ω| ≤ b) (hmean : ∀ i ∈ s, μ[X i] = 0)
+    (hV : ∑ i ∈ s, ∫ ω, X i ω ^ 2 ∂μ ≤ V) (hε : 0 < ε) :
+    μ.real {ω | ε ≤ ∑ i ∈ s, X i ω} ≤ Real.exp (-ε ^ 2 / (4 * V + 2 * b * ε)) := by
+  have hV0 : 0 ≤ V := le_trans (Finset.sum_nonneg (fun i _ => integral_nonneg (fun ω => _root_.sq_nonneg _))) hV
+  set D := 2 * V + b * ε with hD
+  have hDpos : 0 < D := by positivity
+  set t := ε / D with ht
+  have ht0 : 0 ≤ t := by positivity
+  have htb : t * b ≤ 1 := by
+    rw [ht, div_mul_eq_mul_div, div_le_one hDpos]; nlinarith
+  -- mgf of the sum
+  have hmgf : mgf (∑ i ∈ s, X i) μ t ≤ Real.exp (t ^ 2 * V) := by
+    rw [h_indep.mgf_sum hm s]
+    calc ∏ i ∈ s, mgf (X i) μ t ≤ ∏ i ∈ s, Real.exp (t ^ 2 * ∫ ω, X i ω ^ 2 ∂μ) :=
+          Finset.prod_le_prod (fun i _ => mgf_nonneg) (fun i hi =>
+            bernstein_mgf_le (X i) (hm i) (hX i hi) (hmean i hi) ht0 htb)
+      _ = Real.exp (t ^ 2 * ∑ i ∈ s, ∫ ω, X i ω ^ 2 ∂μ) := by
+          rw [← Real.exp_sum, Finset.mul_sum]
+      _ ≤ Real.exp (t ^ 2 * V) := Real.exp_le_exp.mpr (mul_le_mul_of_nonneg_left hV (_root_.sq_nonneg t))
+  -- integrability of exp (t * sum)
+  have hbound : ∀ ω, |t * (∑ i ∈ s, X i) ω| ≤ t * (s.card * b) := by
+    intro ω
+    rw [abs_mul, abs_of_nonneg ht0, Finset.sum_apply]
+    refine mul_le_mul_of_nonneg_left ?_ ht0
+    calc |∑ i ∈ s, X i ω| ≤ ∑ i ∈ s, |X i ω| := Finset.abs_sum_le_sum_abs _ _
+      _ ≤ ∑ _i ∈ s, b := Finset.sum_le_sum (fun i hi => hX i hi ω)
+      _ = s.card * b := by simp
+  have hmeas : Measurable (∑ i ∈ s, X i) := by
+    have h := Finset.measurable_sum s (fun i (_ : i ∈ s) => hm i)
+    have e : (∑ i ∈ s, X i) = fun a => ∑ i ∈ s, X i a := by ext a; simp
+    rw [e]; exact h
+  have hint : Integrable (fun ω => Real.exp (t * (∑ i ∈ s, X i) ω)) μ :=
+    Integrable.of_bound ((hmeas.const_mul t).exp).aestronglyMeasurable
+      (Real.exp (t * (s.card * b))) (Filter.Eventually.of_forall (fun ω => by
+        rw [Real.norm_eq_abs, abs_of_pos (Real.exp_pos _)]
+        exact Real.exp_le_exp.mpr ((le_abs_self _).trans (hbound ω))))
+  have hch := measure_ge_le_exp_mul_mgf (μ := μ) (X := ∑ i ∈ s, X i) ε ht0 hint
+  have hset : {ω | ε ≤ (∑ i ∈ s, X i) ω} = {ω | ε ≤ ∑ i ∈ s, X i ω} := by
+    ext ω; simp
+  rw [hset] at hch
+  calc μ.real {ω | ε ≤ ∑ i ∈ s, X i ω} ≤ Real.exp (-t * ε) * mgf (∑ i ∈ s, X i) μ t := hch
+    _ ≤ Real.exp (-t * ε) * Real.exp (t ^ 2 * V) :=
+        mul_le_mul_of_nonneg_left hmgf (Real.exp_pos _).le
+    _ = Real.exp (-t * ε + t ^ 2 * V) := (Real.exp_add _ _).symm
+    _ ≤ Real.exp (-ε ^ 2 / (4 * V + 2 * b * ε)) := by
+        apply Real.exp_le_exp.mpr
+        have e1 : -t * ε + t ^ 2 * V = -(ε ^ 2 / D) + ε ^ 2 * V / D ^ 2 := by
+          rw [ht]; field_simp
+        have e2 : -ε ^ 2 / (4 * V + 2 * b * ε) = -(ε ^ 2 / (2 * D)) := by
+          rw [hD]; ring_nf
+        rw [e1, e2]
+        have h1 : ε ^ 2 * V / D ^ 2 ≤ ε ^ 2 / (2 * D) := by
+          rw [div_le_div_iff₀ (by positivity) (by positivity)]
+          have : 2 * V ≤ D := by rw [hD]; nlinarith
+          nlinarith [mul_nonneg (mul_nonneg (_root_.sq_nonneg ε) hDpos.le) (sub_nonneg.mpr this)]
+        have h2 : ε ^ 2 / D = 2 * (ε ^ 2 / (2 * D)) := by field_simp
+        linarith
 
 end Probability
 
