@@ -688,6 +688,43 @@ theorem traces_of_normalisation {n : Type} [Fintype n] [DecidableEq n] [Nonempty
   · have := trace_sq_le_of_entry_le (walkMatrix K qv) h0 hentry hrow
     rwa [hb] at this
 
+/-- Weyl's law on the flat torus, upper bound, as a count of lattice points: every finite set of
+    points `n ∈ ℤ^d` with `|n|^2 ≤ m^2` has at most `(2m+1)^d` elements. The eigenvalues of
+    `-Δ` on `(ℝ/ℤ)^d` are `4 π^2 |n|^2`, so at most `(2m+1)^d` of them are `≤ 4 π^2 m^2`; that
+    these are the eigenvalues is not formalised. -/
+theorem lattice_count_le (d m : ℕ) (S : Finset (Fin d → ℤ))
+    (hS : ∀ n ∈ S, ∑ i, (n i) ^ 2 ≤ (m : ℤ) ^ 2) : S.card ≤ (2 * m + 1) ^ d := by
+  have hsub : S ⊆ Fintype.piFinset (fun _ : Fin d => Finset.Icc (-(m : ℤ)) m) := by
+    intro n hn
+    rw [Fintype.mem_piFinset]
+    intro i
+    have h1 : (n i) ^ 2 ≤ ∑ j, (n j) ^ 2 :=
+      Finset.single_le_sum (f := fun j => (n j) ^ 2) (fun j _ => sq_nonneg _) (Finset.mem_univ i)
+    have h2 : (n i) ^ 2 ≤ (m : ℤ) ^ 2 := h1.trans (hS n hn)
+    have h3 : |n i| ≤ (m : ℤ) := abs_le_of_sq_le_sq h2 (Int.natCast_nonneg m)
+    rw [Finset.mem_Icc]
+    exact abs_le.mp h3
+  calc S.card ≤ (Fintype.piFinset (fun _ : Fin d => Finset.Icc (-(m : ℤ)) m)).card :=
+        Finset.card_le_card hsub
+    _ = (2 * m + 1) ^ d := by
+        rw [Fintype.card_piFinset]
+        simp
+        congr 1; omega
+
+/-- The continuum modes beyond the low ones: if `lam_i ≥ b` for all `i` of a finite set, then
+    `sum e^{-t lam_i} ≤ e^{-t b/2} sum e^{-t lam_i/2}`. In the proof of Theorem 3.12 `b = c xi^{-2}`,
+    and the sum on the right is at most the heat trace at the time `t/2`. -/
+theorem tail_modes {ι : Type} (s : Finset ι) (lam : ι → ℝ) {t b : ℝ} (ht : 0 ≤ t)
+    (hb : ∀ i ∈ s, b ≤ lam i) :
+    ∑ i ∈ s, Real.exp (-(t * lam i))
+      ≤ Real.exp (-(t * b / 2)) * ∑ i ∈ s, Real.exp (-(t * lam i / 2)) := by
+  rw [Finset.mul_sum]
+  refine Finset.sum_le_sum (fun i hi => ?_)
+  rw [← Real.exp_add]
+  apply Real.exp_le_exp.mpr
+  have := mul_le_mul_of_nonneg_left (hb i hi) ht
+  linarith
+
 end Spectral
 
 
@@ -977,6 +1014,118 @@ theorem circle_traces_whp {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure 
         ≤ M * (2 * Real.exp (-(N * s) ^ 2 / (2 * N * (A / 2) ^ 2))) :=
   torus_traces_whp (μ := μ) (G := UnitAddCircle) AddCircle.haarAddCircle
     (fun x x' y => dist_sub_right x x' y) X h_indep hX hlaw h hh hA hL hbound hlip hq0 hr
+
+/-- The flat torus of dimension `d`, `(ℝ/ℤ)^d`, and its invariant probability measure. -/
+abbrev FlatTorus (d : ℕ) := Fin d → UnitAddCircle
+
+noncomputable abbrev flatTorusMeasure (d : ℕ) : Measure (FlatTorus d) :=
+  Measure.pi (fun _ : Fin d => (AddCircle.haarAddCircle : Measure UnitAddCircle))
+
+/-- **The trace bounds on the flat torus of dimension `d`, with their probability.** As
+    `torus_traces_whp`, for `(ℝ/ℤ)^d` with the product of the Haar measures; all hypotheses on the
+    space are discharged. The metric is the supremum metric of the coordinates. -/
+theorem flatTorus_traces_whp (d : ℕ) {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ)
+    (hX : ∀ j, Measurable (X j)) (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d)
+    (h : FlatTorus d → ℝ) (hh : Measurable h) {A L r : ℝ} (hA : 0 ≤ A) (hL : 0 ≤ L)
+    (hbound : ∀ u, h u ∈ Set.Icc 0 A) (hlip : ∀ u u', |h u - h u'| ≤ L * dist u u')
+    (hq0 : 0 < ∫ u, h u ∂flatTorusMeasure d) (hr : 0 < r) :
+    ∃ M : ℕ, ∀ (N : ℕ) [NeZero N] (s : ℝ), 0 ≤ s →
+      s + 2 * L * r ≤ (∫ u, h u ∂flatTorusMeasure d) / 2 →
+      μ.real {ω | ¬ ((walkMatrix (fun i j : Fin N => h (X i ω - X j ω))
+              (fun i : Fin N => (∑ l : Fin N, h (X i ω - X l ω)) / N)).trace
+                ≤ 6 * A / (∫ u, h u ∂flatTorusMeasure d)
+          ∧ (walkMatrix (fun i j : Fin N => h (X i ω - X j ω))
+              (fun i : Fin N => (∑ l : Fin N, h (X i ω - X l ω)) / N)
+            * walkMatrix (fun i j : Fin N => h (X i ω - X j ω))
+              (fun i : Fin N => (∑ l : Fin N, h (X i ω - X l ω)) / N)).trace
+                ≤ 6 * A / (∫ u, h u ∂flatTorusMeasure d))}
+        ≤ M * (2 * Real.exp (-(N * s) ^ 2 / (2 * N * (A / 2) ^ 2))) := by
+  haveI : (flatTorusMeasure d).IsNegInvariant :=
+    Measure.IsAddHaarMeasure.isNegInvariant_of_regular (flatTorusMeasure d)
+  exact torus_traces_whp (μ := μ) (G := FlatTorus d) (flatTorusMeasure d)
+    (fun x x' y => dist_sub_right x x' y) X h_indep hX hlaw h hh hA hL hbound hlip hq0 hr
+
+/-- Borel–Cantelli for exponentially small probabilities: if `P(B_N) ≤ C e^{-c N}` with `c > 0`,
+    then almost surely `B_N` occurs for only finitely many `N`. -/
+theorem ae_eventually_of_exp_bound {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] (B : ℕ → Set Ω) {C c : ℝ} (hC : 0 ≤ C) (hc : 0 < c)
+    (hB : ∀ N, μ.real (B N) ≤ C * Real.exp (-(c * N))) :
+    ∀ᵐ ω ∂μ, ∀ᶠ N in Filter.atTop, ω ∉ B N := by
+  apply ae_eventually_notMem
+  have hsum : Summable (fun N : ℕ => C * Real.exp (-(c * N))) := by
+    have h1 : Summable (fun N : ℕ => Real.exp (-c) ^ N) :=
+      summable_geometric_of_lt_one (Real.exp_pos _).le (by have := Real.exp_lt_exp.mpr (show -c < 0 by linarith); rwa [Real.exp_zero] at this)
+    have h2 : (fun N : ℕ => C * Real.exp (-(c * N))) = fun N : ℕ => C * Real.exp (-c) ^ N := by
+      funext N; rw [← Real.exp_nat_mul]; congr 2; ring
+    rw [h2]; exact h1.mul_left C
+  have hle : ∀ N, μ (B N) ≤ ENNReal.ofReal (C * Real.exp (-(c * N))) := by
+    intro N
+    rw [← ofReal_measureReal]
+    exact ENNReal.ofReal_le_ofReal (hB N)
+  have hfin : ∑' N : ℕ, ENNReal.ofReal (C * Real.exp (-(c * N))) ≠ ⊤ := by
+    rw [← ENNReal.ofReal_tsum_of_nonneg (fun N => mul_nonneg hC (Real.exp_pos _).le) hsum]
+    exact ENNReal.ofReal_ne_top
+  exact ne_top_of_le_ne_top hfin (ENNReal.tsum_le_tsum hle)
+
+/-- The walk matrix of the first `N` sample points for the kernel `k(x, y) = h(x - y)` on the flat
+    torus, with the estimated normalisation. -/
+noncomputable def sampleWalk {d : ℕ} {Ω : Type*} (h : FlatTorus d → ℝ) (X : ℕ → Ω → FlatTorus d)
+    (N : ℕ) (ω : Ω) : Matrix (Fin N) (Fin N) ℝ :=
+  walkMatrix (fun i j : Fin N => h (X i ω - X j ω))
+    (fun i : Fin N => (∑ l : Fin N, h (X i ω - X l ω)) / N)
+
+/-- **Lemma "traces" on the flat torus, almost surely.** Independent points with the invariant
+    law on `(ℝ/ℤ)^d`, a kernel `k(x, y) = h(x - y)` with `h` measurable, `L`-Lipschitz, with
+    values in `[0, A]`, `A > 0`, and `q0 = ∫ h > 0`: almost surely, for all large `N`,
+    `Tr P ≤ 6A/q0` and `Tr P^2 ≤ 6A/q0` for the walk matrix of the first `N` points. No rate in
+    the kernel scale is claimed; the kernel is fixed. -/
+theorem flatTorus_traces_ae (d : ℕ) {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ)
+    (hX : ∀ j, Measurable (X j)) (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d)
+    (h : FlatTorus d → ℝ) (hh : Measurable h) {A L : ℝ} (hA : 0 < A) (hL : 0 ≤ L)
+    (hbound : ∀ u, h u ∈ Set.Icc 0 A) (hlip : ∀ u u', |h u - h u'| ≤ L * dist u u')
+    (hq0 : 0 < ∫ u, h u ∂flatTorusMeasure d) :
+    ∀ᵐ ω ∂μ, ∀ᶠ N in Filter.atTop,
+      (sampleWalk h X (N + 1) ω).trace ≤ 6 * A / (∫ u, h u ∂flatTorusMeasure d)
+      ∧ (sampleWalk h X (N + 1) ω * sampleWalk h X (N + 1) ω).trace
+          ≤ 6 * A / (∫ u, h u ∂flatTorusMeasure d) := by
+  set q0 := ∫ u, h u ∂flatTorusMeasure d with hq0def
+  -- choose s = q0/4 and r with 2 L r ≤ q0/4
+  have hr : 0 < q0 / (8 * (L + 1)) := by positivity
+  obtain ⟨M, hM⟩ := flatTorus_traces_whp d (μ := μ) X h_indep hX hlaw h hh hA.le hL hbound hlip
+    hq0 hr
+  have hsmall : q0 / 4 + 2 * L * (q0 / (8 * (L + 1))) ≤ q0 / 2 := by
+    have h1 : L / (L + 1) ≤ 1 := by rw [div_le_one (by linarith)]; linarith
+    have h2 : 2 * L * (q0 / (8 * (L + 1))) = q0 / 4 * (L / (L + 1)) := by field_simp; ring
+    rw [h2]; nlinarith
+  have hbad := ae_eventually_of_exp_bound (μ := μ)
+    (fun N => {ω | ¬ ((sampleWalk h X (N + 1) ω).trace ≤ 6 * A / q0
+      ∧ (sampleWalk h X (N + 1) ω * sampleWalk h X (N + 1) ω).trace ≤ 6 * A / q0)})
+    (C := M * 2) (c := 2 * (q0 / 4) ^ 2 / A ^ 2) (by positivity) (by positivity) ?_
+  · filter_upwards [hbad] with ω hω
+    filter_upwards [hω] with N hN
+    simpa using hN
+  · intro N
+    have h1 := hM (N + 1) (q0 / 4) (by positivity) hsmall
+    have hexp : -(((N + 1 : ℕ) : ℝ) * (q0 / 4)) ^ 2 / (2 * ((N + 1 : ℕ) : ℝ) * (A / 2) ^ 2)
+        ≤ -(2 * (q0 / 4) ^ 2 / A ^ 2 * N) := by
+      have hN1 : (0 : ℝ) < ((N + 1 : ℕ) : ℝ) := by positivity
+      have e : -(((N + 1 : ℕ) : ℝ) * (q0 / 4)) ^ 2 / (2 * ((N + 1 : ℕ) : ℝ) * (A / 2) ^ 2)
+          = -(2 * (q0 / 4) ^ 2 / A ^ 2 * ((N + 1 : ℕ) : ℝ)) := by
+        field_simp
+      rw [e]
+      have : (N : ℝ) ≤ ((N + 1 : ℕ) : ℝ) := by push_cast; linarith
+      have hc : 0 ≤ 2 * (q0 / 4) ^ 2 / A ^ 2 := by positivity
+      nlinarith
+    calc μ.real {ω | ¬ ((sampleWalk h X (N + 1) ω).trace ≤ 6 * A / q0
+          ∧ (sampleWalk h X (N + 1) ω * sampleWalk h X (N + 1) ω).trace ≤ 6 * A / q0)}
+        ≤ M * (2 * Real.exp (-(((N + 1 : ℕ) : ℝ) * (q0 / 4)) ^ 2
+            / (2 * ((N + 1 : ℕ) : ℝ) * (A / 2) ^ 2))) := h1
+      _ ≤ M * 2 * Real.exp (-(2 * (q0 / 4) ^ 2 / A ^ 2 * N)) := by
+          have := Real.exp_le_exp.mpr hexp
+          have hM0 : (0 : ℝ) ≤ M := Nat.cast_nonneg M
+          nlinarith [Real.exp_pos (-(2 * (q0 / 4) ^ 2 / A ^ 2 * (N : ℝ)))]
 
 end Probability
 
