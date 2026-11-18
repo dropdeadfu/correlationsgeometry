@@ -20,6 +20,7 @@ import Mathlib.Analysis.SpecificLimits.Basic
 import Mathlib.Analysis.Matrix.Spectrum
 import Mathlib.Analysis.SpecialFunctions.Exponential
 import Mathlib.Analysis.Normed.Algebra.MatrixExponential
+import Mathlib.Probability.Moments.SubGaussian
 import CorrelationsToGeometry
 
 namespace CTG.Reals
@@ -461,6 +462,183 @@ theorem trace_conditional {n : Type} [Fintype n] [DecidableEq n] (S : Matrix n n
       _ = eps * (mu i * Real.exp (-(c * mu i))) := by ring
   linarith
 
+/-- The comparison term of the low modes is bounded by a sum of exponentials (in the paper: by
+    the heat trace at the time `c t / 2`): `sum mu_i e^{-c mu_i} ≤ (2/c) sum e^{-(c/2) mu_i}`. -/
+theorem low_sum_le {ι : Type} (s : Finset ι) (mu : ι → ℝ) {c : ℝ} (hc : 0 < c) (hmu : ∀ i ∈ s, 0 ≤ mu i) :
+    ∑ i ∈ s, mu i * Real.exp (-(c * mu i)) ≤ 2 / c * ∑ i ∈ s, Real.exp (-(c / 2 * mu i)) := by
+  rw [Finset.mul_sum]
+  refine Finset.sum_le_sum (fun i hi => ?_)
+  have h0 := hmu i hi
+  have h1 : c / 2 * mu i ≤ Real.exp (c / 2 * mu i) := by
+    have := Real.add_one_le_exp (c / 2 * mu i); linarith
+  have h2 : Real.exp (-(c * mu i)) = Real.exp (-(c / 2 * mu i)) * Real.exp (-(c / 2 * mu i)) := by
+    rw [← Real.exp_add]; congr 1; ring
+  have h3 : Real.exp (c / 2 * mu i) * Real.exp (-(c / 2 * mu i)) = 1 := by
+    rw [← Real.exp_add]; simp
+  have hp := Real.exp_pos (-(c / 2 * mu i))
+  have h4 : mu i * Real.exp (-(c / 2 * mu i)) ≤ 2 / c := by
+    have : c / 2 * mu i * Real.exp (-(c / 2 * mu i)) ≤ 1 := by
+      calc c / 2 * mu i * Real.exp (-(c / 2 * mu i))
+          ≤ Real.exp (c / 2 * mu i) * Real.exp (-(c / 2 * mu i)) := mul_le_mul_of_nonneg_right h1 hp.le
+        _ = 1 := h3
+    rw [le_div_iff₀ hc]; nlinarith
+  rw [h2, ← mul_assoc]
+  exact mul_le_mul_of_nonneg_right h4 hp.le
+
+/-- Rayleigh bound: if `x · S x ≤ x · x` for all `x`, every eigenvalue of the real symmetric
+    matrix `S` is at most one. -/
+theorem eigenvalues_le_one {n : Type} [Fintype n] [DecidableEq n] (S : Matrix n n ℝ) (hS : S.IsHermitian)
+    (hq : ∀ x : n → ℝ, x ⬝ᵥ (S *ᵥ x) ≤ x ⬝ᵥ x) (i : n) : hS.eigenvalues i ≤ 1 := by
+  have h := hS.eigenvalues_eq i
+  have hv := hq (⇑(hS.eigenvectorBasis i))
+  have hnorm : (⇑(hS.eigenvectorBasis i) : n → ℝ) ⬝ᵥ ⇑(hS.eigenvectorBasis i) = 1 := by
+    have := hS.eigenvectorBasis.orthonormal.1 i
+    have h2 : ‖hS.eigenvectorBasis i‖ ^ 2 = 1 := by rw [this]; norm_num
+    rw [EuclideanSpace.norm_sq_eq] at h2
+    simpa [dotProduct, _root_.sq, Real.norm_eq_abs] using h2
+  simp only [RCLike.re_to_real, star_trivial] at h
+  rw [h]; linarith
+
+/-- Rayleigh bound from below. -/
+theorem eigenvalues_ge_neg_one {n : Type} [Fintype n] [DecidableEq n] (S : Matrix n n ℝ) (hS : S.IsHermitian)
+    (hq : ∀ x : n → ℝ, -(x ⬝ᵥ x) ≤ x ⬝ᵥ (S *ᵥ x)) (i : n) : -1 ≤ hS.eigenvalues i := by
+  have h := hS.eigenvalues_eq i
+  have hv := hq (⇑(hS.eigenvectorBasis i))
+  have hnorm : (⇑(hS.eigenvectorBasis i) : n → ℝ) ⬝ᵥ ⇑(hS.eigenvectorBasis i) = 1 := by
+    have := hS.eigenvectorBasis.orthonormal.1 i
+    have h2 : ‖hS.eigenvectorBasis i‖ ^ 2 = 1 := by rw [this]; norm_num
+    rw [EuclideanSpace.norm_sq_eq] at h2
+    simpa [dotProduct, _root_.sq, Real.norm_eq_abs] using h2
+  simp only [RCLike.re_to_real, star_trivial] at h
+  rw [h]; linarith
+
+/-- The quadratic form of a graph with symmetric nonnegative weights:
+    `|sum_ij W_ij y_i y_j| ≤ sum_i D_i y_i^2` with the degrees `D_i = sum_j W_ij`. -/
+theorem graph_quad_form {n : Type} [Fintype n] (W : n → n → ℝ) (hsymm : ∀ i j, W i j = W j i)
+    (hnn : ∀ i j, 0 ≤ W i j) (y : n → ℝ) :
+    |∑ i, ∑ j, W i j * y i * y j| ≤ ∑ i, (∑ j, W i j) * y i ^ 2 := by
+  have hswap : ∑ i, ∑ j, W i j * y j ^ 2 = ∑ i, ∑ j, W i j * y i ^ 2 := by
+    rw [Finset.sum_comm]
+    exact Finset.sum_congr rfl (fun i _ => Finset.sum_congr rfl (fun j _ => by rw [hsymm j i]))
+  have hd : ∑ i, (∑ j, W i j) * y i ^ 2 = ∑ i, ∑ j, W i j * y i ^ 2 :=
+    Finset.sum_congr rfl (fun i _ => by rw [Finset.sum_mul])
+  have h1 : 0 ≤ ∑ i, ∑ j, W i j * (y i - y j) ^ 2 :=
+    Finset.sum_nonneg (fun i _ => Finset.sum_nonneg (fun j _ => mul_nonneg (hnn i j) (sq_nonneg _)))
+  have h2 : 0 ≤ ∑ i, ∑ j, W i j * (y i + y j) ^ 2 :=
+    Finset.sum_nonneg (fun i _ => Finset.sum_nonneg (fun j _ => mul_nonneg (hnn i j) (sq_nonneg _)))
+  have e1 : ∑ i, ∑ j, W i j * (y i - y j) ^ 2
+      = ∑ i, ∑ j, W i j * y i ^ 2 + ∑ i, ∑ j, W i j * y j ^ 2 - 2 * ∑ i, ∑ j, W i j * y i * y j := by
+    rw [Finset.mul_sum, ← Finset.sum_add_distrib, ← Finset.sum_sub_distrib]
+    refine Finset.sum_congr rfl (fun i _ => ?_)
+    rw [Finset.mul_sum, ← Finset.sum_add_distrib, ← Finset.sum_sub_distrib]
+    exact Finset.sum_congr rfl (fun j _ => by ring)
+  have e2 : ∑ i, ∑ j, W i j * (y i + y j) ^ 2
+      = ∑ i, ∑ j, W i j * y i ^ 2 + ∑ i, ∑ j, W i j * y j ^ 2 + 2 * ∑ i, ∑ j, W i j * y i * y j := by
+    rw [Finset.mul_sum, ← Finset.sum_add_distrib, ← Finset.sum_add_distrib]
+    refine Finset.sum_congr rfl (fun i _ => ?_)
+    rw [Finset.mul_sum, ← Finset.sum_add_distrib, ← Finset.sum_add_distrib]
+    exact Finset.sum_congr rfl (fun j _ => by ring)
+  rw [hd, abs_le]
+  constructor <;> linarith
+
+/-- **The spectrum of the normalised graph matrix lies in `[-1, 1]`.** For symmetric nonnegative
+    weights `W` with positive degrees `D_i`, every eigenvalue of `S = D^{-1/2} W D^{-1/2}` lies in
+    `[-1, 1]`. In the paper this is the statement `s_a ∈ [-1, 1]` at the beginning of the proof of
+    Theorem 3.12. -/
+theorem normalised_eigenvalues_mem {n : Type} [Fintype n] [DecidableEq n] (W : n → n → ℝ)
+    (hsymm : ∀ i j, W i j = W j i) (hnn : ∀ i j, 0 ≤ W i j) (hd : ∀ i, 0 < ∑ j, W i j)
+    (S : Matrix n n ℝ) (hSdef : ∀ i j, S i j = W i j / (Real.sqrt (∑ l, W i l) * Real.sqrt (∑ l, W j l)))
+    (hS : S.IsHermitian) (i : n) : -1 ≤ hS.eigenvalues i ∧ hS.eigenvalues i ≤ 1 := by
+  have key : ∀ x : n → ℝ, |x ⬝ᵥ (S *ᵥ x)| ≤ x ⬝ᵥ x := by
+    intro x
+    set y : n → ℝ := fun i => x i / Real.sqrt (∑ l, W i l) with hy
+    have hsq : ∀ i, Real.sqrt (∑ l, W i l) ^ 2 = ∑ l, W i l := fun i => Real.sq_sqrt (hd i).le
+    have hpos : ∀ i, 0 < Real.sqrt (∑ l, W i l) := fun i => Real.sqrt_pos.mpr (hd i)
+    have e1 : x ⬝ᵥ (S *ᵥ x) = ∑ i, ∑ j, W i j * y i * y j := by
+      simp only [dotProduct, mulVec, Finset.mul_sum]
+      refine Finset.sum_congr rfl (fun i _ => Finset.sum_congr rfl (fun j _ => ?_))
+      rw [hSdef i j, hy]
+      have := (hpos i).ne'; have := (hpos j).ne'
+      field_simp
+    have e2 : x ⬝ᵥ x = ∑ i, (∑ j, W i j) * y i ^ 2 := by
+      simp only [dotProduct]
+      refine Finset.sum_congr rfl (fun i _ => ?_)
+      rw [hy]
+      have := (hpos i).ne'
+      rw [← hsq i]; field_simp
+    rw [e1, e2]
+    exact graph_quad_form W hsymm hnn y
+  exact ⟨eigenvalues_ge_neg_one S hS (fun x => (abs_le.mp (key x)).1) i,
+    eigenvalues_le_one S hS (fun x => (abs_le.mp (key x)).2) i⟩
+
+/-- Upper bound of Theorem "Poisson representation" for matrices: if all eigenvalues of `S` are at
+    most one and `tau ≥ 0`, then `Tr e^{-tL} ≤ N`. -/
+theorem heat_upper_matrix {n : Type} [Fintype n] [DecidableEq n] (S : Matrix n n ℝ)
+    (hS : S.IsHermitian) {tau : ℝ} (ht : 0 ≤ tau) (h1 : ∀ i, hS.eigenvalues i ≤ 1) :
+    (NormedSpace.exp (tau • (S - 1))).trace ≤ (Fintype.card n : ℝ) := by
+  rw [trace_exp_heat S hS tau]
+  have h : ∑ i : n, Real.exp (-(tau * (1 - hS.eigenvalues i))) ≤ ∑ _i : n, (1 : ℝ) :=
+    Finset.sum_le_sum (fun i _ => by
+      rw [Real.exp_le_one_iff]
+      have := mul_nonneg ht (sub_nonneg.mpr (h1 i)); linarith)
+  simpa using h
+
+/-- Lemma "traces", deterministic part: for a row-stochastic matrix with entries in `[0, b]`,
+    `Tr P ≤ N b` and `Tr P^2 ≤ N b`. In the paper `b = C xi^{-d}/N` on the event of Lemma
+    "weights", which gives `Tr P, Tr P^2 ≤ C xi^{-d}`. -/
+theorem trace_le_of_entry_le {n : Type} [Fintype n] [DecidableEq n] (P : Matrix n n ℝ) {b : ℝ}
+    (hb : ∀ i j, P i j ≤ b) : P.trace ≤ (Fintype.card n : ℝ) * b := by
+  have h : ∑ i : n, P i i ≤ ∑ _i : n, b := Finset.sum_le_sum (fun i _ => hb i i)
+  simpa [Matrix.trace] using h
+
+theorem trace_sq_le_of_entry_le {n : Type} [Fintype n] [DecidableEq n] (P : Matrix n n ℝ) {b : ℝ}
+    (h0 : ∀ i j, 0 ≤ P i j) (hb : ∀ i j, P i j ≤ b) (hrow : ∀ i, ∑ j, P i j = 1) :
+    (P * P).trace ≤ (Fintype.card n : ℝ) * b := by
+  have h : ∑ i : n, ∑ j : n, P i j * P j i ≤ ∑ _i : n, b := by
+    refine Finset.sum_le_sum (fun i _ => ?_)
+    calc ∑ j : n, P i j * P j i ≤ ∑ j : n, P i j * b :=
+          Finset.sum_le_sum (fun j _ => mul_le_mul_of_nonneg_left (hb j i) (h0 i j))
+      _ = b := by rw [← Finset.sum_mul, hrow i, one_mul]
+  simpa [Matrix.trace, Matrix.mul_apply] using h
+
 end Spectral
+
+
+/-! ### Concentration of the normalisation (first step of Lemma "weights")
+
+  With the probability theory of Mathlib. `Y j` stands for `k(x, X_j)` at a FIXED point `x`, with
+  mean `m = q(x)`. Not formalised: the same statement at the sample points themselves (which needs
+  conditioning on `X_i`), the union over the points, and everything after it. -/
+
+section Probability
+open MeasureTheory ProbabilityTheory
+open scoped NNReal
+
+/-- Hoeffding's inequality for the normalisation: for independent random variables `Y j` with
+    values in `[0, A]` and common mean `m`, the probability that `sum_{j<N} Y j - N m ≥ eps` is at
+    most `exp(-eps^2 / (2 N (A/2)^2))`. With `eps = N s`: `P(q_N - q ≥ s) ≤ exp(-2 N s^2 / A^2)`. -/
+theorem normalisation_concentration {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] (Y : ℕ → Ω → ℝ) (h_indep : iIndepFun Y μ)
+    (hm : ∀ j, AEMeasurable (Y j) μ) {A m : ℝ} (hA : 0 ≤ A)
+    (hb : ∀ j, ∀ᵐ ω ∂μ, Y j ω ∈ Set.Icc 0 A) (hmean : ∀ j, μ[Y j] = m)
+    (N : ℕ) {ε : ℝ} (hε : 0 ≤ ε) :
+    μ.real {ω | ε ≤ ∑ j ∈ Finset.range N, Y j ω - N * m}
+      ≤ Real.exp (-ε ^ 2 / (2 * N * (A / 2) ^ 2)) := by
+  have hZ : iIndepFun (fun j ω => Y j ω - m) μ :=
+    h_indep.comp (fun _ x => x - m) (fun _ => measurable_id.sub_const m)
+  have hsub : ∀ j < N, HasSubgaussianMGF (fun ω => Y j ω - m) ((‖A - 0‖₊ / 2) ^ 2) μ := by
+    intro j _
+    have h := hasSubgaussianMGF_of_mem_Icc (hm j) (hb j)
+    rwa [hmean j] at h
+  have h := HasSubgaussianMGF.measure_sum_range_ge_le_of_iIndepFun hZ hsub hε
+  have hset : {ω | ε ≤ ∑ j ∈ Finset.range N, (Y j ω - m)}
+      = {ω | ε ≤ ∑ j ∈ Finset.range N, Y j ω - N * m} := by
+    ext ω; simp [Finset.sum_sub_distrib]
+  rw [hset] at h
+  have hc : (((‖A - 0‖₊ / 2) ^ 2 : ℝ≥0) : ℝ) = (A / 2) ^ 2 := by
+    simp [abs_of_nonneg hA]
+  rwa [hc] at h
+
+end Probability
 
 end CTG.Reals
