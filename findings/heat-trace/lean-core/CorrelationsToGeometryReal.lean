@@ -21,6 +21,8 @@ import Mathlib.Analysis.Matrix.Spectrum
 import Mathlib.Analysis.SpecialFunctions.Exponential
 import Mathlib.Analysis.Normed.Algebra.MatrixExponential
 import Mathlib.Probability.Moments.SubGaussian
+import Mathlib.Analysis.Fourier.AddCircle
+import Mathlib.MeasureTheory.Measure.Haar.Unique
 import CorrelationsToGeometry
 
 namespace CTG.Reals
@@ -638,6 +640,54 @@ theorem walk_entry_le {n : Type} [Fintype n] (K : n → n → ℝ) (qv : n → �
         div_le_div₀ (div_nonneg hA (mul_pos hqmin hqmin).le) hnum hdenpos hden
     _ = A * qmax / ((Fintype.card n : ℝ) * qmin ^ 2) := by field_simp
 
+/-- The walk matrix `P = D^{-1} W`, `W_ij = K_ij/(q_i q_j)`, written out for a kernel matrix `K`
+    and a normalisation `q`. -/
+noncomputable def walkMatrix {n : Type} [Fintype n] (K : n → n → ℝ) (qv : n → ℝ) : Matrix n n ℝ :=
+  Matrix.of fun i j => (K i j / (qv i * qv j)) / (∑ l, K i l / (qv i * qv l))
+
+/-- Lemma "traces", deterministic assembly: if the kernel has values in `[0, A]` and the estimated
+    normalisation `q_i = (1/N) sum_l K_il` lies in `[q0/2, 3 q0/2]` with `q0 > 0`, then
+    `Tr P ≤ 6A/q0` and `Tr P^2 ≤ 6A/q0`. -/
+theorem traces_of_normalisation {n : Type} [Fintype n] [DecidableEq n] [Nonempty n] (K : n → n → ℝ)
+    (qv : n → ℝ) {A q0 : ℝ} (hK0 : ∀ i j, 0 ≤ K i j) (hKA : ∀ i j, K i j ≤ A)
+    (hq : ∀ i, (Fintype.card n : ℝ) * qv i = ∑ l, K i l) (hq0 : 0 < q0)
+    (hlo : ∀ i, q0 / 2 ≤ qv i) (hhi : ∀ i, qv i ≤ 3 * q0 / 2) :
+    (walkMatrix K qv).trace ≤ 6 * A / q0
+      ∧ (walkMatrix K qv * walkMatrix K qv).trace ≤ 6 * A / q0 := by
+  have hN : 0 < (Fintype.card n : ℝ) := by exact_mod_cast Fintype.card_pos
+  have hqi : ∀ l, 0 < qv l := fun l => lt_of_lt_of_le (by linarith) (hlo l)
+  have hentry : ∀ i j, walkMatrix K qv i j ≤ A * (3 * q0 / 2) / ((Fintype.card n : ℝ) * (q0 / 2) ^ 2) :=
+    fun i j => walk_entry_le K qv hK0 hKA hq (by linarith) hlo hhi i j
+  have hD : ∀ i, 0 < ∑ l, K i l / (qv i * qv l) := by
+    intro i
+    have h1 : ∀ l, K i l / (qv i * (3 * q0 / 2)) ≤ K i l / (qv i * qv l) := fun l =>
+      div_le_div_of_nonneg_left (hK0 i l) (mul_pos (hqi i) (hqi l))
+        (mul_le_mul_of_nonneg_left (hhi l) (hqi i).le)
+    have h2 : (Fintype.card n : ℝ) / (3 * q0 / 2) = ∑ l, K i l / (qv i * (3 * q0 / 2)) := by
+      rw [← Finset.sum_div, ← hq i]
+      have := (hqi i).ne'
+      field_simp
+    have h3 : 0 < (Fintype.card n : ℝ) / (3 * q0 / 2) := div_pos hN (by linarith)
+    calc 0 < (Fintype.card n : ℝ) / (3 * q0 / 2) := h3
+      _ = ∑ l, K i l / (qv i * (3 * q0 / 2)) := h2
+      _ ≤ ∑ l, K i l / (qv i * qv l) := Finset.sum_le_sum (fun l _ => h1 l)
+  have h0 : ∀ i j, 0 ≤ walkMatrix K qv i j := fun i j =>
+    div_nonneg (div_nonneg (hK0 i j) (mul_pos (hqi i) (hqi j)).le) (hD i).le
+  have hrow : ∀ i, ∑ j, walkMatrix K qv i j = 1 := by
+    intro i
+    simp only [walkMatrix, Matrix.of_apply]
+    rw [← Finset.sum_div]
+    exact div_self (hD i).ne'
+  have hb : (Fintype.card n : ℝ) * (A * (3 * q0 / 2) / ((Fintype.card n : ℝ) * (q0 / 2) ^ 2))
+      = 6 * A / q0 := by
+    have := hN.ne'; have := hq0.ne'
+    field_simp; ring
+  constructor
+  · have := trace_le_of_entry_le (walkMatrix K qv) hentry
+    rwa [hb] at this
+  · have := trace_sq_le_of_entry_le (walkMatrix K qv) h0 hentry hrow
+    rwa [hb] at this
+
 end Spectral
 
 
@@ -796,6 +846,137 @@ theorem uniform_normalisation {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Meas
   have := sup_from_net (fun x => ∑ j ∈ Finset.range N, k x (X j ω)) (fun x => (N : ℝ) * q x)
     hNL hf hg net hnet (fun a ha => (hcon a ha).le) x
   linarith
+
+/-- **Lemma "traces" with its probability, for a constant normalisation.** Independent points `X j`
+    of a metric space; a kernel with values in `[0, A]`, measurable in the second and
+    `L`-Lipschitz in the first argument; `E k(x, X_j) = q0 > 0` for every point `x` and every `j`
+    (HYPOTHESIS `hq`: identical distribution and a normalisation that does not depend on the
+    point, as on a torus with a translation-invariant kernel); a finite `r`-net (HYPOTHESIS
+    `hnet`); `s + 2 L r ≤ q0/2`. Then, for the walk matrix `P` built from the first `N` points,
+    the probability that `Tr P ≤ 6A/q0` and `Tr P^2 ≤ 6A/q0` FAIL is at most
+    `2 |net| exp(-(N s)^2 / (2 N (A/2)^2)) = 2 |net| exp(-2 N s^2/A^2)`. -/
+theorem traces_whp {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {E : Type*} [PseudoMetricSpace E] [MeasurableSpace E]
+    (X : ℕ → Ω → E) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (k : E → E → ℝ) (hk : ∀ x, Measurable (k x)) {A L r q0 s : ℝ} (hA : 0 ≤ A) (hL : 0 ≤ L)
+    (hbound : ∀ x y, k x y ∈ Set.Icc 0 A)
+    (hlip : ∀ x x' y, |k x y - k x' y| ≤ L * dist x x')
+    (hq : ∀ x j, μ[fun ω => k x (X j ω)] = q0) (hq0 : 0 < q0)
+    (net : Finset E) (hnet : ∀ x, ∃ a ∈ net, dist x a ≤ r)
+    (N : ℕ) [NeZero N] (hs : 0 ≤ s) (hsmall : s + 2 * L * r ≤ q0 / 2) :
+    μ.real {ω | ¬ ((walkMatrix (fun i j : Fin N => k (X i ω) (X j ω))
+            (fun i : Fin N => (∑ l : Fin N, k (X i ω) (X l ω)) / N)).trace ≤ 6 * A / q0
+        ∧ (walkMatrix (fun i j : Fin N => k (X i ω) (X j ω))
+            (fun i : Fin N => (∑ l : Fin N, k (X i ω) (X l ω)) / N)
+          * walkMatrix (fun i j : Fin N => k (X i ω) (X j ω))
+            (fun i : Fin N => (∑ l : Fin N, k (X i ω) (X l ω)) / N)).trace ≤ 6 * A / q0)}
+      ≤ net.card * (2 * Real.exp (-(N * s) ^ 2 / (2 * N * (A / 2) ^ 2))) := by
+  have hNpos : 0 < (N : ℝ) := by exact_mod_cast Nat.pos_of_ne_zero (NeZero.ne N)
+  have hu := uniform_normalisation (μ := μ) X h_indep hX k hk hA hL hbound hlip (fun _ => q0)
+    hq (fun x x' => by simpa using mul_nonneg hL dist_nonneg) net hnet N
+    (mul_nonneg hNpos.le hs)
+  refine (measureReal_mono ?_).trans hu
+  intro ω hω
+  simp only [Set.mem_setOf_eq] at hω ⊢
+  by_contra hcon
+  push Not at hcon
+  apply hω
+  have hsum : ∀ i : Fin N, ∑ l : Fin N, k (X i ω) (X l ω)
+      = ∑ j ∈ Finset.range N, k (X i ω) (X j ω) := fun i =>
+    Fin.sum_univ_eq_sum_range (fun j => k (X i ω) (X j ω)) N
+  have hbd : ∀ i : Fin N, |∑ l : Fin N, k (X i ω) (X l ω) - N * q0| ≤ N * (q0 / 2) := by
+    intro i
+    rw [hsum i]
+    have h1 := hcon (X i ω)
+    have h2 : (N : ℝ) * s + 2 * (N * L) * r = N * (s + 2 * L * r) := by ring
+    rw [h2] at h1
+    exact h1.trans (mul_le_mul_of_nonneg_left hsmall hNpos.le)
+  refine traces_of_normalisation (fun i j : Fin N => k (X i ω) (X j ω))
+    (fun i : Fin N => (∑ l : Fin N, k (X i ω) (X l ω)) / N)
+    (fun i j => (hbound _ _).1) (fun i j => (hbound _ _).2) ?_ hq0 ?_ ?_
+  · intro i
+    simp only [Fintype.card_fin]
+    field_simp
+  · intro i
+    have h := (abs_le.mp (hbd i)).1
+    rw [le_div_iff₀ hNpos]; nlinarith
+  · intro i
+    have h := (abs_le.mp (hbd i)).2
+    rw [div_le_iff₀ hNpos]; nlinarith
+
+/-- **The trace bounds on a torus, with their probability.** `G` a compact abelian group with a
+    translation-invariant metric (for instance a flat torus), `ν` its invariant probability
+    measure, `X j` independent with law `ν`, and the kernel `k(x, y) = h(x - y)` with `h`
+    measurable, with values in `[0, A]` and `L`-Lipschitz, `q0 = ∫ h dν > 0`. For every `r > 0`
+    there is a number `M` (the size of an `r`-net of `G`; it is not quantified here) such that for
+    all `N ≥ 1` and all `s ≥ 0` with `s + 2 L r ≤ q0/2` the probability that `Tr P ≤ 6A/q0` and
+    `Tr P^2 ≤ 6A/q0` FAIL for the walk matrix of the first `N` points is at most
+    `2 M exp(-(N s)^2 / (2 N (A/2)^2))`. No hypothesis on the normalisation or on a net remains. -/
+theorem torus_traces_whp {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {G : Type*} [AddCommGroup G] [MetricSpace G] [CompactSpace G]
+    [MeasurableSpace G] [BorelSpace G] [IsTopologicalAddGroup G] [SecondCountableTopology G]
+    (ν : Measure G) [IsProbabilityMeasure ν] [ν.IsAddLeftInvariant] [ν.IsNegInvariant]
+    (hdist : ∀ x x' y : G, dist (x - y) (x' - y) = dist x x')
+    (X : ℕ → Ω → G) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = ν)
+    (h : G → ℝ) (hh : Measurable h) {A L r : ℝ} (hA : 0 ≤ A) (hL : 0 ≤ L)
+    (hbound : ∀ u, h u ∈ Set.Icc 0 A) (hlip : ∀ u u', |h u - h u'| ≤ L * dist u u')
+    (hq0 : 0 < ∫ u, h u ∂ν) (hr : 0 < r) :
+    ∃ M : ℕ, ∀ (N : ℕ) [NeZero N] (s : ℝ), 0 ≤ s → s + 2 * L * r ≤ (∫ u, h u ∂ν) / 2 →
+      μ.real {ω | ¬ ((walkMatrix (fun i j : Fin N => h (X i ω - X j ω))
+              (fun i : Fin N => (∑ l : Fin N, h (X i ω - X l ω)) / N)).trace
+                ≤ 6 * A / (∫ u, h u ∂ν)
+          ∧ (walkMatrix (fun i j : Fin N => h (X i ω - X j ω))
+              (fun i : Fin N => (∑ l : Fin N, h (X i ω - X l ω)) / N)
+            * walkMatrix (fun i j : Fin N => h (X i ω - X j ω))
+              (fun i : Fin N => (∑ l : Fin N, h (X i ω - X l ω)) / N)).trace
+                ≤ 6 * A / (∫ u, h u ∂ν))}
+        ≤ M * (2 * Real.exp (-(N * s) ^ 2 / (2 * N * (A / 2) ^ 2))) := by
+  -- a finite r-net from compactness
+  obtain ⟨t, -, htfin, htcover⟩ := finite_cover_balls_of_compact (isCompact_univ (X := G)) hr
+  have hnet : ∀ x : G, ∃ a ∈ htfin.toFinset, dist x a ≤ r := by
+    intro x
+    have hx := htcover (Set.mem_univ x)
+    simp only [Set.mem_iUnion, Metric.mem_ball] at hx
+    obtain ⟨a, ha, hd⟩ := hx
+    exact ⟨a, htfin.mem_toFinset.mpr ha, hd.le⟩
+  -- the normalisation does not depend on the point
+  have hq : ∀ (x : G) (j : ℕ), μ[fun ω => h (x - X j ω)] = ∫ u, h u ∂ν := by
+    intro x j
+    have h1 : ∫ ω, h (x - X j ω) ∂μ = ∫ y, h (x - y) ∂(μ.map (X j)) :=
+      (integral_map (hX j).aemeasurable
+        ((hh.comp (measurable_const.sub measurable_id)).aestronglyMeasurable)).symm
+    rw [h1, hlaw j]
+    exact integral_sub_left_eq_self h ν x
+  refine ⟨htfin.toFinset.card, fun N _ s hs hsmall => ?_⟩
+  exact traces_whp (μ := μ) X h_indep hX (fun x y => h (x - y))
+    (fun x => hh.comp (measurable_const.sub measurable_id)) hA hL
+    (fun x y => hbound (x - y))
+    (fun x x' y => by rw [← hdist x x' y]; exact hlip (x - y) (x' - y))
+    hq hq0 htfin.toFinset hnet N hs hsmall
+
+/-- The same on the circle `ℝ/ℤ` with its Haar probability measure: all hypotheses on the space
+    are discharged (compactness, invariance of the metric and of the measure). This shows in
+    particular that the hypotheses of `torus_traces_whp` can be satisfied. -/
+theorem circle_traces_whp {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] (X : ℕ → Ω → UnitAddCircle) (h_indep : iIndepFun X μ)
+    (hX : ∀ j, Measurable (X j)) (hlaw : ∀ j, μ.map (X j) = AddCircle.haarAddCircle)
+    (h : UnitAddCircle → ℝ) (hh : Measurable h) {A L r : ℝ} (hA : 0 ≤ A) (hL : 0 ≤ L)
+    (hbound : ∀ u, h u ∈ Set.Icc 0 A) (hlip : ∀ u u', |h u - h u'| ≤ L * dist u u')
+    (hq0 : 0 < ∫ u, h u ∂AddCircle.haarAddCircle) (hr : 0 < r) :
+    ∃ M : ℕ, ∀ (N : ℕ) [NeZero N] (s : ℝ), 0 ≤ s →
+      s + 2 * L * r ≤ (∫ u, h u ∂AddCircle.haarAddCircle) / 2 →
+      μ.real {ω | ¬ ((walkMatrix (fun i j : Fin N => h (X i ω - X j ω))
+              (fun i : Fin N => (∑ l : Fin N, h (X i ω - X l ω)) / N)).trace
+                ≤ 6 * A / (∫ u, h u ∂AddCircle.haarAddCircle)
+          ∧ (walkMatrix (fun i j : Fin N => h (X i ω - X j ω))
+              (fun i : Fin N => (∑ l : Fin N, h (X i ω - X l ω)) / N)
+            * walkMatrix (fun i j : Fin N => h (X i ω - X j ω))
+              (fun i : Fin N => (∑ l : Fin N, h (X i ω - X l ω)) / N)).trace
+                ≤ 6 * A / (∫ u, h u ∂AddCircle.haarAddCircle))}
+        ≤ M * (2 * Real.exp (-(N * s) ^ 2 / (2 * N * (A / 2) ^ 2))) :=
+  torus_traces_whp (μ := μ) (G := UnitAddCircle) AddCircle.haarAddCircle
+    (fun x x' y => dist_sub_right x x' y) X h_indep hX hlaw h hh hA hL hbound hlip hq0 hr
 
 end Probability
 
