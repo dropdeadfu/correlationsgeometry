@@ -1295,6 +1295,80 @@ theorem eigtorus_matrix {n : Type} [Fintype n] [DecidableEq n] (S Q : Matrix n n
 
 end Powers
 
+/-- **Lemma "consistency", from the walk with the exact normalisation to the sampled walk, in a
+    weak form.** One row of the sampled walk is `P_bj = Pt_j u_j / sum_l Pt_l u_l`, where `Pt_j`
+    is the row of the walk with the exact normalisation and `u_j = 1/(1 + eps_j)`. If
+    `|u_j - 1| ≤ 2 delta`, `|sum_j Pt_j - 1| ≤ delta`, `delta ≤ 1/8` and the main term satisfies
+    `|sum_j Pt_j g_j - c| ≤ dev`, then the defect of the sampled walk satisfies
+    `|sum_j P_bj g_j - c| ≤ 3 dev + 11 delta c`. In the paper `g_j = p_m(x_j - x_i)` and
+    `c = p_{m+1}(x_b - x_i)`. The paper's lemma is sharper: its second term carries a factor
+    `m^{-1/2}`, which comes from the Poincaré inequality for the Gaussian measure and is NOT
+    obtained here. -/
+theorem defect_decomposition {n : Type} [Fintype n] (Pt u g : n → ℝ) {c δ dev : ℝ}
+    (hδ0 : 0 ≤ δ) (hδ : δ ≤ 1 / 8) (hPt : ∀ j, 0 ≤ Pt j) (hg : ∀ j, 0 ≤ g j) (hc : 0 ≤ c)
+    (hu : ∀ j, |u j - 1| ≤ 2 * δ) (hrow : |∑ j, Pt j - 1| ≤ δ)
+    (hdev : |∑ j, Pt j * g j - c| ≤ dev) :
+    |(∑ j, Pt j * u j * g j) / (∑ j, Pt j * u j) - c| ≤ 3 * dev + 11 * δ * c := by
+  have hdev0 : 0 ≤ dev := (abs_nonneg _).trans hdev
+  set R := ∑ j, Pt j with hR
+  set G := ∑ j, Pt j * g j with hG
+  have hRb := abs_le.mp hrow
+  have hGb := abs_le.mp hdev
+  -- r from below
+  have hr : (1 / 2 : ℝ) ≤ ∑ j, Pt j * u j := by
+    have h1 : ∑ j, Pt j * (3 / 4) ≤ ∑ j, Pt j * u j := Finset.sum_le_sum (fun j _ =>
+      mul_le_mul_of_nonneg_left (by linarith [(abs_le.mp (hu j)).1]) (hPt j))
+    rw [← Finset.sum_mul] at h1
+    nlinarith
+  have hrpos : 0 < ∑ j, Pt j * u j := by linarith
+  -- numerator
+  have e : ∑ j, Pt j * u j * g j - c * ∑ j, Pt j * u j
+      = (G - c) - c * (R - 1) + ∑ j, Pt j * (u j - 1) * (g j - c) := by
+    rw [hG, hR, Finset.mul_sum, ← Finset.sum_sub_distrib]
+    have : ∑ j, Pt j * (u j - 1) * (g j - c)
+        = ∑ j, (Pt j * u j * g j - c * (Pt j * u j)) - ∑ j, Pt j * g j + c * ∑ j, Pt j := by
+      rw [Finset.mul_sum, ← Finset.sum_sub_distrib, ← Finset.sum_add_distrib]
+      exact Finset.sum_congr rfl (fun j _ => by ring)
+    rw [this]; ring
+  have hthird : |∑ j, Pt j * (u j - 1) * (g j - c)| ≤ 2 * δ * (G + c * R) := by
+    calc |∑ j, Pt j * (u j - 1) * (g j - c)| ≤ ∑ j, |Pt j * (u j - 1) * (g j - c)| :=
+          Finset.abs_sum_le_sum_abs _ _
+      _ ≤ ∑ j, 2 * δ * (Pt j * g j + c * Pt j) := Finset.sum_le_sum (fun j _ => by
+          rw [abs_mul, abs_mul, abs_of_nonneg (hPt j)]
+          have h1 : |g j - c| ≤ g j + c := by
+            rw [abs_le]; constructor <;> linarith [hg j]
+          have h2 := hu j
+          have h3 : |u j - 1| * |g j - c| ≤ 2 * δ * (g j + c) :=
+            mul_le_mul h2 h1 (abs_nonneg _) (by linarith)
+          calc Pt j * |u j - 1| * |g j - c| = Pt j * (|u j - 1| * |g j - c|) := by ring
+            _ ≤ Pt j * (2 * δ * (g j + c)) := mul_le_mul_of_nonneg_left h3 (hPt j)
+            _ = 2 * δ * (Pt j * g j + c * Pt j) := by ring)
+      _ = 2 * δ * (G + c * R) := by
+          rw [← Finset.mul_sum, Finset.sum_add_distrib, ← Finset.mul_sum]
+  have hnum : |∑ j, Pt j * u j * g j - c * ∑ j, Pt j * u j| ≤ (3 / 2) * dev + (11 / 2) * δ * c := by
+    rw [e]
+    have h3 := abs_le.mp hthird
+    have hGle : G ≤ c + dev := by linarith [hGb.2]
+    have hRle : R ≤ 1 + δ := by linarith [hRb.2]
+    have hb : 2 * δ * (G + c * R) ≤ 2 * δ * (c + dev + c * (1 + δ)) := by
+      have : G + c * R ≤ c + dev + c * (1 + δ) := by nlinarith
+      exact mul_le_mul_of_nonneg_left this (by linarith)
+    have hcR : |c * (R - 1)| ≤ c * δ := by
+      rw [abs_mul, abs_of_nonneg hc]; exact mul_le_mul_of_nonneg_left hrow hc
+    have hcR' := abs_le.mp hcR
+    rw [abs_le]
+    constructor <;> nlinarith [hGb.1, hGb.2, h3.1, h3.2, hcR'.1, hcR'.2, mul_nonneg hδ0 hdev0,
+      mul_nonneg hδ0 hc, mul_nonneg (mul_nonneg hδ0 hδ0) hc]
+  have e2 : (∑ j, Pt j * u j * g j) / (∑ j, Pt j * u j) - c
+      = (∑ j, Pt j * u j * g j - c * ∑ j, Pt j * u j) / (∑ j, Pt j * u j) := by
+    field_simp
+  rw [e2, abs_div, abs_of_pos hrpos, div_le_iff₀ hrpos]
+  have : (3 / 2) * dev + (11 / 2) * δ * c ≤ (3 * dev + 11 * δ * c) * (1 / 2) := by ring_nf; linarith
+  calc |∑ j, Pt j * u j * g j - c * ∑ j, Pt j * u j| ≤ (3 / 2) * dev + (11 / 2) * δ * c := hnum
+    _ ≤ (3 * dev + 11 * δ * c) * (1 / 2) := this
+    _ ≤ (3 * dev + 11 * δ * c) * ∑ j, Pt j * u j :=
+        mul_le_mul_of_nonneg_left hr (by positivity)
+
 end Spectral
 
 
@@ -1697,6 +1771,43 @@ theorem flatTorus_traces_ae (d : ℕ) {Ω : Type*} {mΩ : MeasurableSpace Ω} {�
           have hM0 : (0 : ℝ) ≤ M := Nat.cast_nonneg M
           nlinarith [Real.exp_pos (-(2 * (q0 / 4) ^ 2 / A ^ 2 * (N : ℝ)))]
 
+/-- **Empirical means of finitely many bounded functions (the probabilistic input of Lemma
+    "kernel matrix").** Independent points `X_j`, functions `phi_a` with values in `[-1, 1]` and
+    `E phi_a(X_j) = m_a` (HYPOTHESIS `hmean`; for the real and imaginary parts of the characters of
+    a torus and the invariant law, `m_a = 0` for nonzero frequencies, which is not formalised).
+    Then, simultaneously for all `a` in a finite set,
+    `P(∃ a, |sum_{j<N} phi_a(X_j) - N m_a| ≥ eps) ≤ 2 |s| exp(-eps^2 / (2N))`. -/
+theorem bounded_functions_concentration {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {E : Type*} [MeasurableSpace E] {ι : Type*} (s : Finset ι)
+    (X : ℕ → Ω → E) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (phi : ι → E → ℝ) (hphi : ∀ a, Measurable (phi a)) (hb : ∀ a x, |phi a x| ≤ 1)
+    (m : ι → ℝ) (hmean : ∀ a j, μ[fun ω => phi a (X j ω)] = m a)
+    (N : ℕ) {ε : ℝ} (hε : 0 ≤ ε) :
+    μ.real {ω | ∃ a ∈ s, ε ≤ |∑ j ∈ Finset.range N, phi a (X j ω) - N * m a|}
+      ≤ s.card * (2 * Real.exp (-ε ^ 2 / (2 * N * (2 / 2) ^ 2))) := by
+  have hint : ∀ a j, Integrable (fun ω => phi a (X j ω)) μ := fun a j =>
+    Integrable.of_bound ((hphi a).comp (hX j)).aestronglyMeasurable 1
+      (Filter.Eventually.of_forall (fun ω => by simpa using hb a (X j ω)))
+  have h := net_concentration (μ := μ) s (fun a j ω => phi a (X j ω) + 1)
+    (fun a _ => h_indep.comp (fun _ x => phi a x + 1) (fun _ => (hphi a).add_const 1))
+    (fun a _ j => (((hphi a).comp (hX j)).add_const 1).aemeasurable) (A := 2)
+    (fun a => m a + 1) (by norm_num)
+    (fun a _ j => Filter.Eventually.of_forall (fun ω => by
+      have := abs_le.mp (hb a (X j ω))
+      constructor <;> linarith [this.1, this.2]))
+    (fun a _ j => by
+      rw [integral_add (hint a j) (integrable_const 1), hmean a j]; simp) N hε
+  have hset : {ω | ∃ a ∈ s, ε ≤ |∑ j ∈ Finset.range N, (phi a (X j ω) + 1) - N * (m a + 1)|}
+      = {ω | ∃ a ∈ s, ε ≤ |∑ j ∈ Finset.range N, phi a (X j ω) - N * m a|} := by
+    ext ω
+    simp only [Set.mem_setOf_eq]
+    refine exists_congr (fun a => and_congr_right (fun _ => ?_))
+    have e : ∑ j ∈ Finset.range N, (phi a (X j ω) + 1) - N * (m a + 1)
+        = ∑ j ∈ Finset.range N, phi a (X j ω) - N * m a := by
+      rw [Finset.sum_add_distrib]; simp; ring
+    rw [e]
+  rwa [hset] at h
+
 /-! ### Bernstein's inequality -/
 
 /-- Moment generating function of a bounded centred variable: if `|X| ≤ b`, `E X = 0` and
@@ -1928,6 +2039,36 @@ noncomputable def convPow {G : Type*} [AddCommGroup G] [MeasurableSpace G] (ν :
     (p : G → ℝ) : ℕ → G → ℝ
   | 0 => p
   | m + 1 => fun u => ∫ w, p (u - w) * convPow ν p m w ∂ν
+
+/-- The convolution powers of a nonnegative kernel are nonnegative. -/
+theorem convPow_nonneg {G : Type*} [AddCommGroup G] [MeasurableSpace G] (ν : Measure G)
+    (p : G → ℝ) (hp0 : ∀ u, 0 ≤ p u) : ∀ m u, 0 ≤ convPow ν p m u
+  | 0, u => hp0 u
+  | m + 1, u => integral_nonneg (fun w => mul_nonneg (hp0 _) (convPow_nonneg ν p hp0 m w))
+
+/-- The supremum of the convolution powers does not increase (fact (P1) of Lemma "periodised
+    Gaussian" in its qualitative form, `m_{k+1} ≤ m_k`): for a nonnegative kernel of mass one with
+    respect to an invariant finite measure, `p^{*(m+1)} ≤ B` implies `p^{*(m+2)} ≤ B`.
+    HYPOTHESIS `hqmeas`: measurability of `p^{*(m+1)}` (true for continuous kernels). -/
+theorem convPow_succ_le {G : Type*} [AddCommGroup G] [MeasurableSpace G] [MeasurableAdd₂ G]
+    [MeasurableNeg G] (ν : Measure G) [IsFiniteMeasure ν] [ν.IsAddLeftInvariant] [ν.IsNegInvariant]
+    (p : G → ℝ) (hp0 : ∀ u, 0 ≤ p u) (hpint : Integrable p ν) (hmass : ∫ u, p u ∂ν = 1)
+    (m : ℕ) {B : ℝ} (hqB : ∀ u, convPow ν p m u ≤ B)
+    (hqmeas : AEStronglyMeasurable (convPow ν p m) ν) (u : G) :
+    convPow ν p (m + 1) u ≤ B := by
+  have hq0 := convPow_nonneg ν p hp0 m
+  have hB0 : 0 ≤ B := (hq0 u).trans (hqB u)
+  have hpu : Integrable (fun w => p (u - w)) ν := hpint.comp_sub_left u
+  have hI : Integrable (fun w => convPow ν p m w * p (u - w)) ν :=
+    hpu.bdd_mul (c := B) hqmeas (Filter.Eventually.of_forall (fun w => by
+      rw [Real.norm_eq_abs, abs_of_nonneg (hq0 w)]; exact hqB w))
+  have hI' : Integrable (fun w => p (u - w) * convPow ν p m w) ν := by
+    simpa [mul_comm] using hI
+  calc convPow ν p (m + 1) u = ∫ w, p (u - w) * convPow ν p m w ∂ν := rfl
+    _ ≤ ∫ w, p (u - w) * B ∂ν := integral_mono hI' (hpu.mul_const B)
+        (fun w => mul_le_mul_of_nonneg_left (hqB w) (hp0 _))
+    _ = B := by
+        rw [integral_mul_const, integral_sub_left_eq_self p ν u, hmass, one_mul]
 
 /-- The semigroup property in the form used by Lemma "consistency": for a point `X` with law `ν`
     (translation invariant), `E p(x - X) p^{*(m+1)}(X - y) = p^{*(m+2)}(x - y)`. -/
