@@ -911,6 +911,390 @@ theorem kernel_recursion_matrix {n : Type} [Fintype n] [DecidableEq n] (P : Matr
   rw [abs_le] at h1 h2' ⊢
   constructor <;> nlinarith [h1.1, h1.2, h2'.1, h2'.2]
 
+/-- The quantity `D_k` of Theorem "kernel": the largest entry of `N P^k - p_k`, where `p_k` is an
+    arbitrary family of kernels on the index set (in the paper `p_k(x_a - x_i)`). -/
+noncomputable def kernelDist {n : Type} [Fintype n] [DecidableEq n] [Nonempty n] (P : Matrix n n ℝ)
+    (p : ℕ → n → n → ℝ) (k : ℕ) : ℝ :=
+  Finset.univ.sup' Finset.univ_nonempty
+    (fun x : n × n => |(Fintype.card n : ℝ) * (P ^ k) x.1 x.2 - p k x.1 x.2|)
+
+/-- `D_k ≤ c` means that every entry is at most `c`. -/
+theorem kernelDist_le_iff {n : Type} [Fintype n] [DecidableEq n] [Nonempty n] (P : Matrix n n ℝ)
+    (p : ℕ → n → n → ℝ) (k : ℕ) (c : ℝ) :
+    kernelDist P p k ≤ c ↔ ∀ a i, |(Fintype.card n : ℝ) * (P ^ k) a i - p k a i| ≤ c := by
+  unfold kernelDist
+  rw [Finset.sup'_le_iff]
+  constructor
+  · intro h a i; exact h (a, i) (Finset.mem_univ _)
+  · intro h x _; exact h x.1 x.2
+
+/-- **Theorem "kernel" for matrices: the whole deterministic argument.** `P` a matrix with
+    nonnegative entries, `p_k` kernels with `0 ≤ p_k ≤ mu_k`. HYPOTHESES, all of which are
+    statements of the paper that are not formalised here: the last step of the walk,
+    `|N P_bi - p_1| ≤ 4 d p_1` (`hlast`, with `d` the size of the normalisation errors); the
+    consistency lemma in the mean and in the supremum (`hbar`, `hsup`); the summation over the
+    defects (`hsum`, where the facts on the heat kernel enter) and `4d + (1 + 4d) W ≤ 1` (`hW`).
+    CONCLUSION: `D_l ≤ mu_l` for all `1 ≤ l ≤ K`, and `D_{j+2} ≤ (4d + (1+4d) W_{j+1}) mu_{j+2}`.
+    In the paper `W_k = C delta' sqrt k`, which gives `D_k ≤ C delta' sqrt k m_k`. -/
+theorem kernel_theorem_matrix {n : Type} [Fintype n] [DecidableEq n] [Nonempty n]
+    (P : Matrix n n ℝ) (h0 : ∀ i j, 0 ≤ P i j) (p : ℕ → n → n → ℝ) (mu etabar etasup W : ℕ → ℝ)
+    {d : ℝ} (K : ℕ) (hd0 : 0 ≤ d) (hd1 : 4 * d ≤ 1)
+    (hmu : ∀ k, 0 ≤ mu k) (hp0 : ∀ k a i, 0 ≤ p k a i) (hpmu : ∀ k a i, p k a i ≤ mu k)
+    (hlast : ∀ b i, |(Fintype.card n : ℝ) * P b i - p 1 b i| ≤ 4 * d * p 1 b i)
+    (hbar : ∀ m i, 1 ≤ m → ∑ b, |(P *ᵥ (fun b' => p m b' i)) b - p (m + 1) b i|
+        ≤ (Fintype.card n : ℝ) * etabar m)
+    (hsup : ∀ m i b, 1 ≤ m → |(P *ᵥ (fun b' => p m b' i)) b - p (m + 1) b i| ≤ etasup m)
+    (hsum : ∀ j, j + 1 < K → ∑ m ∈ Finset.range j,
+        (2 * mu (j - m) / (Fintype.card n : ℝ)) * ((Fintype.card n : ℝ) * etabar (m + 1))
+          + etasup (j + 1) ≤ W (j + 1) * mu (j + 2))
+    (hW : ∀ j, j + 1 < K → 0 ≤ W (j + 1) ∧ 4 * d + (1 + 4 * d) * W (j + 1) ≤ 1) :
+    (∀ l, 1 ≤ l → l ≤ K → kernelDist P p l ≤ mu l)
+      ∧ (∀ j, j + 1 < K →
+          kernelDist P p (j + 2) ≤ (4 * d + (1 + 4 * d) * W (j + 1)) * mu (j + 2)) := by
+  have hN : 0 < (Fintype.card n : ℝ) := by exact_mod_cast Fintype.card_pos
+  -- one step, given the induction hypothesis up to j+1
+  have step : ∀ j, j + 1 < K → (∀ l, 1 ≤ l → l ≤ j + 1 → kernelDist P p l ≤ mu l) →
+      kernelDist P p (j + 2) ≤ (4 * d + (1 + 4 * d) * W (j + 1)) * mu (j + 2) := by
+    intro j hj ih
+    rw [kernelDist_le_iff]
+    intro a i
+    have hent : ∀ m < j, ∀ a b, |(P ^ (j - m)) a b| ≤ 2 * mu (j - m) / (Fintype.card n : ℝ) := by
+      intro m hm a b
+      rw [abs_of_nonneg (pow_entries_nonneg P h0 _ a b), le_div_iff₀ hN]
+      have h1 := (kernelDist_le_iff P p (j - m) (mu (j - m))).mp (ih (j - m) (by omega) (by omega)) a b
+      have h2 := hpmu (j - m) a b
+      have h3 := (abs_le.mp h1).2
+      linarith
+    have hw : ∀ m < j, 0 ≤ 2 * mu (j - m) / (Fintype.card n : ℝ) := fun m _ =>
+      div_nonneg (mul_nonneg (by norm_num) (hmu _)) hN.le
+    have key := kernel_recursion_matrix P h0 (fun m b => p m b i)
+      (fun b => (Fintype.card n : ℝ) * P b i) (theta := 4 * d) (by linarith)
+      (fun b => hlast b i) (fun l => 2 * mu l / (Fintype.card n : ℝ))
+      (fun m => (Fintype.card n : ℝ) * etabar m) (etasup (j + 1)) j hent
+      (fun m _ => by simpa using hbar (m + 1) i (by omega)) hw
+      (fun b => by simpa using hsup (j + 1) i b (by omega)) a
+    have e : ((P ^ (j + 1)) *ᵥ fun b => (Fintype.card n : ℝ) * P b i) a
+        = (Fintype.card n : ℝ) * (P ^ (j + 2)) a i := by
+      have hpow : (P ^ (j + 2)) a i = ∑ b, (P ^ (j + 1)) a b * P b i := by
+        rw [show j + 2 = (j + 1) + 1 from rfl, pow_succ, Matrix.mul_apply]
+      rw [hpow, Finset.mul_sum]
+      simp only [mulVec, dotProduct]
+      exact Finset.sum_congr rfl (fun b _ => by ring)
+    rw [e] at key
+    have hs := hsum j hj
+    have hWj := hW j hj
+    have hpm := hpmu (j + 2) a i
+    have hp0' := hp0 (j + 2) a i
+    have hm2 := hmu (j + 2)
+    calc |(Fintype.card n : ℝ) * (P ^ (j + 2)) a i - p (j + 2) a i|
+        ≤ 4 * d * p (j + 2) a i + (1 + 4 * d) * (∑ m ∈ Finset.range j,
+            (2 * mu (j - m) / (Fintype.card n : ℝ)) * ((Fintype.card n : ℝ) * etabar (m + 1))
+              + etasup (j + 1)) := key
+      _ ≤ 4 * d * mu (j + 2) + (1 + 4 * d) * (W (j + 1) * mu (j + 2)) := by
+          have h1 : 4 * d * p (j + 2) a i ≤ 4 * d * mu (j + 2) :=
+            mul_le_mul_of_nonneg_left hpm (by linarith)
+          have h2 := mul_le_mul_of_nonneg_left hs (show (0 : ℝ) ≤ 1 + 4 * d by linarith)
+          linarith
+      _ = (4 * d + (1 + 4 * d) * W (j + 1)) * mu (j + 2) := by ring
+  have base : kernelDist P p 1 ≤ mu 1 := by
+    rw [kernelDist_le_iff]
+    intro a i
+    have h1 := hlast a i
+    rw [pow_one]
+    have h2 : 4 * d * p 1 a i ≤ 1 * mu 1 :=
+      mul_le_mul hd1 (hpmu 1 a i) (hp0 1 a i) (by norm_num)
+    linarith
+  have all : ∀ k, ∀ l, 1 ≤ l → l ≤ k → l ≤ K → kernelDist P p l ≤ mu l := by
+    intro k
+    induction k with
+    | zero => intro l h1 h2; omega
+    | succ k ih =>
+      intro l hl1 hlk hlK
+      by_cases hle : l ≤ k
+      · exact ih l hl1 hle hlK
+      · have hl : l = k + 1 := by omega
+        subst hl
+        rcases Nat.eq_zero_or_pos k with hk | hk
+        · subst hk; exact base
+        · obtain ⟨j, rfl⟩ : ∃ j, k = j + 1 := ⟨k - 1, by omega⟩
+          have hj : j + 1 < K := by omega
+          have hstep := step j hj (fun l h1 h2 => ih l h1 h2 (by omega))
+          have hWj := hW j hj
+          have hm2 := hmu (j + 2)
+          calc kernelDist P p (j + 1 + 1) ≤ (4 * d + (1 + 4 * d) * W (j + 1)) * mu (j + 2) := hstep
+            _ ≤ 1 * mu (j + 2) := mul_le_mul_of_nonneg_right hWj.2 hm2
+            _ = mu (j + 1 + 1) := by ring_nf
+  exact ⟨fun l h1 hK => all l l h1 le_rfl hK,
+    fun j hj => step j hj (fun l h1 h2 => all l l h1 le_rfl (by omega))⟩
+
+/-! ### Weyl's inequality for the eigenvalues of real symmetric matrices -/
+
+/-- The quadratic form and the norm in the coordinates of the eigenvectors: with `y = U^T x`,
+    `x · A x = sum_i a_i y_i^2` and `x · x = sum_i y_i^2`. -/
+theorem quad_form_eig {n : Type} [Fintype n] [DecidableEq n] (A : Matrix n n ℝ) (hA : A.IsHermitian)
+    (x : n → ℝ) :
+    x ⬝ᵥ (A *ᵥ x)
+      = ∑ i, hA.eigenvalues i * ((star (hA.eigenvectorUnitary : Matrix n n ℝ)) *ᵥ x) i ^ 2
+    ∧ x ⬝ᵥ x = ∑ i, ((star (hA.eigenvectorUnitary : Matrix n n ℝ)) *ᵥ x) i ^ 2 := by
+  set U : Matrix n n ℝ := (↑hA.eigenvectorUnitary : Matrix n n ℝ) with hU
+  have h1 : U * star U = 1 := Unitary.coe_mul_star_self _
+  have hspec : A = U * diagonal hA.eigenvalues * star U := by
+    have h := hA.spectral_theorem
+    rw [Unitary.conjStarAlgAut_apply] at h
+    simpa using h
+  have hvec : ∀ w : n → ℝ, x ⬝ᵥ (U *ᵥ w) = (star U *ᵥ x) ⬝ᵥ w := by
+    intro w
+    rw [dotProduct_mulVec, star_eq_conjTranspose, conjTranspose_eq_transpose_of_trivial,
+      mulVec_transpose]
+  constructor
+  · have e : A *ᵥ x = U *ᵥ (diagonal hA.eigenvalues *ᵥ (star U *ᵥ x)) := by
+      conv_lhs => rw [hspec]
+      simp [mulVec_mulVec, Matrix.mul_assoc]
+    rw [e, hvec]
+    simp only [dotProduct, mulVec_diagonal]
+    exact Finset.sum_congr rfl (fun i _ => by ring)
+  · have e : x = U *ᵥ (star U *ᵥ x) := by rw [mulVec_mulVec, h1, one_mulVec]
+    have h2 := hvec (star U *ᵥ x)
+    rw [← e] at h2
+    rw [h2]
+    simp only [dotProduct]
+    exact Finset.sum_congr rfl (fun i _ => by ring)
+
+/-- **Weyl's inequality, one side** (proven here because the library has none; search of
+    18 November 2026): if `x · A x ≤ x · B x + eps (x · x)` for all `x`, then the eigenvalues in
+    decreasing order satisfy `a_j ≤ b_j + eps` for every `j`. Proof: a vector orthogonal to the
+    eigenvectors of `A` after the `j`-th and to those of `B` before the `j`-th exists by a count of
+    dimensions. -/
+theorem weyl_le {n : Type} [Fintype n] [DecidableEq n] (A B : Matrix n n ℝ) (hA : A.IsHermitian)
+    (hB : B.IsHermitian) {ε : ℝ}
+    (h : ∀ x : n → ℝ, x ⬝ᵥ (A *ᵥ x) ≤ x ⬝ᵥ (B *ᵥ x) + ε * (x ⬝ᵥ x))
+    (j : Fin (Fintype.card n)) : hA.eigenvalues₀ j ≤ hB.eigenvalues₀ j + ε := by
+  set e : Fin (Fintype.card n) ≃ n := Fintype.equivOfCardEq (Fintype.card_fin _) with he
+  set UA : Matrix n n ℝ := (↑hA.eigenvectorUnitary : Matrix n n ℝ) with hUA
+  set UB : Matrix n n ℝ := (↑hB.eigenvectorUnitary : Matrix n n ℝ) with hUB
+  set sA : Finset n := Finset.univ.filter (fun i => j < e.symm i) with hsA
+  set sB : Finset n := Finset.univ.filter (fun i => e.symm i < j) with hsB
+  -- the linear map whose kernel we need
+  let fA : (n → ℝ) →ₗ[ℝ] (sA → ℝ) :=
+    (LinearMap.funLeft ℝ ℝ (Subtype.val : sA → n)) ∘ₗ Matrix.mulVecLin (star UA)
+  let fB : (n → ℝ) →ₗ[ℝ] (sB → ℝ) :=
+    (LinearMap.funLeft ℝ ℝ (Subtype.val : sB → n)) ∘ₗ Matrix.mulVecLin (star UB)
+  let f : (n → ℝ) →ₗ[ℝ] (sA → ℝ) × (sB → ℝ) := fA.prod fB
+  have hcard : sA.card + sB.card < Fintype.card n := by
+    have hdisj : Disjoint sA sB := by
+      rw [Finset.disjoint_left]
+      intro i hi1 hi2
+      have h1 := (Finset.mem_filter.mp hi1).2
+      have h2 := (Finset.mem_filter.mp hi2).2
+      exact absurd h1 (not_lt.mpr h2.le)
+    have hsub : sA ∪ sB ⊆ Finset.univ.erase (e j) := by
+      intro i hi
+      rw [Finset.mem_erase]
+      refine ⟨?_, Finset.mem_univ _⟩
+      intro hij
+      rcases Finset.mem_union.mp hi with h1 | h1
+      · have := (Finset.mem_filter.mp h1).2; rw [hij] at this; simp at this
+      · have := (Finset.mem_filter.mp h1).2; rw [hij] at this; simp at this
+    have h1 := Finset.card_le_card hsub
+    rw [Finset.card_union_of_disjoint hdisj, Finset.card_erase_of_mem (Finset.mem_univ _),
+      Finset.card_univ] at h1
+    have hpos : 0 < Fintype.card n := Fintype.card_pos_iff.mpr ⟨e j⟩
+    omega
+  have hrank : Module.finrank ℝ ((sA → ℝ) × (sB → ℝ)) < Module.finrank ℝ (n → ℝ) := by
+    rw [Module.finrank_prod, Module.finrank_fintype_fun_eq_card, Module.finrank_fintype_fun_eq_card,
+      Module.finrank_fintype_fun_eq_card, Fintype.card_coe, Fintype.card_coe]
+    exact hcard
+  obtain ⟨x, hxker, hx0⟩ := Submodule.exists_mem_ne_zero_of_ne_bot
+    (LinearMap.ker_ne_bot_of_finrank_lt (f := f) hrank)
+  have hfx : f x = 0 := LinearMap.mem_ker.mp hxker
+  have hyA : ∀ i, j < e.symm i → (star UA *ᵥ x) i = 0 := by
+    intro i hi
+    have h1 : fA x = 0 := congrArg Prod.fst hfx
+    have h2 := congrFun h1 ⟨i, Finset.mem_filter.mpr ⟨Finset.mem_univ _, hi⟩⟩
+    simpa [fA] using h2
+  have hyB : ∀ i, e.symm i < j → (star UB *ᵥ x) i = 0 := by
+    intro i hi
+    have h1 : fB x = 0 := congrArg Prod.snd hfx
+    have h2 := congrFun h1 ⟨i, Finset.mem_filter.mpr ⟨Finset.mem_univ _, hi⟩⟩
+    simpa [fB] using h2
+  obtain ⟨hqA, hnA⟩ := quad_form_eig A hA x
+  obtain ⟨hqB, hnB⟩ := quad_form_eig B hB x
+  have hlow : hA.eigenvalues₀ j * (x ⬝ᵥ x) ≤ x ⬝ᵥ (A *ᵥ x) := by
+    rw [hqA, hnA, Finset.mul_sum]
+    refine Finset.sum_le_sum (fun i _ => ?_)
+    by_cases hi : j < e.symm i
+    · rw [hyA i hi]; simp
+    · have hle : e.symm i ≤ j := not_lt.mp hi
+      have hant : hA.eigenvalues₀ j ≤ hA.eigenvalues i := hA.eigenvalues₀_antitone hle
+      exact mul_le_mul_of_nonneg_right hant (_root_.sq_nonneg _)
+  have hupp : x ⬝ᵥ (B *ᵥ x) ≤ hB.eigenvalues₀ j * (x ⬝ᵥ x) := by
+    rw [hqB, hnB, Finset.mul_sum]
+    refine Finset.sum_le_sum (fun i _ => ?_)
+    by_cases hi : e.symm i < j
+    · rw [hyB i hi]; simp
+    · have hle : j ≤ e.symm i := not_lt.mp hi
+      have hant : hB.eigenvalues i ≤ hB.eigenvalues₀ j := hB.eigenvalues₀_antitone hle
+      exact mul_le_mul_of_nonneg_right hant (_root_.sq_nonneg _)
+  have hpos : 0 < x ⬝ᵥ x := by
+    have h0 : 0 ≤ x ⬝ᵥ x := by
+      simp only [dotProduct]; exact Finset.sum_nonneg (fun i _ => _root_.mul_self_nonneg _)
+    rcases h0.lt_or_eq with hlt | heq
+    · exact hlt
+    · exact absurd (dotProduct_self_eq_zero.mp heq.symm) hx0
+  have hx := h x
+  by_contra hcon
+  push Not at hcon
+  nlinarith [mul_pos (sub_pos.mpr hcon) hpos]
+
+/-- Weyl's inequality: if `|x · (A - B) x| ≤ eps (x · x)` for all `x`, then
+    `|a_j - b_j| ≤ eps` for the eigenvalues in decreasing order. -/
+theorem weyl_abs {n : Type} [Fintype n] [DecidableEq n] (A B : Matrix n n ℝ) (hA : A.IsHermitian)
+    (hB : B.IsHermitian) {ε : ℝ}
+    (h : ∀ x : n → ℝ, |x ⬝ᵥ (A *ᵥ x) - x ⬝ᵥ (B *ᵥ x)| ≤ ε * (x ⬝ᵥ x))
+    (j : Fin (Fintype.card n)) : |hA.eigenvalues₀ j - hB.eigenvalues₀ j| ≤ ε := by
+  have h1 := weyl_le A B hA hB (ε := ε) (fun x => by linarith [(abs_le.mp (h x)).2]) j
+  have h2 := weyl_le B A hB hA (ε := ε) (fun x => by linarith [(abs_le.mp (h x)).1]) j
+  rw [abs_le]; constructor <;> linarith
+
+/-- Schur's test for a symmetric matrix: if every absolute row sum is at most `eps`, then
+    `|x · M x| ≤ eps (x · x)`. -/
+theorem quad_form_le_of_row_sums {n : Type} [Fintype n] (M : Matrix n n ℝ)
+    (hsymm : ∀ i j, M i j = M j i) {ε : ℝ} (hrow : ∀ i, ∑ j, |M i j| ≤ ε) (x : n → ℝ) :
+    |x ⬝ᵥ (M *ᵥ x)| ≤ ε * (x ⬝ᵥ x) := by
+  have e : x ⬝ᵥ (M *ᵥ x) = ∑ i, ∑ j, M i j * x i * x j := by
+    simp only [dotProduct, mulVec, Finset.mul_sum]
+    exact Finset.sum_congr rfl (fun i _ => Finset.sum_congr rfl (fun j _ => by ring))
+  have hterm : ∀ i j, |M i j * x i * x j| ≤ |M i j| * (x i ^ 2 + x j ^ 2) / 2 := by
+    intro i j
+    rw [mul_assoc, abs_mul]
+    have h1 : |x i * x j| ≤ (x i ^ 2 + x j ^ 2) / 2 := by
+      rw [abs_le]; constructor <;> nlinarith [_root_.sq_nonneg (x i - x j), _root_.sq_nonneg (x i + x j)]
+    calc |M i j| * |x i * x j| ≤ |M i j| * ((x i ^ 2 + x j ^ 2) / 2) :=
+          mul_le_mul_of_nonneg_left h1 (abs_nonneg _)
+      _ = |M i j| * (x i ^ 2 + x j ^ 2) / 2 := by ring
+  have hswap : ∑ i, ∑ j, |M i j| * x j ^ 2 = ∑ i, ∑ j, |M i j| * x i ^ 2 := by
+    rw [Finset.sum_comm]
+    exact Finset.sum_congr rfl (fun i _ => Finset.sum_congr rfl (fun j _ => by rw [hsymm j i]))
+  have hd : ∑ i, ∑ j, |M i j| * x i ^ 2 ≤ ε * (x ⬝ᵥ x) := by
+    simp only [dotProduct, Finset.mul_sum]
+    refine Finset.sum_le_sum (fun i _ => ?_)
+    rw [← Finset.sum_mul]
+    calc (∑ j, |M i j|) * x i ^ 2 ≤ ε * x i ^ 2 := mul_le_mul_of_nonneg_right (hrow i) (_root_.sq_nonneg _)
+      _ = ε * (x i * x i) := by ring
+  rw [e]
+  calc |∑ i, ∑ j, M i j * x i * x j| ≤ ∑ i, |∑ j, M i j * x i * x j| := Finset.abs_sum_le_sum_abs _ _
+    _ ≤ ∑ i, ∑ j, |M i j * x i * x j| :=
+        Finset.sum_le_sum (fun i _ => Finset.abs_sum_le_sum_abs _ _)
+    _ ≤ ∑ i, ∑ j, |M i j| * (x i ^ 2 + x j ^ 2) / 2 :=
+        Finset.sum_le_sum (fun i _ => Finset.sum_le_sum (fun j _ => hterm i j))
+    _ = (∑ i, ∑ j, |M i j| * x i ^ 2 + ∑ i, ∑ j, |M i j| * x j ^ 2) / 2 := by
+        rw [← Finset.sum_add_distrib, Finset.sum_div]
+        refine Finset.sum_congr rfl (fun i _ => ?_)
+        rw [← Finset.sum_add_distrib, Finset.sum_div]
+        exact Finset.sum_congr rfl (fun j _ => by ring)
+    _ ≤ ε * (x ⬝ᵥ x) := by rw [hswap]; linarith
+
+/-- **Weyl's inequality with the maximal absolute row sum**, the form used in the proof of Theorem
+    "eigenvalues on the torus": `|a_j - b_j| ≤ max_i sum_j |A_ij - B_ij|`. -/
+theorem weyl_row_sums {n : Type} [Fintype n] [DecidableEq n] (A B : Matrix n n ℝ)
+    (hA : A.IsHermitian) (hB : B.IsHermitian) {ε : ℝ} (hrow : ∀ i, ∑ j, |A i j - B i j| ≤ ε)
+    (j : Fin (Fintype.card n)) : |hA.eigenvalues₀ j - hB.eigenvalues₀ j| ≤ ε := by
+  apply weyl_abs A B hA hB
+  intro x
+  have hsymm : ∀ i j, (A - B) i j = (A - B) j i := by
+    intro i j
+    have h1 : A i j = A j i := by have := congrFun (congrFun hA j) i; simpa using this
+    have h2 : B i j = B j i := by have := congrFun (congrFun hB j) i; simpa using this
+    simp [h1, h2]
+  have h := quad_form_le_of_row_sums (A - B) hsymm (ε := ε) (fun i => by simpa using hrow i) x
+  rwa [sub_mulVec, dotProduct_sub] at h
+
+/-! ### Eigenvalues of powers and the deterministic part of Theorem "eigenvalues on the torus" -/
+
+section Powers
+open Polynomial
+
+/-- The characteristic polynomial of a power of a real symmetric matrix. -/
+theorem charpoly_pow_eq {n : Type} [Fintype n] [DecidableEq n] (S : Matrix n n ℝ)
+    (hS : S.IsHermitian) (k : ℕ) :
+    (S ^ k).charpoly = ∏ i, (X - C (hS.eigenvalues i ^ k)) := by
+  have hk : S ^ k = Unitary.conjStarAlgAut ℝ _ hS.eigenvectorUnitary
+      (diagonal (RCLike.ofReal ∘ hS.eigenvalues) ^ k) := by
+    conv_lhs => rw [hS.spectral_theorem]
+    rw [map_pow]
+  rw [hk, diagonal_pow, Unitary.conjStarAlgAut_apply, charpoly_mul_comm, ← mul_assoc]
+  simp [charpoly_diagonal]
+
+/-- Its roots are the powers of the eigenvalues. -/
+theorem roots_charpoly_pow {n : Type} [Fintype n] [DecidableEq n] (S : Matrix n n ℝ)
+    (hS : S.IsHermitian) (k : ℕ) :
+    (S ^ k).charpoly.roots
+      = Multiset.map (fun j => hS.eigenvalues₀ j ^ k) Finset.univ.val := by
+  rw [charpoly_pow_eq S hS k, Polynomial.roots_prod]
+  · simp only [roots_X_sub_C, Multiset.bind_singleton]
+    have e : (fun i => hS.eigenvalues i ^ k)
+        = (fun j => hS.eigenvalues₀ j ^ k) ∘ (Fintype.equivOfCardEq (Fintype.card_fin _)).symm := by
+      funext i; rfl
+    rw [e, ← Multiset.map_map]
+    simp
+  · rw [Finset.prod_ne_zero_iff]
+    intro i _
+    exact Polynomial.X_sub_C_ne_zero _
+
+/-- For a real symmetric matrix with nonnegative eigenvalues, the eigenvalues of `S^k` in
+    decreasing order are the `k`-th powers of the eigenvalues of `S` in decreasing order. -/
+theorem eigenvalues₀_pow {n : Type} [Fintype n] [DecidableEq n] (S : Matrix n n ℝ)
+    (hS : S.IsHermitian) (hnn : ∀ j, 0 ≤ hS.eigenvalues₀ j) (k : ℕ) (hSk : (S ^ k).IsHermitian)
+    (j : Fin (Fintype.card n)) : hSk.eigenvalues₀ j = hS.eigenvalues₀ j ^ k := by
+  have hanti : Antitone (fun j => hS.eigenvalues₀ j ^ k) := fun a b hab =>
+    pow_le_pow_left₀ (hnn b) (hS.eigenvalues₀_antitone hab) k
+  have h1 := hSk.sort_roots_charpoly_eq_eigenvalues₀
+  have h2 : ((S ^ k).charpoly.roots.map RCLike.re).sort (· ≥ ·)
+      = List.ofFn (fun j => hS.eigenvalues₀ j ^ k) := by
+    simp_rw [roots_charpoly_pow S hS k, Fin.univ_val_map, Multiset.map_coe, List.map_ofFn,
+      Function.comp_def, RCLike.re_to_real, Multiset.coe_sort]
+    apply List.mergeSort_of_pairwise
+    simp_rw [decide_eq_true_eq, ← List.sortedGE_iff_pairwise]
+    exact hanti.sortedGE_ofFn
+  have h3 : List.ofFn hSk.eigenvalues₀ = List.ofFn (fun j => hS.eigenvalues₀ j ^ k) := by
+    rw [← h1, h2]
+  exact congrFun (List.ofFn_injective h3) j
+
+/-- **Theorem "eigenvalues on the torus", the deterministic part for matrices.** `S` real symmetric
+    with eigenvalues `s_j ∈ [0, 1]` in decreasing order, `Q` real symmetric with eigenvalues `q_j`.
+    HYPOTHESES (in the paper: Theorem "kernel" for the first, Lemma "kernel matrix" for the
+    second): every absolute row sum of `S^{k+1} - Q` is at most `eps`, and `|q_j - a^{k+1}| ≤ eps'`
+    for a number `a ∈ [0, 1]` with `2 (eps + eps') ≤ a^{k+1}` (in the paper `a = e^{-sigma lambda_j}`).
+    CONCLUSION: `|s_j^{k+1} - a^{k+1}| ≤ eps + eps'` (part (i)) and
+    `(k+1) a^{k+1} |s_j - a| ≤ 2 (eps + eps')` (part (ii)). -/
+theorem eigtorus_matrix {n : Type} [Fintype n] [DecidableEq n] (S Q : Matrix n n ℝ)
+    (hS : S.IsHermitian) (hQ : Q.IsHermitian) (hnn : ∀ j, 0 ≤ hS.eigenvalues₀ j)
+    (hle1 : ∀ j, hS.eigenvalues₀ j ≤ 1) (k : ℕ) {eps eps' a : ℝ}
+    (hrow : ∀ i, ∑ l, |(S ^ (k + 1)) i l - Q i l| ≤ eps)
+    (j : Fin (Fintype.card n)) (ha0 : 0 ≤ a) (ha1 : a ≤ 1)
+    (hQj : |hQ.eigenvalues₀ j - a ^ (k + 1)| ≤ eps')
+    (h3 : 2 * (eps + eps') ≤ a ^ (k + 1)) :
+    |hS.eigenvalues₀ j ^ (k + 1) - a ^ (k + 1)| ≤ eps + eps'
+      ∧ ((k + 1 : ℕ) : ℝ) * (a ^ (k + 1) * |hS.eigenvalues₀ j - a|) ≤ 2 * (eps + eps') := by
+  have hSk : (S ^ (k + 1)).IsHermitian := hS.pow (k + 1)
+  have hw := weyl_row_sums (S ^ (k + 1)) Q hSk hQ hrow j
+  rw [eigenvalues₀_pow S hS hnn (k + 1) hSk j] at hw
+  have hi : |hS.eigenvalues₀ j ^ (k + 1) - a ^ (k + 1)| ≤ eps + eps' := by
+    have h1 := abs_le.mp hw
+    have h2 := abs_le.mp hQj
+    rw [abs_le]; constructor <;> linarith [h1.1, h1.2, h2.1, h2.2]
+  refine ⟨hi, ?_⟩
+  have hb := abs_le.mp hi
+  have r := eigenvalue_from_power (α := ℝ) (hnn j) (hle1 j) ha0 ha1 k
+    (eta := eps + eps') (by rw [pw_eq, pw_eq]; linarith [hb.2])
+    (by rw [pw_eq, pw_eq]; linarith [hb.1]) (by rw [pw_eq]; exact h3)
+  rw [pw_eq, ncast_eq] at r
+  rcases le_total a (hS.eigenvalues₀ j) with h | h
+  · rw [abs_of_nonneg (sub_nonneg.mpr h)]; exact r.1
+  · rw [abs_of_nonpos (sub_nonpos.mpr h), neg_sub]; exact r.2
+
+end Powers
+
 end Spectral
 
 
@@ -1429,6 +1813,163 @@ theorem bernstein_inequality {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measu
           nlinarith [mul_nonneg (mul_nonneg (_root_.sq_nonneg ε) hDpos.le) (sub_nonneg.mpr this)]
         have h2 : ε ^ 2 / D = 2 * (ε ^ 2 / (2 * D)) := by field_simp
         linarith
+
+/-- Bernstein for independent variables with values in `[0, b]` and a common mean `m`, two-sided:
+    `P(|sum_{j<N} Y_j - N m| ≥ eps) ≤ 2 exp(-eps^2 / (4 N b m + 2 b eps))`. The variance of each
+    variable is at most `b m`, which is what makes the bound depend on the mean. -/
+theorem bernstein_bounded_mean {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] (Y : ℕ → Ω → ℝ) (h_indep : iIndepFun Y μ)
+    (hm : ∀ j, Measurable (Y j)) {b m ε : ℝ} (hb : 0 < b)
+    (h0 : ∀ j ω, 0 ≤ Y j ω) (hYb : ∀ j ω, Y j ω ≤ b) (hmean : ∀ j, μ[Y j] = m)
+    (N : ℕ) (hε : 0 < ε) :
+    μ.real {ω | ε ≤ |∑ j ∈ Finset.range N, Y j ω - N * m|}
+      ≤ 2 * Real.exp (-ε ^ 2 / (4 * (N * (b * m)) + 2 * b * ε)) := by
+  have hintY : ∀ j, Integrable (Y j) μ := fun j =>
+    Integrable.of_bound (hm j).aestronglyMeasurable b (Filter.Eventually.of_forall (fun ω => by
+      rw [Real.norm_eq_abs, abs_of_nonneg (h0 j ω)]; exact hYb j ω))
+  have hm0 : 0 ≤ m := by rw [← hmean 0]; exact integral_nonneg (h0 0)
+  have hmb : m ≤ b := by
+    rw [← hmean 0]
+    calc ∫ ω, Y 0 ω ∂μ ≤ ∫ _ω, b ∂μ := integral_mono (hintY 0) (integrable_const b) (hYb 0)
+      _ = b := by simp
+  -- centred variables
+  have habs : ∀ j ω, |Y j ω - m| ≤ b := by
+    intro j ω
+    rw [abs_le]; constructor <;> linarith [h0 j ω, hYb j ω]
+  have hvar : ∀ j, ∫ ω, (Y j ω - m) ^ 2 ∂μ ≤ b * m := by
+    intro j
+    have hpt : ∀ ω, (Y j ω - m) ^ 2 ≤ (b - 2 * m) * Y j ω + m ^ 2 := by
+      intro ω
+      nlinarith [mul_nonneg (h0 j ω) (sub_nonneg.mpr (hYb j ω))]
+    have hint2 : Integrable (fun ω => (Y j ω - m) ^ 2) μ :=
+      Integrable.of_bound (((hm j).sub_const m).pow_const 2).aestronglyMeasurable (b ^ 2)
+        (Filter.Eventually.of_forall (fun ω => by
+          rw [Real.norm_eq_abs, abs_pow]
+          exact pow_le_pow_left₀ (abs_nonneg _) (habs j ω) 2))
+    have hint3 : Integrable (fun ω => (b - 2 * m) * Y j ω + m ^ 2) μ :=
+      ((hintY j).const_mul _).add (integrable_const _)
+    calc ∫ ω, (Y j ω - m) ^ 2 ∂μ ≤ ∫ ω, ((b - 2 * m) * Y j ω + m ^ 2) ∂μ :=
+          integral_mono hint2 hint3 hpt
+      _ = (b - 2 * m) * m + m ^ 2 := by
+          rw [integral_add (f := fun ω => (b - 2 * m) * Y j ω) (g := fun _ => m ^ 2)
+            ((hintY j).const_mul _) (integrable_const _), integral_const_mul, hmean j]
+          simp
+      _ ≤ b * m := by nlinarith
+  have hV : ∀ (sgn : ℝ), sgn ^ 2 = 1 →
+      ∑ j ∈ Finset.range N, ∫ ω, (sgn * (Y j ω - m)) ^ 2 ∂μ ≤ N * (b * m) := by
+    intro sgn hs
+    calc ∑ j ∈ Finset.range N, ∫ ω, (sgn * (Y j ω - m)) ^ 2 ∂μ
+        = ∑ j ∈ Finset.range N, ∫ ω, (Y j ω - m) ^ 2 ∂μ :=
+          Finset.sum_congr rfl (fun j _ => by
+            congr 1; funext ω; rw [mul_pow, hs, one_mul])
+      _ ≤ ∑ _j ∈ Finset.range N, b * m := Finset.sum_le_sum (fun j _ => hvar j)
+      _ = N * (b * m) := by simp
+  have side : ∀ (sgn : ℝ), sgn ^ 2 = 1 → |sgn| = 1 →
+      μ.real {ω | ε ≤ ∑ j ∈ Finset.range N, sgn * (Y j ω - m)}
+        ≤ Real.exp (-ε ^ 2 / (4 * (N * (b * m)) + 2 * b * ε)) := by
+    intro sgn hs habs1
+    have hind : iIndepFun (fun j ω => sgn * (Y j ω - m)) μ :=
+      h_indep.comp (fun _ y => sgn * (y - m)) (fun _ => (measurable_id.sub_const m).const_mul sgn)
+    exact bernstein_inequality (μ := μ) (fun j ω => sgn * (Y j ω - m)) hind
+      (fun j => ((hm j).sub_const m).const_mul sgn) (Finset.range N) hb
+      (fun j _ ω => by rw [abs_mul, habs1, one_mul]; exact habs j ω)
+      (fun j _ => by
+        rw [integral_const_mul, integral_sub (hintY j) (integrable_const m), hmean j]; simp)
+      (hV sgn hs) hε
+  have h1 := side 1 (by norm_num) (by norm_num)
+  have h2 := side (-1) (by norm_num) (by norm_num)
+  have hsub : {ω | ε ≤ |∑ j ∈ Finset.range N, Y j ω - N * m|}
+      ⊆ {ω | ε ≤ ∑ j ∈ Finset.range N, (1 : ℝ) * (Y j ω - m)}
+        ∪ {ω | ε ≤ ∑ j ∈ Finset.range N, (-1 : ℝ) * (Y j ω - m)} := by
+    intro ω hω
+    simp only [Set.mem_setOf_eq, Set.mem_union] at hω ⊢
+    have e1 : ∑ j ∈ Finset.range N, (1 : ℝ) * (Y j ω - m) = ∑ j ∈ Finset.range N, Y j ω - N * m := by
+      simp [Finset.sum_sub_distrib]
+    have e2 : ∑ j ∈ Finset.range N, (-1 : ℝ) * (Y j ω - m)
+        = -(∑ j ∈ Finset.range N, Y j ω - N * m) := by
+      rw [← Finset.mul_sum, Finset.sum_sub_distrib]; simp
+    rw [e1, e2]
+    rcases le_abs.mp hω with h | h
+    · exact Or.inl h
+    · exact Or.inr h
+  calc μ.real {ω | ε ≤ |∑ j ∈ Finset.range N, Y j ω - N * m|}
+      ≤ μ.real ({ω | ε ≤ ∑ j ∈ Finset.range N, (1 : ℝ) * (Y j ω - m)}
+        ∪ {ω | ε ≤ ∑ j ∈ Finset.range N, (-1 : ℝ) * (Y j ω - m)}) := measureReal_mono hsub
+    _ ≤ _ := (measureReal_union_le _ _).trans (by linarith)
+
+/-- **Lemma "consistency", the main term at fixed points.** For independent points `X_j` of a group
+    and kernels `0 ≤ f ≤ bf`, `0 ≤ g ≤ bg`, the sum `sum_{j<N} f(x - X_j) g(X_j - y)` deviates from
+    `N c` by `eps` or more with probability at most `2 exp(-eps^2 / (4 N bf bg c + 2 bf bg eps))`,
+    where `c = E f(x - X_j) g(X_j - y)` (HYPOTHESIS `hmean`; for the heat kernel on a torus
+    `f = p`, `g = p_m` and `c = p_{m+1}(x - y)` by the semigroup property, which is not
+    formalised). With `bf = M`, `bg = m_m` this is the bound of the paper for the walk with the
+    exact normalisation at fixed `(b, i, m)`. NOT covered: the normalisation errors (the part with
+    the Poincaré inequality), the sample points in place of fixed points, and the union over
+    `(b, i, m)`. -/
+theorem transported_kernel_concentration {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {G : Type*} [AddGroup G] [MeasurableSpace G]
+    (X : ℕ → Ω → G) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (f g : G → ℝ) (x y : G) (hF : Measurable (fun z : G => f (x - z) * g (z - y)))
+    {bf bg c ε : ℝ} (hbf : 0 < bf) (hbg : 0 < bg)
+    (hf0 : ∀ u, 0 ≤ f u) (hfb : ∀ u, f u ≤ bf) (hg0 : ∀ u, 0 ≤ g u) (hgb : ∀ u, g u ≤ bg)
+    (hmean : ∀ j, μ[fun ω => f (x - X j ω) * g (X j ω - y)] = c) (N : ℕ) (hε : 0 < ε) :
+    μ.real {ω | ε ≤ |∑ j ∈ Finset.range N, f (x - X j ω) * g (X j ω - y) - N * c|}
+      ≤ 2 * Real.exp (-ε ^ 2 / (4 * (N * (bf * bg * c)) + 2 * (bf * bg) * ε)) :=
+  bernstein_bounded_mean (μ := μ) (fun j ω => f (x - X j ω) * g (X j ω - y))
+    (h_indep.comp (fun _ z => f (x - z) * g (z - y)) (fun _ => hF))
+    (fun j => hF.comp (hX j)) (mul_pos hbf hbg)
+    (fun j ω => mul_nonneg (hf0 _) (hg0 _))
+    (fun j ω => mul_le_mul (hfb _) (hgb _) (hg0 _) hbf.le) hmean N hε
+
+/-- Convolution powers of a kernel `p` on a group with respect to a measure `ν`:
+    `convPow ν p m = p^{*(m+1)}`. For the heat kernel at time `sigma` on a torus this is the heat
+    kernel at time `(m+1) sigma`; the semigroup property then holds by definition. -/
+noncomputable def convPow {G : Type*} [AddCommGroup G] [MeasurableSpace G] (ν : Measure G)
+    (p : G → ℝ) : ℕ → G → ℝ
+  | 0 => p
+  | m + 1 => fun u => ∫ w, p (u - w) * convPow ν p m w ∂ν
+
+/-- The semigroup property in the form used by Lemma "consistency": for a point `X` with law `ν`
+    (translation invariant), `E p(x - X) p^{*(m+1)}(X - y) = p^{*(m+2)}(x - y)`. -/
+theorem transported_mean {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    {G : Type*} [AddCommGroup G] [MeasurableSpace G] [MeasurableAdd₂ G]
+    (ν : Measure G) [ν.IsAddRightInvariant]
+    (X : Ω → G) (hX : Measurable X) (hlaw : μ.map X = ν) (p : G → ℝ) (m : ℕ) (x y : G)
+    (hF : Measurable (fun z : G => p (x - z) * convPow ν p m (z - y))) :
+    μ[fun ω => p (x - X ω) * convPow ν p m (X ω - y)] = convPow ν p (m + 1) (x - y) := by
+  have h1 : ∫ ω, p (x - X ω) * convPow ν p m (X ω - y) ∂μ
+      = ∫ z, p (x - z) * convPow ν p m (z - y) ∂(μ.map X) :=
+    (integral_map hX.aemeasurable hF.aestronglyMeasurable).symm
+  rw [h1, hlaw]
+  have h2 := integral_add_right_eq_self (μ := ν) (fun z => p (x - z) * convPow ν p m (z - y)) y
+  rw [← h2]
+  show ∫ w, p (x - (w + y)) * convPow ν p m (w + y - y) ∂ν = ∫ w, p (x - y - w) * convPow ν p m w ∂ν
+  congr 1
+  funext w
+  rw [add_sub_cancel_right, sub_add_eq_sub_sub, sub_right_comm]
+
+/-- **Lemma "consistency", the main term at fixed points, without a hypothesis on the mean.**
+    Independent points with a translation-invariant law `ν` on a commutative group; a kernel
+    `0 ≤ p ≤ M` and `0 ≤ p^{*(m+1)} ≤ B`. Then for fixed `x`, `y`
+    `P(|sum_{j<N} p(x - X_j) p^{*(m+1)}(X_j - y) - N p^{*(m+2)}(x - y)| ≥ eps)
+       ≤ 2 exp(-eps^2 / (4 N M B p^{*(m+2)}(x - y) + 2 M B eps))`.
+    This is the deviation of the walk with the EXACT normalisation from the next heat kernel, at
+    fixed points. HYPOTHESIS `hF`: measurability of the integrand (true for continuous kernels,
+    not derived here). -/
+theorem consistency_main_term {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {G : Type*} [AddCommGroup G] [MeasurableSpace G] [MeasurableAdd₂ G]
+    (ν : Measure G) [ν.IsAddRightInvariant]
+    (X : ℕ → Ω → G) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = ν) (p : G → ℝ) (m : ℕ) (x y : G)
+    (hF : Measurable (fun z : G => p (x - z) * convPow ν p m (z - y)))
+    {M B ε : ℝ} (hM : 0 < M) (hB : 0 < B) (hp0 : ∀ u, 0 ≤ p u) (hpM : ∀ u, p u ≤ M)
+    (hq0 : ∀ u, 0 ≤ convPow ν p m u) (hqB : ∀ u, convPow ν p m u ≤ B) (N : ℕ) (hε : 0 < ε) :
+    μ.real {ω | ε ≤ |∑ j ∈ Finset.range N, p (x - X j ω) * convPow ν p m (X j ω - y)
+        - N * convPow ν p (m + 1) (x - y)|}
+      ≤ 2 * Real.exp (-ε ^ 2
+          / (4 * (N * (M * B * convPow ν p (m + 1) (x - y))) + 2 * (M * B) * ε)) :=
+  transported_kernel_concentration (μ := μ) X h_indep hX p (convPow ν p m) x y hF hM hB hp0 hpM
+    hq0 hqB (fun j => transported_mean ν (X j) (hX j) (hlaw j) p m x y hF) N hε
 
 end Probability
 
