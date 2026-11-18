@@ -1369,6 +1369,140 @@ theorem defect_decomposition {n : Type} [Fintype n] (Pt u g : n → ℝ) {c δ d
     _ ≤ (3 * dev + 11 * δ * c) * ∑ j, Pt j * u j :=
         mul_le_mul_of_nonneg_left hr (by positivity)
 
+/-- **The kernel theorem for the sampled walk, deterministic assembly.** Index set `n` with `N`
+    elements (the sample points); `pk m b i` stands for `p^{*m}(x_b - x_i)`, `m ≥ 1`, with
+    `0 ≤ pk m ≤ mu m`; `rho_b = (1/N) sum_l pk 1 b l` is the estimated normalisation relative to
+    the true one, and the sampled walk is `P_bj = (pk 1 b j / rho_j) / sum_l (pk 1 b l / rho_l)`.
+    HYPOTHESES: `|rho_b - 1| ≤ delta ≤ 1/8` (normalisation errors) and the consistency of the walk
+    with the EXACT normalisation, `|(1/N) sum_j pk 1 b j * pk m j i - pk (m+1) b i| ≤ dev m`.
+    CONCLUSION: for all `k` and all entries,
+    `|N (P^{k+1})_{ai} - pk (k+1) a i| ≤ 10 delta (pk (k+1) a i + E_k) + E_k` with
+    `E_k = sum_{m ≤ k} (3 dev m + 11 delta mu (m+1))`. This is the unweighted form: it gives no
+    factor `sqrt k`, and it is the form available with the weak consistency bound. -/
+theorem kernel_fixed_scale_det {n : Type} [Fintype n] [DecidableEq n] [Nonempty n]
+    (pk : ℕ → n → n → ℝ) (mu dev : ℕ → ℝ) (rho : n → ℝ) (P : Matrix n n ℝ) {delta : ℝ}
+    (hd0 : 0 ≤ delta) (hd : delta ≤ 1 / 8)
+    (hp0 : ∀ m b i, 0 ≤ pk m b i) (hpmu : ∀ m b i, pk m b i ≤ mu m)
+    (hrho : ∀ b, (Fintype.card n : ℝ) * rho b = ∑ l, pk 1 b l)
+    (hrho1 : ∀ b, |rho b - 1| ≤ delta)
+    (hP : ∀ b j, P b j = (pk 1 b j / rho j) / ∑ l, pk 1 b l / rho l)
+    (k : ℕ)
+    (hcons : ∀ m b i, 1 ≤ m → m ≤ k →
+      |∑ j, pk 1 b j / (Fintype.card n : ℝ) * pk m j i - pk (m + 1) b i| ≤ dev m)
+    (a i : n) :
+    |(Fintype.card n : ℝ) * (P ^ (k + 1)) a i - pk (k + 1) a i|
+      ≤ 10 * delta * (pk (k + 1) a i
+          + ∑ m ∈ Finset.range k, (3 * dev (m + 1) + 11 * delta * mu (m + 2)))
+        + ∑ m ∈ Finset.range k, (3 * dev (m + 1) + 11 * delta * mu (m + 2)) := by
+  have hN : 0 < (Fintype.card n : ℝ) := by exact_mod_cast Fintype.card_pos
+  have hrpos : ∀ b, 0 < rho b := fun b => by linarith [(abs_le.mp (hrho1 b)).1]
+  -- the exact-normalisation row and the factors u
+  set Pt : n → n → ℝ := fun b j => pk 1 b j / (Fintype.card n : ℝ) with hPt
+  set u : n → ℝ := fun j => 1 / rho j with hu
+  have hu1 : ∀ j, |u j - 1| ≤ 2 * delta := by
+    intro j
+    have h1 := abs_le.mp (hrho1 j)
+    have hr := hrpos j
+    have e : u j - 1 = (1 - rho j) / rho j := by rw [hu]; field_simp
+    rw [e, abs_div, abs_of_pos hr, div_le_iff₀ hr]
+    have : |1 - rho j| ≤ delta := by rw [abs_sub_comm]; exact hrho1 j
+    nlinarith [this]
+  have hPtrow : ∀ b, |∑ j, Pt b j - 1| ≤ delta := by
+    intro b
+    have e : ∑ j, Pt b j = rho b := by
+      rw [hPt]; simp only; rw [← Finset.sum_div, ← hrho b]; field_simp
+    rw [e]; exact hrho1 b
+  have hPtu : ∀ b j, pk 1 b j / rho j = (Fintype.card n : ℝ) * (Pt b j * u j) := by
+    intro b j; rw [hPt, hu]; field_simp
+  have hden : ∀ b, ∑ l, pk 1 b l / rho l = (Fintype.card n : ℝ) * ∑ l, Pt b l * u l := by
+    intro b; rw [Finset.mul_sum]; exact Finset.sum_congr rfl (fun l _ => hPtu b l)
+  have hsumpos : ∀ b, 0 < ∑ l, Pt b l * u l := by
+    intro b
+    have h1 : ∑ l, Pt b l * (3 / 4) ≤ ∑ l, Pt b l * u l := Finset.sum_le_sum (fun l _ =>
+      mul_le_mul_of_nonneg_left (by linarith [(abs_le.mp (hu1 l)).1])
+        (div_nonneg (hp0 1 b l) hN.le))
+    rw [← Finset.sum_mul] at h1
+    have h2 := (abs_le.mp (hPtrow b)).1
+    nlinarith
+  have hPform : ∀ b j, P b j = Pt b j * u j / ∑ l, Pt b l * u l := by
+    intro b j
+    rw [hP b j, hPtu b j, hden b]
+    have := (hsumpos b).ne'; have := hN.ne'
+    field_simp
+  have hP0 : ∀ b j, 0 ≤ P b j := by
+    intro b j
+    rw [hPform b j]
+    exact div_nonneg (mul_nonneg (div_nonneg (hp0 1 b j) hN.le)
+      (by rw [hu]; exact (one_div_pos.mpr (hrpos j)).le)) (hsumpos b).le
+  have hProw : ∀ b, ∑ j, P b j = 1 := by
+    intro b
+    simp_rw [hPform b]
+    rw [← Finset.sum_div]
+    exact div_self (hsumpos b).ne'
+  -- consistency of the sampled walk
+  have hdefect : ∀ m, m < k → ∀ b,
+      |(P *ᵥ (fun b' => pk (m + 1) b' i) - fun b' => pk (m + 2) b' i) b|
+        ≤ 3 * dev (m + 1) + 11 * delta * mu (m + 2) := by
+    intro m hmk b
+    have hdd := defect_decomposition (Pt b) u (fun j => pk (m + 1) j i) (c := pk (m + 2) b i)
+      hd0 hd (fun j => div_nonneg (hp0 1 b j) hN.le) (fun j => hp0 (m + 1) j i) (hp0 (m + 2) b i)
+      hu1 (hPtrow b) (hcons (m + 1) b i (by omega) (by omega))
+    have e : (P *ᵥ (fun b' => pk (m + 1) b' i)) b
+        = (∑ j, Pt b j * u j * pk (m + 1) j i) / ∑ j, Pt b j * u j := by
+      simp only [Matrix.mulVec, dotProduct]
+      rw [Finset.sum_div]
+      exact Finset.sum_congr rfl (fun j _ => by rw [hPform b j]; ring)
+    have hb : 11 * delta * pk (m + 2) b i ≤ 11 * delta * mu (m + 2) :=
+      mul_le_mul_of_nonneg_left (hpmu (m + 2) b i) (by linarith)
+    simp only [Pi.sub_apply]
+    rw [e]
+    linarith
+  -- the last step of the walk
+  have hlast : ∀ b, |(Fintype.card n : ℝ) * P b i - pk 1 b i| ≤ 10 * delta * pk 1 b i := by
+    intro b
+    have hS := hsumpos b
+    have e : (Fintype.card n : ℝ) * P b i - pk 1 b i
+        = pk 1 b i * (u i / (∑ l, Pt b l * u l) - 1) := by
+      rw [hPform b i, hPt]; field_simp
+    rw [e, abs_mul, abs_of_nonneg (hp0 1 b i), mul_comm (10 * delta)]
+    refine mul_le_mul_of_nonneg_left ?_ (hp0 1 b i)
+    -- bounds for u_i and for the sum
+    have hui := abs_le.mp (hu1 i)
+    have hrow := abs_le.mp (hPtrow b)
+    have hlo : ∑ l, Pt b l * (1 - 2 * delta) ≤ ∑ l, Pt b l * u l := Finset.sum_le_sum (fun l _ =>
+      mul_le_mul_of_nonneg_left (by linarith [(abs_le.mp (hu1 l)).1])
+        (div_nonneg (hp0 1 b l) hN.le))
+    have hhi : ∑ l, Pt b l * u l ≤ ∑ l, Pt b l * (1 + 2 * delta) := Finset.sum_le_sum (fun l _ =>
+      mul_le_mul_of_nonneg_left (by linarith [(abs_le.mp (hu1 l)).2])
+        (div_nonneg (hp0 1 b l) hN.le))
+    rw [← Finset.sum_mul] at hlo hhi
+    have e2 : u i / (∑ l, Pt b l * u l) - 1 = (u i - ∑ l, Pt b l * u l) / ∑ l, Pt b l * u l := by
+      field_simp
+    have hR1 : (1 - delta) * (1 - 2 * delta) ≤ (∑ l, Pt b l) * (1 - 2 * delta) :=
+      mul_le_mul_of_nonneg_right (by linarith [hrow.1]) (by linarith)
+    have hR2 : (∑ l, Pt b l) * (1 + 2 * delta) ≤ (1 + delta) * (1 + 2 * delta) :=
+      mul_le_mul_of_nonneg_right (by linarith [hrow.2]) (by linarith)
+    have hdd : delta * delta ≤ delta / 8 := by nlinarith
+    have hSlo : 1 - 3 * delta ≤ ∑ l, Pt b l * u l := by nlinarith
+    have hShi : ∑ l, Pt b l * u l ≤ 1 + 3 * delta + delta / 4 := by nlinarith
+    have hdS : delta * (5 / 8) ≤ delta * ∑ l, Pt b l * u l :=
+      mul_le_mul_of_nonneg_left (by linarith) hd0
+    rw [e2, abs_div, abs_of_pos hS, div_le_iff₀ hS, abs_le]
+    constructor <;> linarith [hui.1, hui.2]
+  have key := kernel_theorem_conditional P hP0 hProw (fun m b' => pk m b' i)
+    (fun b => (Fintype.card n : ℝ) * P b i) (theta := 10 * delta) (by linarith) hlast
+    (fun m => 3 * dev m + 11 * delta * mu (m + 1)) k
+    (fun m hm b => by simpa using hdefect m hm b) a
+  have e3 : ((P ^ k) *ᵥ fun b => (Fintype.card n : ℝ) * P b i) a
+      = (Fintype.card n : ℝ) * (P ^ (k + 1)) a i := by
+    have hpow : (P ^ (k + 1)) a i = ∑ b, (P ^ k) a b * P b i := by
+      rw [pow_succ, Matrix.mul_apply]
+    rw [hpow, Finset.mul_sum]
+    simp only [Matrix.mulVec, dotProduct]
+    exact Finset.sum_congr rfl (fun b _ => by ring)
+  rw [e3] at key
+  simpa using key
+
 end Spectral
 
 
@@ -1521,6 +1655,51 @@ theorem uniform_normalisation {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Meas
       _ ≤ ∑ _j ∈ Finset.range N, L * dist x y := Finset.sum_le_sum (fun j _ => hlip x y (X j ω))
       _ = (N * L) * dist x y := by simp; ring
   have hg : ∀ x y : E, |(N : ℝ) * q x - N * q y| ≤ (N * L) * dist x y := by
+    intro x y
+    rw [← mul_sub, abs_mul, abs_of_nonneg (Nat.cast_nonneg N), mul_assoc]
+    exact mul_le_mul_of_nonneg_left (hqlip x y) (Nat.cast_nonneg N)
+  have := sup_from_net (fun x => ∑ j ∈ Finset.range N, k x (X j ω)) (fun x => (N : ℝ) * q x)
+    hNL hf hg net hnet (fun a ha => (hcon a ha).le) x
+  linarith
+
+/-- The same uniform concentration for a family of functions indexed by a metric parameter space
+    `T` (for the transported kernel `T = G × G` with the parameter `(x, y)`): `k t` has values in
+    `[0, A]` and is `L`-Lipschitz in `t`; `q t = E k(t, X_j)` is `L`-Lipschitz; a finite `r`-net of
+    `T`. Then the probability that `|sum_{j<N} k(t, X_j) - N q(t)|` exceeds `eps + 2 N L r` for
+    some `t` is at most `2 |net| exp(-eps^2 / (2 N (A/2)^2))`. -/
+theorem uniform_concentration_param {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {T : Type*} [PseudoMetricSpace T] {E : Type*} [MeasurableSpace E]
+    (X : ℕ → Ω → E) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (k : T → E → ℝ) (hk : ∀ x, Measurable (k x)) {A L r : ℝ} (hA : 0 ≤ A) (hL : 0 ≤ L)
+    (hbound : ∀ x y, k x y ∈ Set.Icc 0 A)
+    (hlip : ∀ x x' y, |k x y - k x' y| ≤ L * dist x x')
+    (q : T → ℝ) (hq : ∀ x j, μ[fun ω => k x (X j ω)] = q x)
+    (hqlip : ∀ x x', |q x - q x'| ≤ L * dist x x')
+    (net : Finset T) (hnet : ∀ x, ∃ a ∈ net, dist x a ≤ r)
+    (N : ℕ) {ε : ℝ} (hε : 0 ≤ ε) :
+    μ.real {ω | ∃ x, ε + 2 * (N * L) * r < |∑ j ∈ Finset.range N, k x (X j ω) - N * q x|}
+      ≤ net.card * (2 * Real.exp (-ε ^ 2 / (2 * N * (A / 2) ^ 2))) := by
+  have hnetbound := net_concentration (μ := μ) net (fun a j ω => k a (X j ω))
+    (fun a _ => h_indep.comp (fun _ y => k a y) (fun _ => hk a))
+    (fun a _ j => ((hk a).comp (hX j)).aemeasurable) q hA
+    (fun a _ j => Filter.Eventually.of_forall (fun ω => hbound a (X j ω)))
+    (fun a _ j => hq a j) N hε
+  refine (measureReal_mono ?_).trans hnetbound
+  intro ω hω
+  simp only [Set.mem_setOf_eq] at hω ⊢
+  by_contra hcon
+  push Not at hcon
+  obtain ⟨x, hx⟩ := hω
+  have hNL : 0 ≤ (N : ℝ) * L := mul_nonneg (Nat.cast_nonneg _) hL
+  have hf : ∀ x y : T, |∑ j ∈ Finset.range N, k x (X j ω) - ∑ j ∈ Finset.range N, k y (X j ω)|
+      ≤ (N * L) * dist x y := by
+    intro x y
+    rw [← Finset.sum_sub_distrib]
+    calc |∑ j ∈ Finset.range N, (k x (X j ω) - k y (X j ω))|
+        ≤ ∑ j ∈ Finset.range N, |k x (X j ω) - k y (X j ω)| := Finset.abs_sum_le_sum_abs _ _
+      _ ≤ ∑ _j ∈ Finset.range N, L * dist x y := Finset.sum_le_sum (fun j _ => hlip x y (X j ω))
+      _ = (N * L) * dist x y := by simp; ring
+  have hg : ∀ x y : T, |(N : ℝ) * q x - N * q y| ≤ (N * L) * dist x y := by
     intro x y
     rw [← mul_sub, abs_mul, abs_of_nonneg (Nat.cast_nonneg N), mul_assoc]
     exact mul_le_mul_of_nonneg_left (hqlip x y) (Nat.cast_nonneg N)
@@ -2070,6 +2249,43 @@ theorem convPow_succ_le {G : Type*} [AddCommGroup G] [MeasurableSpace G] [Measur
     _ = B := by
         rw [integral_mul_const, integral_sub_left_eq_self p ν u, hmass, one_mul]
 
+/-- The convolution powers of a Lipschitz kernel are Lipschitz: if `p` is `L`-Lipschitz for a
+    translation-invariant metric and `p^{*(m+1)} ≤ B`, then `p^{*(m+2)}` is `L B`-Lipschitz.
+    HYPOTHESIS `hqmeas`: measurability of `p^{*(m+1)}`. -/
+theorem convPow_succ_lipschitz {G : Type*} [AddCommGroup G] [PseudoMetricSpace G]
+    [MeasurableSpace G] [MeasurableAdd₂ G] [MeasurableNeg G] (ν : Measure G)
+    [IsProbabilityMeasure ν] [ν.IsAddLeftInvariant] [ν.IsNegInvariant]
+    (hdist : ∀ x x' y : G, dist (x - y) (x' - y) = dist x x')
+    (p : G → ℝ) (hp0 : ∀ u, 0 ≤ p u) (hpint : Integrable p ν) {L : ℝ} (hL : 0 ≤ L)
+    (hlip : ∀ u u', |p u - p u'| ≤ L * dist u u')
+    (m : ℕ) {B : ℝ} (hqB : ∀ u, convPow ν p m u ≤ B)
+    (hqmeas : AEStronglyMeasurable (convPow ν p m) ν) (u u' : G) :
+    |convPow ν p (m + 1) u - convPow ν p (m + 1) u'| ≤ L * B * dist u u' := by
+  have hq0 := convPow_nonneg ν p hp0 m
+  have hB0 : 0 ≤ B := (hq0 u).trans (hqB u)
+  have hI : ∀ v : G, Integrable (fun w => p (v - w) * convPow ν p m w) ν := by
+    intro v
+    have h1 : Integrable (fun w => convPow ν p m w * p (v - w)) ν :=
+      (hpint.comp_sub_left v).bdd_mul (c := B) hqmeas (Filter.Eventually.of_forall (fun w => by
+        rw [Real.norm_eq_abs, abs_of_nonneg (hq0 w)]; exact hqB w))
+    simpa [mul_comm] using h1
+  have e : convPow ν p (m + 1) u - convPow ν p (m + 1) u'
+      = ∫ w, (p (u - w) - p (u' - w)) * convPow ν p m w ∂ν := by
+    show ∫ w, p (u - w) * convPow ν p m w ∂ν - ∫ w, p (u' - w) * convPow ν p m w ∂ν = _
+    rw [← integral_sub (hI u) (hI u')]
+    congr 1; funext w; ring
+  rw [e]
+  have hbound : ∀ w, ‖(p (u - w) - p (u' - w)) * convPow ν p m w‖ ≤ L * B * dist u u' := by
+    intro w
+    rw [Real.norm_eq_abs, abs_mul, abs_of_nonneg (hq0 w)]
+    have h1 := hlip (u - w) (u' - w)
+    rw [hdist u u' w] at h1
+    calc |p (u - w) - p (u' - w)| * convPow ν p m w ≤ (L * dist u u') * B :=
+          mul_le_mul h1 (hqB w) (hq0 w) (mul_nonneg hL dist_nonneg)
+      _ = L * B * dist u u' := by ring
+  have h := norm_integral_le_of_norm_le_const (μ := ν) (Filter.Eventually.of_forall hbound)
+  simpa [Real.norm_eq_abs] using h
+
 /-- The semigroup property in the form used by Lemma "consistency": for a point `X` with law `ν`
     (translation invariant), `E p(x - X) p^{*(m+1)}(X - y) = p^{*(m+2)}(x - y)`. -/
 theorem transported_mean {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
@@ -2111,6 +2327,192 @@ theorem consistency_main_term {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Meas
           / (4 * (N * (M * B * convPow ν p (m + 1) (x - y))) + 2 * (M * B) * ε)) :=
   transported_kernel_concentration (μ := μ) X h_indep hX p (convPow ν p m) x y hF hM hB hp0 hpM
     hq0 hqB (fun j => transported_mean ν (X j) (hX j) (hlaw j) p m x y hF) N hε
+
+/-- **Lemma "consistency" for the walk with the exact normalisation, uniformly in both points.**
+    On a commutative group with a translation-invariant metric and law `ν`: for the kernel `p`
+    (values in `[0, M]`, `L`-Lipschitz) and its convolution power `q = p^{*(m+1)}` (values in
+    `[0, B]`, `Lq`-Lipschitz; the next power `Lq'`-Lipschitz), and a finite `r`-net of `G × G`,
+    the probability that
+    `|sum_{j<N} p(x - X_j) q(X_j - y) - N p^{*(m+2)}(x - y)| > eps + 2 N Lstar r` for SOME pair
+    `(x, y)` is at most `2 |net| exp(-eps^2 / (2 N (M B/2)^2))`, where
+    `Lstar ≥ L B + M Lq` and `Lstar ≥ 2 Lq'`. The pairs include all pairs of sample points.
+    HYPOTHESES: measurability of the integrand (`hF`), the Lipschitz constants of the convolution
+    powers (see `convPow_succ_lipschitz`), the net. This is a bound of Hoeffding type; it does not
+    carry the variance factor of the paper's lemma. -/
+theorem consistency_uniform_exact {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {G : Type*} [AddCommGroup G] [PseudoMetricSpace G]
+    [MeasurableSpace G] [MeasurableAdd₂ G] (ν : Measure G) [ν.IsAddRightInvariant]
+    (hdist : ∀ x x' y : G, dist (x - y) (x' - y) = dist x x')
+    (hdist2 : ∀ x y y' : G, dist (x - y) (x - y') = dist y y')
+    (X : ℕ → Ω → G) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = ν) (p : G → ℝ) (m : ℕ)
+    (hF : ∀ x y : G, Measurable (fun z : G => p (x - z) * convPow ν p m (z - y)))
+    {M B L Lq Lq' Lstar r : ℝ} (hM : 0 ≤ M) (hB : 0 ≤ B) (hL : 0 ≤ L) (hLq : 0 ≤ Lq)
+    (hLq' : 0 ≤ Lq') (hp0 : ∀ u, 0 ≤ p u) (hpM : ∀ u, p u ≤ M)
+    (hq0 : ∀ u, 0 ≤ convPow ν p m u) (hqB : ∀ u, convPow ν p m u ≤ B)
+    (hplip : ∀ u u', |p u - p u'| ≤ L * dist u u')
+    (hqlip : ∀ u u', |convPow ν p m u - convPow ν p m u'| ≤ Lq * dist u u')
+    (hq'lip : ∀ u u', |convPow ν p (m + 1) u - convPow ν p (m + 1) u'| ≤ Lq' * dist u u')
+    (hL1 : L * B + M * Lq ≤ Lstar) (hL2 : 2 * Lq' ≤ Lstar)
+    (net : Finset (G × G)) (hnet : ∀ t : G × G, ∃ a ∈ net, dist t a ≤ r)
+    (N : ℕ) {ε : ℝ} (hε : 0 ≤ ε) :
+    μ.real {ω | ∃ t : G × G, ε + 2 * (N * Lstar) * r
+        < |∑ j ∈ Finset.range N, p (t.1 - X j ω) * convPow ν p m (X j ω - t.2)
+            - N * convPow ν p (m + 1) (t.1 - t.2)|}
+      ≤ net.card * (2 * Real.exp (-ε ^ 2 / (2 * N * (M * B / 2) ^ 2))) := by
+  have hLs : 0 ≤ Lstar := le_trans (by positivity) hL2
+  refine uniform_concentration_param (μ := μ) (T := G × G) X h_indep hX
+    (fun t z => p (t.1 - z) * convPow ν p m (z - t.2)) (fun t => hF t.1 t.2)
+    (mul_nonneg hM hB) hLs
+    (fun t z => ⟨mul_nonneg (hp0 _) (hq0 _), mul_le_mul (hpM _) (hqB _) (hq0 _) hM⟩)
+    ?_ (fun t => convPow ν p (m + 1) (t.1 - t.2))
+    (fun t j => transported_mean ν (X j) (hX j) (hlaw j) p m t.1 t.2 (hF t.1 t.2))
+    ?_ net hnet N hε
+  · -- Lipschitz in the parameter
+    intro t t' z
+    have h1 := hplip (t.1 - z) (t'.1 - z)
+    rw [hdist t.1 t'.1 z] at h1
+    have h2 := hqlip (z - t.2) (z - t'.2)
+    rw [hdist2 z t.2 t'.2] at h2
+    have hd1 : dist t.1 t'.1 ≤ dist t t' := by rw [Prod.dist_eq]; exact le_max_left _ _
+    have hd2 : dist t.2 t'.2 ≤ dist t t' := by rw [Prod.dist_eq]; exact le_max_right _ _
+    have e : p (t.1 - z) * convPow ν p m (z - t.2) - p (t'.1 - z) * convPow ν p m (z - t'.2)
+        = (p (t.1 - z) - p (t'.1 - z)) * convPow ν p m (z - t.2)
+          + p (t'.1 - z) * (convPow ν p m (z - t.2) - convPow ν p m (z - t'.2)) := by ring
+    rw [e]
+    have a1 : |(p (t.1 - z) - p (t'.1 - z)) * convPow ν p m (z - t.2)| ≤ L * dist t t' * B := by
+      rw [abs_mul, abs_of_nonneg (hq0 _)]
+      exact mul_le_mul (h1.trans (mul_le_mul_of_nonneg_left hd1 hL)) (hqB _) (hq0 _)
+        (mul_nonneg hL dist_nonneg)
+    have a2 : |p (t'.1 - z) * (convPow ν p m (z - t.2) - convPow ν p m (z - t'.2))|
+        ≤ M * (Lq * dist t t') := by
+      rw [abs_mul, abs_of_nonneg (hp0 _)]
+      exact mul_le_mul (hpM _) (h2.trans (mul_le_mul_of_nonneg_left hd2 hLq)) (abs_nonneg _) hM
+    have a3 : (L * B + M * Lq) * dist t t' ≤ Lstar * dist t t' :=
+      mul_le_mul_of_nonneg_right hL1 dist_nonneg
+    calc |(p (t.1 - z) - p (t'.1 - z)) * convPow ν p m (z - t.2)
+            + p (t'.1 - z) * (convPow ν p m (z - t.2) - convPow ν p m (z - t'.2))|
+        ≤ L * dist t t' * B + M * (Lq * dist t t') := (abs_add_le _ _).trans (add_le_add a1 a2)
+      _ = (L * B + M * Lq) * dist t t' := by ring
+      _ ≤ Lstar * dist t t' := a3
+  · -- Lipschitz of the mean
+    intro t t'
+    have hd1 : dist t.1 t'.1 ≤ dist t t' := by rw [Prod.dist_eq]; exact le_max_left _ _
+    have hd2 : dist t.2 t'.2 ≤ dist t t' := by rw [Prod.dist_eq]; exact le_max_right _ _
+    have h1 := hq'lip (t.1 - t.2) (t'.1 - t'.2)
+    have htri : dist (t.1 - t.2) (t'.1 - t'.2) ≤ dist t.1 t'.1 + dist t.2 t'.2 := by
+      calc dist (t.1 - t.2) (t'.1 - t'.2)
+          ≤ dist (t.1 - t.2) (t'.1 - t.2) + dist (t'.1 - t.2) (t'.1 - t'.2) := dist_triangle _ _ _
+        _ = dist t.1 t'.1 + dist t.2 t'.2 := by rw [hdist, hdist2]
+    calc |convPow ν p (m + 1) (t.1 - t.2) - convPow ν p (m + 1) (t'.1 - t'.2)|
+        ≤ Lq' * dist (t.1 - t.2) (t'.1 - t'.2) := h1
+      _ ≤ Lq' * (2 * dist t t') := mul_le_mul_of_nonneg_left (by linarith) hLq'
+      _ = 2 * Lq' * dist t t' := by ring
+      _ ≤ Lstar * dist t t' := mul_le_mul_of_nonneg_right hL2 dist_nonneg
+
+/-- **The kernel theorem at a fixed kernel scale, with its probability.** Points `X_j` of a
+    commutative group; a kernel `p` with convolution powers `0 ≤ p^{*(m+1)} ≤ Bf m`. Let `P` be the
+    walk matrix of the first `N` points with the estimated normalisation (HYPOTHESIS `hP`: its
+    entries are given by the formula of the paper). Bad events: the normalisation,
+    `Bn = {∃ x, |sum_j p(x - X_j) - N| > epsn}`, and for each `m < k` the consistency of the walk
+    with the exact normalisation, `Bc m = {∃ (x, y), |sum_j p(x - X_j) p^{*(m+1)}(X_j - y)
+    - N p^{*(m+2)}(x - y)| > epsc}`. HYPOTHESES `hBn`, `hBc`: bounds on their probabilities (these
+    are the conclusions of `uniform_normalisation` and `consistency_uniform_exact`). CONCLUSION:
+    with `delta = epsn/N ≤ 1/8` and `E = sum_{m<k} (3 epsc/N + 11 delta Bf (m+1))`, the probability
+    that some entry violates
+    `|N (P^{k+1})_{ai} - p^{*(k+1)}(X_a - X_i)| ≤ 10 delta (p^{*(k+1)}(X_a - X_i) + E) + E`
+    is at most `pn + sum_{m<k} pc m`. -/
+theorem kernel_fixed_scale_whp {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsFiniteMeasure μ] {G : Type*} [AddCommGroup G] [MeasurableSpace G] (ν : Measure G)
+    (X : ℕ → Ω → G) (p : G → ℝ) (Bf : ℕ → ℝ) (N : ℕ) [NeZero N] (k : ℕ)
+    (hq0 : ∀ m u, 0 ≤ convPow ν p m u) (hqB : ∀ m u, convPow ν p m u ≤ Bf m)
+    (P : Ω → Matrix (Fin N) (Fin N) ℝ)
+    (hP : ∀ ω b j, P ω b j
+      = (p (X b ω - X j ω) / ((∑ l : Fin N, p (X j ω - X l ω)) / N))
+        / ∑ l : Fin N, p (X b ω - X l ω) / ((∑ l' : Fin N, p (X l ω - X l' ω)) / N))
+    {epsn epsc pn : ℝ} (pc : ℕ → ℝ) (hepsn0 : 0 ≤ epsn) (hepsn : epsn ≤ N / 8)
+    (hBn : μ.real {ω | ∃ x : G, epsn < |∑ j ∈ Finset.range N, p (x - X j ω) - N|} ≤ pn)
+    (hBc : ∀ m < k, μ.real {ω | ∃ t : G × G, epsc
+        < |∑ j ∈ Finset.range N, p (t.1 - X j ω) * convPow ν p m (X j ω - t.2)
+            - N * convPow ν p (m + 1) (t.1 - t.2)|} ≤ pc m) :
+    μ.real {ω | ∃ a i : Fin N,
+        10 * (epsn / N) * (convPow ν p k (X a ω - X i ω)
+            + ∑ m ∈ Finset.range k, (3 * (epsc / N) + 11 * (epsn / N) * Bf (m + 1)))
+          + ∑ m ∈ Finset.range k, (3 * (epsc / N) + 11 * (epsn / N) * Bf (m + 1))
+        < |(N : ℝ) * (P ω ^ (k + 1)) a i - convPow ν p k (X a ω - X i ω)|}
+      ≤ pn + ∑ m ∈ Finset.range k, pc m := by
+  have hNpos : 0 < (N : ℝ) := by exact_mod_cast Nat.pos_of_ne_zero (NeZero.ne N)
+  set Bn : Set Ω := {ω | ∃ x : G, epsn < |∑ j ∈ Finset.range N, p (x - X j ω) - N|} with hBn_def
+  set Bc : ℕ → Set Ω := fun m => {ω | ∃ t : G × G, epsc
+      < |∑ j ∈ Finset.range N, p (t.1 - X j ω) * convPow ν p m (X j ω - t.2)
+          - N * convPow ν p (m + 1) (t.1 - t.2)|} with hBc_def
+  have hsub : {ω | ∃ a i : Fin N,
+        10 * (epsn / N) * (convPow ν p k (X a ω - X i ω)
+            + ∑ m ∈ Finset.range k, (3 * (epsc / N) + 11 * (epsn / N) * Bf (m + 1)))
+          + ∑ m ∈ Finset.range k, (3 * (epsc / N) + 11 * (epsn / N) * Bf (m + 1))
+        < |(N : ℝ) * (P ω ^ (k + 1)) a i - convPow ν p k (X a ω - X i ω)|}
+      ⊆ Bn ∪ ⋃ m ∈ Finset.range k, Bc m := by
+    intro ω hω
+    by_contra hcon
+    simp only [Set.mem_union, Set.mem_iUnion, Finset.mem_range, not_or, not_exists] at hcon
+    obtain ⟨hn, hc⟩ := hcon
+    have hn' : ∀ x : G, |∑ j ∈ Finset.range N, p (x - X j ω) - N| ≤ epsn := by
+      intro x
+      by_contra h
+      exact hn ⟨x, not_le.mp h⟩
+    have hc' : ∀ m, m < k → ∀ t : G × G,
+        |∑ j ∈ Finset.range N, p (t.1 - X j ω) * convPow ν p m (X j ω - t.2)
+          - N * convPow ν p (m + 1) (t.1 - t.2)| ≤ epsc := by
+      intro m hm t
+      by_contra h
+      exact hc m hm ⟨t, not_le.mp h⟩
+    obtain ⟨a, i, hai⟩ := hω
+    have key := kernel_fixed_scale_det (n := Fin N)
+      (fun m b i' => convPow ν p (m - 1) (X b ω - X i' ω)) (fun m => Bf (m - 1))
+      (fun _ => epsc / N) (fun b => (∑ l : Fin N, p (X b ω - X l ω)) / N) (P ω)
+      (delta := epsn / N) (div_nonneg hepsn0 hNpos.le)
+      (by rw [div_le_iff₀ hNpos]; linarith)
+      (fun m b i' => hq0 _ _) (fun m b i' => hqB _ _)
+      (fun b => by
+        simp only [Fintype.card_fin]
+        have : (fun l : Fin N => convPow ν p (1 - 1) (X b ω - X l ω))
+            = fun l : Fin N => p (X b ω - X l ω) := rfl
+        rw [this]; field_simp)
+      (fun b => by
+        have h := hn' (X b ω)
+        rw [← Fin.sum_univ_eq_sum_range (fun j => p (X b ω - X j ω)) N] at h
+        have e : (∑ l : Fin N, p (X b ω - X l ω)) / N - 1
+            = (∑ l : Fin N, p (X b ω - X l ω) - N) / N := by field_simp
+        rw [e, abs_div, abs_of_pos hNpos]
+        exact div_le_div_of_nonneg_right h hNpos.le)
+      (fun b j => hP ω b j) k
+      (fun m b i' hm1 hmk => by
+        obtain ⟨m', rfl⟩ : ∃ m', m = m' + 1 := ⟨m - 1, by omega⟩
+        have h := hc' m' (by omega) (X b ω, X i' ω)
+        simp only at h
+        rw [← Fin.sum_univ_eq_sum_range
+          (fun j => p (X b ω - X j ω) * convPow ν p m' (X j ω - X i' ω)) N] at h
+        simp only [Fintype.card_fin, Nat.add_sub_cancel]
+        have e : ∑ j : Fin N, convPow ν p (1 - 1) (X b ω - X j ω) / (N : ℝ)
+              * convPow ν p m' (X j ω - X i' ω) - convPow ν p (m' + 1) (X b ω - X i' ω)
+            = (∑ j : Fin N, p (X b ω - X j ω) * convPow ν p m' (X j ω - X i' ω)
+                - N * convPow ν p (m' + 1) (X b ω - X i' ω)) / N := by
+          have : ∀ j : Fin N, convPow ν p (1 - 1) (X b ω - X j ω) = p (X b ω - X j ω) :=
+            fun j => rfl
+          simp_rw [this]
+          rw [sub_div, Finset.sum_div]
+          congr 1
+          · exact Finset.sum_congr rfl (fun j _ => by ring)
+          · field_simp
+        rw [e, abs_div, abs_of_pos hNpos]
+        exact div_le_div_of_nonneg_right h hNpos.le) a i
+    simp only [Fintype.card_fin, Nat.add_sub_cancel] at key
+    exact absurd hai (not_lt.mpr key)
+  calc μ.real _ ≤ μ.real (Bn ∪ ⋃ m ∈ Finset.range k, Bc m) := measureReal_mono hsub
+    _ ≤ μ.real Bn + μ.real (⋃ m ∈ Finset.range k, Bc m) := measureReal_union_le _ _
+    _ ≤ pn + ∑ m ∈ Finset.range k, pc m := by
+        refine add_le_add hBn ((measureReal_biUnion_finset_le _ _).trans ?_)
+        exact Finset.sum_le_sum (fun m hm => hBc m (Finset.mem_range.mp hm))
 
 end Probability
 
