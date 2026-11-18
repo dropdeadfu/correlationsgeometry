@@ -18,6 +18,14 @@ import Mathlib.Analysis.Complex.Exponential
 import Mathlib.Topology.Algebra.InfiniteSum.Real
 import Mathlib.Analysis.SpecificLimits.Basic
 import Mathlib.Analysis.Matrix.Spectrum
+import Mathlib.Analysis.Matrix.PosDef
+import Mathlib.Analysis.SpecialFunctions.Trigonometric.Bounds
+import Mathlib.Analysis.Normed.Group.AddCircle
+import Mathlib.Analysis.SpecialFunctions.Gaussian.PoissonSummation
+import Mathlib.MeasureTheory.Integral.DominatedConvergence
+import Mathlib.Analysis.SumIntegralComparisons
+import Mathlib.Analysis.SpecialFunctions.Gaussian.GaussianIntegral
+import Mathlib.Data.Real.StarOrdered
 import Mathlib.Analysis.SpecialFunctions.Exponential
 import Mathlib.Analysis.Normed.Algebra.MatrixExponential
 import Mathlib.Probability.Moments.SubGaussian
@@ -1302,6 +1310,404 @@ theorem eigtorus_matrix {n : Type} [Fintype n] [DecidableEq n] (S Q : Matrix n n
   · rw [abs_of_nonneg (sub_nonneg.mpr h)]; exact r.1
   · rw [abs_of_nonpos (sub_nonpos.mpr h), neg_sub]; exact r.2
 
+/-- The eigenvalues in decreasing order are determined by the characteristic polynomial. -/
+theorem eigenvalues₀_eq_of_charpoly_eq {n : Type} [Fintype n] [DecidableEq n]
+    {A B : Matrix n n ℝ} (hA : A.IsHermitian) (hB : B.IsHermitian) (h : A.charpoly = B.charpoly) :
+    hA.eigenvalues₀ = hB.eigenvalues₀ := by
+  have h1 := hA.sort_roots_charpoly_eq_eigenvalues₀
+  have h2 := hB.sort_roots_charpoly_eq_eigenvalues₀
+  rw [h] at h1
+  exact List.ofFn_injective (h1.symm.trans h2)
+
+/-- `X Xᵀ` and `Xᵀ X`, each padded with a zero block to the size `n ⊕ F`, have the same eigenvalues
+    in decreasing order. -/
+theorem eigenvalues₀_gram_swap {n F : Type} [Fintype n] [Fintype F] [DecidableEq n] [DecidableEq F]
+    (X : Matrix n F ℝ)
+    (h1 : (fromBlocks (X * Xᵀ) 0 0 (0 : Matrix F F ℝ)).IsHermitian)
+    (h2 : (fromBlocks (0 : Matrix n n ℝ) 0 0 (Xᵀ * X)).IsHermitian) :
+    h1.eigenvalues₀ = h2.eigenvalues₀ := by
+  apply eigenvalues₀_eq_of_charpoly_eq
+  have e1 : fromBlocks (X * Xᵀ) 0 0 (0 : Matrix F F ℝ)
+      = fromBlocks (0 : Matrix n n ℝ) X 0 (0 : Matrix F F ℝ)
+        * fromBlocks (0 : Matrix n n ℝ) 0 Xᵀ (0 : Matrix F F ℝ) := by
+    rw [fromBlocks_multiply]; simp
+  have e2 : fromBlocks (0 : Matrix n n ℝ) 0 0 (Xᵀ * X)
+      = fromBlocks (0 : Matrix n n ℝ) 0 Xᵀ (0 : Matrix F F ℝ)
+        * fromBlocks (0 : Matrix n n ℝ) X 0 (0 : Matrix F F ℝ) := by
+    rw [fromBlocks_multiply]; simp
+  rw [e1, e2, charpoly_mul_comm]
+
+/-- **Lemma "kernel matrix", the deterministic core.** `Q = X Xᵀ` with `X` of size `n × F` (in the
+    paper `X = V A^{1/2}`, `V` the sampled Fourier modes and `A` the diagonal matrix of the
+    Fourier coefficients of the kernel, so that `Xᵀ X = A^{1/2} G A^{1/2}` with the Gram matrix
+    `G`). If every absolute row sum of `Xᵀ X - diag(a)` is at most `eps`, then the eigenvalues of
+    `Q` in decreasing order, padded with zeros to the size `n ⊕ F`, are within `eps` of the numbers
+    `a_f` padded with zeros and arranged in decreasing order (the eigenvalues of the padded
+    diagonal matrix). HYPOTHESES `h1`, `hD`: symmetry of the two padded matrices. -/
+theorem kernel_matrix_spectrum_det {n F : Type} [Fintype n] [Fintype F] [DecidableEq n]
+    [DecidableEq F] (X : Matrix n F ℝ) (a : F → ℝ) {eps : ℝ}
+    (hrow : ∀ f, ∑ g, |(Xᵀ * X) f g - diagonal a f g| ≤ eps) (heps : 0 ≤ eps)
+    (h1 : (fromBlocks (X * Xᵀ) 0 0 (0 : Matrix F F ℝ)).IsHermitian)
+    (hD : (fromBlocks (0 : Matrix n n ℝ) 0 0 (diagonal a)).IsHermitian)
+    (j : Fin (Fintype.card (n ⊕ F))) : |h1.eigenvalues₀ j - hD.eigenvalues₀ j| ≤ eps := by
+  have h2 : (fromBlocks (0 : Matrix n n ℝ) 0 0 (Xᵀ * X)).IsHermitian := by
+    have hXX : (Xᵀ * X).IsHermitian := by
+      have := isHermitian_conjTranspose_mul_self X
+      simpa [conjTranspose_eq_transpose_of_trivial] using this
+    exact IsHermitian.fromBlocks (by simp [IsHermitian]) (by simp) hXX
+  rw [eigenvalues₀_gram_swap X h1 h2]
+  apply weyl_row_sums _ _ h2 hD
+  intro i
+  rw [Fintype.sum_sum_type]
+  cases i with
+  | inl i => simpa using heps
+  | inr f => simpa using hrow f
+
+/-- The roots of the characteristic polynomial of a symmetric matrix padded with a zero block:
+    the eigenvalues and as many zeros as the block has rows. -/
+theorem roots_charpoly_pad {n F : Type} [Fintype n] [Fintype F] [DecidableEq n] [DecidableEq F]
+    (A : Matrix n n ℝ) (hA : A.IsHermitian) :
+    (fromBlocks A 0 0 (0 : Matrix F F ℝ)).charpoly.roots
+      = ((List.ofFn hA.eigenvalues₀ ++ List.replicate (Fintype.card F) (0 : ℝ) : List ℝ) : Multiset ℝ) := by
+  rw [charpoly_fromBlocks_zero₁₂, charpoly_zero, Polynomial.roots_mul, roots_X_pow,
+    hA.roots_charpoly_eq_eigenvalues₀]
+  · simp [Fin.univ_val_map, ← Multiset.coe_add, Multiset.nsmul_singleton]
+    exact (Multiset.coe_replicate _ _).symm
+  · exact mul_ne_zero (charpoly_monic A).ne_zero (pow_ne_zero _ X_ne_zero)
+
+/-- For nonnegative eigenvalues, the eigenvalues of the padded matrix in decreasing order are
+    those of the matrix followed by zeros. -/
+theorem eigenvalues₀_pad {n F : Type} [Fintype n] [Fintype F] [DecidableEq n] [DecidableEq F]
+    (A : Matrix n n ℝ) (hA : A.IsHermitian) (hnn : ∀ j, 0 ≤ hA.eigenvalues₀ j)
+    (hB : (fromBlocks A 0 0 (0 : Matrix F F ℝ)).IsHermitian) :
+    List.ofFn hB.eigenvalues₀
+      = List.ofFn hA.eigenvalues₀ ++ List.replicate (Fintype.card F) (0 : ℝ) := by
+  rw [← hB.sort_roots_charpoly_eq_eigenvalues₀, roots_charpoly_pad A hA]
+  simp only [Multiset.map_coe, RCLike.re_to_real, List.map_id', Multiset.coe_sort]
+  apply List.mergeSort_of_pairwise
+  simp_rw [decide_eq_true_eq]
+  rw [List.pairwise_append]
+  refine ⟨?_, ?_, ?_⟩
+  · rw [← List.sortedGE_iff_pairwise]
+    exact hA.eigenvalues₀_antitone.sortedGE_ofFn
+  · rw [List.pairwise_replicate]; exact Or.inr (le_refl _)
+  · intro x hx y hy
+    rw [List.mem_ofFn] at hx
+    obtain ⟨j, rfl⟩ := hx
+    rw [List.mem_replicate] at hy
+    rw [hy.2]
+    exact hnn j
+
+/-- Pointwise form: the first eigenvalues of the padded matrix are those of the matrix. -/
+theorem eigenvalues₀_pad_apply {n F : Type} [Fintype n] [Fintype F] [DecidableEq n] [DecidableEq F]
+    (A : Matrix n n ℝ) (hA : A.IsHermitian) (hnn : ∀ j, 0 ≤ hA.eigenvalues₀ j)
+    (hB : (fromBlocks A 0 0 (0 : Matrix F F ℝ)).IsHermitian)
+    (j : Fin (Fintype.card n)) (hj : j.val < Fintype.card (n ⊕ F)) :
+    hB.eigenvalues₀ ⟨j.val, hj⟩ = hA.eigenvalues₀ j := by
+  have h := eigenvalues₀_pad A hA hnn hB
+  have h2 := congrArg (fun l : List ℝ => l[j.val]?) h
+  have hlen : j.val < (List.ofFn hA.eigenvalues₀).length := by simp
+  simp only [List.getElem?_append_left hlen] at h2
+  rw [List.getElem?_ofFn, List.getElem?_ofFn] at h2
+  have h3 : ∃ (h : j.val < Fintype.card n + Fintype.card F),
+      hB.eigenvalues₀ ⟨j.val, by simpa using h⟩ = hA.eigenvalues₀ j := by simpa [hj, j.isLt] using h2
+  obtain ⟨_, h4⟩ := h3
+  exact h4
+
+/-- **Lemma "kernel matrix", deterministic part, for the eigenvalues of `Q` itself.** `Q = X Xᵀ`
+    with `X` of size `n × F`. If every absolute row sum of `Xᵀ X - diag(a)` is at most `eps`,
+    then for every `j` the `j`-th eigenvalue of `Q` in decreasing order is within `eps` of the
+    `j`-th of the numbers `a_f`, padded with zeros and arranged in decreasing order. HYPOTHESES
+    `h1`, `hD`: symmetry of the two padded matrices (immediate, kept as hypotheses for brevity). -/
+theorem kernel_matrix_spectrum {n F : Type} [Fintype n] [Fintype F] [DecidableEq n]
+    [DecidableEq F] (X : Matrix n F ℝ) (a : F → ℝ) {eps : ℝ}
+    (hrow : ∀ f, ∑ g, |(Xᵀ * X) f g - diagonal a f g| ≤ eps) (heps : 0 ≤ eps)
+    (hQ : (X * Xᵀ).IsHermitian)
+    (h1 : (fromBlocks (X * Xᵀ) 0 0 (0 : Matrix F F ℝ)).IsHermitian)
+    (hD : (fromBlocks (0 : Matrix n n ℝ) 0 0 (diagonal a)).IsHermitian)
+    (j : Fin (Fintype.card n)) (hj : j.val < Fintype.card (n ⊕ F)) :
+    |hQ.eigenvalues₀ j - hD.eigenvalues₀ ⟨j.val, hj⟩| ≤ eps := by
+  have hpsd : Matrix.PosSemidef (X * Xᵀ) := by
+    have := Matrix.posSemidef_self_mul_conjTranspose X
+    simpa [conjTranspose_eq_transpose_of_trivial] using this
+  have hnn : ∀ i, 0 ≤ hQ.eigenvalues₀ i := by
+    intro i
+    have h := hpsd.eigenvalues_nonneg ((Fintype.equivOfCardEq (Fintype.card_fin _)) i)
+    simpa [IsHermitian.eigenvalues] using h
+  rw [← eigenvalues₀_pad_apply (X * Xᵀ) hQ hnn h1 j hj]
+  exact kernel_matrix_spectrum_det X a hrow heps h1 hD ⟨j.val, hj⟩
+
+/-- Row sums from the Gram matrix of the sampled modes. `X i f = √(a f) · v i f`; if the Gram
+    matrix `vᵀ v` is within `eta` of the identity entrywise, every absolute row sum of
+    `Xᵀ X - diag(a)` is at most `eta · √(a f) · ∑_g √(a g)`. -/
+theorem gram_row_sums {n F : Type} [Fintype n] [Fintype F] [DecidableEq F]
+    (v : Matrix n F ℝ) (a : F → ℝ) (ha : ∀ f, 0 ≤ a f) {eta : ℝ}
+    (hG : ∀ f g, |∑ i, v i f * v i g - (if f = g then 1 else 0)| ≤ eta) (f : F) :
+    ∑ g, |((Matrix.of fun i f => Real.sqrt (a f) * v i f)ᵀ *
+        (Matrix.of fun i f => Real.sqrt (a f) * v i f)) f g - diagonal a f g|
+      ≤ eta * Real.sqrt (a f) * ∑ g, Real.sqrt (a g) := by
+  rw [Finset.mul_sum]
+  refine Finset.sum_le_sum fun g _ => ?_
+  have hent : ((Matrix.of fun i f => Real.sqrt (a f) * v i f)ᵀ *
+        (Matrix.of fun i f => Real.sqrt (a f) * v i f)) f g - diagonal a f g
+      = Real.sqrt (a f) * Real.sqrt (a g) * (∑ i, v i f * v i g - (if f = g then 1 else 0)) := by
+    simp only [Matrix.mul_apply, Matrix.transpose_apply, Matrix.of_apply, diagonal_apply]
+    rw [mul_sub, Finset.mul_sum]
+    congr 1
+    · exact Finset.sum_congr rfl fun i _ => by ring
+    · by_cases h : f = g
+      · subst h; simp [Real.mul_self_sqrt (ha f)]
+      · simp [h]
+  rw [hent, abs_mul, abs_of_nonneg (mul_nonneg (Real.sqrt_nonneg _) (Real.sqrt_nonneg _))]
+  have := mul_le_mul_of_nonneg_left (hG f g)
+    (mul_nonneg (Real.sqrt_nonneg (a f)) (Real.sqrt_nonneg (a g)))
+  nlinarith [this]
+
+/-- Entries of the finite-rank kernel matrix: for `X i f = √(a f) · v i f` with `a ≥ 0`,
+    `(X Xᵀ) i j = ∑_f a_f v_{if} v_{jf}`. With `v i f = φ_f(x_i)/√N` this is the matrix
+    `K(x_i, x_j)/N` of the truncated kernel `K(x, y) = ∑_f a_f φ_f(x) φ_f(y)`. -/
+theorem finite_rank_kernel_entry {n F : Type} [Fintype n] [Fintype F]
+    (v : Matrix n F ℝ) (a : F → ℝ) (ha : ∀ f, 0 ≤ a f) (i j : n) :
+    ((Matrix.of fun i f => Real.sqrt (a f) * v i f) *
+        (Matrix.of fun i f => Real.sqrt (a f) * v i f)ᵀ) i j = ∑ f, a f * v i f * v j f := by
+  simp only [Matrix.mul_apply, Matrix.transpose_apply, Matrix.of_apply]
+  refine Finset.sum_congr rfl fun f _ => ?_
+  have := Real.mul_self_sqrt (ha f)
+  calc Real.sqrt (a f) * v i f * (Real.sqrt (a f) * v j f)
+      = (Real.sqrt (a f) * Real.sqrt (a f)) * v i f * v j f := by ring
+    _ = a f * v i f * v j f := by rw [this]
+
+/-- **Spectrum of a finite-rank kernel matrix from the Gram matrix of the sampled modes
+    (Lemma "kernel matrix" for a truncated kernel, deterministic).** If the Gram matrix `vᵀ v` is
+    within `eta` of the identity entrywise and `√(a f) ≤ s` for all `f`, every eigenvalue of
+    `Q = X Xᵀ`, `X i f = √(a f) v i f`, in decreasing order is within `eta · s · ∑_g √(a g)` of the
+    corresponding one of the numbers `a_f`, padded with zeros and arranged in decreasing order. -/
+theorem finite_rank_kernel_spectrum {n F : Type} [Fintype n] [Fintype F] [DecidableEq n]
+    [DecidableEq F] (v : Matrix n F ℝ) (a : F → ℝ) (ha : ∀ f, 0 ≤ a f) {eta s : ℝ}
+    (heta : 0 ≤ eta) (hs0 : 0 ≤ s) (hs : ∀ f, Real.sqrt (a f) ≤ s)
+    (hG : ∀ f g, |∑ i, v i f * v i g - (if f = g then 1 else 0)| ≤ eta)
+    (hQ : ((Matrix.of fun i f => Real.sqrt (a f) * v i f) *
+        (Matrix.of fun i f => Real.sqrt (a f) * v i f)ᵀ).IsHermitian)
+    (h1 : (fromBlocks ((Matrix.of fun i f => Real.sqrt (a f) * v i f) *
+        (Matrix.of fun i f => Real.sqrt (a f) * v i f)ᵀ) 0 0 (0 : Matrix F F ℝ)).IsHermitian)
+    (hD : (fromBlocks (0 : Matrix n n ℝ) 0 0 (diagonal a)).IsHermitian)
+    (j : Fin (Fintype.card n)) (hj : j.val < Fintype.card (n ⊕ F)) :
+    |hQ.eigenvalues₀ j - hD.eigenvalues₀ ⟨j.val, hj⟩| ≤ eta * s * ∑ g, Real.sqrt (a g) := by
+  have hsum : 0 ≤ ∑ g, Real.sqrt (a g) := Finset.sum_nonneg fun g _ => Real.sqrt_nonneg _
+  refine kernel_matrix_spectrum _ a (fun f => ?_) (mul_nonneg (mul_nonneg heta hs0) hsum)
+    hQ h1 hD j hj
+  refine (gram_row_sums v a ha hG f).trans ?_
+  exact mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_left (hs f) heta) hsum
+
+/-- **Eigenvalues of the sampled graph from the Gram matrix of the sampled modes (Theorem
+    "eigenvalues on the torus", parts (i) and (ii), deterministic assembly).** `S` symmetric with
+    eigenvalues in `[0, 1]`; `X i f = √(a f) v i f` is the truncated kernel matrix factor.
+    HYPOTHESES: `hrow`, the row sums of `S^(k+1) - X Xᵀ` are at most `eps` (kernel theorem,
+    normalisation and the tail of the Fourier series); `hG`, the Gram matrix of the sampled modes
+    is within `eta` of the identity; `hDj`, the `j`-th of the numbers `a_f` in decreasing order is
+    `α^(k+1)`. Then `|s_j^(k+1) - α^(k+1)| ≤ eps + eps'` and
+    `(k+1) α^(k+1) |s_j - α| ≤ 2 (eps + eps')` with `eps' = eta · s · ∑_g √(a g)`. -/
+theorem eigtorus_from_gram {n F : Type} [Fintype n] [Fintype F] [DecidableEq n] [DecidableEq F]
+    (S : Matrix n n ℝ) (hS : S.IsHermitian) (hnn : ∀ j, 0 ≤ hS.eigenvalues₀ j)
+    (hle1 : ∀ j, hS.eigenvalues₀ j ≤ 1) (k : ℕ)
+    (v : Matrix n F ℝ) (a : F → ℝ) (ha : ∀ f, 0 ≤ a f) {eta s eps α : ℝ}
+    (heta : 0 ≤ eta) (hs0 : 0 ≤ s) (hs : ∀ f, Real.sqrt (a f) ≤ s)
+    (hG : ∀ f g, |∑ i, v i f * v i g - (if f = g then 1 else 0)| ≤ eta)
+    (hQ : ((Matrix.of fun i f => Real.sqrt (a f) * v i f) *
+        (Matrix.of fun i f => Real.sqrt (a f) * v i f)ᵀ).IsHermitian)
+    (h1 : (fromBlocks ((Matrix.of fun i f => Real.sqrt (a f) * v i f) *
+        (Matrix.of fun i f => Real.sqrt (a f) * v i f)ᵀ) 0 0 (0 : Matrix F F ℝ)).IsHermitian)
+    (hD : (fromBlocks (0 : Matrix n n ℝ) 0 0 (diagonal a)).IsHermitian)
+    (hrow : ∀ i, ∑ l, |(S ^ (k + 1)) i l - ((Matrix.of fun i f => Real.sqrt (a f) * v i f) *
+        (Matrix.of fun i f => Real.sqrt (a f) * v i f)ᵀ) i l| ≤ eps)
+    (j : Fin (Fintype.card n)) (hj : j.val < Fintype.card (n ⊕ F))
+    (hα0 : 0 ≤ α) (hα1 : α ≤ 1) (hDj : hD.eigenvalues₀ ⟨j.val, hj⟩ = α ^ (k + 1))
+    (h3 : 2 * (eps + eta * s * ∑ g, Real.sqrt (a g)) ≤ α ^ (k + 1)) :
+    |hS.eigenvalues₀ j ^ (k + 1) - α ^ (k + 1)| ≤ eps + eta * s * ∑ g, Real.sqrt (a g)
+      ∧ ((k + 1 : ℕ) : ℝ) * (α ^ (k + 1) * |hS.eigenvalues₀ j - α|)
+          ≤ 2 * (eps + eta * s * ∑ g, Real.sqrt (a g)) := by
+  have hsp := finite_rank_kernel_spectrum v a ha heta hs0 hs hG hQ h1 hD j hj
+  rw [hDj] at hsp
+  exact eigtorus_matrix S _ hS hQ hnn hle1 k hrow j hα0 hα1 hsp h3
+
+/-- `∑_{m=1}^{k} m^{-1/2} ≤ 2 √k`: the summation that turns the factor `m^{-1/2}` of the
+    consistency lemma into the factor `√k` of the kernel theorem. -/
+theorem sum_inv_sqrt_le (k : ℕ) :
+    ∑ m ∈ Finset.range k, 1 / Real.sqrt ((m : ℝ) + 1) ≤ 2 * Real.sqrt k := by
+  induction k with
+  | zero => simp
+  | succ k ih =>
+    rw [Finset.sum_range_succ]
+    have hk : (0 : ℝ) ≤ k := Nat.cast_nonneg k
+    have hpos : 0 < Real.sqrt ((k : ℝ) + 1) := Real.sqrt_pos.mpr (by linarith)
+    have h1 : Real.sqrt ((k : ℝ) + 1) ^ 2 = k + 1 := Real.sq_sqrt (by linarith)
+    have h2 : Real.sqrt (k : ℝ) ^ 2 = k := Real.sq_sqrt hk
+    have h3 : Real.sqrt (k : ℝ) ≤ Real.sqrt ((k : ℝ) + 1) := Real.sqrt_le_sqrt (by linarith)
+    have step : 1 / Real.sqrt ((k : ℝ) + 1)
+        ≤ 2 * Real.sqrt ((k : ℝ) + 1) - 2 * Real.sqrt k := by
+      rw [div_le_iff₀ hpos]
+      nlinarith [Real.sqrt_nonneg (k : ℝ)]
+    push_cast
+    linarith
+
+/-- A decreasing finite sequence takes the value `c` at position `j` if at most `j` of its
+    values exceed `c` and more than `j` are at least `c`. -/
+theorem antitone_value_of_counts {M : ℕ} (e : Fin M → ℝ) (he : Antitone e) (c : ℝ) (j : Fin M)
+    (h1 : (Finset.univ.filter fun i => c < e i).card ≤ j.val)
+    (h2 : j.val < (Finset.univ.filter fun i => c ≤ e i).card) : e j = c := by
+  by_contra hne
+  rcases lt_or_gt_of_ne hne with h | h
+  · have hsub : (Finset.univ.filter fun i => c ≤ e i) ⊆ Finset.Iio j := by
+      intro i hi
+      rw [Finset.mem_filter] at hi
+      rw [Finset.mem_Iio]
+      by_contra hij
+      have := he (not_lt.mp hij)
+      linarith [hi.2]
+    have := Finset.card_le_card hsub
+    rw [Fin.card_Iio] at this
+    omega
+  · have hsub : Finset.Iic j ⊆ (Finset.univ.filter fun i => c < e i) := by
+      intro i hi
+      rw [Finset.mem_Iic] at hi
+      rw [Finset.mem_filter]
+      exact ⟨Finset.mem_univ _, lt_of_lt_of_le h (he hi)⟩
+    have := Finset.card_le_card hsub
+    rw [Fin.card_Iic] at this
+    omega
+
+/-- Counting eigenvalues with a property is counting roots of the characteristic polynomial. -/
+theorem eig_count {n : Type} [Fintype n] [DecidableEq n] (A : Matrix n n ℝ) (hA : A.IsHermitian)
+    (p : ℝ → Prop) [DecidablePred p] :
+    (Finset.univ.filter fun i => p (hA.eigenvalues₀ i)).card = A.charpoly.roots.countP p := by
+  rw [hA.roots_charpoly_eq_eigenvalues₀, Multiset.countP_map, Finset.card_def, Finset.filter_val]
+  simp
+
+/-- Roots of the characteristic polynomial of `diag(a)` padded with a zero block. -/
+theorem roots_diag_pad {n F : Type} [Fintype n] [Fintype F] [DecidableEq n] [DecidableEq F]
+    (a : F → ℝ) :
+    (fromBlocks (0 : Matrix n n ℝ) 0 0 (diagonal a)).charpoly.roots
+      = Multiset.replicate (Fintype.card n) (0 : ℝ) + Finset.univ.val.map a := by
+  have hprod : (∏ i, (X - C (a i)) : ℝ[X])
+      = ((Finset.univ.val.map a).map fun t => X - C t).prod := by
+    rw [Multiset.map_map]; rfl
+  rw [charpoly_fromBlocks_zero₁₂, charpoly_zero, charpoly_diagonal, Polynomial.roots_mul,
+    roots_X_pow, hprod, Polynomial.roots_multiset_prod_X_sub_C]
+  · simp [Multiset.nsmul_singleton]
+  · refine mul_ne_zero (pow_ne_zero _ X_ne_zero) ?_
+    exact (Polynomial.monic_prod_of_monic _ _ fun f _ => monic_X_sub_C (a f)).ne_zero
+
+/-- **Position of a value among the coefficients in decreasing order (hypothesis `hDj` of
+    `eigtorus_from_gram` from counting).** If at most `j` of the `a_f` exceed `c > 0` and more than
+    `j` are at least `c`, the `j`-th of the `a_f`, padded with zeros, in decreasing order is `c`. -/
+theorem diag_pad_eigenvalue {n F : Type} [Fintype n] [Fintype F] [DecidableEq n] [DecidableEq F]
+    (a : F → ℝ) (hD : (fromBlocks (0 : Matrix n n ℝ) 0 0 (diagonal a)).IsHermitian)
+    {c : ℝ} (hc : 0 < c) (j : Fin (Fintype.card (n ⊕ F)))
+    (h1 : (Finset.univ.filter fun f => c < a f).card ≤ j.val)
+    (h2 : j.val < (Finset.univ.filter fun f => c ≤ a f).card) :
+    hD.eigenvalues₀ j = c := by
+  have cnt : ∀ (p : ℝ → Prop) [DecidablePred p], ¬ p 0 →
+      (Finset.univ.filter fun i => p (hD.eigenvalues₀ i)).card
+        = (Finset.univ.filter fun f => p (a f)).card := by
+    intro p _ hp0
+    rw [eig_count _ hD p, roots_diag_pad, Multiset.countP_add, Multiset.countP_map]
+    have : Multiset.countP p (Multiset.replicate (Fintype.card n) (0 : ℝ)) = 0 := by
+      rw [Multiset.countP_eq_zero]
+      intro x hx
+      rw [Multiset.eq_of_mem_replicate hx]; exact hp0
+    rw [this, zero_add, Finset.card_def, Finset.filter_val]
+  refine antitone_value_of_counts _ hD.eigenvalues₀_antitone c j ?_ ?_
+  · rw [cnt (fun t => c < t) (by simp; exact hc.le)]; exact h1
+  · rw [cnt (fun t => c ≤ t) (by simp; exact hc)]; exact h2
+
+/-- Powers of a conjugated matrix: if `S i l = r i * P i l / r l` with `r > 0`, then
+    `(S^k) i l = r i * (P^k) i l / r l`. For the walk, `r = √(degree)`. -/
+theorem conj_pow_entry {n : Type} [Fintype n] [DecidableEq n] (S P : Matrix n n ℝ) (r : n → ℝ)
+    (hr : ∀ i, 0 < r i) (hSP : ∀ i l, S i l = r i * P i l / r l) (k : ℕ) (i l : n) :
+    (S ^ k) i l = r i * (P ^ k) i l / r l := by
+  induction k generalizing i l with
+  | zero =>
+    by_cases h : i = l
+    · subst h; simp [(hr i).ne']
+    · simp [Matrix.one_apply_ne h]
+  | succ k ih =>
+    rw [pow_succ, pow_succ, Matrix.mul_apply, Matrix.mul_apply, Finset.mul_sum, Finset.sum_div]
+    refine Finset.sum_congr rfl fun j _ => ?_
+    rw [ih, hSP]
+    have := (hr j).ne'
+    field_simp
+
+/-- **Row sums for the eigenvalue theorem from the kernel bound (deterministic).** `N` points.
+    If `S i l = ρ i l · P i l` with `|ρ i l - 1| ≤ θ` (normalisation), `|N P i l - g i l| ≤ D` (kernel
+    theorem), `0 ≤ g i l ≤ mu` and `|g i l - N Q i l| ≤ t` (tail of the Fourier series), then every
+    absolute row sum of `S - Q` is at most `θ (mu + D) + D + t`. -/
+theorem row_sums_from_kernel {n : Type} [Fintype n] (S P Q g : Matrix n n ℝ) (ρ : n → n → ℝ)
+    {N θ D mu t : ℝ} (hN : 0 < N) (hcard : (Fintype.card n : ℝ) = N) (hθ : 0 ≤ θ)
+    (hS : ∀ i l, S i l = ρ i l * P i l) (hρ : ∀ i l, |ρ i l - 1| ≤ θ)
+    (hP : ∀ i l, |N * P i l - g i l| ≤ D) (hg : ∀ i l, |g i l| ≤ mu)
+    (hQ : ∀ i l, |g i l - N * Q i l| ≤ t) (i : n) :
+    ∑ l, |S i l - Q i l| ≤ θ * (mu + D) + D + t := by
+  have hterm : ∀ l, |S i l - Q i l| ≤ (θ * (mu + D) + D + t) / N := by
+    intro l
+    rw [le_div_iff₀ hN]
+    have e : (S i l - Q i l) * N = (ρ i l - 1) * (N * P i l) + (N * P i l - g i l)
+        + (g i l - N * Q i l) := by rw [hS]; ring
+    have hNP : |N * P i l| ≤ mu + D := by
+      have := abs_add_le (N * P i l - g i l) (g i l)
+      rw [sub_add_cancel] at this
+      linarith [hP i l, hg i l]
+    calc |S i l - Q i l| * N = |(S i l - Q i l) * N| := by rw [abs_mul, abs_of_pos hN]
+      _ ≤ |(ρ i l - 1) * (N * P i l)| + |N * P i l - g i l| + |g i l - N * Q i l| := by
+        rw [e]; exact abs_add_three _ _ _
+      _ ≤ θ * (mu + D) + D + t := by
+        rw [abs_mul]
+        have := mul_le_mul (hρ i l) hNP (abs_nonneg _) hθ
+        linarith [hP i l, hQ i l]
+  calc ∑ l, |S i l - Q i l| ≤ ∑ _l : n, (θ * (mu + D) + D + t) / N :=
+        Finset.sum_le_sum fun l _ => hterm l
+    _ = θ * (mu + D) + D + t := by
+        rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul, hcard]
+        field_simp
+
+/-! ### Pointwise Gaussian inequalities behind Lemma "facts on the periodised Gaussian" -/
+
+/-- Core of (P1): for `0 < a ≤ t`, `e^{-v²/(2a)} ≤ e^{-v²/(2t)}`; with the prefactors,
+    `γ_a ≤ (t/a)^{1/2} γ_t` in each coordinate. -/
+theorem gauss_scale_mono {a t : ℝ} (ha : 0 < a) (hat : a ≤ t) (v : ℝ) :
+    Real.exp (-(v ^ 2) / (2 * a)) ≤ Real.exp (-(v ^ 2) / (2 * t)) := by
+  apply Real.exp_le_exp.mpr
+  have ht : 0 < t := lt_of_lt_of_le ha hat
+  rw [neg_div, neg_div, neg_le_neg_iff]
+  exact div_le_div_of_nonneg_left (_root_.sq_nonneg v) (by positivity) (by linarith)
+
+/-- Core of (P3): `r e^{-r²/2} ≤ e^{-r²/4}` for `r ≥ 0`. -/
+theorem gauss_gradient_core {r : ℝ} (hr : 0 ≤ r) :
+    r * Real.exp (-(r ^ 2) / 2) ≤ Real.exp (-(r ^ 2) / 4) := by
+  have h1 : r ≤ Real.exp (r ^ 2 / 4) := by
+    have := Real.add_one_le_exp (r ^ 2 / 4)
+    nlinarith [_root_.sq_nonneg (r / 2 - 1)]
+  have h2 : Real.exp (-(r ^ 2) / 2) = Real.exp (-(r ^ 2) / 4) * Real.exp (-(r ^ 2) / 4) := by
+    rw [← Real.exp_add]; congr 1; ring
+  have h3 : Real.exp (r ^ 2 / 4) * Real.exp (-(r ^ 2) / 4) = 1 := by
+    rw [← Real.exp_add]; simp [neg_div]
+  have hpos := Real.exp_pos (-(r ^ 2) / 4)
+  calc r * Real.exp (-(r ^ 2) / 2)
+      = (r * Real.exp (-(r ^ 2) / 4)) * Real.exp (-(r ^ 2) / 4) := by rw [h2]; ring
+    _ ≤ (Real.exp (r ^ 2 / 4) * Real.exp (-(r ^ 2) / 4)) * Real.exp (-(r ^ 2) / 4) := by
+        exact mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_right h1 hpos.le) hpos.le
+    _ = Real.exp (-(r ^ 2) / 4) := by rw [h3, one_mul]
+
+/-- Core of (P4): for `a, t > 0`,
+    `v²/(2a) + w²/(2t) ≥ v²/(4a) + (v + w)²/(2(t + 2a))`. -/
+theorem gauss_product_core {a t : ℝ} (ha : 0 < a) (ht : 0 < t) (v w : ℝ) :
+    v ^ 2 / (4 * a) + (v + w) ^ 2 / (2 * (t + 2 * a)) ≤ v ^ 2 / (2 * a) + w ^ 2 / (2 * t) := by
+  have key : (v + w) ^ 2 / (2 * (t + 2 * a)) ≤ v ^ 2 / (4 * a) + w ^ 2 / (2 * t) := by
+    rw [div_add_div _ _ (by positivity) (by positivity), div_le_div_iff₀ (by positivity)
+      (by positivity)]
+    nlinarith [_root_.sq_nonneg (2 * t * v - 4 * a * w), mul_pos ha ht]
+  have e : v ^ 2 / (2 * a) = v ^ 2 / (4 * a) + v ^ 2 / (4 * a) := by field_simp; ring
+  linarith
+
 end Powers
 
 /-- **Lemma "consistency", from the walk with the exact normalisation to the sampled walk, in a
@@ -1995,6 +2401,719 @@ theorem bounded_functions_concentration {Ω : Type*} {mΩ : MeasurableSpace Ω} 
       rw [Finset.sum_add_distrib]; simp; ring
     rw [e]
   rwa [hset] at h
+
+/-- **Gram matrix of sampled modes (probabilistic input of Lemma "kernel matrix").** Finitely many
+    measurable functions `phi_f` with `|phi_f| ≤ B`, orthonormal under the law of the points
+    (HYPOTHESIS `horth`: `E phi_f(X_j) phi_g(X_j) = δ_fg`; for the real Fourier modes of a torus
+    this is not formalised). Then, simultaneously for all pairs,
+    `P(∃ f g, |sum_{j<N} phi_f(X_j) phi_g(X_j) - N δ_fg| ≥ eps) ≤ 2 |F|^2 exp(-(eps/B^2)^2 / (2N))`. -/
+theorem gram_concentration {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {E : Type*} [MeasurableSpace E] {F : Type*} [Fintype F]
+    [DecidableEq F] (X : ℕ → Ω → E) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (phi : F → E → ℝ) (hphi : ∀ f, Measurable (phi f)) {B : ℝ} (hB : 0 < B)
+    (hb : ∀ f x, |phi f x| ≤ B)
+    (horth : ∀ f g j, μ[fun ω => phi f (X j ω) * phi g (X j ω)] = if f = g then 1 else 0)
+    (N : ℕ) {ε : ℝ} (hε : 0 ≤ ε) :
+    μ.real {ω | ∃ f g, ε ≤ |∑ j ∈ Finset.range N, phi f (X j ω) * phi g (X j ω)
+        - N * (if f = g then (1 : ℝ) else 0)|}
+      ≤ (Fintype.card F) ^ 2 * (2 * Real.exp (-(ε / B ^ 2) ^ 2 / (2 * N))) := by
+  have hB2 : 0 < B ^ 2 := by positivity
+  have h := bounded_functions_concentration (μ := μ) (Finset.univ : Finset (F × F)) X h_indep hX
+    (fun p x => phi p.1 x * phi p.2 x / B ^ 2)
+    (fun p => ((hphi p.1).mul (hphi p.2)).div_const _)
+    (fun p x => by
+      rw [abs_div, abs_mul, abs_of_pos hB2, div_le_one hB2]
+      have h1 := hb p.1 x
+      have h2 := hb p.2 x
+      nlinarith [abs_nonneg (phi p.1 x), abs_nonneg (phi p.2 x)])
+    (fun p => (if p.1 = p.2 then (1 : ℝ) else 0) / B ^ 2)
+    (fun p j => by
+      have := horth p.1 p.2 j
+      simp only [div_eq_mul_inv]
+      rw [integral_mul_const, this])
+    N (ε := ε / B ^ 2) (by positivity)
+  have hcard : ((Finset.univ : Finset (F × F)).card : ℝ) = (Fintype.card F : ℝ) ^ 2 := by
+    simp [Fintype.card_prod, pow_two]
+  rw [hcard] at h
+  have hexp : -(ε / B ^ 2) ^ 2 / (2 * (N : ℝ) * (2 / 2) ^ 2) = -(ε / B ^ 2) ^ 2 / (2 * N) := by
+    norm_num
+  rw [hexp] at h
+  refine le_trans (measureReal_mono ?_ (measure_ne_top μ _)) h
+  rintro ω ⟨f, g, hfg⟩
+  refine ⟨(f, g), Finset.mem_univ _, ?_⟩
+  have e : ∑ j ∈ Finset.range N, phi f (X j ω) * phi g (X j ω) / B ^ 2
+        - N * ((if f = g then (1 : ℝ) else 0) / B ^ 2)
+      = (∑ j ∈ Finset.range N, phi f (X j ω) * phi g (X j ω)
+        - N * (if f = g then (1 : ℝ) else 0)) / B ^ 2 := by
+    rw [← Finset.sum_div]; ring
+  show ε / B ^ 2 ≤ |∑ j ∈ Finset.range N, phi f (X j ω) * phi g (X j ω) / B ^ 2
+        - N * ((if f = g then (1 : ℝ) else 0) / B ^ 2)|
+  rw [e, abs_div, abs_of_pos hB2]
+  exact div_le_div_of_nonneg_right hfg hB2.le
+
+/-- **A nontrivial character has mean zero.** `c`, `s` are the real and imaginary part of a
+    character of an additive group (addition formulas `hc`, `hs`), bounded and measurable, and the
+    probability measure `ν` is translation invariant. If the character is not `1` at some point
+    `a`, both integrals vanish. This gives mean zero for the real Fourier modes of a torus with
+    nonzero frequency. -/
+theorem character_mean_zero {G : Type*} [MeasurableSpace G] [AddGroup G] [MeasurableAdd G]
+    (ν : Measure G) [IsProbabilityMeasure ν] [ν.IsAddRightInvariant]
+    (c s : G → ℝ) (hcm : Measurable c) (hsm : Measurable s)
+    (hcb : ∀ x, |c x| ≤ 1) (hsb : ∀ x, |s x| ≤ 1)
+    (hc : ∀ x a, c (x + a) = c x * c a - s x * s a)
+    (hs : ∀ x a, s (x + a) = s x * c a + c x * s a)
+    (a : G) (ha : c a ≠ 1 ∨ s a ≠ 0) :
+    ∫ x, c x ∂ν = 0 ∧ ∫ x, s x ∂ν = 0 := by
+  have hci : Integrable c ν := Integrable.of_bound hcm.aestronglyMeasurable 1
+    (Filter.Eventually.of_forall (fun x => by simpa using hcb x))
+  have hsi : Integrable s ν := Integrable.of_bound hsm.aestronglyMeasurable 1
+    (Filter.Eventually.of_forall (fun x => by simpa using hsb x))
+  have e1 : ∫ x, c x ∂ν = (∫ x, c x ∂ν) * c a - (∫ x, s x ∂ν) * s a := by
+    calc ∫ x, c x ∂ν = ∫ x, c (x + a) ∂ν := (integral_add_right_eq_self (μ := ν) c a).symm
+      _ = ∫ x, (c x * c a - s x * s a) ∂ν := by simp_rw [hc _ a]
+      _ = (∫ x, c x ∂ν) * c a - (∫ x, s x ∂ν) * s a := by
+        rw [integral_sub (hci.mul_const _) (hsi.mul_const _), integral_mul_const,
+          integral_mul_const]
+  have e2 : ∫ x, s x ∂ν = (∫ x, s x ∂ν) * c a + (∫ x, c x ∂ν) * s a := by
+    calc ∫ x, s x ∂ν = ∫ x, s (x + a) ∂ν := (integral_add_right_eq_self (μ := ν) s a).symm
+      _ = ∫ x, (s x * c a + c x * s a) ∂ν := by simp_rw [hs _ a]
+      _ = (∫ x, s x ∂ν) * c a + (∫ x, c x ∂ν) * s a := by
+        rw [integral_add (hsi.mul_const _) (hci.mul_const _), integral_mul_const,
+          integral_mul_const]
+  set Ic := ∫ x, c x ∂ν
+  set Is := ∫ x, s x ∂ν
+  have hdet : 0 < (1 - c a) ^ 2 + s a ^ 2 := by
+    rcases ha with h | h
+    · have : 0 < (1 - c a) ^ 2 := by
+        have : 1 - c a ≠ 0 := sub_ne_zero.mpr (Ne.symm h)
+        positivity
+      nlinarith [_root_.sq_nonneg (s a)]
+    · have : 0 < s a ^ 2 := by positivity
+      nlinarith [_root_.sq_nonneg (1 - c a)]
+  have k1 : ((1 - c a) ^ 2 + s a ^ 2) * Ic = 0 := by
+    have : ((1 - c a) ^ 2 + s a ^ 2) * Ic
+        = (1 - c a) * (Ic - (Ic * c a - Is * s a)) - s a * (Is - (Is * c a + Ic * s a)) := by ring
+    rw [this]
+    have a1 : Ic - (Ic * c a - Is * s a) = 0 := by linarith [e1]
+    have a2 : Is - (Is * c a + Ic * s a) = 0 := by linarith [e2]
+    rw [a1, a2]; ring
+  have k2 : ((1 - c a) ^ 2 + s a ^ 2) * Is = 0 := by
+    have : ((1 - c a) ^ 2 + s a ^ 2) * Is
+        = (1 - c a) * (Is - (Is * c a + Ic * s a)) + s a * (Ic - (Ic * c a - Is * s a)) := by ring
+    rw [this]
+    have a1 : Ic - (Ic * c a - Is * s a) = 0 := by linarith [e1]
+    have a2 : Is - (Is * c a + Ic * s a) = 0 := by linarith [e2]
+    rw [a1, a2]; ring
+  exact ⟨(mul_eq_zero.mp k1).resolve_left hdet.ne', (mul_eq_zero.mp k2).resolve_left hdet.ne'⟩
+
+/-- **Products of Fourier modes.** `C k`, `S k` are the real and imaginary parts of a family of
+    characters indexed by an additive group of frequencies (product formulas `hC`, `hS`, symmetry
+    `hCn`, `hSn`), bounded and measurable, with `∫ C k = δ_{k,0}` and `∫ S k = 0` (which follows from
+    `character_mean_zero` for a translation-invariant measure). Then
+    `∫ C_m C_n = (δ_{m-n,0} + δ_{m+n,0})/2`, `∫ S_m S_n = (δ_{m-n,0} - δ_{m+n,0})/2`, `∫ C_m S_n = 0`:
+    the orthogonality relations behind the Gram matrix of the sampled modes. -/
+theorem mode_products {G : Type*} [MeasurableSpace G] (ν : Measure G) [IsProbabilityMeasure ν]
+    {Λ : Type*} [AddGroup Λ] [DecidableEq Λ] (C S : Λ → G → ℝ)
+    (hCm : ∀ k, Measurable (C k)) (hSm : ∀ k, Measurable (S k))
+    (hCb : ∀ k x, |C k x| ≤ 1) (hSb : ∀ k x, |S k x| ≤ 1)
+    (hC : ∀ m n x, C (m + n) x = C m x * C n x - S m x * S n x)
+    (hS : ∀ m n x, S (m + n) x = S m x * C n x + C m x * S n x)
+    (hCn : ∀ n x, C (-n) x = C n x) (hSn : ∀ n x, S (-n) x = -S n x)
+    (hCmean : ∀ k, ∫ x, C k x ∂ν = if k = 0 then 1 else 0)
+    (hSmean : ∀ k, ∫ x, S k x ∂ν = 0) (m n : Λ) :
+    ∫ x, C m x * C n x ∂ν
+        = ((if m - n = 0 then (1 : ℝ) else 0) + (if m + n = 0 then 1 else 0)) / 2 ∧
+    ∫ x, S m x * S n x ∂ν
+        = ((if m - n = 0 then (1 : ℝ) else 0) - (if m + n = 0 then 1 else 0)) / 2 ∧
+    ∫ x, C m x * S n x ∂ν = 0 := by
+  have hCi : ∀ k, Integrable (C k) ν := fun k =>
+    Integrable.of_bound (hCm k).aestronglyMeasurable 1
+      (Filter.Eventually.of_forall (fun x => by simpa using hCb k x))
+  have hSi : ∀ k, Integrable (S k) ν := fun k =>
+    Integrable.of_bound (hSm k).aestronglyMeasurable 1
+      (Filter.Eventually.of_forall (fun x => by simpa using hSb k x))
+  have hCsub : ∀ x, C (m - n) x = C m x * C n x + S m x * S n x := by
+    intro x; rw [sub_eq_add_neg, hC, hCn, hSn]; ring
+  have hSsub : ∀ x, S (m - n) x = -(C m x * S n x) + S m x * C n x := by
+    intro x; rw [sub_eq_add_neg, hS, hCn, hSn]; ring
+  refine ⟨?_, ?_, ?_⟩
+  · have e : (fun x => C m x * C n x) = fun x => (C (m - n) x + C (m + n) x) / 2 := by
+      funext x; rw [hCsub, hC]; ring
+    rw [e, integral_div, integral_add (hCi _) (hCi _), hCmean, hCmean]
+  · have e : (fun x => S m x * S n x) = fun x => (C (m - n) x - C (m + n) x) / 2 := by
+      funext x; rw [hCsub, hC]; ring
+    rw [e, integral_div, integral_sub (hCi _) (hCi _), hCmean, hCmean]
+  · have e : (fun x => C m x * S n x) = fun x => (S (m + n) x - S (m - n) x) / 2 := by
+      funext x; rw [hSsub, hS]; ring
+    rw [e, integral_div, integral_sub (hSi _) (hSi _), hSmean, hSmean]; simp
+
+/-- **Orthogonality of the real Fourier modes of the circle, without hypotheses.** For
+    `C_k = Re e^{2πikx}`, `S_k = Im e^{2πikx}` on `UnitAddCircle` with its Haar probability measure:
+    `∫ C_m C_n = (δ_{m,n} + δ_{m,-n})/2`, `∫ S_m S_n = (δ_{m,n} - δ_{m,-n})/2`, `∫ C_m S_n = 0`.
+    Instance of `mode_products` and `character_mean_zero`. -/
+theorem circle_mode_products (m n : ℤ) :
+    ∫ x : UnitAddCircle, (fourier m x).re * (fourier n x).re ∂AddCircle.haarAddCircle
+        = ((if m - n = 0 then (1 : ℝ) else 0) + (if m + n = 0 then 1 else 0)) / 2 ∧
+    ∫ x : UnitAddCircle, (fourier m x).im * (fourier n x).im ∂AddCircle.haarAddCircle
+        = ((if m - n = 0 then (1 : ℝ) else 0) - (if m + n = 0 then 1 else 0)) / 2 ∧
+    ∫ x : UnitAddCircle, (fourier m x).re * (fourier n x).im ∂AddCircle.haarAddCircle = 0 := by
+  have hnorm : ∀ (k : ℤ) (x : UnitAddCircle), ‖(fourier k x : ℂ)‖ = 1 := fun k x => by
+    rw [fourier_apply]; exact Circle.norm_coe _
+  have hCm : ∀ k : ℤ, Measurable fun x : UnitAddCircle => (fourier k x).re := fun k =>
+    (Complex.continuous_re.comp (fourier k).continuous).measurable
+  have hSm : ∀ k : ℤ, Measurable fun x : UnitAddCircle => (fourier k x).im := fun k =>
+    (Complex.continuous_im.comp (fourier k).continuous).measurable
+  have hCb : ∀ (k : ℤ) (x : UnitAddCircle), |(fourier k x).re| ≤ 1 := fun k x =>
+    (Complex.abs_re_le_norm _).trans (hnorm k x).le
+  have hSb : ∀ (k : ℤ) (x : UnitAddCircle), |(fourier k x).im| ≤ 1 := fun k x =>
+    (Complex.abs_im_le_norm _).trans (hnorm k x).le
+  have hadd : ∀ (k : ℤ) (x a : UnitAddCircle), fourier k (x + a) = fourier k x * fourier k a := by
+    intro k x a
+    simp only [fourier_apply, zsmul_add, AddCircle.toCircle_add, Circle.coe_mul]
+  have hmean : ∀ k : ℤ, k ≠ 0 →
+      ∫ x : UnitAddCircle, (fourier k x).re ∂AddCircle.haarAddCircle = 0 ∧
+      ∫ x : UnitAddCircle, (fourier k x).im ∂AddCircle.haarAddCircle = 0 := by
+    intro k hk
+    refine character_mean_zero AddCircle.haarAddCircle _ _ (hCm k) (hSm k) (hCb k) (hSb k)
+      (fun x a => by rw [hadd, Complex.mul_re]) (fun x a => by rw [hadd, Complex.mul_im]; ring)
+      (((1 : ℝ) / 2 / k : ℝ) : UnitAddCircle) (Or.inl ?_)
+    have h := fourier_add_half_inv_index (T := 1) hk one_pos (0 : UnitAddCircle)
+    rw [zero_add, fourier_eval_zero] at h
+    rw [h]; norm_num
+  refine mode_products AddCircle.haarAddCircle (fun k x => (fourier k x).re)
+    (fun k x => (fourier k x).im) hCm hSm hCb hSb
+    (fun a b x => by beta_reduce; rw [fourier_add, Complex.mul_re])
+    (fun a b x => by beta_reduce; rw [fourier_add, Complex.mul_im]; ring)
+    (fun k x => by beta_reduce; rw [fourier_neg, Complex.conj_re])
+    (fun k x => by beta_reduce; rw [fourier_neg, Complex.conj_im])
+    (fun k => ?_) (fun k => ?_) m n
+  · by_cases hk : k = 0
+    · subst hk; simp
+    · rw [if_neg hk]; exact (hmean k hk).1
+  · by_cases hk : k = 0
+    · subst hk; simp
+    · exact (hmean k hk).2
+
+/-- The character of the flat torus with frequency `n ∈ ℤ^d`: `x ↦ ∏_i e^{2πi n_i x_i}`. -/
+noncomputable def torusChar (d : ℕ) (n : Fin d → ℤ) (x : FlatTorus d) : ℂ :=
+  ∏ i, fourier (n i) (x i)
+
+theorem torusChar_norm (d : ℕ) (n : Fin d → ℤ) (x : FlatTorus d) : ‖torusChar d n x‖ = 1 := by
+  unfold torusChar
+  rw [norm_prod]
+  exact Finset.prod_eq_one fun i _ => by rw [fourier_apply]; exact Circle.norm_coe _
+
+theorem torusChar_add_freq (d : ℕ) (m n : Fin d → ℤ) (x : FlatTorus d) :
+    torusChar d (m + n) x = torusChar d m x * torusChar d n x := by
+  unfold torusChar
+  rw [← Finset.prod_mul_distrib]
+  exact Finset.prod_congr rfl fun i _ => by rw [Pi.add_apply, fourier_add]
+
+theorem torusChar_neg_freq (d : ℕ) (n : Fin d → ℤ) (x : FlatTorus d) :
+    torusChar d (-n) x = (starRingEnd ℂ) (torusChar d n x) := by
+  unfold torusChar
+  rw [map_prod]
+  exact Finset.prod_congr rfl fun i _ => by rw [Pi.neg_apply, fourier_neg]
+
+theorem torusChar_add (d : ℕ) (n : Fin d → ℤ) (x a : FlatTorus d) :
+    torusChar d n (x + a) = torusChar d n x * torusChar d n a := by
+  unfold torusChar
+  rw [← Finset.prod_mul_distrib]
+  exact Finset.prod_congr rfl fun i _ => by
+    simp only [Pi.add_apply, fourier_apply, zsmul_add, AddCircle.toCircle_add, Circle.coe_mul]
+
+theorem torusChar_continuous (d : ℕ) (n : Fin d → ℤ) : Continuous (torusChar d n) := by
+  unfold torusChar
+  exact continuous_finset_prod _ fun i _ => (fourier (n i)).continuous.comp (continuous_apply i)
+
+/-- **Orthogonality of the real Fourier modes of the flat torus of dimension `d`, without
+    hypotheses.** For `C_n = Re χ_n`, `S_n = Im χ_n`, `χ_n(x) = ∏_i e^{2πi n_i x_i}`, under the product
+    of the Haar measures: `∫ C_m C_n = (δ_{m,n} + δ_{m,-n})/2`, `∫ S_m S_n = (δ_{m,n} - δ_{m,-n})/2`,
+    `∫ C_m S_n = 0`. -/
+theorem flatTorus_mode_products (d : ℕ) (m n : Fin d → ℤ) :
+    ∫ x, (torusChar d m x).re * (torusChar d n x).re ∂flatTorusMeasure d
+        = ((if m - n = 0 then (1 : ℝ) else 0) + (if m + n = 0 then 1 else 0)) / 2 ∧
+    ∫ x, (torusChar d m x).im * (torusChar d n x).im ∂flatTorusMeasure d
+        = ((if m - n = 0 then (1 : ℝ) else 0) - (if m + n = 0 then 1 else 0)) / 2 ∧
+    ∫ x, (torusChar d m x).re * (torusChar d n x).im ∂flatTorusMeasure d = 0 := by
+  have hCm : ∀ k : Fin d → ℤ, Measurable fun x : FlatTorus d => (torusChar d k x).re := fun k =>
+    (Complex.continuous_re.comp (torusChar_continuous d k)).measurable
+  have hSm : ∀ k : Fin d → ℤ, Measurable fun x : FlatTorus d => (torusChar d k x).im := fun k =>
+    (Complex.continuous_im.comp (torusChar_continuous d k)).measurable
+  have hCb : ∀ (k : Fin d → ℤ) (x : FlatTorus d), |(torusChar d k x).re| ≤ 1 := fun k x =>
+    (Complex.abs_re_le_norm _).trans (torusChar_norm d k x).le
+  have hSb : ∀ (k : Fin d → ℤ) (x : FlatTorus d), |(torusChar d k x).im| ≤ 1 := fun k x =>
+    (Complex.abs_im_le_norm _).trans (torusChar_norm d k x).le
+  have hmean : ∀ k : Fin d → ℤ, k ≠ 0 →
+      ∫ x, (torusChar d k x).re ∂flatTorusMeasure d = 0 ∧
+      ∫ x, (torusChar d k x).im ∂flatTorusMeasure d = 0 := by
+    intro k hk
+    obtain ⟨i, hi⟩ : ∃ i, k i ≠ 0 := by
+      by_contra h
+      exact hk (funext fun i => by simpa using not_exists.mp h i)
+    refine character_mean_zero (flatTorusMeasure d) _ _ (hCm k) (hSm k) (hCb k) (hSb k)
+      (fun x a => by rw [torusChar_add, Complex.mul_re])
+      (fun x a => by rw [torusChar_add, Complex.mul_im]; ring)
+      (Pi.single i (((1 : ℝ) / 2 / k i : ℝ) : UnitAddCircle)) (Or.inl ?_)
+    have hval : torusChar d k (Pi.single i (((1 : ℝ) / 2 / k i : ℝ) : UnitAddCircle)) = -1 := by
+      unfold torusChar
+      rw [Finset.prod_eq_single i]
+      · rw [Pi.single_eq_same]
+        have h := fourier_add_half_inv_index (T := 1) hi one_pos (0 : UnitAddCircle)
+        rwa [zero_add, fourier_eval_zero] at h
+      · intro j _ hj
+        rw [Pi.single_eq_of_ne hj, fourier_eval_zero]
+      · intro h; exact absurd (Finset.mem_univ i) h
+    rw [hval]; norm_num
+  refine mode_products (flatTorusMeasure d) (fun k x => (torusChar d k x).re)
+    (fun k x => (torusChar d k x).im) hCm hSm hCb hSb
+    (fun a b x => by beta_reduce; rw [torusChar_add_freq, Complex.mul_re])
+    (fun a b x => by beta_reduce; rw [torusChar_add_freq, Complex.mul_im]; ring)
+    (fun k x => by beta_reduce; rw [torusChar_neg_freq, Complex.conj_re])
+    (fun k x => by beta_reduce; rw [torusChar_neg_freq, Complex.conj_im])
+    (fun k => ?_) (fun k => ?_) m n
+  · by_cases hk : k = 0
+    · subst hk; simp [torusChar]
+    · rw [if_neg hk]; exact (hmean k hk).1
+  · by_cases hk : k = 0
+    · subst hk; simp [torusChar]
+    · exact (hmean k hk).2
+
+theorem torusChar_zero (d : ℕ) (x : FlatTorus d) : torusChar d 0 x = 1 := by
+  simp [torusChar]
+
+/-- Mean zero of the real and imaginary parts of a nontrivial character of the flat torus. -/
+theorem torusChar_mean (d : ℕ) (n : Fin d → ℤ) (hn : n ≠ 0) :
+    ∫ x, (torusChar d n x).re ∂flatTorusMeasure d = 0 ∧
+    ∫ x, (torusChar d n x).im ∂flatTorusMeasure d = 0 := by
+  have h := flatTorus_mode_products d 0 n
+  simp only [torusChar_zero, Complex.one_re, one_mul, zero_sub, zero_add, neg_eq_zero, if_neg hn,
+    add_zero, zero_div] at h
+  exact ⟨h.1, h.2.2⟩
+
+/-- The real Fourier modes of the flat torus, normalised in `L²`: the constant `1`,
+    `√2 Re χ_n` (index `(n, false)`) and `√2 Im χ_n` (index `(n, true)`). -/
+noncomputable def torusMode (d : ℕ) : Option ((Fin d → ℤ) × Bool) → FlatTorus d → ℝ
+  | none => fun _ => 1
+  | some (n, false) => fun x => Real.sqrt 2 * (torusChar d n x).re
+  | some (n, true) => fun x => Real.sqrt 2 * (torusChar d n x).im
+
+theorem torusMode_measurable (d : ℕ) (f : Option ((Fin d → ℤ) × Bool)) :
+    Measurable (torusMode d f) := by
+  rcases f with _ | ⟨n, b⟩
+  · exact measurable_const
+  · cases b
+    · exact (Complex.continuous_re.comp (torusChar_continuous d n)).measurable.const_mul _
+    · exact (Complex.continuous_im.comp (torusChar_continuous d n)).measurable.const_mul _
+
+theorem torusMode_bound (d : ℕ) (f : Option ((Fin d → ℤ) × Bool)) (x : FlatTorus d) :
+    |torusMode d f x| ≤ Real.sqrt 2 := by
+  have h2 : (1 : ℝ) ≤ Real.sqrt 2 := Real.one_le_sqrt.mpr (by norm_num)
+  rcases f with _ | ⟨n, b⟩
+  · show |(1 : ℝ)| ≤ Real.sqrt 2
+    rw [abs_one]; exact h2
+  · cases b
+    · simp only [torusMode, abs_mul, abs_of_nonneg (Real.sqrt_nonneg 2)]
+      have := (Complex.abs_re_le_norm (torusChar d n x)).trans (torusChar_norm d n x).le
+      nlinarith [Real.sqrt_nonneg 2]
+    · simp only [torusMode, abs_mul, abs_of_nonneg (Real.sqrt_nonneg 2)]
+      have := (Complex.abs_im_le_norm (torusChar d n x)).trans (torusChar_norm d n x).le
+      nlinarith [Real.sqrt_nonneg 2]
+
+/-- **Orthonormality of the real Fourier modes of the flat torus, without hypotheses on the
+    measure.** For two indices whose frequencies are nonzero and do not add up to zero (a set of
+    frequencies containing no pair `n, -n`), `∫ φ_f φ_g = δ_fg`. -/
+theorem torusMode_orthonormal (d : ℕ) (f g : Option ((Fin d → ℤ) × Bool))
+    (hf : ∀ n b, f = some (n, b) → n ≠ 0) (hg : ∀ n b, g = some (n, b) → n ≠ 0)
+    (hfg : ∀ m b n b', f = some (m, b) → g = some (n, b') → m + n ≠ 0) :
+    ∫ x, torusMode d f x * torusMode d g x ∂flatTorusMeasure d = if f = g then 1 else 0 := by
+  have h22 : Real.sqrt 2 * Real.sqrt 2 = 2 := Real.mul_self_sqrt (by norm_num)
+  rcases f with _ | ⟨m, b⟩ <;> rcases g with _ | ⟨n, b'⟩
+  · simp [torusMode]
+  · have hn := hg n b' rfl
+    cases b' <;> simp only [torusMode, one_mul, integral_const_mul, (torusChar_mean d n hn).1,
+      (torusChar_mean d n hn).2, mul_zero] <;> simp
+  · have hm := hf m b rfl
+    cases b <;> simp only [torusMode, mul_one, integral_const_mul, (torusChar_mean d m hm).1,
+      (torusChar_mean d m hm).2, mul_zero] <;> simp
+  · have hmn := hfg m b n b' rfl rfl
+    have hP := flatTorus_mode_products d m n
+    have hP' := flatTorus_mode_products d n m
+    have hnm : n + m ≠ 0 := by rwa [add_comm]
+    simp only [if_neg hmn, add_zero, sub_zero] at hP
+    simp only [if_neg hnm, add_zero, sub_zero] at hP'
+    have key : ∀ (u w : FlatTorus d → ℝ),
+        ∫ x, (Real.sqrt 2 * u x) * (Real.sqrt 2 * w x) ∂flatTorusMeasure d
+          = 2 * ∫ x, u x * w x ∂flatTorusMeasure d := by
+      intro u w
+      rw [← integral_const_mul]
+      refine integral_congr_ae (Filter.Eventually.of_forall fun x => ?_)
+      show Real.sqrt 2 * u x * (Real.sqrt 2 * w x) = 2 * (u x * w x)
+      linear_combination (u x * w x) * h22
+    have hiff : (some (m, b) = some (n, b')) ↔ (m = n ∧ b = b') := by
+      simp [Prod.ext_iff]
+    cases b <;> cases b'
+    · simp only [torusMode]
+      rw [key, hP.1]
+      by_cases h : m = n
+      · simp [h]
+      · have : m - n ≠ 0 := sub_ne_zero.mpr h
+        simp [h, this]
+    · simp only [torusMode]
+      rw [key, hP.2.2]; simp
+    · simp only [torusMode]
+      rw [key]
+      have : ∫ x, (torusChar d m x).im * (torusChar d n x).re ∂flatTorusMeasure d = 0 := by
+        rw [← hP'.2.2]
+        exact integral_congr_ae (Filter.Eventually.of_forall fun x => mul_comm _ _)
+      rw [this]; simp
+    · simp only [torusMode]
+      rw [key, hP.2.1]
+      by_cases h : m = n
+      · simp [h]
+      · have : m - n ≠ 0 := sub_ne_zero.mpr h
+        simp [h, this]
+
+/-- **Gram matrix of the sampled Fourier modes on the flat torus, with its probability and
+    without hypotheses on the modes.** Independent points with the uniform law on the flat torus
+    of dimension `d`; `F` a finite set of mode indices whose frequencies are nonzero and contain no
+    pair `n, -n`. Then
+    `P(∃ f g ∈ F, |∑_{j<N} φ_f(X_j) φ_g(X_j) - N δ_fg| ≥ eps) ≤ 2 |F|^2 exp(-(eps/2)^2 / (2N))`. -/
+theorem flatTorus_gram_whp {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] (d : ℕ) (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ)
+    (hX : ∀ j, Measurable (X j)) (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d)
+    (F : Finset (Option ((Fin d → ℤ) × Bool)))
+    (hF : ∀ n b, some (n, b) ∈ F → n ≠ 0)
+    (hF2 : ∀ m b n b', some (m, b) ∈ F → some (n, b') ∈ F → m + n ≠ 0)
+    (N : ℕ) {ε : ℝ} (hε : 0 ≤ ε) :
+    μ.real {ω | ∃ f g : F, ε ≤ |∑ j ∈ Finset.range N,
+        torusMode d f.1 (X j ω) * torusMode d g.1 (X j ω)
+        - N * (if f = g then (1 : ℝ) else 0)|}
+      ≤ (Fintype.card F) ^ 2 * (2 * Real.exp (-(ε / 2) ^ 2 / (2 * N))) := by
+  have h22 : Real.sqrt 2 ^ 2 = 2 := Real.sq_sqrt (by norm_num)
+  have h := gram_concentration (μ := μ) (F := F) X h_indep hX (fun f => torusMode d f.1)
+    (fun f => torusMode_measurable d f.1) (B := Real.sqrt 2) (by positivity)
+    (fun f x => torusMode_bound d f.1 x)
+    (fun f g j => by
+      have hm : Measurable fun x => torusMode d f.1 x * torusMode d g.1 x :=
+        (torusMode_measurable d f.1).mul (torusMode_measurable d g.1)
+      have e : μ[fun ω => torusMode d f.1 (X j ω) * torusMode d g.1 (X j ω)]
+          = ∫ x, torusMode d f.1 x * torusMode d g.1 x ∂flatTorusMeasure d := by
+        rw [← hlaw j, integral_map (hX j).aemeasurable hm.aestronglyMeasurable]
+      rw [e, torusMode_orthonormal d f.1 g.1
+        (fun n b hfe => hF n b (hfe ▸ f.2)) (fun n b hge => hF n b (hge ▸ g.2))
+        (fun m b n b' hfe hge => hF2 m b n b' (hfe ▸ f.2) (hge ▸ g.2))]
+      simp only [Subtype.ext_iff])
+    N hε
+  rwa [h22] at h
+
+/-- **The pair of real modes of a frequency reproduces the translation-invariant kernel.**
+    `φ_{n,c}(x) φ_{n,c}(y) + φ_{n,s}(x) φ_{n,s}(y) = 2 Re χ_n(x - y)`. Hence a kernel
+    `∑_n â_n χ_n(x - y)` with real symmetric coefficients is `∑_f a_f φ_f(x) φ_f(y)` over the real
+    modes, the form required by `finite_rank_kernel_entry`. -/
+theorem torusMode_kernel (d : ℕ) (n : Fin d → ℤ) (x y : FlatTorus d) :
+    torusMode d (some (n, false)) x * torusMode d (some (n, false)) y
+      + torusMode d (some (n, true)) x * torusMode d (some (n, true)) y
+      = 2 * (torusChar d n (x - y)).re := by
+  have h22 : Real.sqrt 2 * Real.sqrt 2 = 2 := Real.mul_self_sqrt (by norm_num)
+  have hx : torusChar d n x = torusChar d n (x - y) * torusChar d n y := by
+    rw [← torusChar_add, sub_add_cancel]
+  have hw : (torusChar d n y).re * (torusChar d n y).re
+      + (torusChar d n y).im * (torusChar d n y).im = 1 := by
+    have h := torusChar_norm d n y
+    have h2 : Complex.normSq (torusChar d n y) = 1 := by
+      rw [Complex.normSq_eq_norm_sq, h]; norm_num
+    rwa [Complex.normSq_apply] at h2
+  simp only [torusMode]
+  rw [hx, Complex.mul_re, Complex.mul_im]
+  linear_combination ((torusChar d n (x - y)).re * ((torusChar d n y).re * (torusChar d n y).re
+      + (torusChar d n y).im * (torusChar d n y).im)) * h22
+    + 2 * (torusChar d n (x - y)).re * hw
+
+section GaussSums
+open Set
+
+/-- `∑_{j=1}^{n} e^{-c j²} ≤ √(π/c)/2`. -/
+theorem gauss_sum_le {c : ℝ} (hc : 0 < c) (n : ℕ) :
+    ∑ i ∈ Finset.range n, Real.exp (-c * (((i + 1 : ℕ) : ℝ)) ^ 2) ≤ Real.sqrt (Real.pi / c) / 2 := by
+  have hanti : AntitoneOn (fun x : ℝ => Real.exp (-c * x ^ 2)) (Icc (0 : ℝ) (0 + n)) := by
+    intro x hx y hy hxy
+    apply Real.exp_le_exp.mpr
+    have : x ^ 2 ≤ y ^ 2 := pow_le_pow_left₀ hx.1 hxy 2
+    nlinarith
+  have h1 := hanti.sum_le_integral
+  simp only [zero_add] at h1
+  refine h1.trans ?_
+  rw [intervalIntegral.integral_of_le (by positivity), ← integral_gaussian_Ioi c]
+  refine setIntegral_mono_set ((integrable_exp_neg_mul_sq hc).integrableOn) ?_ ?_
+  · exact Filter.Eventually.of_forall fun x => (Real.exp_pos _).le
+  · exact (Filter.Eventually.of_forall fun x hx => hx.1 : ∀ᵐ x, x ∈ Ioc (0:ℝ) n → x ∈ Ioi (0:ℝ))
+
+/-- The symmetric sum in terms of the one-sided sum. -/
+theorem gauss_sum_int_eq (c : ℝ) (m : ℕ) :
+    ∑ j ∈ Finset.Icc (-(m : ℤ)) m, Real.exp (-c * (j : ℝ) ^ 2)
+      = 1 + 2 * ∑ i ∈ Finset.range m, Real.exp (-c * (((i + 1 : ℕ) : ℝ)) ^ 2) := by
+  induction m with
+  | zero => simp
+  | succ m ih =>
+    have hset : Finset.Icc (-((m + 1 : ℕ) : ℤ)) ((m + 1 : ℕ) : ℤ)
+        = insert (-((m + 1 : ℕ) : ℤ)) (insert (((m + 1 : ℕ) : ℤ)) (Finset.Icc (-(m : ℤ)) m)) := by
+      ext j; simp only [Finset.mem_Icc, Finset.mem_insert]; push_cast; omega
+    rw [hset, Finset.sum_insert, Finset.sum_insert, ih, Finset.sum_range_succ]
+    · push_cast; ring_nf
+    · simp only [Finset.mem_Icc]; push_cast; omega
+    · simp only [Finset.mem_insert, Finset.mem_Icc]; push_cast; omega
+
+/-- `∑_{|j| ≤ m} e^{-c j²} ≤ 1 + √(π/c)`. -/
+theorem gauss_sum_int_le {c : ℝ} (hc : 0 < c) (m : ℕ) :
+    ∑ j ∈ Finset.Icc (-(m : ℤ)) m, Real.exp (-c * (j : ℝ) ^ 2) ≤ 1 + Real.sqrt (Real.pi / c) := by
+  rw [gauss_sum_int_eq]
+  linarith [gauss_sum_le hc m]
+
+/-- **Quantitative core of (P2) in Fourier form.** Box sums in dimension `d`: `∑_{n ∈ [-m,m]^d} e^{-c |n|²} ≤ (1 + √(π/c))^d`.
+    With `c = 2π² t` these are the partial sums of `p^{(t)}(0) = ∑_n e^{-2π²|n|² t}`, and
+    `√(π/c) = (2π t)^{-1/2}`: the on-diagonal bound `C_d t^{-d/2}` for bounded `t`. -/
+theorem gauss_box_sum_le {c : ℝ} (hc : 0 < c) (d m : ℕ) :
+    ∑ n ∈ Fintype.piFinset (fun _ : Fin d => Finset.Icc (-(m : ℤ)) m),
+        Real.exp (-c * ∑ i, ((n i : ℤ) : ℝ) ^ 2) ≤ (1 + Real.sqrt (Real.pi / c)) ^ d := by
+  have h := Finset.prod_univ_sum (fun _ : Fin d => Finset.Icc (-(m : ℤ)) m)
+    (fun (_ : Fin d) (j : ℤ) => Real.exp (-c * (j : ℝ) ^ 2))
+  have e : ∀ n : Fin d → ℤ, Real.exp (-c * ∑ i, ((n i : ℤ) : ℝ) ^ 2)
+      = ∏ i, Real.exp (-c * ((n i : ℤ) : ℝ) ^ 2) := by
+    intro n; rw [← Real.exp_sum, Finset.mul_sum]
+  simp_rw [e]
+  rw [← h, Finset.prod_const, Finset.card_univ, Fintype.card_fin]
+  exact pow_le_pow_left₀ (Finset.sum_nonneg fun j _ => (Real.exp_pos _).le) (gauss_sum_int_le hc m) d
+
+/-- Every finite set of frequencies lies in a box. -/
+theorem finset_subset_box (d : ℕ) (T : Finset (Fin d → ℤ)) :
+    ∃ m : ℕ, T ⊆ Fintype.piFinset (fun _ : Fin d => Finset.Icc (-(m : ℤ)) m) := by
+  refine ⟨T.sup fun n => Finset.univ.sup fun i => (n i).natAbs, fun n hn => ?_⟩
+  rw [Fintype.mem_piFinset]
+  intro i
+  have h1 : (n i).natAbs ≤ Finset.univ.sup fun i => (n i).natAbs :=
+    Finset.le_sup (f := fun i => (n i).natAbs) (Finset.mem_univ i)
+  have h2 : (Finset.univ.sup fun i => (n i).natAbs)
+      ≤ T.sup fun n => Finset.univ.sup fun i => (n i).natAbs :=
+    Finset.le_sup (f := fun n : Fin d → ℤ => Finset.univ.sup fun i => (n i).natAbs) hn
+  rw [Finset.mem_Icc]
+  omega
+
+/-- Sums over arbitrary finite sets of frequencies: `∑_{n ∈ T} e^{-c|n|²} ≤ (1 + √(π/c))^d`. -/
+theorem gauss_finset_sum_le {c : ℝ} (hc : 0 < c) (d : ℕ) (T : Finset (Fin d → ℤ)) :
+    ∑ n ∈ T, Real.exp (-c * ∑ i, ((n i : ℤ) : ℝ) ^ 2) ≤ (1 + Real.sqrt (Real.pi / c)) ^ d := by
+  obtain ⟨m, hm⟩ := finset_subset_box d T
+  exact (Finset.sum_le_sum_of_subset_of_nonneg hm fun n _ _ => (Real.exp_pos _).le).trans
+    (gauss_box_sum_le hc d m)
+
+/-- **Tail of the Fourier series of the heat kernel of the torus.** For a finite set `T` of
+    frequencies with `|n|² ≥ R`,
+    `∑_{n ∈ T} e^{-c|n|²} ≤ e^{-cR/2} (1 + √(2π/c))^d`. With `c = 2π² t` this bounds the error of
+    truncating `p^{(t)}(x) = ∑_n e^{-2π²|n|² t} χ_n(x)` uniformly in `x`. -/
+theorem gauss_tail_sum_le {c : ℝ} (hc : 0 < c) (d : ℕ) (T : Finset (Fin d → ℤ)) {R : ℝ}
+    (hT : ∀ n ∈ T, R ≤ ∑ i, ((n i : ℤ) : ℝ) ^ 2) :
+    ∑ n ∈ T, Real.exp (-c * ∑ i, ((n i : ℤ) : ℝ) ^ 2)
+      ≤ Real.exp (-c * R / 2) * (1 + Real.sqrt (2 * Real.pi / c)) ^ d := by
+  have hc2 : 0 < c / 2 := by positivity
+  have h := gauss_finset_sum_le hc2 d T
+  have e : Real.pi / (c / 2) = 2 * Real.pi / c := by field_simp
+  rw [e] at h
+  calc ∑ n ∈ T, Real.exp (-c * ∑ i, ((n i : ℤ) : ℝ) ^ 2)
+      ≤ ∑ n ∈ T, Real.exp (-c * R / 2) * Real.exp (-(c / 2) * ∑ i, ((n i : ℤ) : ℝ) ^ 2) := by
+        refine Finset.sum_le_sum fun n hn => ?_
+        rw [← Real.exp_add]
+        apply Real.exp_le_exp.mpr
+        nlinarith [hT n hn]
+    _ = Real.exp (-c * R / 2) * ∑ n ∈ T, Real.exp (-(c / 2) * ∑ i, ((n i : ℤ) : ℝ) ^ 2) := by
+        rw [Finset.mul_sum]
+    _ ≤ _ := mul_le_mul_of_nonneg_left h (Real.exp_pos _).le
+
+/-- The Fourier coefficients of the heat kernel of the torus are summable. -/
+theorem gauss_summable {c : ℝ} (hc : 0 < c) (d : ℕ) :
+    Summable fun n : Fin d → ℤ => Real.exp (-c * ∑ i, ((n i : ℤ) : ℝ) ^ 2) :=
+  summable_of_sum_le (fun n => (Real.exp_pos _).le) (fun T => gauss_finset_sum_le hc d T)
+
+/-- **On-diagonal bound of the heat kernel of the torus, as a series (quantitative part of
+    (P2)).** `∑_{n ∈ ℤ^d} e^{-c|n|²} ≤ (1 + √(π/c))^d`; with `c = 2π² t` the left side is
+    `p^{(t)}(0)` in its Fourier form and the right side is `(1 + (2π t)^{-1/2})^d`. -/
+theorem gauss_tsum_le {c : ℝ} (hc : 0 < c) (d : ℕ) :
+    ∑' n : Fin d → ℤ, Real.exp (-c * ∑ i, ((n i : ℤ) : ℝ) ^ 2)
+      ≤ (1 + Real.sqrt (Real.pi / c)) ^ d :=
+  (gauss_summable hc d).tsum_le_of_sum_le (fun T => gauss_finset_sum_le hc d T)
+
+end GaussSums
+
+/-! ### The heat kernel of the flat torus as a Fourier series -/
+
+/-- Integral of a series of bounded functions against a bounded function, term by term. -/
+theorem series_kernel_integral {G : Type*} [MeasurableSpace G] (ν : Measure G)
+    [IsProbabilityMeasure ν] {ι : Type*} [Countable ι] (a : ι → ℝ) (ha : Summable fun n => |a n|)
+    (u : ι → G → ℝ) (hum : ∀ n, Measurable (u n)) (hub : ∀ n z, |u n z| ≤ 1)
+    (q : G → ℝ) (hqm : Measurable q) {B : ℝ} (hqb : ∀ z, |q z| ≤ B) :
+    ∫ z, (∑' n, a n * u n z) * q z ∂ν = ∑' n, a n * ∫ z, u n z * q z ∂ν := by
+  have hB : 0 ≤ B := (abs_nonneg _).trans (hqb (Classical.choice (by
+    haveI : NeZero ν := inferInstance
+    exact (MeasureTheory.Measure.nonempty_of_neZero ν))))
+  have hint : ∀ n, Integrable (fun z => a n * u n z * q z) ν := fun n =>
+    Integrable.of_bound (((hum n).const_mul _).mul hqm).aestronglyMeasurable (|a n| * B)
+      (Filter.Eventually.of_forall fun z => by
+        rw [Real.norm_eq_abs, abs_mul, abs_mul]
+        have h1 := hub n z
+        have h2 := hqb z
+        have : |a n| * |u n z| ≤ |a n| := by nlinarith [abs_nonneg (a n)]
+        nlinarith [abs_nonneg (a n), abs_nonneg (u n z), abs_nonneg (q z)])
+  have hsum : Summable fun n => ∫ z, ‖a n * u n z * q z‖ ∂ν := by
+    refine Summable.of_nonneg_of_le (fun n => integral_nonneg fun z => norm_nonneg _) (fun n => ?_)
+      (ha.mul_right B)
+    have : ∫ z, ‖a n * u n z * q z‖ ∂ν ≤ ∫ _z, |a n| * B ∂ν := by
+      refine integral_mono (hint n).norm (integrable_const _) fun z => ?_
+      rw [Real.norm_eq_abs, abs_mul, abs_mul]
+      have h1 := hub n z
+      have h2 := hqb z
+      have : |a n| * |u n z| ≤ |a n| := by nlinarith [abs_nonneg (a n)]
+      nlinarith [abs_nonneg (a n), abs_nonneg (u n z), abs_nonneg (q z)]
+    simpa using this
+  have h := integral_tsum_of_summable_integral_norm hint hsum
+  have e1 : ∀ z, ∑' n, a n * u n z * q z = (∑' n, a n * u n z) * q z := fun z => tsum_mul_right
+  simp_rw [e1] at h
+  rw [← h]
+  refine tsum_congr fun n => ?_
+  rw [← integral_const_mul]
+  exact integral_congr_ae (Filter.Eventually.of_forall fun z => by ring)
+
+/-- `Re χ_n(x - z) = C_n(x) C_n(z) + S_n(x) S_n(z)`. -/
+theorem torusChar_sub_re (d : ℕ) (n : Fin d → ℤ) (x z : FlatTorus d) :
+    (torusChar d n (x - z)).re
+      = (torusChar d n x).re * (torusChar d n z).re + (torusChar d n x).im * (torusChar d n z).im := by
+  have h := torusMode_kernel d n x z
+  have h22 : Real.sqrt 2 * Real.sqrt 2 = 2 := Real.mul_self_sqrt (by norm_num)
+  simp only [torusMode] at h
+  linear_combination (-1 / 2 : ℝ) * h + (1 / 2 : ℝ) * ((torusChar d n x).re * (torusChar d n z).re
+    + (torusChar d n x).im * (torusChar d n z).im) * h22
+
+/-- A cosine series on the flat torus with absolutely summable coefficients. -/
+noncomputable def cosSeries (d : ℕ) (a : (Fin d → ℤ) → ℝ) (x : FlatTorus d) : ℝ :=
+  ∑' n, a n * (torusChar d n x).re
+
+/-- A cosine series with absolutely summable coefficients is continuous. -/
+theorem cosSeries_continuous (d : ℕ) (a : (Fin d → ℤ) → ℝ) (ha : Summable fun n => |a n|) :
+    Continuous (cosSeries d a) := by
+  unfold cosSeries
+  refine continuous_tsum (fun n => continuous_const.mul
+    (Complex.continuous_re.comp (torusChar_continuous d n))) ha fun n x => ?_
+  rw [Real.norm_eq_abs, abs_mul]
+  have := (Complex.abs_re_le_norm (torusChar d n x)).trans (torusChar_norm d n x).le
+  nlinarith [abs_nonneg (a n)]
+
+/-- Its supremum is at most the sum of the absolute coefficients. -/
+theorem cosSeries_abs_le (d : ℕ) (a : (Fin d → ℤ) → ℝ) (ha : Summable fun n => |a n|)
+    (x : FlatTorus d) : |cosSeries d a x| ≤ ∑' n, |a n| := by
+  unfold cosSeries
+  have hb : ∀ n, |a n * (torusChar d n x).re| ≤ |a n| := fun n => by
+    rw [abs_mul]
+    have := (Complex.abs_re_le_norm (torusChar d n x)).trans (torusChar_norm d n x).le
+    nlinarith [abs_nonneg (a n)]
+  have hs : Summable fun n => |a n * (torusChar d n x).re| :=
+    Summable.of_nonneg_of_le (fun n => abs_nonneg _) hb ha
+  have h1 : |∑' n, a n * (torusChar d n x).re| ≤ ∑' n, |a n * (torusChar d n x).re| := by
+    simpa [Real.norm_eq_abs] using norm_tsum_le_tsum_norm (f := fun n => a n * (torusChar d n x).re)
+      (by simpa [Real.norm_eq_abs] using hs)
+  exact h1.trans (hs.tsum_le_tsum hb ha)
+
+
+/-- Fourier coefficients of a cosine series with symmetric coefficients. -/
+theorem cosSeries_coeff (d : ℕ) (b : (Fin d → ℤ) → ℝ) (hb : Summable fun n => |b n|)
+    (hsym : ∀ n, b (-n) = b n) (n : Fin d → ℤ) :
+    ∫ z, (torusChar d n z).re * cosSeries d b z ∂flatTorusMeasure d = b n ∧
+    ∫ z, (torusChar d n z).im * cosSeries d b z ∂flatTorusMeasure d = 0 := by
+  have hCm : ∀ k : Fin d → ℤ, Measurable fun x : FlatTorus d => (torusChar d k x).re := fun k =>
+    (Complex.continuous_re.comp (torusChar_continuous d k)).measurable
+  have hSm : ∀ k : Fin d → ℤ, Measurable fun x : FlatTorus d => (torusChar d k x).im := fun k =>
+    (Complex.continuous_im.comp (torusChar_continuous d k)).measurable
+  have hCb : ∀ (k : Fin d → ℤ) (x : FlatTorus d), |(torusChar d k x).re| ≤ 1 := fun k x =>
+    (Complex.abs_re_le_norm _).trans (torusChar_norm d k x).le
+  have hSb : ∀ (k : Fin d → ℤ) (x : FlatTorus d), |(torusChar d k x).im| ≤ 1 := fun k x =>
+    (Complex.abs_im_le_norm _).trans (torusChar_norm d k x).le
+  constructor
+  · have h := series_kernel_integral (flatTorusMeasure d) b hb (fun m z => (torusChar d m z).re)
+      hCm hCb (fun z => (torusChar d n z).re) (hCm n) (B := 1) (hCb n)
+    have e : (fun z => (torusChar d n z).re * cosSeries d b z)
+        = fun z => (∑' m, b m * (torusChar d m z).re) * (torusChar d n z).re := by
+      funext z; unfold cosSeries; ring
+    rw [e, h]
+    have hterm : ∀ m, b m * ∫ z, (torusChar d m z).re * (torusChar d n z).re ∂flatTorusMeasure d
+        = (if m = n then b n / 2 else 0) + (if m = -n then b n / 2 else 0) := by
+      intro m
+      rw [(flatTorus_mode_products d m n).1]
+      by_cases h1 : m = n <;> by_cases h2 : m = -n
+      · subst h1; simp [h2.symm ▸ (by simp : m + -m = 0)]; rw [← h2] ; ring_nf; simp; ring
+      · subst h1
+        have : m + m ≠ 0 := fun h => h2 (eq_neg_of_add_eq_zero_left h)
+        simp [this, h2]; ring
+      · subst h2
+        have : -n - n ≠ 0 := fun h => h1 (sub_eq_zero.mp h)
+        simp [this, h1, hsym]; ring
+      · have a1 : m - n ≠ 0 := sub_ne_zero.mpr h1
+        have a2 : m + n ≠ 0 := fun h => h2 (eq_neg_of_add_eq_zero_left h)
+        simp [a1, a2, h1, h2]
+    simp_rw [hterm]
+    rw [Summable.tsum_add (summable_of_ne_finset_zero (s := {n}) (fun m hm => by simp at hm; simp [hm]))
+      (summable_of_ne_finset_zero (s := {-n}) (fun m hm => by simp at hm; simp [hm])),
+      tsum_ite_eq, tsum_ite_eq]
+    ring
+  · have h := series_kernel_integral (flatTorusMeasure d) b hb (fun m z => (torusChar d m z).re)
+      hCm hCb (fun z => (torusChar d n z).im) (hSm n) (B := 1) (hSb n)
+    have e : (fun z => (torusChar d n z).im * cosSeries d b z)
+        = fun z => (∑' m, b m * (torusChar d m z).re) * (torusChar d n z).im := by
+      funext z; unfold cosSeries; ring
+    rw [e, h]
+    simp [(flatTorus_mode_products d _ n).2.2]
+
+
+/-- **Convolution of cosine series on the flat torus multiplies the coefficients.** -/
+theorem cosSeries_conv (d : ℕ) (a b : (Fin d → ℤ) → ℝ) (ha : Summable fun n => |a n|)
+    (hb : Summable fun n => |b n|) (hsym : ∀ n, b (-n) = b n) (x : FlatTorus d) :
+    ∫ z, cosSeries d a (x - z) * cosSeries d b z ∂flatTorusMeasure d
+      = cosSeries d (fun n => a n * b n) x := by
+  have hqc := cosSeries_continuous d b hb
+  have hCc : ∀ k : Fin d → ℤ, Continuous fun z : FlatTorus d => (torusChar d k z).re := fun k =>
+    Complex.continuous_re.comp (torusChar_continuous d k)
+  have hSc : ∀ k : Fin d → ℤ, Continuous fun z : FlatTorus d => (torusChar d k z).im := fun k =>
+    Complex.continuous_im.comp (torusChar_continuous d k)
+  have h := series_kernel_integral (flatTorusMeasure d) a ha
+    (fun n z => (torusChar d n (x - z)).re)
+    (fun n => ((hCc n).comp (continuous_const.sub continuous_id)).measurable)
+    (fun n z => (Complex.abs_re_le_norm _).trans (torusChar_norm d n _).le)
+    (cosSeries d b) hqc.measurable (B := ∑' n, |b n|) (cosSeries_abs_le d b hb)
+  have e : (fun z => cosSeries d a (x - z) * cosSeries d b z)
+      = fun z => (∑' n, a n * (torusChar d n (x - z)).re) * cosSeries d b z := rfl
+  rw [e, h]
+  unfold cosSeries
+  refine tsum_congr fun n => ?_
+  have hint : ∀ (f : FlatTorus d → ℝ), Continuous f →
+      Integrable (fun z => f z * cosSeries d b z) (flatTorusMeasure d) := fun f hf =>
+    (hf.mul hqc).integrable_of_hasCompactSupport (HasCompactSupport.of_compactSpace _)
+  have e2 : (fun z => (torusChar d n (x - z)).re * cosSeries d b z)
+      = fun z => (torusChar d n x).re * ((torusChar d n z).re * cosSeries d b z)
+          + (torusChar d n x).im * ((torusChar d n z).im * cosSeries d b z) := by
+    funext z; rw [torusChar_sub_re]; ring
+  have hc := cosSeries_coeff d b hb hsym n
+  unfold cosSeries at hc hint e2
+  rw [e2, integral_add ((hint _ (hCc n)).const_mul _) ((hint _ (hSc n)).const_mul _),
+    integral_const_mul, integral_const_mul, hc.1, hc.2]
+  ring
+
+/-- Value at the origin. -/
+theorem cosSeries_zero (d : ℕ) (a : (Fin d → ℤ) → ℝ) : cosSeries d a 0 = ∑' n, a n := by
+  unfold cosSeries
+  refine tsum_congr fun n => ?_
+  have : torusChar d n 0 = 1 := by simp [torusChar]
+  rw [this]; simp
+
+/-- The heat kernel of the flat torus in its Fourier form, `p(x) = ∑_n e^{-c|n|²} Re χ_n(x)`
+    (`c = 2π² t` for the time `t` of the paper). -/
+noncomputable def heatTorus (d : ℕ) (c : ℝ) : FlatTorus d → ℝ :=
+  cosSeries d fun n => Real.exp (-c * ∑ i, ((n i : ℤ) : ℝ) ^ 2)
 
 /-! ### Bernstein's inequality -/
 
@@ -2864,6 +3983,3198 @@ theorem kernel_fixed_scale_ae {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Meas
           exact Finset.sum_le_sum (fun _ _ => mul_le_mul_of_nonneg_left (by linarith) hM2')
       _ = (2 * M1 + k * (2 * M2)) * Real.exp (-(2 * s ^ 2 / M ^ 4 * N)) := by
           rw [Finset.sum_const, Finset.card_range, nsmul_eq_mul]; ring
+
+/-- **Convolution powers of a cosine series: powers of the coefficients.** -/
+theorem cosSeries_convPow (d : ℕ) (a : (Fin d → ℤ) → ℝ) (ha : Summable fun n => |a n|)
+    (ha0 : ∀ n, 0 ≤ a n) (ha1 : ∀ n, a n ≤ 1) (hsym : ∀ n, a (-n) = a n) (m : ℕ) :
+    convPow (flatTorusMeasure d) (cosSeries d a) m = cosSeries d (fun n => a n ^ (m + 1)) := by
+  induction m with
+  | zero => simp [convPow]
+  | succ m ih =>
+    funext x
+    have hpow : Summable fun n => |a n ^ (m + 1)| :=
+      Summable.of_nonneg_of_le (fun n => abs_nonneg _) (fun n => by
+        rw [abs_of_nonneg (pow_nonneg (ha0 n) _), abs_of_nonneg (ha0 n)]
+        exact pow_le_of_le_one (ha0 n) (ha1 n) (Nat.succ_ne_zero m)) ha
+    show ∫ w, cosSeries d a (x - w) * convPow (flatTorusMeasure d) (cosSeries d a) m w
+        ∂flatTorusMeasure d = _
+    rw [ih, cosSeries_conv d a _ ha hpow (fun n => by simp only [hsym]) x]
+    unfold cosSeries
+    exact tsum_congr fun n => by ring
+
+/-- **Convolution powers of the heat kernel of the torus and their on-diagonal bound, with the
+    rate.** `p^{*(m+1)}` is the heat kernel with `c` replaced by `(m+1)c`, and
+    `|p^{*(m+1)}(x)| ≤ (1 + √(π/((m+1)c)))^d`. -/
+theorem heatTorus_convPow {c : ℝ} (hc : 0 < c) (d m : ℕ) :
+    convPow (flatTorusMeasure d) (heatTorus d c) m = heatTorus d ((m + 1 : ℕ) * c) ∧
+    ∀ x, |convPow (flatTorusMeasure d) (heatTorus d c) m x|
+      ≤ (1 + Real.sqrt (Real.pi / ((m + 1 : ℕ) * c))) ^ d := by
+  have habs : ∀ {c' : ℝ}, 0 < c' →
+      Summable fun n : Fin d → ℤ => |Real.exp (-c' * ∑ i, ((n i : ℤ) : ℝ) ^ 2)| := fun hc' => by
+    simpa [abs_of_pos (Real.exp_pos _)] using gauss_summable hc' d
+  have h1 : convPow (flatTorusMeasure d) (heatTorus d c) m = heatTorus d ((m + 1 : ℕ) * c) := by
+    unfold heatTorus
+    rw [cosSeries_convPow d _ (habs hc) (fun n => (Real.exp_pos _).le)
+      (fun n => Real.exp_le_one_iff.mpr (by
+        have : 0 ≤ ∑ i, ((n i : ℤ) : ℝ) ^ 2 := Finset.sum_nonneg fun i _ => _root_.sq_nonneg _
+        nlinarith))
+      (fun n => by simp) m]
+    congr 1
+    funext n
+    rw [← Real.exp_nat_mul]; congr 1; ring
+  refine ⟨h1, fun x => ?_⟩
+  have hc' : 0 < ((m + 1 : ℕ) : ℝ) * c := by positivity
+  rw [h1]
+  unfold heatTorus
+  refine (cosSeries_abs_le d _ (habs hc') x).trans ?_
+  simp_rw [abs_of_pos (Real.exp_pos _)]
+  exact gauss_tsum_le hc' d
+
+/-! ### Nonnegativity of the heat kernel of the flat torus (Poisson summation) -/
+
+section HeatPositivity
+open Complex
+
+/-- **One-variable factor, by Poisson summation.** `∑_j e^{-c j²} e^{2πi j t}` is a nonnegative real
+    number (Jacobi's transformation formula from Mathlib: it equals a positive multiple of
+    `∑_n e^{-(π²/c)(n - t)²}`). -/
+theorem theta_factor_nonneg {c : ℝ} (hc : 0 < c) (t : ℝ) :
+    ∃ r : ℝ, 0 ≤ r ∧
+      ∑' j : ℤ, ((Real.exp (-c * (j : ℝ) ^ 2) : ℝ) : ℂ) * fourier j ((t : ℝ) : UnitAddCircle)
+        = (r : ℂ) := by
+  have ha : 0 < c / Real.pi := div_pos hc Real.pi_pos
+  have hP := Complex.tsum_exp_neg_quadratic (a := ((c / Real.pi : ℝ) : ℂ))
+    (by rwa [ofReal_re]) (I * t)
+  have hL : ∀ j : ℤ, ((Real.exp (-c * (j : ℝ) ^ 2) : ℝ) : ℂ) * fourier j ((t : ℝ) : UnitAddCircle)
+      = cexp (-Real.pi * ((c / Real.pi : ℝ) : ℂ) * j ^ 2 + 2 * Real.pi * (I * t) * j) := by
+    intro j
+    rw [fourier_coe_apply, ofReal_exp, ← Complex.exp_add]
+    congr 1
+    push_cast
+    field_simp
+  have hR : ∀ n : ℤ, cexp (-Real.pi / ((c / Real.pi : ℝ) : ℂ) * (n + I * (I * t)) ^ 2)
+      = ((Real.exp (-Real.pi / (c / Real.pi) * ((n : ℝ) - t) ^ 2) : ℝ) : ℂ) := by
+    intro n
+    rw [ofReal_exp]
+    congr 1
+    have : (n : ℂ) + I * (I * t) = ((n : ℝ) - t : ℝ) := by
+      rw [← mul_assoc, I_mul_I]; push_cast; ring
+    rw [this]; push_cast; ring
+  refine ⟨1 / (c / Real.pi) ^ (1 / 2 : ℝ)
+      * ∑' n : ℤ, Real.exp (-Real.pi / (c / Real.pi) * ((n : ℝ) - t) ^ 2),
+    mul_nonneg (by positivity) (tsum_nonneg fun n => (Real.exp_pos _).le), ?_⟩
+  simp_rw [hL]
+  rw [hP]
+  simp_rw [hR]
+  rw [← ofReal_tsum]
+  push_cast
+  rw [ofReal_cpow ha.le]
+  push_cast
+  ring
+
+
+open Filter Topology in
+/-- Boxes exhaust the lattice. -/
+theorem tendsto_box (d : ℕ) :
+    Tendsto (fun m : ℕ => Fintype.piFinset (fun _ : Fin d => Finset.Icc (-(m : ℤ)) m))
+      atTop atTop := by
+  refine tendsto_atTop_finset_of_monotone (fun m m' h n hn => ?_) (fun n => ?_)
+  · rw [Fintype.mem_piFinset] at hn ⊢
+    intro i
+    have := hn i
+    rw [Finset.mem_Icc] at this ⊢
+    have : (m : ℤ) ≤ m' := by exact_mod_cast h
+    omega
+  · obtain ⟨m, hm⟩ := finset_subset_box d {n}
+    exact ⟨m, hm (Finset.mem_singleton_self n)⟩
+
+open Filter Topology in
+/-- **Series over `ℤ^d` of a product of one-variable terms.** If the one-variable families are
+    absolutely summable, the product family is summable over `ℤ^d` and its sum is the product of
+    the one-variable sums. -/
+theorem hasSum_pi_prod (d : ℕ) (f : Fin d → ℤ → ℂ) (hf : ∀ i, Summable fun j => ‖f i j‖) :
+    HasSum (fun n : Fin d → ℤ => ∏ i, f i (n i)) (∏ i, ∑' j, f i j) := by
+  have hsumm : Summable fun n : Fin d → ℤ => ‖∏ i, f i (n i)‖ := by
+    refine summable_of_sum_le (fun n => norm_nonneg _) (c := ∏ i, ∑' j, ‖f i j‖) (fun T => ?_)
+    obtain ⟨m, hm⟩ := finset_subset_box d T
+    refine (Finset.sum_le_sum_of_subset_of_nonneg hm fun n _ _ => norm_nonneg _).trans ?_
+    simp_rw [norm_prod]
+    rw [← Finset.prod_univ_sum (fun _ : Fin d => Finset.Icc (-(m : ℤ)) m)
+      (fun (i : Fin d) (j : ℤ) => ‖f i j‖)]
+    exact Finset.prod_le_prod (fun i _ => Finset.sum_nonneg fun j _ => norm_nonneg _)
+      (fun i _ => (hf i).sum_le_tsum _ fun j _ => norm_nonneg _)
+  have hs : Summable fun n : Fin d → ℤ => ∏ i, f i (n i) := hsumm.of_norm
+  have h1 : Tendsto (fun m : ℕ => ∑ n ∈ Fintype.piFinset
+      (fun _ : Fin d => Finset.Icc (-(m : ℤ)) m), ∏ i, f i (n i)) atTop
+      (𝓝 (∑' n : Fin d → ℤ, ∏ i, f i (n i))) := hs.hasSum.comp (tendsto_box d)
+  have hI : Tendsto (fun m : ℕ => Finset.Icc (-(m : ℤ)) m) atTop atTop := by
+    refine tendsto_atTop_finset_of_monotone (fun m m' h j hj => ?_) (fun j => ⟨j.natAbs, ?_⟩)
+    · rw [Finset.mem_Icc] at hj ⊢
+      have : (m : ℤ) ≤ m' := by exact_mod_cast h
+      omega
+    · rw [Finset.mem_Icc]; omega
+  have h2 : Tendsto (fun m : ℕ => ∏ i : Fin d, ∑ j ∈ Finset.Icc (-(m : ℤ)) m, f i j) atTop
+      (𝓝 (∏ i, ∑' j, f i j)) :=
+    tendsto_finset_prod _ fun i _ => ((hf i).of_norm.hasSum.comp hI)
+  have e : (fun m : ℕ => ∑ n ∈ Fintype.piFinset
+      (fun _ : Fin d => Finset.Icc (-(m : ℤ)) m), ∏ i, f i (n i))
+      = fun m : ℕ => ∏ i : Fin d, ∑ j ∈ Finset.Icc (-(m : ℤ)) m, f i j := by
+    funext m
+    exact (Finset.prod_univ_sum (fun _ : Fin d => Finset.Icc (-(m : ℤ)) m) (fun i j => f i j)).symm
+  rw [e] at h1
+  rw [← tendsto_nhds_unique h1 h2]
+  exact hs.hasSum
+
+/-- Summability of the Gaussian over the integers. -/
+theorem gauss_summable_int {c : ℝ} (hc : 0 < c) :
+    Summable fun j : ℤ => Real.exp (-c * (j : ℝ) ^ 2) := by
+  refine summable_of_sum_le (fun j => (Real.exp_pos _).le) (c := 1 + Real.sqrt (Real.pi / c))
+    (fun T => ?_)
+  have hsub : T ⊆ Finset.Icc (-((T.sup Int.natAbs : ℕ) : ℤ)) (T.sup Int.natAbs : ℕ) := by
+    intro j hj
+    have : j.natAbs ≤ T.sup Int.natAbs := Finset.le_sup (f := Int.natAbs) hj
+    rw [Finset.mem_Icc]; omega
+  exact (Finset.sum_le_sum_of_subset_of_nonneg hsub fun j _ _ => (Real.exp_pos _).le).trans
+    (gauss_sum_int_le hc _)
+
+/-- **The heat kernel of the flat torus, defined by its Fourier series, is nonnegative.** -/
+theorem heatTorus_nonneg {c : ℝ} (hc : 0 < c) (d : ℕ) (x : FlatTorus d) : 0 ≤ heatTorus d c x := by
+  have hnorm : ∀ (i : Fin d) (j : ℤ),
+      ‖((Real.exp (-c * (j : ℝ) ^ 2) : ℝ) : ℂ) * fourier j (x i)‖ = Real.exp (-c * (j : ℝ) ^ 2) := by
+    intro i j
+    rw [norm_mul, Complex.norm_real, Real.norm_eq_abs, abs_of_pos (Real.exp_pos _), fourier_apply,
+      Circle.norm_coe, mul_one]
+  have hS := hasSum_pi_prod d (fun i j => ((Real.exp (-c * (j : ℝ) ^ 2) : ℝ) : ℂ) * fourier j (x i))
+    (fun i => by simp_rw [hnorm]; exact gauss_summable_int hc)
+  have hr : ∀ i : Fin d, ∃ r : ℝ, 0 ≤ r ∧
+      ∑' j : ℤ, ((Real.exp (-c * (j : ℝ) ^ 2) : ℝ) : ℂ) * fourier j (x i) = (r : ℂ) := by
+    intro i
+    obtain ⟨t, ht⟩ := QuotientAddGroup.mk_surjective (x i)
+    rw [← ht]
+    exact theta_factor_nonneg hc t
+  choose r hr0 hreq using hr
+  simp_rw [hreq] at hS
+  have hG : ∀ n : Fin d → ℤ,
+      (∏ i, ((Real.exp (-c * ((n i : ℤ) : ℝ) ^ 2) : ℝ) : ℂ) * fourier (n i) (x i)).re
+        = Real.exp (-c * ∑ i, ((n i : ℤ) : ℝ) ^ 2) * (torusChar d n x).re := by
+    intro n
+    rw [Finset.prod_mul_distrib, ← Complex.ofReal_prod, ← Real.exp_sum, ← Finset.mul_sum]
+    unfold torusChar
+    rw [Complex.re_ofReal_mul]
+  have hre := Complex.hasSum_re hS
+  simp_rw [hG] at hre
+  have hval : heatTorus d c x = (∏ i, (r i : ℂ)).re := hre.tsum_eq
+  rw [hval, ← Complex.ofReal_prod, Complex.ofReal_re]
+  exact Finset.prod_nonneg fun i _ => hr0 i
+
+end HeatPositivity
+
+/-! ### The sampled walk with the heat kernel of the torus, at a fixed scale -/
+
+section HeatWalk
+open Complex
+
+/-- `|e^{2πi n u} - 1| ≤ 2π |n| ‖u‖` on the circle. -/
+theorem fourier_sub_one_le (n : ℤ) (u : UnitAddCircle) :
+    ‖(fourier n u : ℂ) - 1‖ ≤ 2 * Real.pi * |(n : ℝ)| * ‖u‖ := by
+  obtain ⟨s, rfl⟩ := QuotientAddGroup.mk_surjective u
+  have hn : ‖((s : ℝ) : UnitAddCircle)‖ = |s - round s| := UnitAddCircle.norm_eq
+  have e : (fourier n ((s : ℝ) : UnitAddCircle) : ℂ)
+      = cexp (I * ((2 * Real.pi * n * (s - round s) : ℝ) : ℂ)) := by
+    rw [fourier_coe_apply]
+    have h1 : (2 * Real.pi * I * n * s / (1 : ℝ) : ℂ)
+        = I * ((2 * Real.pi * n * (s - round s) : ℝ) : ℂ) + ((n * round s : ℤ) : ℂ) * (2 * Real.pi * I) := by
+      push_cast; ring
+    rw [h1, Complex.exp_add, Complex.exp_int_mul_two_pi_mul_I, mul_one]
+  rw [e, hn]
+  refine (Real.norm_exp_I_mul_ofReal_sub_one_le).trans (le_of_eq ?_)
+  rw [Real.norm_eq_abs, abs_mul, abs_mul, abs_mul, abs_of_pos Real.pi_pos,
+    abs_of_pos (by norm_num : (0:ℝ) < 2)]
+
+/-- Lipschitz bound for a character of the circle. -/
+theorem fourier_lipschitz (n : ℤ) (x y : UnitAddCircle) :
+    ‖(fourier n x : ℂ) - fourier n y‖ ≤ 2 * Real.pi * |(n : ℝ)| * dist x y := by
+  have hadd : (fourier n x : ℂ) = fourier n (x - y) * fourier n y := by
+    have : x = (x - y) + y := by abel
+    conv_lhs => rw [this]
+    simp only [fourier_apply, zsmul_add, AddCircle.toCircle_add, Circle.coe_mul]
+  have h1 : ‖(fourier n y : ℂ)‖ = 1 := by rw [fourier_apply]; exact Circle.norm_coe _
+  have : (fourier n x : ℂ) - fourier n y = (fourier n (x - y) - 1) * fourier n y := by
+    rw [hadd]; ring
+  rw [this, norm_mul, h1, mul_one, dist_eq_norm]
+  exact fourier_sub_one_le n (x - y)
+
+/-- `‖∏ z_i - 1‖ ≤ ∑ ‖z_i - 1‖` for factors of norm at most one. -/
+theorem norm_prod_sub_one_le {ι : Type*} (s : Finset ι) (z : ι → ℂ) (hz : ∀ i, ‖z i‖ ≤ 1) :
+    ‖∏ i ∈ s, z i - 1‖ ≤ ∑ i ∈ s, ‖z i - 1‖ := by
+  classical
+  induction s using Finset.induction_on with
+  | empty => simp
+  | insert a s ha ih =>
+    rw [Finset.prod_insert ha, Finset.sum_insert ha]
+    have e : z a * ∏ i ∈ s, z i - 1 = z a * (∏ i ∈ s, z i - 1) + (z a - 1) := by ring
+    rw [e]
+    refine (norm_add_le _ _).trans ?_
+    rw [norm_mul]
+    nlinarith [hz a, norm_nonneg (z a), norm_nonneg (∏ i ∈ s, z i - 1), norm_nonneg (z a - 1)]
+
+/-- Lipschitz bound for a character of the flat torus. -/
+theorem torusChar_lipschitz (d : ℕ) (n : Fin d → ℤ) (x y : FlatTorus d) :
+    ‖torusChar d n x - torusChar d n y‖ ≤ 2 * Real.pi * (∑ i, |((n i : ℤ) : ℝ)|) * dist x y := by
+  have hadd : torusChar d n x = torusChar d n (x - y) * torusChar d n y := by
+    rw [← torusChar_add, sub_add_cancel]
+  have e : torusChar d n x - torusChar d n y = (torusChar d n (x - y) - 1) * torusChar d n y := by
+    rw [hadd]; ring
+  rw [e, norm_mul, torusChar_norm, mul_one]
+  unfold torusChar
+  refine (norm_prod_sub_one_le _ _ fun i => by
+    rw [fourier_apply]; exact (Circle.norm_coe _).le).trans ?_
+  rw [Finset.mul_sum, Finset.sum_mul]
+  refine Finset.sum_le_sum fun i _ => ?_
+  have h1 := fourier_sub_one_le (n i) ((x - y) i)
+  have h2 : ‖(x - y) i‖ ≤ dist x y := by
+    rw [Pi.sub_apply, ← dist_eq_norm]; exact dist_le_pi_dist x y i
+  have h3 : 0 ≤ 2 * Real.pi * |((n i : ℤ) : ℝ)| := by positivity
+  exact h1.trans (mul_le_mul_of_nonneg_left h2 h3)
+
+/-- `|k| ≤ k²` for integers. -/
+theorem int_abs_le_sq (k : ℤ) : |(k : ℝ)| ≤ (k : ℝ) ^ 2 := by
+  rw [← sq_abs]
+  by_cases h : k = 0
+  · simp [h]
+  · have : (1 : ℝ) ≤ |(k : ℝ)| := by
+      rw [← Int.cast_abs]; exact_mod_cast Int.one_le_abs h
+    nlinarith
+
+/-- `s e^{-cs} ≤ (2/c) e^{-cs/2}`. -/
+theorem mul_exp_neg_le {c s : ℝ} (hc : 0 < c) (hs : 0 ≤ s) :
+    s * Real.exp (-c * s) ≤ 2 / c * Real.exp (-(c / 2) * s) := by
+  have h1 : Real.exp (-c * s) = Real.exp (-(c / 2) * s) * Real.exp (-(c / 2) * s) := by
+    rw [← Real.exp_add]; congr 1; ring
+  have h2 : c / 2 * s * Real.exp (-(c / 2) * s) ≤ 1 := by
+    have ha := Real.add_one_le_exp (c / 2 * s)
+    have hpos := Real.exp_pos (-(c / 2) * s)
+    have hinv : Real.exp (c / 2 * s) * Real.exp (-(c / 2) * s) = 1 := by
+      rw [← Real.exp_add]; simp
+    nlinarith [mul_nonneg (mul_nonneg hc.le hs) hpos.le]
+  have hpos := Real.exp_pos (-(c / 2) * s)
+  rw [h1]
+  have : s * Real.exp (-(c / 2) * s) ≤ 2 / c := by
+    rw [le_div_iff₀ hc]; nlinarith
+  nlinarith
+
+/-- **Lipschitz constant of the heat kernel of the flat torus.** -/
+theorem heatTorus_lipschitz {c : ℝ} (hc : 0 < c) (d : ℕ) (x y : FlatTorus d) :
+    |heatTorus d c x - heatTorus d c y|
+      ≤ 2 * Real.pi * (2 / c) * (1 + Real.sqrt (2 * Real.pi / c)) ^ d * dist x y := by
+  set a : (Fin d → ℤ) → ℝ := fun n => Real.exp (-c * ∑ i, ((n i : ℤ) : ℝ) ^ 2) with ha
+  have ha0 : ∀ n, 0 < a n := fun n => Real.exp_pos _
+  have hsa : Summable a := gauss_summable hc d
+  have hF : ∀ z : FlatTorus d, Summable fun n => a n * (torusChar d n z).re := fun z =>
+    Summable.of_norm (Summable.of_nonneg_of_le (fun n => norm_nonneg _) (fun n => by
+      rw [Real.norm_eq_abs, abs_mul, abs_of_pos (ha0 n)]
+      have := (Complex.abs_re_le_norm (torusChar d n z)).trans (torusChar_norm d n z).le
+      nlinarith [ha0 n]) hsa)
+  have hc2 : 0 < c / 2 := by positivity
+  set g : (Fin d → ℤ) → ℝ := fun n =>
+    2 * Real.pi * (2 / c) * dist x y * Real.exp (-(c / 2) * ∑ i, ((n i : ℤ) : ℝ) ^ 2) with hg
+  have hsg : Summable g := (gauss_summable hc2 d).mul_left _
+  have hterm : ∀ n, |a n * (torusChar d n x).re - a n * (torusChar d n y).re| ≤ g n := by
+    intro n
+    have h1 : |(torusChar d n x).re - (torusChar d n y).re|
+        ≤ 2 * Real.pi * (∑ i, |((n i : ℤ) : ℝ)|) * dist x y := by
+      rw [← Complex.sub_re]
+      exact (Complex.abs_re_le_norm _).trans (torusChar_lipschitz d n x y)
+    have h2 : ∑ i, |((n i : ℤ) : ℝ)| ≤ ∑ i, ((n i : ℤ) : ℝ) ^ 2 :=
+      Finset.sum_le_sum fun i _ => int_abs_le_sq (n i)
+    have hs0 : 0 ≤ ∑ i, ((n i : ℤ) : ℝ) ^ 2 := Finset.sum_nonneg fun i _ => _root_.sq_nonneg _
+    have h3 := mul_exp_neg_le hc hs0
+    have hd : 0 ≤ dist x y := dist_nonneg
+    rw [← mul_sub, abs_mul, abs_of_pos (ha0 n)]
+    have h4 : a n * |(torusChar d n x).re - (torusChar d n y).re|
+        ≤ a n * (2 * Real.pi * (∑ i, ((n i : ℤ) : ℝ) ^ 2) * dist x y) := by
+      refine mul_le_mul_of_nonneg_left (h1.trans ?_) (ha0 n).le
+      have : 0 ≤ 2 * Real.pi := by positivity
+      exact mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_left h2 this) hd
+    refine h4.trans ?_
+    have h5 : a n * (2 * Real.pi * (∑ i, ((n i : ℤ) : ℝ) ^ 2) * dist x y)
+        = 2 * Real.pi * dist x y * ((∑ i, ((n i : ℤ) : ℝ) ^ 2) * a n) := by ring
+    rw [h5, hg]
+    have : 0 ≤ 2 * Real.pi * dist x y := by positivity
+    calc 2 * Real.pi * dist x y * ((∑ i, ((n i : ℤ) : ℝ) ^ 2) * a n)
+        ≤ 2 * Real.pi * dist x y * (2 / c * Real.exp (-(c / 2) * ∑ i, ((n i : ℤ) : ℝ) ^ 2)) :=
+          mul_le_mul_of_nonneg_left h3 this
+      _ = _ := by ring
+  have hdiff : heatTorus d c x - heatTorus d c y
+      = ∑' n, (a n * (torusChar d n x).re - a n * (torusChar d n y).re) := by
+    unfold heatTorus cosSeries
+    exact ((hF x).tsum_sub (hF y)).symm
+  have hsabs : Summable fun n => |a n * (torusChar d n x).re - a n * (torusChar d n y).re| :=
+    Summable.of_nonneg_of_le (fun n => abs_nonneg _) hterm hsg
+  rw [hdiff]
+  have h1 : |∑' n, (a n * (torusChar d n x).re - a n * (torusChar d n y).re)|
+      ≤ ∑' n, |a n * (torusChar d n x).re - a n * (torusChar d n y).re| := by
+    simpa [Real.norm_eq_abs] using norm_tsum_le_tsum_norm
+      (f := fun n => a n * (torusChar d n x).re - a n * (torusChar d n y).re)
+      (by simpa [Real.norm_eq_abs] using hsabs)
+  refine h1.trans ((hsabs.tsum_le_tsum hterm hsg).trans ?_)
+  rw [hg, tsum_mul_left]
+  have h6 := gauss_tsum_le hc2 d
+  have e : Real.pi / (c / 2) = 2 * Real.pi / c := by field_simp
+  rw [e] at h6
+  have : 0 ≤ 2 * Real.pi * (2 / c) * dist x y := by positivity
+  calc 2 * Real.pi * (2 / c) * dist x y * ∑' n : Fin d → ℤ, Real.exp (-(c / 2) * ∑ i, ((n i : ℤ) : ℝ) ^ 2)
+      ≤ 2 * Real.pi * (2 / c) * dist x y * (1 + Real.sqrt (2 * Real.pi / c)) ^ d :=
+        mul_le_mul_of_nonneg_left h6 this
+    _ = _ := by ring
+
+/-- The heat kernel of the torus has mass one. -/
+theorem heatTorus_mass {c : ℝ} (hc : 0 < c) (d : ℕ) :
+    ∫ u, heatTorus d c u ∂flatTorusMeasure d = 1 := by
+  have habs : Summable fun n : Fin d → ℤ => |Real.exp (-c * ∑ i, ((n i : ℤ) : ℝ) ^ 2)| := by
+    simpa [abs_of_pos (Real.exp_pos _)] using gauss_summable hc d
+  have h := (cosSeries_coeff d (fun n => Real.exp (-c * ∑ i, ((n i : ℤ) : ℝ) ^ 2)) habs
+    (fun n => by simp) 0).1
+  simp only [torusChar_zero, Complex.one_re, one_mul, Pi.zero_apply, Int.cast_zero] at h
+  unfold heatTorus
+  rw [h]; simp
+
+/-- It is positive at the origin. -/
+theorem heatTorus_zero_pos {c : ℝ} (hc : 0 < c) (d : ℕ) : 0 < heatTorus d c 0 := by
+  unfold heatTorus
+  rw [cosSeries_zero]
+  exact (gauss_summable hc d).tsum_pos (fun n => (Real.exp_pos _).le) 0 (Real.exp_pos _)
+
+/-- **The kernel of the sampled walk with the heat kernel of the torus, at a fixed scale, almost
+    surely, without hypotheses.** Independent uniform points on the flat torus of
+    dimension `d`, kernel `p(x) = ∑_n e^{-c|n|²} Re χ_n(x)` (`c = 2π²σ`), self-loops kept: for every `k`
+    and `eta > 0`, almost surely for all large `N`,
+    `max_{a,i} |(N+1) P^{k+1}(a,i) - p_{(k+1)c}(X_a - X_i)| ≤ eta`. This is the entrywise limit at a
+    FIXED scale; it carries no rate in the scale and is not Theorem "kernel". -/
+theorem heatTorus_walk_ae {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] (d : ℕ) (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ)
+    (hX : ∀ j, Measurable (X j)) (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d)
+    {c : ℝ} (hc : 0 < c) (k : ℕ) {eta : ℝ} (heta : 0 < eta) :
+    ∀ᵐ ω ∂μ, ∀ᶠ N in Filter.atTop, ∀ a i : Fin (N + 1),
+      |((N + 1 : ℕ) : ℝ) * (walkMatrix (fun i j : Fin (N + 1) => heatTorus d c (X i ω - X j ω))
+            (fun i : Fin (N + 1) => (∑ l : Fin (N + 1), heatTorus d c (X i ω - X l ω)) / (N + 1 : ℕ))
+              ^ (k + 1)) a i - heatTorus d ((k + 1 : ℕ) * c) (X a ω - X i ω)| ≤ eta := by
+  haveI : (flatTorusMeasure d).IsNegInvariant :=
+    Measure.IsAddHaarMeasure.isNegInvariant_of_regular (flatTorusMeasure d)
+  have habs : Summable fun n : Fin d → ℤ => |Real.exp (-c * ∑ i, ((n i : ℤ) : ℝ) ^ 2)| := by
+    simpa [abs_of_pos (Real.exp_pos _)] using gauss_summable hc d
+  have hM : ∀ u, heatTorus d c u ≤ (1 + Real.sqrt (Real.pi / c)) ^ d := fun u => by
+    have h1 := cosSeries_abs_le d (fun n => Real.exp (-c * ∑ i, ((n i : ℤ) : ℝ) ^ 2)) habs u
+    simp_rw [abs_of_pos (Real.exp_pos _)] at h1
+    exact (le_abs_self _).trans (h1.trans (gauss_tsum_le hc d))
+  have h := kernel_fixed_scale_ae (μ := μ) (G := FlatTorus d) (flatTorusMeasure d)
+    (fun x x' y => dist_sub_right x x' y) (fun x y y' => dist_sub_left x y y') X h_indep hX hlaw
+    (heatTorus d c) (cosSeries_continuous d _ habs).measurable
+    (M := (1 + Real.sqrt (Real.pi / c)) ^ d)
+    (L := 2 * Real.pi * (2 / c) * (1 + Real.sqrt (2 * Real.pi / c)) ^ d)
+    (one_le_pow₀ (by linarith [Real.sqrt_nonneg (Real.pi / c)])) (by positivity)
+    (heatTorus_nonneg hc d) hM (heatTorus_mass hc d) (heatTorus_lipschitz hc d)
+    (heatTorus_zero_pos hc d) k heta
+  rw [(heatTorus_convPow hc d k).1] at h
+  exact h
+
+end HeatWalk
+
+/-! ### Explicit nets on the torus and the quantitative kernel bound (weak form) -/
+
+/-- The grid `{j/m : j < m}` on the circle. -/
+noncomputable def circleNet (m : ℕ) : Finset UnitAddCircle :=
+  (Finset.range m).image fun j : ℕ => (((j : ℝ) / (m : ℝ) : ℝ) : UnitAddCircle)
+
+/-- It has at most `m` points. -/
+theorem circleNet_card (m : ℕ) : (circleNet m).card ≤ m :=
+  Finset.card_image_le.trans (by simp)
+
+/-- Every point of the circle is within `1/m` of the grid. -/
+theorem circleNet_dense {m : ℕ} (hm : 0 < m) (x : UnitAddCircle) :
+    ∃ a ∈ circleNet m, dist x a ≤ 1 / m := by
+  obtain ⟨s, rfl⟩ := QuotientAddGroup.mk_surjective x
+  have hm' : (0 : ℝ) < m := by exact_mod_cast hm
+  set j' : ℤ := ⌊s * m⌋ with hj'
+  set j : ℕ := (j' % (m : ℤ)).toNat with hj
+  have hmz : (0 : ℤ) < m := by exact_mod_cast hm
+  have hjlt : j < m := by
+    have h1 := Int.emod_lt_of_pos j' hmz
+    have h2 := Int.emod_nonneg j' hmz.ne'
+    omega
+  have hjz : (j : ℤ) = j' % m := Int.toNat_of_nonneg (Int.emod_nonneg j' hmz.ne')
+  refine ⟨_, Finset.mem_image.mpr ⟨j, Finset.mem_range.mpr hjlt, rfl⟩, ?_⟩
+  rw [dist_eq_norm]
+  have hcoe : ((s : ℝ) : UnitAddCircle) - (((j : ℝ) / m : ℝ) : UnitAddCircle)
+      = ((s - (j : ℝ) / m : ℝ) : UnitAddCircle) := rfl
+  rw [hcoe, UnitAddCircle.norm_eq]
+  refine (round_le _ (j' / (m : ℤ))).trans ?_
+  have hdecomp : (j' : ℝ) = m * ((j' / (m : ℤ) : ℤ) : ℝ) + (j : ℝ) := by
+    have := Int.mul_ediv_add_emod j' m
+    have h2 : ((m : ℤ) * (j' / m) + j' % m : ℤ) = j' := this
+    rw [← hjz] at h2
+    exact_mod_cast h2.symm
+  have e : s - (j : ℝ) / m - ((j' / (m : ℤ) : ℤ) : ℝ) = (s * m - j') / m := by
+    rw [hdecomp]; field_simp; ring
+  rw [e, abs_div, abs_of_pos hm']
+  apply div_le_div_of_nonneg_right _ hm'.le
+  have h1 := Int.floor_le (s * m)
+  have h2 := Int.lt_floor_add_one (s * m)
+  rw [abs_le]; constructor <;> linarith
+
+/-- The product grid on the flat torus. -/
+noncomputable def torusNet (d m : ℕ) : Finset (FlatTorus d) :=
+  Fintype.piFinset fun _ => circleNet m
+
+/-- It has at most `m^d` points. -/
+theorem torusNet_card (d m : ℕ) : (torusNet d m).card ≤ m ^ d := by
+  unfold torusNet
+  rw [Fintype.card_piFinset, Finset.prod_const, Finset.card_univ, Fintype.card_fin]
+  exact Nat.pow_le_pow_left (circleNet_card m) d
+
+/-- Every point of the torus is within `1/m` of the grid (supremum metric). -/
+theorem torusNet_dense (d : ℕ) {m : ℕ} (hm : 0 < m) (x : FlatTorus d) :
+    ∃ a ∈ torusNet d m, dist x a ≤ 1 / m := by
+  choose a ha hd using fun i => circleNet_dense hm (x i)
+  refine ⟨a, Fintype.mem_piFinset.mpr ha, ?_⟩
+  exact (dist_pi_le_iff (by positivity)).mpr hd
+
+/-- The same for pairs of points. -/
+theorem torusNet2_dense (d : ℕ) {m : ℕ} (hm : 0 < m) (t : FlatTorus d × FlatTorus d) :
+    ∃ a ∈ torusNet d m ×ˢ torusNet d m, dist t a ≤ 1 / m := by
+  obtain ⟨a, ha, hda⟩ := torusNet_dense d hm t.1
+  obtain ⟨b, hb, hdb⟩ := torusNet_dense d hm t.2
+  exact ⟨(a, b), Finset.mem_product.mpr ⟨ha, hb⟩, max_le hda hdb⟩
+
+/-- The grid of pairs has at most `m^{2d}` points. -/
+theorem torusNet2_card (d m : ℕ) : (torusNet d m ×ˢ torusNet d m).card ≤ m ^ (2 * d) := by
+  rw [Finset.card_product, two_mul, pow_add]
+  exact Nat.mul_le_mul (torusNet_card d m) (torusNet_card d m)
+
+
+/-- `kernel_fixed_scale_torus` with the two nets given instead of obtained from compactness, so
+    that their cardinalities appear in the bound. -/
+theorem kernel_fixed_scale_nets {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {G : Type*} [AddCommGroup G] [MetricSpace G]
+    [MeasurableSpace G] [BorelSpace G] [IsTopologicalAddGroup G] [SecondCountableTopology G]
+    (ν : Measure G) [IsProbabilityMeasure ν] [ν.IsAddLeftInvariant] [ν.IsNegInvariant]
+    (hdist : ∀ x x' y : G, dist (x - y) (x' - y) = dist x x')
+    (hdist2 : ∀ x y y' : G, dist (x - y) (x - y') = dist y y')
+    (X : ℕ → Ω → G) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = ν)
+    (p : G → ℝ) (hp : Measurable p) {M L r : ℝ} (hM1 : 1 ≤ M) (hL : 0 ≤ L)
+    (hp0 : ∀ u, 0 ≤ p u) (hpM : ∀ u, p u ≤ M) (hmass : ∫ u, p u ∂ν = 1)
+    (hlip : ∀ u u', |p u - p u'| ≤ L * dist u u') (hr : 0 ≤ r) (k : ℕ)
+    (net1 : Finset G) (hnet1 : ∀ x : G, ∃ a ∈ net1, dist x a ≤ r)
+    (net2 : Finset (G × G)) (hnet2 : ∀ x : G × G, ∃ a ∈ net2, dist x a ≤ r) :
+    ∀ (N : ℕ) [NeZero N] (P : Ω → Matrix (Fin N) (Fin N) ℝ),
+      (∀ ω b j, P ω b j
+        = (p (X b ω - X j ω) / ((∑ l : Fin N, p (X j ω - X l ω)) / N))
+          / ∑ l : Fin N, p (X b ω - X l ω) / ((∑ l' : Fin N, p (X l ω - X l' ω)) / N)) →
+      ∀ (epsn epsc : ℝ), 0 ≤ epsn → 0 ≤ epsc → epsn + 2 * (N * L) * r ≤ N / 8 →
+      μ.real {ω | ∃ a i : Fin N,
+          10 * ((epsn + 2 * (N * L) * r) / N) * (convPow ν p k (X a ω - X i ω)
+              + ∑ m ∈ Finset.range k,
+                  (3 * ((epsc + 2 * (N * (L * M + M * (L * max 1 M) + 2 * (L * max 1 M))) * r) / N)
+                    + 11 * ((epsn + 2 * (N * L) * r) / N) * M))
+            + ∑ m ∈ Finset.range k,
+                (3 * ((epsc + 2 * (N * (L * M + M * (L * max 1 M) + 2 * (L * max 1 M))) * r) / N)
+                  + 11 * ((epsn + 2 * (N * L) * r) / N) * M)
+          < |(N : ℝ) * (P ω ^ (k + 1)) a i - convPow ν p k (X a ω - X i ω)|}
+        ≤ net1.card * (2 * Real.exp (-epsn ^ 2 / (2 * N * (M / 2) ^ 2)))
+          + ∑ _m ∈ Finset.range k, net2.card * (2 * Real.exp (-epsc ^ 2 / (2 * N * (M * M / 2) ^ 2))) := by
+  have hM0 : 0 ≤ M := by linarith
+  have hpint : Integrable p ν :=
+    Integrable.of_bound hp.aestronglyMeasurable M (Filter.Eventually.of_forall (fun u => by
+      rw [Real.norm_eq_abs, abs_of_nonneg (hp0 u)]; exact hpM u))
+  have hq0 := convPow_nonneg ν p hp0
+  have hqB := convPow_le_all ν p hp hp0 hpM hpint hmass
+  have hqlip := convPow_lipschitz_all ν hdist p hp hp0 hpM hpint hmass hL hlip
+  have hLq : 0 ≤ L * max 1 M := mul_nonneg hL (le_trans zero_le_one (le_max_left _ _))
+  intro N _ P hP epsn epsc hn hc hsmall
+  have hNpos : 0 < (N : ℝ) := by exact_mod_cast Nat.pos_of_ne_zero (NeZero.ne N)
+  -- the normalisation event
+  have hBn := uniform_normalisation (μ := μ) X h_indep hX (fun x y => p (x - y))
+    (fun x => hp.comp (measurable_const.sub measurable_id)) hM0 hL
+    (fun x y => ⟨hp0 _, hpM _⟩)
+    (fun x x' y => by rw [← hdist x x' y]; exact hlip (x - y) (x' - y))
+    (fun _ => 1)
+    (fun x j => by
+      have h1 : ∫ ω, p (x - X j ω) ∂μ = ∫ y, p (x - y) ∂(μ.map (X j)) :=
+        (integral_map (hX j).aemeasurable
+          ((hp.comp (measurable_const.sub measurable_id)).aestronglyMeasurable)).symm
+      rw [h1, hlaw j, integral_sub_left_eq_self p ν x, hmass])
+    (fun x x' => by simpa using mul_nonneg hL dist_nonneg)
+    net1 hnet1 N hn
+  simp only [mul_one] at hBn
+  -- the consistency events
+  have hBc : ∀ m < k, μ.real {ω | ∃ t : G × G,
+        epsc + 2 * (N * (L * M + M * (L * max 1 M) + 2 * (L * max 1 M))) * r
+        < |∑ j ∈ Finset.range N, p (t.1 - X j ω) * convPow ν p m (X j ω - t.2)
+            - N * convPow ν p (m + 1) (t.1 - t.2)|}
+      ≤ net2.card * (2 * Real.exp (-epsc ^ 2 / (2 * N * (M * M / 2) ^ 2))) := by
+    intro m _
+    exact consistency_uniform_exact (μ := μ) ν hdist hdist2 X h_indep hX hlaw p m
+      (fun x y => (hp.comp (measurable_const.sub measurable_id)).mul
+        ((convPow_measurable ν p hp m).comp (measurable_id.sub measurable_const)))
+      hM0 hM0 hL hLq hLq hp0 hpM (hq0 m) (hqB m) hlip (hqlip m) (hqlip (m + 1))
+      (by nlinarith [hLq]) (by nlinarith [mul_nonneg hL hM0, mul_nonneg hM0 hLq])
+      net2 hnet2 N hc
+  exact kernel_fixed_scale_whp (μ := μ) ν X p (fun _ => M) N k hq0 hqB P hP
+    (fun _ => net2.card * (2 * Real.exp (-epsc ^ 2 / (2 * N * (M * M / 2) ^ 2))))
+    (by positivity) hsmall hBn hBc
+
+/-- `kernel_fixed_scale_torus_walk` with given nets. -/
+theorem kernel_fixed_scale_nets_walk {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {G : Type*} [AddCommGroup G] [MetricSpace G]
+    [MeasurableSpace G] [BorelSpace G] [IsTopologicalAddGroup G] [SecondCountableTopology G]
+    (ν : Measure G) [IsProbabilityMeasure ν] [ν.IsAddLeftInvariant] [ν.IsNegInvariant]
+    (hdist : ∀ x x' y : G, dist (x - y) (x' - y) = dist x x')
+    (hdist2 : ∀ x y y' : G, dist (x - y) (x - y') = dist y y')
+    (X : ℕ → Ω → G) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = ν)
+    (p : G → ℝ) (hp : Measurable p) {M L r : ℝ} (hM1 : 1 ≤ M) (hL : 0 ≤ L)
+    (hp0 : ∀ u, 0 ≤ p u) (hpM : ∀ u, p u ≤ M) (hmass : ∫ u, p u ∂ν = 1)
+    (hlip : ∀ u u', |p u - p u'| ≤ L * dist u u') (hpzero : 0 < p 0) (hr : 0 ≤ r) (k : ℕ)
+    (net1 : Finset G) (hnet1 : ∀ x : G, ∃ a ∈ net1, dist x a ≤ r)
+    (net2 : Finset (G × G)) (hnet2 : ∀ x : G × G, ∃ a ∈ net2, dist x a ≤ r) :
+    ∀ (N : ℕ) [NeZero N],
+      ∀ (epsn epsc : ℝ), 0 ≤ epsn → 0 ≤ epsc → epsn + 2 * (N * L) * r ≤ N / 8 →
+      μ.real {ω | ∃ a i : Fin N,
+          10 * ((epsn + 2 * (N * L) * r) / N) * (convPow ν p k (X a ω - X i ω)
+              + ∑ m ∈ Finset.range k,
+                  (3 * ((epsc + 2 * (N * (L * M + M * (L * max 1 M) + 2 * (L * max 1 M))) * r) / N)
+                    + 11 * ((epsn + 2 * (N * L) * r) / N) * M))
+            + ∑ m ∈ Finset.range k,
+                (3 * ((epsc + 2 * (N * (L * M + M * (L * max 1 M) + 2 * (L * max 1 M))) * r) / N)
+                  + 11 * ((epsn + 2 * (N * L) * r) / N) * M)
+          < |(N : ℝ) * (walkMatrix (fun i j : Fin N => p (X i ω - X j ω))
+              (fun i : Fin N => (∑ l : Fin N, p (X i ω - X l ω)) / N) ^ (k + 1)) a i - convPow ν p k (X a ω - X i ω)|}
+        ≤ net1.card * (2 * Real.exp (-epsn ^ 2 / (2 * N * (M / 2) ^ 2)))
+          + ∑ _m ∈ Finset.range k, net2.card * (2 * Real.exp (-epsc ^ 2 / (2 * N * (M * M / 2) ^ 2))) := by
+  have h := kernel_fixed_scale_nets (μ := μ) ν hdist hdist2 X h_indep hX hlaw p hp
+    hM1 hL hp0 hpM hmass hlip hr k net1 hnet1 net2 hnet2
+  intro N _
+  have hNpos : 0 < (N : ℝ) := by exact_mod_cast Nat.pos_of_ne_zero (NeZero.ne N)
+  refine h N (fun ω => walkMatrix (fun i j : Fin N => p (X i ω - X j ω))
+    (fun i : Fin N => (∑ l : Fin N, p (X i ω - X l ω)) / N)) (fun ω b j => ?_)
+  refine walkMatrix_apply' _ _ b j ?_
+  have hpos : 0 < ∑ l : Fin N, p (X b ω - X l ω) := by
+    have h1 : p (X b ω - X b ω) ≤ ∑ l : Fin N, p (X b ω - X l ω) :=
+      Finset.single_le_sum (f := fun l : Fin N => p (X b ω - X l ω)) (fun l _ => hp0 _)
+        (Finset.mem_univ b)
+    rw [sub_self] at h1
+    linarith
+  exact (div_pos hpos hNpos).ne'
+
+/-- **The kernel of the sampled walk with the heat kernel of the torus: quantitative bound with
+    explicit constants (weak form of Theorem "kernel").** Independent uniform points on the flat
+    torus of dimension `d`, kernel `heatTorus d c` (`c = 2π²σ`), `M = (1 + √(π/c))^d`,
+    `L = 2π(2/c)(1 + √(2π/c))^d`, grid parameter `m`. With `δ = (epsn + 2NL/m)/N` and
+    `e = 3 (epsc + 2 N L* /m)/N + 11 δ M`, the probability that some entry violates
+    `|N P^{k+1}(a,i) - p_{(k+1)c}(X_a - X_i)| ≤ 10 δ (p_{(k+1)c} + k e) + k e` is at most
+    `2 m^d exp(-epsn²/(2N(M/2)²)) + 2 k m^{2d} exp(-epsc²/(2N(M²/2)²))`. Every constant is explicit
+    in `c`, `d`, `N`, `k`. Compared with the theorem of the paper: Hoeffding instead of Bernstein
+    (`M` in place of `√M` in the deviation), uniform bound `M` for all convolution powers, error
+    linear in `k` instead of `√k m_k`; the regime in which the bound is small is therefore
+    smaller than that of the paper. -/
+theorem heatTorus_walk_whp {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] (d : ℕ) (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ)
+    (hX : ∀ j, Measurable (X j)) (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d)
+    {c : ℝ} (hc : 0 < c) (k : ℕ) {m : ℕ} (hm : 0 < m) (N : ℕ) [NeZero N]
+    {M L : ℝ} (hMdef : M = (1 + Real.sqrt (Real.pi / c)) ^ d)
+    (hLdef : L = 2 * Real.pi * (2 / c) * (1 + Real.sqrt (2 * Real.pi / c)) ^ d)
+    (epsn epsc : ℝ) (hn : 0 ≤ epsn) (hcc : 0 ≤ epsc)
+    (hsmall : epsn + 2 * (N * L) * (1 / m) ≤ N / 8) :
+    μ.real {ω | ∃ a i : Fin N,
+        10 * ((epsn + 2 * (N * L) * (1 / m)) / N) * (heatTorus d ((k + 1 : ℕ) * c) (X a ω - X i ω)
+            + ∑ _j ∈ Finset.range k,
+                (3 * ((epsc + 2 * (N * (L * M + M * (L * max 1 M) + 2 * (L * max 1 M))) * (1 / m)) / N)
+                  + 11 * ((epsn + 2 * (N * L) * (1 / m)) / N) * M))
+          + ∑ _j ∈ Finset.range k,
+              (3 * ((epsc + 2 * (N * (L * M + M * (L * max 1 M) + 2 * (L * max 1 M))) * (1 / m)) / N)
+                + 11 * ((epsn + 2 * (N * L) * (1 / m)) / N) * M)
+        < |(N : ℝ) * (walkMatrix (fun i j : Fin N => heatTorus d c (X i ω - X j ω))
+            (fun i : Fin N => (∑ l : Fin N, heatTorus d c (X i ω - X l ω)) / N) ^ (k + 1)) a i
+            - heatTorus d ((k + 1 : ℕ) * c) (X a ω - X i ω)|}
+      ≤ (m : ℝ) ^ d * (2 * Real.exp (-epsn ^ 2 / (2 * N * (M / 2) ^ 2)))
+        + ∑ _j ∈ Finset.range k,
+            (m : ℝ) ^ (2 * d) * (2 * Real.exp (-epsc ^ 2 / (2 * N * (M * M / 2) ^ 2))) := by
+  haveI : (flatTorusMeasure d).IsNegInvariant :=
+    Measure.IsAddHaarMeasure.isNegInvariant_of_regular (flatTorusMeasure d)
+  have habs : Summable fun n : Fin d → ℤ => |Real.exp (-c * ∑ i, ((n i : ℤ) : ℝ) ^ 2)| := by
+    simpa [abs_of_pos (Real.exp_pos _)] using gauss_summable hc d
+  have hM : ∀ u, heatTorus d c u ≤ M := fun u => by
+    have h1 := cosSeries_abs_le d (fun n => Real.exp (-c * ∑ i, ((n i : ℤ) : ℝ) ^ 2)) habs u
+    simp_rw [abs_of_pos (Real.exp_pos _)] at h1
+    rw [hMdef]
+    exact (le_abs_self _).trans (h1.trans (gauss_tsum_le hc d))
+  have hM1 : 1 ≤ M := by
+    rw [hMdef]; exact one_le_pow₀ (by linarith [Real.sqrt_nonneg (Real.pi / c)])
+  have hL0 : 0 ≤ L := by rw [hLdef]; positivity
+  have h := kernel_fixed_scale_nets_walk (μ := μ) (G := FlatTorus d) (flatTorusMeasure d)
+    (fun x x' y => dist_sub_right x x' y) (fun x y y' => dist_sub_left x y y') X h_indep hX hlaw
+    (heatTorus d c) (cosSeries_continuous d _ habs).measurable (M := M) (L := L) (r := 1 / m)
+    hM1 hL0 (heatTorus_nonneg hc d) hM (heatTorus_mass hc d)
+    (fun u u' => by rw [hLdef]; exact heatTorus_lipschitz hc d u u')
+    (heatTorus_zero_pos hc d) (by positivity) k
+    (torusNet d m) (torusNet_dense d hm) (torusNet d m ×ˢ torusNet d m) (torusNet2_dense d hm)
+    N epsn epsc hn hcc hsmall
+  rw [(heatTorus_convPow hc d k).1] at h
+  refine h.trans ?_
+  have c1 : ((torusNet d m).card : ℝ) ≤ (m : ℝ) ^ d := by exact_mod_cast torusNet_card d m
+  have c2 : ((torusNet d m ×ˢ torusNet d m).card : ℝ) ≤ (m : ℝ) ^ (2 * d) := by
+    exact_mod_cast torusNet2_card d m
+  refine add_le_add (mul_le_mul_of_nonneg_right c1 (by positivity))
+    (Finset.sum_le_sum fun _ _ => mul_le_mul_of_nonneg_right c2 (by positivity))
+
+/-! ### The heat-kernel matrix: positive semidefiniteness and truncation -/
+
+/-- The matrix of the heat kernel of the torus at arbitrary points is positive semidefinite. -/
+theorem heatTorus_quadform_nonneg {c : ℝ} (hc : 0 < c) (d : ℕ) {n : Type*} [Fintype n]
+    (x : n → FlatTorus d) (y : n → ℝ) :
+    0 ≤ ∑ i, ∑ j, y i * y j * heatTorus d c (x i - x j) := by
+  set a : (Fin d → ℤ) → ℝ := fun k => Real.exp (-c * ∑ i, ((k i : ℤ) : ℝ) ^ 2) with ha
+  have hF : ∀ z : FlatTorus d, HasSum (fun k => a k * (torusChar d k z).re) (heatTorus d c z) :=
+    fun z => (Summable.of_norm (Summable.of_nonneg_of_le (fun k => norm_nonneg _) (fun k => by
+      rw [Real.norm_eq_abs, abs_mul, abs_of_pos (Real.exp_pos _)]
+      have := (Complex.abs_re_le_norm (torusChar d k z)).trans (torusChar_norm d k z).le
+      nlinarith [Real.exp_pos (-c * ∑ i, ((k i : ℤ) : ℝ) ^ 2)]) (gauss_summable hc d))).hasSum
+  have hS : HasSum (fun k => ∑ i, ∑ j, y i * y j * (a k * (torusChar d k (x i - x j)).re))
+      (∑ i, ∑ j, y i * y j * heatTorus d c (x i - x j)) :=
+    hasSum_sum fun i _ => hasSum_sum fun j _ => (hF (x i - x j)).mul_left (y i * y j)
+  refine HasSum.nonneg (fun k => ?_) hS
+  have e : ∑ i, ∑ j, y i * y j * (a k * (torusChar d k (x i - x j)).re)
+      = a k * ((∑ i, y i * (torusChar d k (x i)).re) ^ 2
+          + (∑ i, y i * (torusChar d k (x i)).im) ^ 2) := by
+    rw [_root_.sq, _root_.sq, Finset.sum_mul_sum, Finset.sum_mul_sum, ← Finset.sum_add_distrib, Finset.mul_sum]
+    refine Finset.sum_congr rfl fun i _ => ?_
+    rw [← Finset.sum_add_distrib, Finset.mul_sum]
+    refine Finset.sum_congr rfl fun j _ => ?_
+    rw [torusChar_sub_re]; ring
+  rw [e]
+  exact mul_nonneg (Real.exp_pos _).le (add_nonneg (_root_.sq_nonneg _) (_root_.sq_nonneg _))
+
+open Filter Topology in
+/-- **Truncation of the Fourier series of the heat kernel of the torus.** If every frequency
+    outside the finite set `T` has `|n|² ≥ R`, the partial sum over `T` is within
+    `e^{-cR/2} (1 + √(2π/c))^d` of the kernel, uniformly on the torus. -/
+theorem heatTorus_truncation {c : ℝ} (hc : 0 < c) (d : ℕ) (T : Finset (Fin d → ℤ)) {R : ℝ}
+    (hT : ∀ n, n ∉ T → R ≤ ∑ i, ((n i : ℤ) : ℝ) ^ 2) (u : FlatTorus d) :
+    |heatTorus d c u - ∑ n ∈ T, Real.exp (-c * ∑ i, ((n i : ℤ) : ℝ) ^ 2) * (torusChar d n u).re|
+      ≤ Real.exp (-c * R / 2) * (1 + Real.sqrt (2 * Real.pi / c)) ^ d := by
+  classical
+  set F : (Fin d → ℤ) → ℝ := fun k =>
+    Real.exp (-c * ∑ i, ((k i : ℤ) : ℝ) ^ 2) * (torusChar d k u).re with hFdef
+  have hFabs : ∀ k, |F k| ≤ Real.exp (-c * ∑ i, ((k i : ℤ) : ℝ) ^ 2) := fun k => by
+    rw [hFdef]; simp only
+    rw [abs_mul, abs_of_pos (Real.exp_pos _)]
+    have := (Complex.abs_re_le_norm (torusChar d k u)).trans (torusChar_norm d k u).le
+    nlinarith [Real.exp_pos (-c * ∑ i, ((k i : ℤ) : ℝ) ^ 2)]
+  have hF : HasSum F (heatTorus d c u) :=
+    (Summable.of_norm (Summable.of_nonneg_of_le (fun k => norm_nonneg _)
+      (fun k => by rw [Real.norm_eq_abs]; exact hFabs k) (gauss_summable hc d))).hasSum
+  have hlim : Tendsto (fun U : Finset (Fin d → ℤ) => |∑ n ∈ U, F n - ∑ n ∈ T, F n|) atTop
+      (𝓝 |heatTorus d c u - ∑ n ∈ T, F n|) := (hF.sub_const _).abs
+  refine le_of_tendsto hlim ((eventually_ge_atTop T).mono fun U hU => ?_)
+  have hsplit : ∑ n ∈ U, F n - ∑ n ∈ T, F n = ∑ n ∈ U \ T, F n := by
+    rw [← Finset.sum_sdiff hU]; ring
+  rw [hsplit]
+  refine (Finset.abs_sum_le_sum_abs _ _).trans ((Finset.sum_le_sum fun n _ => hFabs n).trans ?_)
+  exact gauss_tail_sum_le hc d (U \ T) fun n hn => hT n (Finset.mem_sdiff.mp hn).2
+
+/-- Truncation over a half-set of frequencies `H` (nonzero, no pair `n, -n`):
+    `1 + ∑_{n ∈ H} 2 e^{-c|n|²} Re χ_n(u)` approximates the heat kernel up to the tail. -/
+theorem heatTorus_truncation_half {c : ℝ} (hc : 0 < c) (d : ℕ) (H : Finset (Fin d → ℤ))
+    (hH0 : ∀ n ∈ H, n ≠ 0) (hH2 : ∀ m ∈ H, ∀ n ∈ H, m + n ≠ 0) {R : ℝ}
+    (hR : ∀ n : Fin d → ℤ, n ≠ 0 → n ∉ H → -n ∉ H → R ≤ ∑ i, ((n i : ℤ) : ℝ) ^ 2)
+    (u : FlatTorus d) :
+    |heatTorus d c u - (1 + ∑ n ∈ H, 2 * Real.exp (-c * ∑ i, ((n i : ℤ) : ℝ) ^ 2)
+        * (torusChar d n u).re)|
+      ≤ Real.exp (-c * R / 2) * (1 + Real.sqrt (2 * Real.pi / c)) ^ d := by
+  classical
+  set F : (Fin d → ℤ) → ℝ := fun k =>
+    Real.exp (-c * ∑ i, ((k i : ℤ) : ℝ) ^ 2) * (torusChar d k u).re with hFdef
+  have hneg : ∀ n, F (-n) = F n := fun n => by
+    simp only [hFdef, Pi.neg_apply, Int.cast_neg, neg_sq, torusChar_neg_freq, Complex.conj_re]
+  have hdisj : Disjoint H (H.image fun n => -n) := by
+    rw [Finset.disjoint_left]
+    intro n hn hn'
+    obtain ⟨m, hm, rfl⟩ := Finset.mem_image.mp hn'
+    exact hH2 m hm (-m) hn (by simp)
+  have h0 : (0 : Fin d → ℤ) ∉ H ∪ H.image fun n => -n := by
+    intro h
+    rcases Finset.mem_union.mp h with h | h
+    · exact hH0 0 h rfl
+    · obtain ⟨m, hm, hm0⟩ := Finset.mem_image.mp h
+      exact hH0 m hm (neg_eq_zero.mp hm0)
+  have hsum : ∑ n ∈ insert (0 : Fin d → ℤ) (H ∪ H.image fun n => -n), F n
+      = 1 + ∑ n ∈ H, 2 * Real.exp (-c * ∑ i, ((n i : ℤ) : ℝ) ^ 2) * (torusChar d n u).re := by
+    rw [Finset.sum_insert h0, Finset.sum_union hdisj,
+      Finset.sum_image (fun a _ b _ h => neg_injective h)]
+    simp_rw [hneg]
+    rw [← Finset.sum_add_distrib]
+    congr 1
+    · simp [hFdef, torusChar_zero]
+    · exact Finset.sum_congr rfl fun n _ => by simp only [hFdef]; ring
+  rw [← hsum]
+  refine heatTorus_truncation hc d _ (fun n hn => ?_) u
+  have hn' : n ≠ 0 ∧ n ∉ H ∧ -n ∉ H := by
+    refine ⟨fun h => hn (h ▸ Finset.mem_insert_self _ _), fun h => hn ?_, fun h => hn ?_⟩
+    · exact Finset.mem_insert_of_mem (Finset.mem_union_left _ h)
+    · exact Finset.mem_insert_of_mem (Finset.mem_union_right _
+        (Finset.mem_image.mpr ⟨-n, h, neg_neg n⟩))
+  exact hR n hn'.1 hn'.2.1 hn'.2.2
+
+/-! ### Real modes of a half-set of frequencies and the deterministic eigenvalue assembly -/
+
+/-- The index set of real modes belonging to a half-set `H` of frequencies. -/
+noncomputable def modeSet (d : ℕ) (H : Finset (Fin d → ℤ)) :
+    Finset (Option ((Fin d → ℤ) × Bool)) := by
+  classical
+  exact insert none ((H.image fun n => some (n, false)) ∪ (H.image fun n => some (n, true)))
+
+/-- The coefficient of a real mode in the heat kernel: `1` for the constant, `e^{-c|n|²}` else. -/
+noncomputable def modeCoeff (d : ℕ) (c : ℝ) : Option ((Fin d → ℤ) × Bool) → ℝ
+  | none => 1
+  | some (n, _) => Real.exp (-c * ∑ i, ((n i : ℤ) : ℝ) ^ 2)
+
+/-- Membership of a nonconstant mode. -/
+theorem mem_modeSet (d : ℕ) (H : Finset (Fin d → ℤ)) (n : Fin d → ℤ) (b : Bool) :
+    some (n, b) ∈ modeSet d H ↔ n ∈ H := by
+  classical
+  unfold modeSet
+  simp only [Finset.mem_insert, Finset.mem_union, Finset.mem_image, Option.some.injEq,
+    Prod.mk.injEq, reduceCtorEq, false_or]
+  constructor
+  · rintro (⟨m, hm, rfl, -⟩ | ⟨m, hm, rfl, -⟩) <;> exact hm
+  · intro h
+    cases b
+    · exact Or.inl ⟨n, h, rfl, rfl⟩
+    · exact Or.inr ⟨n, h, rfl, rfl⟩
+
+/-- The coefficients are nonnegative. -/
+theorem modeCoeff_nonneg (d : ℕ) (c : ℝ) (f : Option ((Fin d → ℤ) × Bool)) :
+    0 ≤ modeCoeff d c f := by
+  rcases f with _ | ⟨n, b⟩
+  · simp [modeCoeff]
+  · exact (Real.exp_pos _).le
+
+/-- The truncated kernel as a sum over the real modes. -/
+theorem modeSet_kernel (d : ℕ) (c : ℝ) (H : Finset (Fin d → ℤ)) (x y : FlatTorus d) :
+    ∑ f ∈ modeSet d H, modeCoeff d c f * torusMode d f x * torusMode d f y
+      = 1 + ∑ n ∈ H, 2 * Real.exp (-c * ∑ i, ((n i : ℤ) : ℝ) ^ 2) * (torusChar d n (x - y)).re := by
+  classical
+  unfold modeSet
+  have hnone : (none : Option ((Fin d → ℤ) × Bool))
+      ∉ (H.image fun n => some (n, false)) ∪ (H.image fun n => some (n, true)) := by
+    simp
+  have hdisj : Disjoint (H.image fun n => (some (n, false) : Option ((Fin d → ℤ) × Bool)))
+      (H.image fun n => some (n, true)) := by
+    rw [Finset.disjoint_left]
+    intro f hf hf'
+    obtain ⟨m, -, rfl⟩ := Finset.mem_image.mp hf
+    obtain ⟨m', -, h⟩ := Finset.mem_image.mp hf'
+    simp at h
+  rw [Finset.sum_insert hnone, Finset.sum_union hdisj,
+    Finset.sum_image (fun a _ b _ h => by simpa using h),
+    Finset.sum_image (fun a _ b _ h => by simpa using h), ← Finset.sum_add_distrib]
+  congr 1
+  · simp [modeCoeff, torusMode]
+  · refine Finset.sum_congr rfl fun n _ => ?_
+    have h := torusMode_kernel d n x y
+    simp only [modeCoeff]
+    linear_combination (Real.exp (-c * ∑ i, ((n i : ℤ) : ℝ) ^ 2)) * h
+
+open Matrix in
+/-- **Eigenvalues of the sampled graph: deterministic assembly on the good event.** Composition
+    of `kernel_fixed_scale_det` (entries of `P^{k+1}`), `conj_pow_entry` and `row_sums_from_kernel`
+    (row sums of `S^{k+1} - X Xᵀ`) and `eigtorus_from_gram`. HYPOTHESES, all of them facts on the
+    event where normalisation, consistency and Gram matrix are controlled: `hrho1`, `hcons`, `hθ`,
+    `hG`, `htail`; `hnn`, `hle1` (eigenvalues of `S` in `[0, 1]`); `hDj` (position of `α^{k+1}` among
+    the coefficients). -/
+theorem eig_sample_det {n F : Type} [Fintype n] [Fintype F] [DecidableEq n] [DecidableEq F]
+    [Nonempty n]
+    (pk : ℕ → n → n → ℝ) (mu dev : ℕ → ℝ) (rho : n → ℝ) (P : Matrix n n ℝ) {delta : ℝ}
+    (hd0 : 0 ≤ delta) (hd : delta ≤ 1 / 8)
+    (hp0 : ∀ m b i, 0 ≤ pk m b i) (hpmu : ∀ m b i, pk m b i ≤ mu m)
+    (hrho : ∀ b, (Fintype.card n : ℝ) * rho b = ∑ l, pk 1 b l)
+    (hrho1 : ∀ b, |rho b - 1| ≤ delta)
+    (hP : ∀ b j, P b j = (pk 1 b j / rho j) / ∑ l, pk 1 b l / rho l)
+    (k : ℕ)
+    (hcons : ∀ m b i, 1 ≤ m → m ≤ k →
+      |∑ j, pk 1 b j / (Fintype.card n : ℝ) * pk m j i - pk (m + 1) b i| ≤ dev m)
+    (S : Matrix n n ℝ) (hS : S.IsHermitian) (hnn : ∀ j, 0 ≤ hS.eigenvalues₀ j)
+    (hle1 : ∀ j, hS.eigenvalues₀ j ≤ 1)
+    (r : n → ℝ) (hr : ∀ i, 0 < r i) (hSP : ∀ i l, S i l = r i * P i l / r l)
+    {θ : ℝ} (hθ0 : 0 ≤ θ) (hθ : ∀ i l, |r i / r l - 1| ≤ θ)
+    (v : Matrix n F ℝ) (a : F → ℝ) (ha : ∀ f, 0 ≤ a f) {eta s t E Dk eps α : ℝ}
+    (heta : 0 ≤ eta) (hs0 : 0 ≤ s) (hs : ∀ f, Real.sqrt (a f) ≤ s)
+    (hG : ∀ f g, |∑ i, v i f * v i g - (if f = g then 1 else 0)| ≤ eta)
+    (hQ : ((Matrix.of fun i f => Real.sqrt (a f) * v i f) *
+        (Matrix.of fun i f => Real.sqrt (a f) * v i f)ᵀ).IsHermitian)
+    (h1 : (fromBlocks ((Matrix.of fun i f => Real.sqrt (a f) * v i f) *
+        (Matrix.of fun i f => Real.sqrt (a f) * v i f)ᵀ) 0 0 (0 : Matrix F F ℝ)).IsHermitian)
+    (hD : (fromBlocks (0 : Matrix n n ℝ) 0 0 (diagonal a)).IsHermitian)
+    (htail : ∀ i l, |pk (k + 1) i l - (Fintype.card n : ℝ) *
+        ((Matrix.of fun i f => Real.sqrt (a f) * v i f) *
+          (Matrix.of fun i f => Real.sqrt (a f) * v i f)ᵀ) i l| ≤ t)
+    (hE : ∑ m ∈ Finset.range k, (3 * dev (m + 1) + 11 * delta * mu (m + 2)) ≤ E)
+    (hDk : 10 * delta * (mu (k + 1) + E) + E ≤ Dk)
+    (heps : θ * (mu (k + 1) + Dk) + Dk + t ≤ eps)
+    (j : Fin (Fintype.card n)) (hj : j.val < Fintype.card (n ⊕ F))
+    (hα0 : 0 ≤ α) (hα1 : α ≤ 1) (hDj : hD.eigenvalues₀ ⟨j.val, hj⟩ = α ^ (k + 1))
+    (h3 : 2 * (eps + eta * s * ∑ g, Real.sqrt (a g)) ≤ α ^ (k + 1)) :
+    |hS.eigenvalues₀ j ^ (k + 1) - α ^ (k + 1)| ≤ eps + eta * s * ∑ g, Real.sqrt (a g)
+      ∧ ((k + 1 : ℕ) : ℝ) * (α ^ (k + 1) * |hS.eigenvalues₀ j - α|)
+          ≤ 2 * (eps + eta * s * ∑ g, Real.sqrt (a g)) := by
+  have hNpos : 0 < (Fintype.card n : ℝ) := by exact_mod_cast Fintype.card_pos
+  have hkern : ∀ a' i, |(Fintype.card n : ℝ) * (P ^ (k + 1)) a' i - pk (k + 1) a' i| ≤ Dk := by
+    intro a' i
+    have h := kernel_fixed_scale_det pk mu dev rho P hd0 hd hp0 hpmu hrho hrho1 hP k hcons a' i
+    have hmu := hpmu (k + 1) a' i
+    have h10 : 0 ≤ 10 * delta := by linarith
+    have : 10 * delta * (pk (k + 1) a' i
+        + ∑ m ∈ Finset.range k, (3 * dev (m + 1) + 11 * delta * mu (m + 2)))
+        ≤ 10 * delta * (mu (k + 1) + E) := mul_le_mul_of_nonneg_left (by linarith) h10
+    linarith
+  have hrow : ∀ i, ∑ l, |(S ^ (k + 1)) i l - ((Matrix.of fun i f => Real.sqrt (a f) * v i f) *
+        (Matrix.of fun i f => Real.sqrt (a f) * v i f)ᵀ) i l| ≤ eps := by
+    intro i
+    refine (row_sums_from_kernel (S ^ (k + 1)) (P ^ (k + 1)) _ (Matrix.of fun i l => pk (k + 1) i l)
+      (fun i l => r i / r l) hNpos rfl hθ0 (fun i l => ?_) hθ (fun i l => hkern i l)
+      (fun i l => ?_) (fun i l => htail i l) i).trans heps
+    · rw [conj_pow_entry S P r hr hSP (k + 1) i l]; ring
+    · show |pk (k + 1) i l| ≤ mu (k + 1)
+      rw [abs_of_nonneg (hp0 _ _ _)]; exact hpmu _ _ _
+  exact eigtorus_from_gram S hS hnn hle1 k v a ha heta hs0 hs hG hQ h1 hD hrow j hj hα0 hα1 hDj h3
+
+/-! ### The symmetric matrix of the sampled graph -/
+
+section SymGraph
+open Matrix
+
+/-- Degrees of the normalised graph. -/
+theorem graph_degree_bounds {n : Type} [Fintype n] [Nonempty n] (K : n → n → ℝ)
+    (hK0 : ∀ i j, 0 ≤ K i j) (rho : n → ℝ) {delta : ℝ} (hd0 : 0 ≤ delta) (hd : delta ≤ 1 / 8)
+    (hrho : ∀ b, (Fintype.card n : ℝ) * rho b = ∑ l, K b l)
+    (hrho1 : ∀ b, |rho b - 1| ≤ delta) (i : n) :
+    (Fintype.card n : ℝ) / (1 + delta) ≤ ∑ l, K i l / (rho i * rho l) ∧
+    ∑ l, K i l / (rho i * rho l) ≤ (Fintype.card n : ℝ) / (1 - delta) := by
+  have hN : 0 < (Fintype.card n : ℝ) := by exact_mod_cast Fintype.card_pos
+  have hr : ∀ b, 1 - delta ≤ rho b ∧ rho b ≤ 1 + delta := fun b => by
+    have := abs_le.mp (hrho1 b); constructor <;> linarith [this.1, this.2]
+  have hrpos : ∀ b, 0 < rho b := fun b => by linarith [(hr b).1]
+  have h1 : 0 < 1 - delta := by linarith
+  have h2 : 0 < 1 + delta := by linarith
+  have e : ∑ l, K i l / (rho i * rho l) = (∑ l, K i l / rho l) / rho i := by
+    rw [Finset.sum_div]
+    exact Finset.sum_congr rfl fun l _ => by
+      have := (hrpos i).ne'; have := (hrpos l).ne'; field_simp
+  have lo : (∑ l, K i l) / (1 + delta) ≤ ∑ l, K i l / rho l := by
+    rw [Finset.sum_div]
+    exact Finset.sum_le_sum fun l _ =>
+      div_le_div_of_nonneg_left (hK0 i l) (hrpos l) (hr l).2
+  have hi : ∑ l, K i l / rho l ≤ (∑ l, K i l) / (1 - delta) := by
+    rw [Finset.sum_div]
+    exact Finset.sum_le_sum fun l _ =>
+      div_le_div_of_nonneg_left (hK0 i l) h1 (hr l).1
+  rw [e, ← hrho i] at *
+  constructor
+  · rw [div_le_div_iff₀ h2 (hrpos i)]
+    have := (div_le_iff₀ h2).mp lo
+    nlinarith [hrpos i]
+  · rw [div_le_div_iff₀ (hrpos i) h1]
+    have := (le_div_iff₀ h1).mp hi
+    nlinarith [hrpos i]
+
+/-- Ratio of square roots of two numbers in `[N/(1+δ), N/(1-δ)]`. -/
+theorem sqrt_ratio_bound {N delta x y : ℝ} (hN : 0 < N) (hd0 : 0 ≤ delta) (hd : delta ≤ 1 / 8)
+    (hx : N / (1 + delta) ≤ x ∧ x ≤ N / (1 - delta))
+    (hy : N / (1 + delta) ≤ y ∧ y ≤ N / (1 - delta)) :
+    |Real.sqrt x / Real.sqrt y - 1| ≤ 3 * delta := by
+  have h1 : 0 < 1 - delta := by linarith
+  have h2 : 0 < 1 + delta := by linarith
+  have hx0 : 0 < x := lt_of_lt_of_le (div_pos hN h2) hx.1
+  have hy0 : 0 < y := lt_of_lt_of_le (div_pos hN h2) hy.1
+  set u := Real.sqrt x / Real.sqrt y with hu
+  have hu0 : 0 < u := div_pos (Real.sqrt_pos.mpr hx0) (Real.sqrt_pos.mpr hy0)
+  have husq : u ^ 2 = x / y := by
+    rw [hu, div_pow, Real.sq_sqrt hx0.le, Real.sq_sqrt hy0.le]
+  have hxy1 : x / y ≤ (1 + delta) / (1 - delta) := by
+    rw [div_le_div_iff₀ hy0 h1]
+    have a1 := (le_div_iff₀ h1).mp hx.2
+    have a2 := (div_le_iff₀ h2).mp hy.1
+    nlinarith
+  have hxy2 : (1 - delta) / (1 + delta) ≤ x / y := by
+    rw [div_le_div_iff₀ h2 hy0]
+    have a1 := (div_le_iff₀ h2).mp hx.1
+    have a2 := (le_div_iff₀ h1).mp hy.2
+    nlinarith
+  have hup : u ^ 2 ≤ 1 + 6 * delta := by
+    rw [husq]; refine hxy1.trans ?_
+    rw [div_le_iff₀ h1]; nlinarith
+  have hlo : 1 - 2 * delta ≤ u ^ 2 := by
+    rw [husq]; refine le_trans ?_ hxy2
+    rw [le_div_iff₀ h2]; nlinarith
+  rw [abs_le]
+  constructor
+  · by_contra hcon
+    push Not at hcon
+    have h3 : u < 1 - 3 * delta := by linarith
+    have h4 : u ^ 2 < (1 - 3 * delta) ^ 2 := by nlinarith
+    nlinarith
+  · by_contra hcon
+    push Not at hcon
+    have h3 : 1 + 3 * delta < u := by linarith
+    have h4 : (1 + 3 * delta) ^ 2 < u ^ 2 := by nlinarith
+    nlinarith
+
+/-- The symmetric normalised matrix `S = D^{-1/2} W D^{-1/2}` of the graph with weights
+    `W i j = K i j / (rho i rho j)`. -/
+noncomputable def symGraph {n : Type} [Fintype n] (K : n → n → ℝ) (rho : n → ℝ) : Matrix n n ℝ :=
+  Matrix.of fun i j => (K i j / (rho i * rho j))
+    / (Real.sqrt (∑ l, K i l / (rho i * rho l)) * Real.sqrt (∑ l, K j l / (rho j * rho l)))
+
+/-- `S` is symmetric. -/
+theorem symGraph_isHermitian {n : Type} [Fintype n] (K : n → n → ℝ) (rho : n → ℝ)
+    (hK : ∀ i j, K i j = K j i) : (symGraph K rho).IsHermitian := by
+  ext i j
+  simp only [symGraph, conjTranspose_apply, of_apply, star_trivial]
+  rw [hK j i, mul_comm (rho j), mul_comm (Real.sqrt _)]
+
+/-- `S = D^{1/2} P D^{-1/2}` entrywise. -/
+theorem symGraph_conj {n : Type} [Fintype n] (K : n → n → ℝ) (rho : n → ℝ)
+    (hD : ∀ i, 0 < ∑ l, K i l / (rho i * rho l)) (i l : n) :
+    symGraph K rho i l = Real.sqrt (∑ j, K i j / (rho i * rho j)) * walkMatrix K rho i l
+      / Real.sqrt (∑ j, K l j / (rho l * rho j)) := by
+  simp only [symGraph, walkMatrix, of_apply]
+  have h1 := Real.sqrt_pos.mpr (hD i)
+  have h2 := Real.sqrt_pos.mpr (hD l)
+  have h3 : Real.sqrt (∑ j, K i j / (rho i * rho j)) * Real.sqrt (∑ j, K i j / (rho i * rho j))
+      = ∑ j, K i j / (rho i * rho j) := Real.mul_self_sqrt (hD i).le
+  rw [div_eq_div_iff (mul_pos h1 h2).ne' h2.ne']
+  have hDi := (hD i).ne'
+  have h3' : Real.sqrt (∑ j, K i j / (rho i * rho j)) ^ 2 = ∑ j, K i j / (rho i * rho j) :=
+    Real.sq_sqrt (hD i).le
+  field_simp
+  rw [h3']
+
+
+/-- Eigenvalues of `S` in decreasing order are at most one. -/
+theorem symGraph_eig_le_one {n : Type} [Fintype n] [DecidableEq n] (K : n → n → ℝ) (rho : n → ℝ)
+    (hK : ∀ i j, K i j = K j i) (hK0 : ∀ i j, 0 ≤ K i j) (hrho : ∀ i, 0 < rho i)
+    (hD : ∀ i, 0 < ∑ l, K i l / (rho i * rho l))
+    (hS : (symGraph K rho).IsHermitian) (j : Fin (Fintype.card n)) :
+    hS.eigenvalues₀ j ≤ 1 := by
+  have h := (normalised_eigenvalues_mem (fun i j => K i j / (rho i * rho j))
+    (fun i j => by beta_reduce; rw [hK i j, mul_comm])
+    (fun i j => div_nonneg (hK0 i j) (mul_pos (hrho i) (hrho j)).le) hD
+    (symGraph K rho) (fun i j => rfl) hS ((Fintype.equivOfCardEq (Fintype.card_fin _)) j)).2
+  simpa [IsHermitian.eigenvalues] using h
+
+/-- If the kernel matrix is positive semidefinite, the eigenvalues of `S` are nonnegative. -/
+theorem symGraph_eig_nonneg {n : Type} [Fintype n] [DecidableEq n] (K : n → n → ℝ) (rho : n → ℝ)
+    (hpsd : ∀ y : n → ℝ, 0 ≤ ∑ i, ∑ j, y i * y j * K i j)
+    (hS : (symGraph K rho).IsHermitian) (j : Fin (Fintype.card n)) :
+    0 ≤ hS.eigenvalues₀ j := by
+  have hps : (symGraph K rho).PosSemidef := by
+    refine PosSemidef.of_dotProduct_mulVec_nonneg hS fun y => ?_
+    have e : star y ⬝ᵥ (symGraph K rho *ᵥ y)
+        = ∑ i, ∑ l, (y i / (rho i * Real.sqrt (∑ m, K i m / (rho i * rho m))))
+            * (y l / (rho l * Real.sqrt (∑ m, K l m / (rho l * rho m)))) * K i l := by
+      simp only [dotProduct, mulVec, star_trivial, symGraph, of_apply, Finset.mul_sum]
+      refine Finset.sum_congr rfl fun i _ => Finset.sum_congr rfl fun l _ => ?_
+      simp only [div_eq_mul_inv, mul_inv]
+      ring
+    rw [e]
+    exact hpsd _
+  have h := hps.eigenvalues_nonneg ((Fintype.equivOfCardEq (Fintype.card_fin _)) j)
+  simpa [IsHermitian.eigenvalues] using h
+
+end SymGraph
+
+/-! ### Eigenvalues of the sampled graph on the torus, deterministic part -/
+
+section TorusEig
+open Matrix
+
+/-- The heat kernel of the torus is even. -/
+theorem heatTorus_even (d : ℕ) (c : ℝ) (u : FlatTorus d) : heatTorus d c (-u) = heatTorus d c u := by
+  unfold heatTorus cosSeries
+  refine tsum_congr fun n => ?_
+  have h := torusChar_sub_re d n 0 u
+  rw [zero_sub] at h
+  have h0 : torusChar d n 0 = 1 := by simp [torusChar]
+  rw [h, h0]; simp
+
+/-- `X Xᵀ` is symmetric. -/
+theorem gram_hermitian {n F : Type} [Fintype n] [Fintype F] (X : Matrix n F ℝ) :
+    (X * Xᵀ).IsHermitian := by
+  have := isHermitian_mul_conjTranspose_self X
+  simpa [conjTranspose_eq_transpose_of_trivial] using this
+
+/-- A symmetric matrix padded with a zero block is symmetric. -/
+theorem pad_hermitian₁ {n F : Type} [Fintype n] [Fintype F] (A : Matrix n n ℝ)
+    (hA : A.IsHermitian) : (fromBlocks A 0 0 (0 : Matrix F F ℝ)).IsHermitian :=
+  hA.fromBlocks (by simp) isHermitian_zero
+
+/-- A diagonal matrix padded with a zero block is symmetric. -/
+theorem pad_hermitian₂ {n F : Type} [Fintype n] [Fintype F] [DecidableEq F] (a : F → ℝ) :
+    (fromBlocks (0 : Matrix n n ℝ) 0 0 (diagonal a)).IsHermitian :=
+  isHermitian_zero.fromBlocks (by simp) (isHermitian_diagonal a)
+
+/-- Upper bound for the heat kernel of the torus. -/
+theorem heatTorus_le {c : ℝ} (hc : 0 < c) (d : ℕ) (u : FlatTorus d) :
+    heatTorus d c u ≤ (1 + Real.sqrt (Real.pi / c)) ^ d := by
+  have habs : Summable fun n : Fin d → ℤ => |Real.exp (-c * ∑ i, ((n i : ℤ) : ℝ) ^ 2)| := by
+    simpa [abs_of_pos (Real.exp_pos _)] using gauss_summable hc d
+  have h1 := cosSeries_abs_le d (fun n => Real.exp (-c * ∑ i, ((n i : ℤ) : ℝ) ^ 2)) habs u
+  simp_rw [abs_of_pos (Real.exp_pos _)] at h1
+  exact (le_abs_self _).trans (h1.trans (gauss_tsum_le hc d))
+
+/-- **Eigenvalues of the sampled graph on the torus: deterministic statement on the good event.**
+    Points `x_1, …, x_N` on the flat torus, kernel `heatTorus d c`, `S` the symmetric normalised matrix
+    of the graph with self-loops, `H` a set of nonzero frequencies without a pair `n, -n` such that
+    all other nonzero frequencies have `|n|² ≥ R`. HYPOTHESES on the points (the good event):
+    `hnorm` (normalisation within `delta ≤ 1/8`), `hcons` (consistency with exact normalisation, errors
+    `dev m`), `hgram` (Gram matrix of the sampled modes within `N eta` of `N` times the identity).
+    `hc1`, `hc2` say that `α^{k+1}` is the `j`-th largest coefficient `e^{-(k+1)c|n|²}` of the modes,
+    counted with multiplicity (each nonzero frequency of `H` twice). Conclusion: parts (i) and (ii)
+    of Theorem "eigenvalues on the torus" for the `j`-th eigenvalue of `S`, with
+    `eps = 3 delta (mu + Dk) + Dk + t`. No hypothesis on eigenvalues, symmetry or positivity remains. -/
+theorem heatTorus_eig_det {c : ℝ} (hc : 0 < c) (d N : ℕ) [NeZero N] (x : Fin N → FlatTorus d)
+    (k : ℕ) (H : Finset (Fin d → ℤ)) (hH0 : ∀ n ∈ H, n ≠ 0) (hH2 : ∀ m ∈ H, ∀ n ∈ H, m + n ≠ 0)
+    {R delta eta t E Dk eps α : ℝ}
+    (hR : ∀ n : Fin d → ℤ, n ≠ 0 → n ∉ H → -n ∉ H → R ≤ ∑ i, ((n i : ℤ) : ℝ) ^ 2)
+    (hd0 : 0 ≤ delta) (hd : delta ≤ 1 / 8) (heta : 0 ≤ eta) (dev : ℕ → ℝ)
+    (hnorm : ∀ b, |(∑ l, heatTorus d c (x b - x l)) / N - 1| ≤ delta)
+    (hcons : ∀ m b i, 1 ≤ m → m ≤ k →
+      |∑ j, heatTorus d c (x b - x j) / N * heatTorus d ((m : ℕ) * c) (x j - x i)
+        - heatTorus d ((m + 1 : ℕ) * c) (x b - x i)| ≤ dev m)
+    (hgram : ∀ f g : modeSet d H, |∑ i, torusMode d f.1 (x i) * torusMode d g.1 (x i)
+        - N * (if f = g then (1 : ℝ) else 0)| ≤ N * eta)
+    (ht : Real.exp (-((k + 1 : ℕ) * c) * R / 2)
+        * (1 + Real.sqrt (2 * Real.pi / ((k + 1 : ℕ) * c))) ^ d ≤ t)
+    (hE : ∑ m ∈ Finset.range k,
+        (3 * dev (m + 1) + 11 * delta * (1 + Real.sqrt (Real.pi / ((m + 2 : ℕ) * c))) ^ d) ≤ E)
+    (hDk : 10 * delta * ((1 + Real.sqrt (Real.pi / ((k + 1 : ℕ) * c))) ^ d + E) + E ≤ Dk)
+    (heps : 3 * delta * ((1 + Real.sqrt (Real.pi / ((k + 1 : ℕ) * c))) ^ d + Dk) + Dk + t ≤ eps)
+    (hS : (symGraph (fun i j : Fin N => heatTorus d c (x i - x j))
+      (fun i => (∑ l, heatTorus d c (x i - x l)) / N)).IsHermitian)
+    (j : Fin (Fintype.card (Fin N))) (hα0 : 0 < α) (hα1 : α ≤ 1)
+    (hc1 : (Finset.univ.filter fun f : modeSet d H =>
+        α ^ (k + 1) < modeCoeff d ((k + 1 : ℕ) * c) f.1).card ≤ j.val)
+    (hc2 : j.val < (Finset.univ.filter fun f : modeSet d H =>
+        α ^ (k + 1) ≤ modeCoeff d ((k + 1 : ℕ) * c) f.1).card)
+    (h3 : 2 * (eps + eta * 1 * ∑ g : modeSet d H,
+        Real.sqrt (modeCoeff d ((k + 1 : ℕ) * c) g.1)) ≤ α ^ (k + 1)) :
+    |hS.eigenvalues₀ j ^ (k + 1) - α ^ (k + 1)|
+        ≤ eps + eta * 1 * ∑ g : modeSet d H, Real.sqrt (modeCoeff d ((k + 1 : ℕ) * c) g.1)
+      ∧ ((k + 1 : ℕ) : ℝ) * (α ^ (k + 1) * |hS.eigenvalues₀ j - α|)
+          ≤ 2 * (eps + eta * 1 * ∑ g : modeSet d H,
+              Real.sqrt (modeCoeff d ((k + 1 : ℕ) * c) g.1)) := by
+  classical
+  have hNpos : 0 < (N : ℝ) := by exact_mod_cast Nat.pos_of_ne_zero (NeZero.ne N)
+  have hcard : (Fintype.card (Fin N) : ℝ) = N := by simp
+  set K : Fin N → Fin N → ℝ := fun i j => heatTorus d c (x i - x j) with hKdef
+  set rho : Fin N → ℝ := fun i => (∑ l, heatTorus d c (x i - x l)) / N with hrhodef
+  set pk : ℕ → Fin N → Fin N → ℝ := fun m b i =>
+    if m = 0 then 0 else heatTorus d ((m : ℕ) * c) (x b - x i) with hpkdef
+  set mu : ℕ → ℝ := fun m => if m = 0 then 0 else (1 + Real.sqrt (Real.pi / ((m : ℕ) * c))) ^ d
+    with hmudef
+  have hmc : ∀ m : ℕ, m ≠ 0 → 0 < (m : ℝ) * c := fun m hm =>
+    mul_pos (by exact_mod_cast Nat.pos_of_ne_zero hm) hc
+  have hpk1 : ∀ b i, pk 1 b i = K b i := fun b i => by simp [hpkdef, hKdef]
+  have hK0 : ∀ i j, 0 ≤ K i j := fun i j => heatTorus_nonneg hc d _
+  have hKsym : ∀ i j, K i j = K j i := fun i j => by
+    simp only [hKdef]; rw [← heatTorus_even, neg_sub]
+  have hrho1 : ∀ b, |rho b - 1| ≤ delta := hnorm
+  have hrhopos : ∀ b, 0 < rho b := fun b => by
+    have := abs_le.mp (hrho1 b); linarith [this.1]
+  have hrhoeq : ∀ b, (Fintype.card (Fin N) : ℝ) * rho b = ∑ l, K b l := fun b => by
+    rw [hcard]; simp only [hrhodef, hKdef]; field_simp
+  have hDb := fun i => graph_degree_bounds K hK0 rho hd0 hd hrhoeq hrho1 i
+  have hDpos : ∀ i, 0 < ∑ l, K i l / (rho i * rho l) := fun i =>
+    lt_of_lt_of_le (div_pos (by rw [hcard]; exact hNpos) (by linarith)) (hDb i).1
+  -- kernel-matrix factor
+  set a : modeSet d H → ℝ := fun f => modeCoeff d ((k + 1 : ℕ) * c) f.1 with hadef
+  set v : Matrix (Fin N) (modeSet d H) ℝ :=
+    Matrix.of fun i f => torusMode d f.1 (x i) / Real.sqrt N with hvdef
+  have ha : ∀ f, 0 ≤ a f := fun f => modeCoeff_nonneg d _ f.1
+  have hsqN : Real.sqrt N * Real.sqrt N = N := Real.mul_self_sqrt hNpos.le
+  have hsqpos : 0 < Real.sqrt N := Real.sqrt_pos.mpr hNpos
+  have hs : ∀ f, Real.sqrt (a f) ≤ 1 := fun f => by
+    rw [show (1 : ℝ) = Real.sqrt 1 from Real.sqrt_one.symm]
+    apply Real.sqrt_le_sqrt
+    rcases f with ⟨_ | ⟨n, b⟩, hf⟩
+    · simp [hadef, modeCoeff]
+    · simp only [hadef, modeCoeff]
+      apply Real.exp_le_one_iff.mpr
+      have h1 : 0 ≤ ∑ i, ((n i : ℤ) : ℝ) ^ 2 := Finset.sum_nonneg fun i _ => _root_.sq_nonneg _
+      have := (hmc (k + 1) (Nat.succ_ne_zero k)).le
+      nlinarith
+  have hG : ∀ f g, |∑ i, v i f * v i g - (if f = g then 1 else 0)| ≤ eta := by
+    intro f g
+    have e : ∑ i, v i f * v i g - (if f = g then (1 : ℝ) else 0)
+        = (∑ i, torusMode d f.1 (x i) * torusMode d g.1 (x i)
+            - N * (if f = g then (1 : ℝ) else 0)) / N := by
+      simp only [hvdef, of_apply]
+      rw [sub_div, Finset.sum_div, mul_div_cancel_left₀ _ hNpos.ne']
+      congr 1
+      refine Finset.sum_congr rfl fun i _ => ?_
+      rw [div_mul_div_comm, hsqN]
+    rw [e, abs_div, abs_of_pos hNpos, div_le_iff₀ hNpos]
+    linarith [hgram f g]
+  have hQ := gram_hermitian (Matrix.of fun i f => Real.sqrt (a f) * v i f)
+  have h1 := pad_hermitian₁ (F := modeSet d H) _ hQ
+  have hD := pad_hermitian₂ (n := Fin N) a
+  have htail : ∀ i l, |pk (k + 1) i l - (Fintype.card (Fin N) : ℝ) *
+      ((Matrix.of fun i f => Real.sqrt (a f) * v i f) *
+        (Matrix.of fun i f => Real.sqrt (a f) * v i f)ᵀ) i l| ≤ t := by
+    intro i l
+    rw [finite_rank_kernel_entry v a ha i l, hcard]
+    have e : (N : ℝ) * ∑ f, a f * v i f * v l f
+        = 1 + ∑ n ∈ H, 2 * Real.exp (-((k + 1 : ℕ) * c) * ∑ i, ((n i : ℤ) : ℝ) ^ 2)
+            * (torusChar d n (x i - x l)).re := by
+      rw [← modeSet_kernel d ((k + 1 : ℕ) * c) H (x i) (x l),
+        ← Finset.sum_coe_sort (modeSet d H), Finset.mul_sum]
+      refine Finset.sum_congr rfl fun f _ => ?_
+      simp only [hvdef, hadef, of_apply]
+      field_simp
+      rw [Real.sq_sqrt hNpos.le]; ring
+    rw [e]
+    have hp : pk (k + 1) i l = heatTorus d ((k + 1 : ℕ) * c) (x i - x l) := by
+      simp [hpkdef]
+    rw [hp]
+    exact (heatTorus_truncation_half (hmc (k + 1) (Nat.succ_ne_zero k)) d H hH0 hH2 hR _).trans ht
+  have hj : j.val < Fintype.card (Fin N ⊕ modeSet d H) := by
+    rw [Fintype.card_sum]; exact lt_of_lt_of_le j.2 (Nat.le_add_right _ _)
+  have hDj : hD.eigenvalues₀ ⟨j.val, hj⟩ = α ^ (k + 1) :=
+    diag_pad_eigenvalue a hD (pow_pos hα0 _) ⟨j.val, hj⟩ hc1 hc2
+  refine eig_sample_det pk mu dev rho (walkMatrix K rho) hd0 hd
+    (fun m b i => ?_) (fun m b i => ?_) (fun b => by simp_rw [hpk1]; exact hrhoeq b) hrho1
+    (fun b j' => by simp_rw [hpk1]; exact walkMatrix_apply' K rho b j' (hrhopos b).ne')
+    k (fun m b i h1m hmk => ?_)
+    (symGraph K rho) hS (symGraph_eig_nonneg K rho (fun y => heatTorus_quadform_nonneg hc d x y) hS)
+    (symGraph_eig_le_one K rho hKsym hK0 hrhopos hDpos hS)
+    (fun i => Real.sqrt (∑ l, K i l / (rho i * rho l))) (fun i => Real.sqrt_pos.mpr (hDpos i))
+    (symGraph_conj K rho hDpos) (θ := 3 * delta) (by linarith)
+    (fun i l => sqrt_ratio_bound (by rw [hcard]; exact hNpos) hd0 hd (hDb i) (hDb l))
+    v a ha (E := E) (Dk := Dk) (eps := eps) (t := t) heta zero_le_one hs hG hQ h1 hD htail ?_ ?_ ?_
+    j hj hα0.le hα1 hDj h3
+  · simp only [hpkdef]; split_ifs with h
+    · exact le_rfl
+    · exact heatTorus_nonneg (hmc m h) d _
+  · simp only [hpkdef, hmudef]; split_ifs with h
+    · exact le_rfl
+    · exact heatTorus_le (hmc m h) d _
+  · have hm0 : m ≠ 0 := by omega
+    have := hcons m b i h1m hmk
+    simp only [hpkdef, hcard, hm0, Nat.succ_ne_zero, if_false, one_ne_zero, Nat.cast_one, one_mul]
+    simpa using this
+  · simpa [hmudef] using hE
+  · simpa [hmudef] using hDk
+  · simpa [hmudef] using heps
+
+end TorusEig
+
+section TorusEigProb
+open Matrix
+
+/-- **Eigenvalues of the sampled graph on the torus, with probability (weak form of Theorem
+    "eigenvalues on the torus").** The set of samples for which the conclusion of
+    `heatTorus_eig_det` fails is contained in the union of three bad events: normalisation (`hBn`),
+    consistency for the times `(m+1)c`, `m < k` (`hBc`), Gram matrix of the sampled modes (`hBg`).
+    HYPOTHESES: the probabilities `pn`, `pc m`, `pg` of these events; they are the conclusions of
+    `uniform_normalisation`, `consistency_uniform_exact` and `flatTorus_gram_whp`. -/
+theorem heatTorus_eig_whp {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω} [IsFiniteMeasure μ]
+    {c : ℝ} (hc : 0 < c) (d N : ℕ) [NeZero N] (X : ℕ → Ω → FlatTorus d)
+    (k : ℕ) (H : Finset (Fin d → ℤ)) (hH0 : ∀ n ∈ H, n ≠ 0) (hH2 : ∀ m ∈ H, ∀ n ∈ H, m + n ≠ 0)
+    {R eta t E Dk eps α epsn epsc pn pg : ℝ} (pc : ℕ → ℝ)
+    (hR : ∀ n : Fin d → ℤ, n ≠ 0 → n ∉ H → -n ∉ H → R ≤ ∑ i, ((n i : ℤ) : ℝ) ^ 2)
+    (hepsn0 : 0 ≤ epsn) (hepsn : epsn ≤ N / 8) (heta : 0 ≤ eta)
+    (hBn : μ.real {ω | ∃ x : FlatTorus d,
+        epsn < |∑ j ∈ Finset.range N, heatTorus d c (x - X j ω) - N|} ≤ pn)
+    (hBc : ∀ m < k, μ.real {ω | ∃ u : FlatTorus d × FlatTorus d, epsc
+        < |∑ j ∈ Finset.range N, heatTorus d c (u.1 - X j ω)
+              * heatTorus d ((m + 1 : ℕ) * c) (X j ω - u.2)
+            - N * heatTorus d ((m + 1 + 1 : ℕ) * c) (u.1 - u.2)|} ≤ pc m)
+    (hBg : μ.real {ω | ∃ f g : modeSet d H, N * eta ≤ |∑ j ∈ Finset.range N,
+        torusMode d f.1 (X j ω) * torusMode d g.1 (X j ω)
+        - N * (if f = g then (1 : ℝ) else 0)|} ≤ pg)
+    (ht : Real.exp (-((k + 1 : ℕ) * c) * R / 2)
+        * (1 + Real.sqrt (2 * Real.pi / ((k + 1 : ℕ) * c))) ^ d ≤ t)
+    (hE : ∑ m ∈ Finset.range k, (3 * (epsc / N)
+        + 11 * (epsn / N) * (1 + Real.sqrt (Real.pi / ((m + 2 : ℕ) * c))) ^ d) ≤ E)
+    (hDk : 10 * (epsn / N) * ((1 + Real.sqrt (Real.pi / ((k + 1 : ℕ) * c))) ^ d + E) + E ≤ Dk)
+    (heps : 3 * (epsn / N) * ((1 + Real.sqrt (Real.pi / ((k + 1 : ℕ) * c))) ^ d + Dk) + Dk + t
+        ≤ eps)
+    (j : Fin (Fintype.card (Fin N))) (hα0 : 0 < α) (hα1 : α ≤ 1)
+    (hc1 : (Finset.univ.filter fun f : modeSet d H =>
+        α ^ (k + 1) < modeCoeff d ((k + 1 : ℕ) * c) f.1).card ≤ j.val)
+    (hc2 : j.val < (Finset.univ.filter fun f : modeSet d H =>
+        α ^ (k + 1) ≤ modeCoeff d ((k + 1 : ℕ) * c) f.1).card)
+    (h3 : 2 * (eps + eta * 1 * ∑ g : modeSet d H,
+        Real.sqrt (modeCoeff d ((k + 1 : ℕ) * c) g.1)) ≤ α ^ (k + 1)) :
+    μ.real {ω | ¬ ∀ hS : (symGraph (fun i j : Fin N => heatTorus d c (X i ω - X j ω))
+          (fun i : Fin N => (∑ l : Fin N, heatTorus d c (X i ω - X l ω)) / N)).IsHermitian,
+        |hS.eigenvalues₀ j ^ (k + 1) - α ^ (k + 1)|
+            ≤ eps + eta * 1 * ∑ g : modeSet d H, Real.sqrt (modeCoeff d ((k + 1 : ℕ) * c) g.1)
+          ∧ ((k + 1 : ℕ) : ℝ) * (α ^ (k + 1) * |hS.eigenvalues₀ j - α|)
+              ≤ 2 * (eps + eta * 1 * ∑ g : modeSet d H,
+                  Real.sqrt (modeCoeff d ((k + 1 : ℕ) * c) g.1))}
+      ≤ pn + ∑ m ∈ Finset.range k, pc m + pg := by
+  have hNpos : 0 < (N : ℝ) := by exact_mod_cast Nat.pos_of_ne_zero (NeZero.ne N)
+  set Bn : Set Ω := {ω | ∃ x : FlatTorus d,
+      epsn < |∑ j ∈ Finset.range N, heatTorus d c (x - X j ω) - N|} with hBn_def
+  set Bc : ℕ → Set Ω := fun m => {ω | ∃ u : FlatTorus d × FlatTorus d, epsc
+      < |∑ j ∈ Finset.range N, heatTorus d c (u.1 - X j ω)
+            * heatTorus d ((m + 1 : ℕ) * c) (X j ω - u.2)
+          - N * heatTorus d ((m + 1 + 1 : ℕ) * c) (u.1 - u.2)|} with hBc_def
+  set Bg : Set Ω := {ω | ∃ f g : modeSet d H, N * eta ≤ |∑ j ∈ Finset.range N,
+      torusMode d f.1 (X j ω) * torusMode d g.1 (X j ω)
+      - N * (if f = g then (1 : ℝ) else 0)|} with hBg_def
+  have hsub : {ω | ¬ ∀ hS : (symGraph (fun i j : Fin N => heatTorus d c (X i ω - X j ω))
+          (fun i : Fin N => (∑ l : Fin N, heatTorus d c (X i ω - X l ω)) / N)).IsHermitian,
+        |hS.eigenvalues₀ j ^ (k + 1) - α ^ (k + 1)|
+            ≤ eps + eta * 1 * ∑ g : modeSet d H, Real.sqrt (modeCoeff d ((k + 1 : ℕ) * c) g.1)
+          ∧ ((k + 1 : ℕ) : ℝ) * (α ^ (k + 1) * |hS.eigenvalues₀ j - α|)
+              ≤ 2 * (eps + eta * 1 * ∑ g : modeSet d H,
+                  Real.sqrt (modeCoeff d ((k + 1 : ℕ) * c) g.1))}
+      ⊆ (Bn ∪ ⋃ m ∈ Finset.range k, Bc m) ∪ Bg := by
+    intro ω hω
+    by_contra hcon
+    simp only [Set.mem_union, Set.mem_iUnion, Finset.mem_range, not_or, not_exists] at hcon
+    obtain ⟨⟨hn, hcc⟩, hg⟩ := hcon
+    apply hω
+    intro hS
+    refine heatTorus_eig_det hc d N (fun i => X i ω) k H hH0 hH2 hR
+      (div_nonneg hepsn0 hNpos.le) (by rw [div_le_iff₀ hNpos]; linarith) heta
+      (fun _ => epsc / N) (fun b => ?_) (fun m b i hm1 hmk => ?_) (fun f g => ?_)
+      ht hE hDk heps hS j hα0 hα1 hc1 hc2 h3
+    · have h : |∑ j ∈ Finset.range N, heatTorus d c (X b ω - X j ω) - N| ≤ epsn := by
+        by_contra h; exact hn ⟨X b ω, not_le.mp h⟩
+      rw [← Fin.sum_univ_eq_sum_range (fun j => heatTorus d c (X b ω - X j ω)) N] at h
+      have e : (∑ l : Fin N, heatTorus d c (X b ω - X l ω)) / N - 1
+          = (∑ l : Fin N, heatTorus d c (X b ω - X l ω) - N) / N := by field_simp
+      rw [e, abs_div, abs_of_pos hNpos]
+      exact div_le_div_of_nonneg_right h hNpos.le
+    · obtain ⟨m', rfl⟩ : ∃ m', m = m' + 1 := ⟨m - 1, by omega⟩
+      have h : |∑ j ∈ Finset.range N, heatTorus d c (X b ω - X j ω)
+            * heatTorus d ((m' + 1 : ℕ) * c) (X j ω - X i ω)
+          - N * heatTorus d ((m' + 1 + 1 : ℕ) * c) (X b ω - X i ω)| ≤ epsc := by
+        by_contra h; exact hcc m' (by omega) ⟨(X b ω, X i ω), not_le.mp h⟩
+      rw [← Fin.sum_univ_eq_sum_range (fun j => heatTorus d c (X b ω - X j ω)
+            * heatTorus d ((m' + 1 : ℕ) * c) (X j ω - X i ω)) N] at h
+      have e : ∑ j : Fin N, heatTorus d c (X b ω - X j ω) / N
+            * heatTorus d ((m' + 1 : ℕ) * c) (X j ω - X i ω)
+            - heatTorus d ((m' + 1 + 1 : ℕ) * c) (X b ω - X i ω)
+          = (∑ j : Fin N, heatTorus d c (X b ω - X j ω)
+                * heatTorus d ((m' + 1 : ℕ) * c) (X j ω - X i ω)
+              - N * heatTorus d ((m' + 1 + 1 : ℕ) * c) (X b ω - X i ω)) / N := by
+        rw [sub_div, Finset.sum_div]
+        congr 1
+        · exact Finset.sum_congr rfl (fun j _ => by ring)
+        · field_simp
+      rw [e, abs_div, abs_of_pos hNpos]
+      exact div_le_div_of_nonneg_right h hNpos.le
+    · have h : |∑ j ∈ Finset.range N, torusMode d f.1 (X j ω) * torusMode d g.1 (X j ω)
+          - N * (if f = g then (1 : ℝ) else 0)| < N * eta := by
+        by_contra h; exact hg ⟨f, g, not_lt.mp h⟩
+      rw [← Fin.sum_univ_eq_sum_range
+        (fun j => torusMode d f.1 (X j ω) * torusMode d g.1 (X j ω)) N] at h
+      exact h.le
+  calc μ.real _ ≤ μ.real ((Bn ∪ ⋃ m ∈ Finset.range k, Bc m) ∪ Bg) := measureReal_mono hsub
+    _ ≤ μ.real (Bn ∪ ⋃ m ∈ Finset.range k, Bc m) + μ.real Bg := measureReal_union_le _ _
+    _ ≤ (μ.real Bn + μ.real (⋃ m ∈ Finset.range k, Bc m)) + μ.real Bg := by
+        gcongr; exact measureReal_union_le _ _
+    _ ≤ pn + ∑ m ∈ Finset.range k, pc m + pg := by
+        refine add_le_add (add_le_add hBn ((measureReal_biUnion_finset_le _ _).trans ?_)) hBg
+        exact Finset.sum_le_sum (fun m hm => hBc m (Finset.mem_range.mp hm))
+
+end TorusEigProb
+
+section TorusEigSample
+open Matrix
+
+/-- The bound for the heat kernel decreases in time. -/
+theorem heatBound_anti {c : ℝ} (hc : 0 < c) (d m : ℕ) (a : ℝ) (ha : 0 ≤ a) :
+    (1 + Real.sqrt (a / ((m + 1 : ℕ) * c))) ^ d ≤ (1 + Real.sqrt (a / c)) ^ d := by
+  have hm : (1 : ℝ) ≤ ((m + 1 : ℕ) : ℝ) := by exact_mod_cast Nat.succ_le_succ (Nat.zero_le m)
+  have h1 : a / ((m + 1 : ℕ) * c) ≤ a / c :=
+    div_le_div_of_nonneg_left ha hc (by nlinarith)
+  exact pow_le_pow_left₀ (by positivity) (by linarith [Real.sqrt_le_sqrt h1]) d
+
+/-- The Lipschitz constant of the heat kernel decreases in time. -/
+theorem heatLip_anti {c : ℝ} (hc : 0 < c) (d m : ℕ) :
+    2 * Real.pi * (2 / ((m + 1 : ℕ) * c)) * (1 + Real.sqrt (2 * Real.pi / ((m + 1 : ℕ) * c))) ^ d
+      ≤ 2 * Real.pi * (2 / c) * (1 + Real.sqrt (2 * Real.pi / c)) ^ d := by
+  have hm : (1 : ℝ) ≤ ((m + 1 : ℕ) : ℝ) := by exact_mod_cast Nat.succ_le_succ (Nat.zero_le m)
+  have h1 : 2 / (((m + 1 : ℕ) : ℝ) * c) ≤ 2 / c :=
+    div_le_div_of_nonneg_left (by norm_num) hc (by nlinarith)
+  have h2 := heatBound_anti hc d m (2 * Real.pi) (by positivity)
+  have hpi : 0 ≤ 2 * Real.pi := by positivity
+  exact mul_le_mul (mul_le_mul_of_nonneg_left h1 hpi) h2 (by positivity) (by positivity)
+
+/-- **Eigenvalues of the sampled graph on the flat torus for random samples: explicit bound
+    (weak form of Theorem "eigenvalues on the torus").** Independent uniform points `X_1, …, X_N` on the
+    flat torus of dimension `d`; graph with the heat kernel `heatTorus d c` (`c = 2π²σ`) and
+    self-loops; `S` its symmetric normalised matrix. `M`, `L` the explicit bound and Lipschitz
+    constant of the kernel; `m` a grid parameter; `H` a finite set of nonzero frequencies without a
+    pair `n, -n` outside of which `|n|² ≥ R`. If `α^{k+1}` is the `j`-th largest of the coefficients
+    `e^{-(k+1)c|n|²}` of the real modes of `H` (counts `hc1`, `hc2`) and the explicit error `eps`
+    (built from `epsn0`, `epsc0`, the tail `t` and the grid) and `eta` satisfy `h3`, then the
+    probability that `|s_j^{k+1} - α^{k+1}| ≤ eps + eta ∑ √a_f` or
+    `(k+1) α^{k+1} |s_j - α| ≤ 2 (eps + eta ∑ √a_f)` fails is at most
+    `2 m^d e^{-epsn0²/(2N(M/2)²)} + 2 k m^{2d} e^{-epsc0²/(2N(M²/2)²)} + 2 |modes|² e^{-(N eta/2)²/(2N)}`.
+    The only hypotheses are on the sample (independence, measurability, law) and inequalities
+    between explicit numbers. This is weaker than the theorem of the paper: the consistency step
+    uses Hoeffding's inequality and the uniform bound `M`, the error is linear in `k`, and the
+    regime of `(N, c)` in which the inequalities can be satisfied has not been worked out. -/
+theorem heatTorus_eig_sample {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {c : ℝ} (hc : 0 < c) (d N : ℕ) [NeZero N]
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d)
+    (k : ℕ) (H : Finset (Fin d → ℤ)) (hH0 : ∀ n ∈ H, n ≠ 0) (hH2 : ∀ m ∈ H, ∀ n ∈ H, m + n ≠ 0)
+    {m : ℕ} (hm : 0 < m) {M L R eta t E Dk eps α epsn0 epsc0 : ℝ}
+    (hMdef : M = (1 + Real.sqrt (Real.pi / c)) ^ d)
+    (hLdef : L = 2 * Real.pi * (2 / c) * (1 + Real.sqrt (2 * Real.pi / c)) ^ d)
+    (hR : ∀ n : Fin d → ℤ, n ≠ 0 → n ∉ H → -n ∉ H → R ≤ ∑ i, ((n i : ℤ) : ℝ) ^ 2)
+    (hn0 : 0 ≤ epsn0) (hc0 : 0 ≤ epsc0) (heta : 0 ≤ eta)
+    (hsmall : epsn0 + 2 * (N * L) * (1 / m) ≤ N / 8)
+    (ht : Real.exp (-((k + 1 : ℕ) * c) * R / 2)
+        * (1 + Real.sqrt (2 * Real.pi / ((k + 1 : ℕ) * c))) ^ d ≤ t)
+    (hE : ∑ m' ∈ Finset.range k,
+        (3 * ((epsc0 + 2 * (N * (L * M + M * L + 2 * L)) * (1 / m)) / N)
+          + 11 * ((epsn0 + 2 * (N * L) * (1 / m)) / N)
+              * (1 + Real.sqrt (Real.pi / ((m' + 2 : ℕ) * c))) ^ d) ≤ E)
+    (hDk : 10 * ((epsn0 + 2 * (N * L) * (1 / m)) / N)
+        * ((1 + Real.sqrt (Real.pi / ((k + 1 : ℕ) * c))) ^ d + E) + E ≤ Dk)
+    (heps : 3 * ((epsn0 + 2 * (N * L) * (1 / m)) / N)
+        * ((1 + Real.sqrt (Real.pi / ((k + 1 : ℕ) * c))) ^ d + Dk) + Dk + t ≤ eps)
+    (j : Fin (Fintype.card (Fin N))) (hα0 : 0 < α) (hα1 : α ≤ 1)
+    (hc1 : (Finset.univ.filter fun f : modeSet d H =>
+        α ^ (k + 1) < modeCoeff d ((k + 1 : ℕ) * c) f.1).card ≤ j.val)
+    (hc2 : j.val < (Finset.univ.filter fun f : modeSet d H =>
+        α ^ (k + 1) ≤ modeCoeff d ((k + 1 : ℕ) * c) f.1).card)
+    (h3 : 2 * (eps + eta * 1 * ∑ g : modeSet d H,
+        Real.sqrt (modeCoeff d ((k + 1 : ℕ) * c) g.1)) ≤ α ^ (k + 1)) :
+    μ.real {ω | ¬ ∀ hS : (symGraph (fun i j : Fin N => heatTorus d c (X i ω - X j ω))
+          (fun i : Fin N => (∑ l : Fin N, heatTorus d c (X i ω - X l ω)) / N)).IsHermitian,
+        |hS.eigenvalues₀ j ^ (k + 1) - α ^ (k + 1)|
+            ≤ eps + eta * 1 * ∑ g : modeSet d H, Real.sqrt (modeCoeff d ((k + 1 : ℕ) * c) g.1)
+          ∧ ((k + 1 : ℕ) : ℝ) * (α ^ (k + 1) * |hS.eigenvalues₀ j - α|)
+              ≤ 2 * (eps + eta * 1 * ∑ g : modeSet d H,
+                  Real.sqrt (modeCoeff d ((k + 1 : ℕ) * c) g.1))}
+      ≤ (m : ℝ) ^ d * (2 * Real.exp (-epsn0 ^ 2 / (2 * N * (M / 2) ^ 2)))
+        + ∑ _m' ∈ Finset.range k,
+            (m : ℝ) ^ (2 * d) * (2 * Real.exp (-epsc0 ^ 2 / (2 * N * (M * M / 2) ^ 2)))
+        + (Fintype.card (modeSet d H) : ℝ) ^ 2
+            * (2 * Real.exp (-(N * eta / 2) ^ 2 / (2 * N))) := by
+  haveI : (flatTorusMeasure d).IsNegInvariant :=
+    Measure.IsAddHaarMeasure.isNegInvariant_of_regular (flatTorusMeasure d)
+  have hNpos : 0 < (N : ℝ) := by exact_mod_cast Nat.pos_of_ne_zero (NeZero.ne N)
+  have habs : ∀ {c' : ℝ}, 0 < c' →
+      Summable fun n : Fin d → ℤ => |Real.exp (-c' * ∑ i, ((n i : ℤ) : ℝ) ^ 2)| := fun hc' => by
+    simpa [abs_of_pos (Real.exp_pos _)] using gauss_summable hc' d
+  have hcont : ∀ {c' : ℝ}, 0 < c' → Continuous (heatTorus d c') := fun hc' =>
+    cosSeries_continuous d _ (habs hc')
+  have hmc : ∀ m' : ℕ, 0 < ((m' + 1 : ℕ) : ℝ) * c := fun m' => by positivity
+  have hM0 : 0 ≤ M := by rw [hMdef]; positivity
+  have hL0 : 0 ≤ L := by rw [hLdef]; positivity
+  have hpM : ∀ u, heatTorus d c u ≤ M := fun u => by rw [hMdef]; exact heatTorus_le hc d u
+  have hplip : ∀ u u', |heatTorus d c u - heatTorus d c u'| ≤ L * dist u u' := fun u u' => by
+    rw [hLdef]; exact heatTorus_lipschitz hc d u u'
+  have hlipm : ∀ (m' : ℕ) (u u' : FlatTorus d),
+      |heatTorus d ((m' + 1 : ℕ) * c) u - heatTorus d ((m' + 1 : ℕ) * c) u'| ≤ L * dist u u' :=
+    fun m' u u' => (heatTorus_lipschitz (hmc m') d u u').trans
+      (mul_le_mul_of_nonneg_right (by rw [hLdef]; exact heatLip_anti hc d m') dist_nonneg)
+  have hr : (0 : ℝ) ≤ 1 / m := by positivity
+  -- normalisation
+  have hBn := uniform_normalisation (μ := μ) X h_indep hX (fun x y => heatTorus d c (x - y))
+    (fun x => (hcont hc).measurable.comp (measurable_const.sub measurable_id)) hM0 hL0
+    (fun x y => ⟨heatTorus_nonneg hc d _, hpM _⟩)
+    (fun x x' y => by
+      have := hplip (x - y) (x' - y); rwa [dist_sub_right] at this)
+    (fun _ => 1)
+    (fun x j => by
+      have h1 : ∫ ω, heatTorus d c (x - X j ω) ∂μ
+          = ∫ y, heatTorus d c (x - y) ∂(μ.map (X j)) :=
+        (integral_map (hX j).aemeasurable
+          (((hcont hc).measurable.comp (measurable_const.sub measurable_id)).aestronglyMeasurable)).symm
+      rw [h1, hlaw j, integral_sub_left_eq_self (heatTorus d c) (flatTorusMeasure d) x,
+        heatTorus_mass hc d])
+    (fun x x' => by simpa using mul_nonneg hL0 dist_nonneg)
+    (torusNet d m) (torusNet_dense d hm) N hn0
+  simp only [mul_one] at hBn
+  -- consistency
+  have hBc : ∀ m' < k, μ.real {ω | ∃ u : FlatTorus d × FlatTorus d,
+        epsc0 + 2 * (N * (L * M + M * L + 2 * L)) * (1 / m)
+        < |∑ j ∈ Finset.range N, heatTorus d c (u.1 - X j ω)
+              * heatTorus d ((m' + 1 : ℕ) * c) (X j ω - u.2)
+            - N * heatTorus d ((m' + 1 + 1 : ℕ) * c) (u.1 - u.2)|}
+      ≤ (m : ℝ) ^ (2 * d) * (2 * Real.exp (-epsc0 ^ 2 / (2 * N * (M * M / 2) ^ 2))) := by
+    intro m' _
+    have h := consistency_uniform_exact (μ := μ) (flatTorusMeasure d)
+      (fun x x' y => dist_sub_right x x' y) (fun x y y' => dist_sub_left x y y')
+      X h_indep hX hlaw (heatTorus d c) m'
+      (fun x y => by
+        rw [(heatTorus_convPow hc d m').1]
+        exact ((hcont hc).measurable.comp (measurable_const.sub measurable_id)).mul
+          ((hcont (hmc m')).measurable.comp (measurable_id.sub measurable_const)))
+      (M := M) (B := M) (L := L) (Lq := L) (Lq' := L) (Lstar := L * M + M * L + 2 * L)
+      (r := 1 / m) hM0 hM0 hL0 hL0 hL0 (heatTorus_nonneg hc d) hpM
+      (fun u => by rw [(heatTorus_convPow hc d m').1]; exact heatTorus_nonneg (hmc m') d u)
+      (fun u => by
+        rw [(heatTorus_convPow hc d m').1]
+        exact (heatTorus_le (hmc m') d u).trans
+          (by rw [hMdef]; exact heatBound_anti hc d m' Real.pi Real.pi_pos.le))
+      hplip
+      (fun u u' => by rw [(heatTorus_convPow hc d m').1]; exact hlipm m' u u')
+      (fun u u' => by rw [(heatTorus_convPow hc d (m' + 1)).1]; exact hlipm (m' + 1) u u')
+      (by nlinarith [mul_nonneg hL0 hM0]) (by nlinarith [mul_nonneg hL0 hM0])
+      (torusNet d m ×ˢ torusNet d m) (torusNet2_dense d hm) N hc0
+    rw [(heatTorus_convPow hc d m').1, (heatTorus_convPow hc d (m' + 1)).1] at h
+    refine h.trans (mul_le_mul_of_nonneg_right ?_ (by positivity))
+    exact_mod_cast torusNet2_card d m
+  -- Gram matrix
+  have hBg := flatTorus_gram_whp (μ := μ) d X h_indep hX hlaw (modeSet d H)
+    (fun n b h => hH0 n ((mem_modeSet d H n b).mp h))
+    (fun n b n' b' h h' => hH2 n ((mem_modeSet d H n b).mp h) n' ((mem_modeSet d H n' b').mp h'))
+    N (ε := N * eta) (by positivity)
+  have hc1' : ((torusNet d m).card : ℝ) ≤ (m : ℝ) ^ d := by exact_mod_cast torusNet_card d m
+  exact heatTorus_eig_whp hc d N X k H hH0 hH2
+    (fun _ => (m : ℝ) ^ (2 * d) * (2 * Real.exp (-epsc0 ^ 2 / (2 * N * (M * M / 2) ^ 2))))
+    hR (by positivity) hsmall heta
+    (hBn.trans (mul_le_mul_of_nonneg_right hc1' (by positivity))) hBc hBg
+    ht hE hDk heps j hα0 hα1 hc1 hc2 h3
+
+end TorusEigSample
+
+/-! ### Bernstein's inequality in the uniform steps -/
+
+/-- **Uniform concentration with Bernstein's inequality.** As `uniform_concentration_param`, with
+    the variance proxy `A · qmax` in place of `A²`: for a family `k x` with values in `[0, A]`,
+    means `q x ≤ qmax`, Lipschitz in the parameter, and a net of the parameter space,
+    `P(∃ x, |∑_{j<N} k x (X_j) - N q x| > eps + 2 N L r) ≤ 2 |net| exp(-eps²/(4 N A qmax + 2 A eps))`. -/
+theorem uniform_concentration_bernstein {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {T : Type*} [PseudoMetricSpace T] {E : Type*} [MeasurableSpace E]
+    (X : ℕ → Ω → E) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (k : T → E → ℝ) (hk : ∀ x, Measurable (k x)) {A L r qmax : ℝ} (hA : 0 < A) (hL : 0 ≤ L)
+    (hbound : ∀ x y, k x y ∈ Set.Icc 0 A)
+    (hlip : ∀ x x' y, |k x y - k x' y| ≤ L * dist x x')
+    (q : T → ℝ) (hq : ∀ x j, μ[fun ω => k x (X j ω)] = q x) (hqmax : ∀ x, q x ≤ qmax)
+    (hqlip : ∀ x x', |q x - q x'| ≤ L * dist x x')
+    (net : Finset T) (hnet : ∀ x, ∃ a ∈ net, dist x a ≤ r)
+    (N : ℕ) {ε : ℝ} (hε : 0 < ε) :
+    μ.real {ω | ∃ x, ε + 2 * (N * L) * r < |∑ j ∈ Finset.range N, k x (X j ω) - N * q x|}
+      ≤ net.card * (2 * Real.exp (-ε ^ 2 / (4 * (N * (A * qmax)) + 2 * A * ε))) := by
+  classical
+  have hq0 : ∀ x, 0 ≤ q x := fun x => by
+    rw [← hq x 0]; exact integral_nonneg fun ω => (hbound x (X 0 ω)).1
+  have hone : ∀ a ∈ net, μ.real {ω | ε ≤ |∑ j ∈ Finset.range N, k a (X j ω) - N * q a|}
+      ≤ 2 * Real.exp (-ε ^ 2 / (4 * (N * (A * qmax)) + 2 * A * ε)) := by
+    intro a _
+    have h := bernstein_bounded_mean (μ := μ) (fun j ω => k a (X j ω))
+      (h_indep.comp (fun _ y => k a y) (fun _ => hk a)) (fun j => (hk a).comp (hX j)) hA
+      (fun j ω => (hbound a (X j ω)).1) (fun j ω => (hbound a (X j ω)).2) (fun j => hq a j) N hε
+    refine h.trans ?_
+    have hden1 : 0 < 4 * (N * (A * q a)) + 2 * A * ε := by
+      have : 0 ≤ (N : ℝ) * (A * q a) := by have := hq0 a; positivity
+      nlinarith [mul_pos hA hε]
+    have hden : 4 * (N * (A * q a)) + 2 * A * ε ≤ 4 * (N * (A * qmax)) + 2 * A * ε := by
+      have : (N : ℝ) * (A * q a) ≤ N * (A * qmax) :=
+        mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_left (hqmax a) hA.le) (Nat.cast_nonneg N)
+      linarith
+    have : -ε ^ 2 / (4 * (N * (A * q a)) + 2 * A * ε)
+        ≤ -ε ^ 2 / (4 * (N * (A * qmax)) + 2 * A * ε) := by
+      rw [neg_div, neg_div, neg_le_neg_iff]
+      exact div_le_div_of_nonneg_left (_root_.sq_nonneg ε) hden1 hden
+    exact mul_le_mul_of_nonneg_left (Real.exp_le_exp.mpr this) (by norm_num)
+  have hnetbound : μ.real {ω | ∃ a ∈ net, ε ≤ |∑ j ∈ Finset.range N, k a (X j ω) - N * q a|}
+      ≤ net.card * (2 * Real.exp (-ε ^ 2 / (4 * (N * (A * qmax)) + 2 * A * ε))) := by
+    have hset : {ω | ∃ a ∈ net, ε ≤ |∑ j ∈ Finset.range N, k a (X j ω) - N * q a|}
+        = ⋃ a ∈ net, {ω | ε ≤ |∑ j ∈ Finset.range N, k a (X j ω) - N * q a|} := by
+      ext ω; simp
+    rw [hset]
+    refine (measureReal_biUnion_finset_le _ _).trans ?_
+    calc ∑ a ∈ net, μ.real {ω | ε ≤ |∑ j ∈ Finset.range N, k a (X j ω) - N * q a|}
+        ≤ ∑ _a ∈ net, 2 * Real.exp (-ε ^ 2 / (4 * (N * (A * qmax)) + 2 * A * ε)) :=
+          Finset.sum_le_sum hone
+      _ = _ := by rw [Finset.sum_const, nsmul_eq_mul]
+  refine (measureReal_mono ?_).trans hnetbound
+  intro ω hω
+  simp only [Set.mem_setOf_eq] at hω ⊢
+  by_contra hcon
+  push Not at hcon
+  obtain ⟨x, hx⟩ := hω
+  have hNL : 0 ≤ (N : ℝ) * L := mul_nonneg (Nat.cast_nonneg _) hL
+  have hf : ∀ x y : T, |∑ j ∈ Finset.range N, k x (X j ω) - ∑ j ∈ Finset.range N, k y (X j ω)|
+      ≤ (N * L) * dist x y := by
+    intro x y
+    rw [← Finset.sum_sub_distrib]
+    calc |∑ j ∈ Finset.range N, (k x (X j ω) - k y (X j ω))|
+        ≤ ∑ j ∈ Finset.range N, |k x (X j ω) - k y (X j ω)| := Finset.abs_sum_le_sum_abs _ _
+      _ ≤ ∑ _j ∈ Finset.range N, L * dist x y := Finset.sum_le_sum (fun j _ => hlip x y (X j ω))
+      _ = (N * L) * dist x y := by simp; ring
+  have hg : ∀ x y : T, |(N : ℝ) * q x - N * q y| ≤ (N * L) * dist x y := by
+    intro x y
+    rw [← mul_sub, abs_mul, abs_of_nonneg (Nat.cast_nonneg N), mul_assoc]
+    exact mul_le_mul_of_nonneg_left (hqlip x y) (Nat.cast_nonneg N)
+  have := sup_from_net (fun x => ∑ j ∈ Finset.range N, k x (X j ω)) (fun x => (N : ℝ) * q x)
+    hNL hf hg net hnet (fun a ha => (hcon a ha).le) x
+  linarith
+
+
+/-- `consistency_uniform_exact` with Bernstein's inequality: the variance proxy is
+    `M B Bq` (bounds of `p`, `p^{*(m+1)}`, `p^{*(m+2)}`) in place of `(M B)²`. -/
+theorem consistency_uniform_bernstein {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {G : Type*} [AddCommGroup G] [PseudoMetricSpace G]
+    [MeasurableSpace G] [MeasurableAdd₂ G] (ν : Measure G) [ν.IsAddRightInvariant]
+    (hdist : ∀ x x' y : G, dist (x - y) (x' - y) = dist x x')
+    (hdist2 : ∀ x y y' : G, dist (x - y) (x - y') = dist y y')
+    (X : ℕ → Ω → G) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = ν) (p : G → ℝ) (m : ℕ)
+    (hF : ∀ x y : G, Measurable (fun z : G => p (x - z) * convPow ν p m (z - y)))
+    {M B Bq L Lq Lq' Lstar r : ℝ} (hM : 0 ≤ M) (hB : 0 ≤ B) (hMB : 0 < M * B)
+    (hqmax : ∀ u, convPow ν p (m + 1) u ≤ Bq) (hL : 0 ≤ L) (hLq : 0 ≤ Lq)
+    (hLq' : 0 ≤ Lq') (hp0 : ∀ u, 0 ≤ p u) (hpM : ∀ u, p u ≤ M)
+    (hq0 : ∀ u, 0 ≤ convPow ν p m u) (hqB : ∀ u, convPow ν p m u ≤ B)
+    (hplip : ∀ u u', |p u - p u'| ≤ L * dist u u')
+    (hqlip : ∀ u u', |convPow ν p m u - convPow ν p m u'| ≤ Lq * dist u u')
+    (hq'lip : ∀ u u', |convPow ν p (m + 1) u - convPow ν p (m + 1) u'| ≤ Lq' * dist u u')
+    (hL1 : L * B + M * Lq ≤ Lstar) (hL2 : 2 * Lq' ≤ Lstar)
+    (net : Finset (G × G)) (hnet : ∀ t : G × G, ∃ a ∈ net, dist t a ≤ r)
+    (N : ℕ) {ε : ℝ} (hε : 0 < ε) :
+    μ.real {ω | ∃ t : G × G, ε + 2 * (N * Lstar) * r
+        < |∑ j ∈ Finset.range N, p (t.1 - X j ω) * convPow ν p m (X j ω - t.2)
+            - N * convPow ν p (m + 1) (t.1 - t.2)|}
+      ≤ net.card * (2 * Real.exp (-ε ^ 2 / (4 * (N * (M * B * Bq)) + 2 * (M * B) * ε))) := by
+  have hLs : 0 ≤ Lstar := le_trans (by positivity) hL2
+  refine uniform_concentration_bernstein (μ := μ) (T := G × G) X h_indep hX
+    (fun t z => p (t.1 - z) * convPow ν p m (z - t.2)) (fun t => hF t.1 t.2)
+    hMB hLs
+    (fun t z => ⟨mul_nonneg (hp0 _) (hq0 _), mul_le_mul (hpM _) (hqB _) (hq0 _) hM⟩)
+    ?_ (fun t => convPow ν p (m + 1) (t.1 - t.2))
+    (fun t j => transported_mean ν (X j) (hX j) (hlaw j) p m t.1 t.2 (hF t.1 t.2))
+    (fun t => hqmax _) ?_ net hnet N hε
+  · -- Lipschitz in the parameter
+    intro t t' z
+    have h1 := hplip (t.1 - z) (t'.1 - z)
+    rw [hdist t.1 t'.1 z] at h1
+    have h2 := hqlip (z - t.2) (z - t'.2)
+    rw [hdist2 z t.2 t'.2] at h2
+    have hd1 : dist t.1 t'.1 ≤ dist t t' := by rw [Prod.dist_eq]; exact le_max_left _ _
+    have hd2 : dist t.2 t'.2 ≤ dist t t' := by rw [Prod.dist_eq]; exact le_max_right _ _
+    have e : p (t.1 - z) * convPow ν p m (z - t.2) - p (t'.1 - z) * convPow ν p m (z - t'.2)
+        = (p (t.1 - z) - p (t'.1 - z)) * convPow ν p m (z - t.2)
+          + p (t'.1 - z) * (convPow ν p m (z - t.2) - convPow ν p m (z - t'.2)) := by ring
+    rw [e]
+    have a1 : |(p (t.1 - z) - p (t'.1 - z)) * convPow ν p m (z - t.2)| ≤ L * dist t t' * B := by
+      rw [abs_mul, abs_of_nonneg (hq0 _)]
+      exact mul_le_mul (h1.trans (mul_le_mul_of_nonneg_left hd1 hL)) (hqB _) (hq0 _)
+        (mul_nonneg hL dist_nonneg)
+    have a2 : |p (t'.1 - z) * (convPow ν p m (z - t.2) - convPow ν p m (z - t'.2))|
+        ≤ M * (Lq * dist t t') := by
+      rw [abs_mul, abs_of_nonneg (hp0 _)]
+      exact mul_le_mul (hpM _) (h2.trans (mul_le_mul_of_nonneg_left hd2 hLq)) (abs_nonneg _) hM
+    have a3 : (L * B + M * Lq) * dist t t' ≤ Lstar * dist t t' :=
+      mul_le_mul_of_nonneg_right hL1 dist_nonneg
+    calc |(p (t.1 - z) - p (t'.1 - z)) * convPow ν p m (z - t.2)
+            + p (t'.1 - z) * (convPow ν p m (z - t.2) - convPow ν p m (z - t'.2))|
+        ≤ L * dist t t' * B + M * (Lq * dist t t') := (abs_add_le _ _).trans (add_le_add a1 a2)
+      _ = (L * B + M * Lq) * dist t t' := by ring
+      _ ≤ Lstar * dist t t' := a3
+  · -- Lipschitz of the mean
+    intro t t'
+    have hd1 : dist t.1 t'.1 ≤ dist t t' := by rw [Prod.dist_eq]; exact le_max_left _ _
+    have hd2 : dist t.2 t'.2 ≤ dist t t' := by rw [Prod.dist_eq]; exact le_max_right _ _
+    have h1 := hq'lip (t.1 - t.2) (t'.1 - t'.2)
+    have htri : dist (t.1 - t.2) (t'.1 - t'.2) ≤ dist t.1 t'.1 + dist t.2 t'.2 := by
+      calc dist (t.1 - t.2) (t'.1 - t'.2)
+          ≤ dist (t.1 - t.2) (t'.1 - t.2) + dist (t'.1 - t.2) (t'.1 - t'.2) := dist_triangle _ _ _
+        _ = dist t.1 t'.1 + dist t.2 t'.2 := by rw [hdist, hdist2]
+    calc |convPow ν p (m + 1) (t.1 - t.2) - convPow ν p (m + 1) (t'.1 - t'.2)|
+        ≤ Lq' * dist (t.1 - t.2) (t'.1 - t'.2) := h1
+      _ ≤ Lq' * (2 * dist t t') := mul_le_mul_of_nonneg_left (by linarith) hLq'
+      _ = 2 * Lq' * dist t t' := by ring
+      _ ≤ Lstar * dist t t' := mul_le_mul_of_nonneg_right hL2 dist_nonneg
+
+/-- **The kernel of the sampled walk with the heat kernel of the torus: quantitative bound with
+    Bernstein's inequality and the decaying bounds of the convolution powers.** As
+    `heatTorus_walk_whp`, with `B_j = (1 + √(π/((j+1)c)))^d` in place of `M` for the `j`-th convolution
+    power, both in the error term and in the exponents: the probability is at most
+    `2 m^d exp(-epsn0²/(4NM + 2M epsn0)) + ∑_{j<k} 2 m^{2d} exp(-epsc0²/(4N M B_j B_{j+1} + 2 M B_j epsc0))`.
+    Still weaker than the theorem of the paper: the consistency error enters without the factor
+    `m^{-1/2}` and without the Gaussian weight, so the error is a sum over `j < k` of terms of the
+    size of the deviation and not `√k m_k` times it. -/
+theorem heatTorus_walk_bernstein {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] (d : ℕ) (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ)
+    (hX : ∀ j, Measurable (X j)) (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d)
+    {c : ℝ} (hc : 0 < c) (k : ℕ) {m : ℕ} (hm : 0 < m) (N : ℕ) [NeZero N]
+    {M L : ℝ} (hMdef : M = (1 + Real.sqrt (Real.pi / c)) ^ d)
+    (hLdef : L = 2 * Real.pi * (2 / c) * (1 + Real.sqrt (2 * Real.pi / c)) ^ d)
+    (epsn0 epsc0 : ℝ) (hn : 0 < epsn0) (hcc : 0 < epsc0)
+    (hsmall : epsn0 + 2 * (N * L) * (1 / m) ≤ N / 8) :
+    μ.real {ω | ∃ a i : Fin N,
+        10 * ((epsn0 + 2 * (N * L) * (1 / m)) / N) * (heatTorus d ((k + 1 : ℕ) * c) (X a ω - X i ω)
+            + ∑ j ∈ Finset.range k,
+                (3 * ((epsc0 + 2 * (N * (L * M + M * L + 2 * L)) * (1 / m)) / N)
+                  + 11 * ((epsn0 + 2 * (N * L) * (1 / m)) / N)
+                      * (1 + Real.sqrt (Real.pi / ((j + 1 + 1 : ℕ) * c))) ^ d))
+          + ∑ j ∈ Finset.range k,
+              (3 * ((epsc0 + 2 * (N * (L * M + M * L + 2 * L)) * (1 / m)) / N)
+                + 11 * ((epsn0 + 2 * (N * L) * (1 / m)) / N)
+                    * (1 + Real.sqrt (Real.pi / ((j + 1 + 1 : ℕ) * c))) ^ d)
+        < |(N : ℝ) * (walkMatrix (fun i j : Fin N => heatTorus d c (X i ω - X j ω))
+            (fun i : Fin N => (∑ l : Fin N, heatTorus d c (X i ω - X l ω)) / N) ^ (k + 1)) a i
+            - heatTorus d ((k + 1 : ℕ) * c) (X a ω - X i ω)|}
+      ≤ (m : ℝ) ^ d * (2 * Real.exp (-epsn0 ^ 2 / (4 * (N * M) + 2 * M * epsn0)))
+        + ∑ j ∈ Finset.range k, (m : ℝ) ^ (2 * d) * (2 * Real.exp (-epsc0 ^ 2
+            / (4 * (N * (M * (1 + Real.sqrt (Real.pi / ((j + 1 : ℕ) * c))) ^ d
+                  * (1 + Real.sqrt (Real.pi / ((j + 1 + 1 : ℕ) * c))) ^ d))
+              + 2 * (M * (1 + Real.sqrt (Real.pi / ((j + 1 : ℕ) * c))) ^ d) * epsc0))) := by
+  haveI : (flatTorusMeasure d).IsNegInvariant :=
+    Measure.IsAddHaarMeasure.isNegInvariant_of_regular (flatTorusMeasure d)
+  have hNpos : 0 < (N : ℝ) := by exact_mod_cast Nat.pos_of_ne_zero (NeZero.ne N)
+  have habs : ∀ {c' : ℝ}, 0 < c' →
+      Summable fun n : Fin d → ℤ => |Real.exp (-c' * ∑ i, ((n i : ℤ) : ℝ) ^ 2)| := fun hc' => by
+    simpa [abs_of_pos (Real.exp_pos _)] using gauss_summable hc' d
+  have hcont : ∀ {c' : ℝ}, 0 < c' → Continuous (heatTorus d c') := fun hc' =>
+    cosSeries_continuous d _ (habs hc')
+  have hmc : ∀ m' : ℕ, 0 < ((m' + 1 : ℕ) : ℝ) * c := fun m' => by positivity
+  have hM1 : 1 ≤ M := by
+    rw [hMdef]; exact one_le_pow₀ (by linarith [Real.sqrt_nonneg (Real.pi / c)])
+  have hM0 : 0 < M := by linarith
+  have hL0 : 0 ≤ L := by rw [hLdef]; positivity
+  have hp0 := heatTorus_nonneg hc d
+  have hpM : ∀ u, heatTorus d c u ≤ M := fun u => by rw [hMdef]; exact heatTorus_le hc d u
+  have hplip : ∀ u u', |heatTorus d c u - heatTorus d c u'| ≤ L * dist u u' := fun u u' => by
+    rw [hLdef]; exact heatTorus_lipschitz hc d u u'
+  have hlipm : ∀ (m' : ℕ) (u u' : FlatTorus d),
+      |heatTorus d ((m' + 1 : ℕ) * c) u - heatTorus d ((m' + 1 : ℕ) * c) u'| ≤ L * dist u u' :=
+    fun m' u u' => (heatTorus_lipschitz (hmc m') d u u').trans
+      (mul_le_mul_of_nonneg_right (by rw [hLdef]; exact heatLip_anti hc d m') dist_nonneg)
+  have hconv := fun j => (heatTorus_convPow hc d j).1
+  have hBfM : ∀ j : ℕ, (1 + Real.sqrt (Real.pi / ((j + 1 : ℕ) * c))) ^ d ≤ M := fun j => by
+    rw [hMdef]; exact heatBound_anti hc d j Real.pi Real.pi_pos.le
+  have hBfpos : ∀ j : ℕ, 0 < (1 + Real.sqrt (Real.pi / ((j + 1 : ℕ) * c))) ^ d := fun j => by
+    positivity
+  -- normalisation
+  have hBn := uniform_concentration_bernstein (μ := μ) (T := FlatTorus d) X h_indep hX
+    (fun x y => heatTorus d c (x - y))
+    (fun x => (hcont hc).measurable.comp (measurable_const.sub measurable_id)) hM0 hL0
+    (fun x y => ⟨hp0 _, hpM _⟩)
+    (fun x x' y => by have := hplip (x - y) (x' - y); rwa [dist_sub_right] at this)
+    (fun _ => 1)
+    (fun x j => by
+      have h1 : ∫ ω, heatTorus d c (x - X j ω) ∂μ
+          = ∫ y, heatTorus d c (x - y) ∂(μ.map (X j)) :=
+        (integral_map (hX j).aemeasurable
+          (((hcont hc).measurable.comp (measurable_const.sub measurable_id)).aestronglyMeasurable)).symm
+      rw [h1, hlaw j, integral_sub_left_eq_self (heatTorus d c) (flatTorusMeasure d) x,
+        heatTorus_mass hc d])
+    (qmax := 1) (fun _ => le_rfl)
+    (fun x x' => by simpa using mul_nonneg hL0 dist_nonneg)
+    (torusNet d m) (torusNet_dense d hm) N hn
+  simp only [mul_one] at hBn
+  -- consistency
+  have hBc : ∀ j < k, μ.real {ω | ∃ u : FlatTorus d × FlatTorus d,
+        epsc0 + 2 * (N * (L * M + M * L + 2 * L)) * (1 / m)
+        < |∑ l ∈ Finset.range N, heatTorus d c (u.1 - X l ω)
+              * convPow (flatTorusMeasure d) (heatTorus d c) j (X l ω - u.2)
+            - N * convPow (flatTorusMeasure d) (heatTorus d c) (j + 1) (u.1 - u.2)|}
+      ≤ (m : ℝ) ^ (2 * d) * (2 * Real.exp (-epsc0 ^ 2
+            / (4 * (N * (M * (1 + Real.sqrt (Real.pi / ((j + 1 : ℕ) * c))) ^ d
+                  * (1 + Real.sqrt (Real.pi / ((j + 1 + 1 : ℕ) * c))) ^ d))
+              + 2 * (M * (1 + Real.sqrt (Real.pi / ((j + 1 : ℕ) * c))) ^ d) * epsc0))) := by
+    intro j _
+    have h := consistency_uniform_bernstein (μ := μ) (flatTorusMeasure d)
+      (fun x x' y => dist_sub_right x x' y) (fun x y y' => dist_sub_left x y y')
+      X h_indep hX hlaw (heatTorus d c) j
+      (fun x y => by
+        rw [hconv j]
+        exact ((hcont hc).measurable.comp (measurable_const.sub measurable_id)).mul
+          ((hcont (hmc j)).measurable.comp (measurable_id.sub measurable_const)))
+      (M := M) (B := (1 + Real.sqrt (Real.pi / ((j + 1 : ℕ) * c))) ^ d)
+      (Bq := (1 + Real.sqrt (Real.pi / ((j + 1 + 1 : ℕ) * c))) ^ d)
+      (L := L) (Lq := L) (Lq' := L) (Lstar := L * M + M * L + 2 * L) (r := 1 / m)
+      hM0.le (hBfpos j).le (mul_pos hM0 (hBfpos j))
+      (fun u => by rw [hconv (j + 1)]; exact heatTorus_le (hmc (j + 1)) d u)
+      hL0 hL0 hL0 hp0 hpM
+      (fun u => by rw [hconv j]; exact heatTorus_nonneg (hmc j) d u)
+      (fun u => by rw [hconv j]; exact heatTorus_le (hmc j) d u)
+      hplip
+      (fun u u' => by rw [hconv j]; exact hlipm j u u')
+      (fun u u' => by rw [hconv (j + 1)]; exact hlipm (j + 1) u u')
+      (by nlinarith [mul_le_mul_of_nonneg_left (hBfM j) hL0, mul_nonneg hL0 hM0.le])
+      (by nlinarith [mul_nonneg hL0 hM0.le])
+      (torusNet d m ×ˢ torusNet d m) (torusNet2_dense d hm) N hcc
+    refine h.trans (mul_le_mul_of_nonneg_right ?_ (by positivity))
+    exact_mod_cast torusNet2_card d m
+  have hc1' : ((torusNet d m).card : ℝ) ≤ (m : ℝ) ^ d := by exact_mod_cast torusNet_card d m
+  have key := kernel_fixed_scale_whp (μ := μ) (flatTorusMeasure d) X (heatTorus d c)
+    (fun j => (1 + Real.sqrt (Real.pi / ((j + 1 : ℕ) * c))) ^ d) N k
+    (fun j u => by rw [hconv j]; exact heatTorus_nonneg (hmc j) d u)
+    (fun j u => by rw [hconv j]; exact heatTorus_le (hmc j) d u)
+    (fun ω => walkMatrix (fun i j : Fin N => heatTorus d c (X i ω - X j ω))
+      (fun i : Fin N => (∑ l : Fin N, heatTorus d c (X i ω - X l ω)) / N))
+    (fun ω b j => by
+      refine walkMatrix_apply' _ _ b j ?_
+      have hpos : 0 < ∑ l : Fin N, heatTorus d c (X b ω - X l ω) := by
+        have h1 : heatTorus d c (X b ω - X b ω) ≤ ∑ l : Fin N, heatTorus d c (X b ω - X l ω) :=
+          Finset.single_le_sum (f := fun l : Fin N => heatTorus d c (X b ω - X l ω))
+            (fun l _ => hp0 _) (Finset.mem_univ b)
+        rw [sub_self] at h1
+        linarith [heatTorus_zero_pos hc d]
+      exact (div_pos hpos hNpos).ne')
+    (fun j => (m : ℝ) ^ (2 * d) * (2 * Real.exp (-epsc0 ^ 2
+            / (4 * (N * (M * (1 + Real.sqrt (Real.pi / ((j + 1 : ℕ) * c))) ^ d
+                  * (1 + Real.sqrt (Real.pi / ((j + 1 + 1 : ℕ) * c))) ^ d))
+              + 2 * (M * (1 + Real.sqrt (Real.pi / ((j + 1 : ℕ) * c))) ^ d) * epsc0))))
+    (by positivity) hsmall
+    (hBn.trans (mul_le_mul_of_nonneg_right hc1' (by positivity))) hBc
+  rw [hconv k] at key
+  exact key
+
+section TorusEigSampleB
+open Matrix
+
+/-- **Eigenvalues of the sampled graph on the flat torus for random samples, with Bernstein's
+    inequality.** As `heatTorus_eig_sample`, with the probabilities of `heatTorus_walk_bernstein`:
+    `2 m^d exp(-epsn0²/(4NM + 2M epsn0)) + ∑_{j<k} 2 m^{2d} exp(-epsc0²/(4N M B_j B_{j+1} + 2 M B_j epsc0))
+    + 2 |modes|² exp(-(N eta/2)²/(2N))`. Still a weak form of the theorem of the paper. -/
+theorem heatTorus_eig_sample_bernstein {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {c : ℝ} (hc : 0 < c) (d N : ℕ) [NeZero N]
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d)
+    (k : ℕ) (H : Finset (Fin d → ℤ)) (hH0 : ∀ n ∈ H, n ≠ 0) (hH2 : ∀ m ∈ H, ∀ n ∈ H, m + n ≠ 0)
+    {m : ℕ} (hm : 0 < m) {M L R eta t E Dk eps α epsn0 epsc0 : ℝ}
+    (hMdef : M = (1 + Real.sqrt (Real.pi / c)) ^ d)
+    (hLdef : L = 2 * Real.pi * (2 / c) * (1 + Real.sqrt (2 * Real.pi / c)) ^ d)
+    (hR : ∀ n : Fin d → ℤ, n ≠ 0 → n ∉ H → -n ∉ H → R ≤ ∑ i, ((n i : ℤ) : ℝ) ^ 2)
+    (hn0 : 0 < epsn0) (hc0 : 0 < epsc0) (heta : 0 ≤ eta)
+    (hsmall : epsn0 + 2 * (N * L) * (1 / m) ≤ N / 8)
+    (ht : Real.exp (-((k + 1 : ℕ) * c) * R / 2)
+        * (1 + Real.sqrt (2 * Real.pi / ((k + 1 : ℕ) * c))) ^ d ≤ t)
+    (hE : ∑ m' ∈ Finset.range k,
+        (3 * ((epsc0 + 2 * (N * (L * M + M * L + 2 * L)) * (1 / m)) / N)
+          + 11 * ((epsn0 + 2 * (N * L) * (1 / m)) / N)
+              * (1 + Real.sqrt (Real.pi / ((m' + 2 : ℕ) * c))) ^ d) ≤ E)
+    (hDk : 10 * ((epsn0 + 2 * (N * L) * (1 / m)) / N)
+        * ((1 + Real.sqrt (Real.pi / ((k + 1 : ℕ) * c))) ^ d + E) + E ≤ Dk)
+    (heps : 3 * ((epsn0 + 2 * (N * L) * (1 / m)) / N)
+        * ((1 + Real.sqrt (Real.pi / ((k + 1 : ℕ) * c))) ^ d + Dk) + Dk + t ≤ eps)
+    (j : Fin (Fintype.card (Fin N))) (hα0 : 0 < α) (hα1 : α ≤ 1)
+    (hc1 : (Finset.univ.filter fun f : modeSet d H =>
+        α ^ (k + 1) < modeCoeff d ((k + 1 : ℕ) * c) f.1).card ≤ j.val)
+    (hc2 : j.val < (Finset.univ.filter fun f : modeSet d H =>
+        α ^ (k + 1) ≤ modeCoeff d ((k + 1 : ℕ) * c) f.1).card)
+    (h3 : 2 * (eps + eta * 1 * ∑ g : modeSet d H,
+        Real.sqrt (modeCoeff d ((k + 1 : ℕ) * c) g.1)) ≤ α ^ (k + 1)) :
+    μ.real {ω | ¬ ∀ hS : (symGraph (fun i j : Fin N => heatTorus d c (X i ω - X j ω))
+          (fun i : Fin N => (∑ l : Fin N, heatTorus d c (X i ω - X l ω)) / N)).IsHermitian,
+        |hS.eigenvalues₀ j ^ (k + 1) - α ^ (k + 1)|
+            ≤ eps + eta * 1 * ∑ g : modeSet d H, Real.sqrt (modeCoeff d ((k + 1 : ℕ) * c) g.1)
+          ∧ ((k + 1 : ℕ) : ℝ) * (α ^ (k + 1) * |hS.eigenvalues₀ j - α|)
+              ≤ 2 * (eps + eta * 1 * ∑ g : modeSet d H,
+                  Real.sqrt (modeCoeff d ((k + 1 : ℕ) * c) g.1))}
+      ≤ (m : ℝ) ^ d * (2 * Real.exp (-epsn0 ^ 2 / (4 * (N * M) + 2 * M * epsn0)))
+        + ∑ j' ∈ Finset.range k, (m : ℝ) ^ (2 * d) * (2 * Real.exp (-epsc0 ^ 2
+            / (4 * (N * (M * (1 + Real.sqrt (Real.pi / ((j' + 1 : ℕ) * c))) ^ d
+                  * (1 + Real.sqrt (Real.pi / ((j' + 1 + 1 : ℕ) * c))) ^ d))
+              + 2 * (M * (1 + Real.sqrt (Real.pi / ((j' + 1 : ℕ) * c))) ^ d) * epsc0)))
+        + (Fintype.card (modeSet d H) : ℝ) ^ 2
+            * (2 * Real.exp (-(N * eta / 2) ^ 2 / (2 * N))) := by
+  haveI : (flatTorusMeasure d).IsNegInvariant :=
+    Measure.IsAddHaarMeasure.isNegInvariant_of_regular (flatTorusMeasure d)
+  have hNpos : 0 < (N : ℝ) := by exact_mod_cast Nat.pos_of_ne_zero (NeZero.ne N)
+  have habs : ∀ {c' : ℝ}, 0 < c' →
+      Summable fun n : Fin d → ℤ => |Real.exp (-c' * ∑ i, ((n i : ℤ) : ℝ) ^ 2)| := fun hc' => by
+    simpa [abs_of_pos (Real.exp_pos _)] using gauss_summable hc' d
+  have hcont : ∀ {c' : ℝ}, 0 < c' → Continuous (heatTorus d c') := fun hc' =>
+    cosSeries_continuous d _ (habs hc')
+  have hmc : ∀ m' : ℕ, 0 < ((m' + 1 : ℕ) : ℝ) * c := fun m' => by positivity
+  have hM0' : 0 < M := by rw [hMdef]; positivity
+  have hM0 : 0 ≤ M := hM0'.le
+  have hBfpos : ∀ j' : ℕ, 0 < (1 + Real.sqrt (Real.pi / ((j' + 1 : ℕ) * c))) ^ d := fun j' => by
+    positivity
+  have hBfM : ∀ j' : ℕ, (1 + Real.sqrt (Real.pi / ((j' + 1 : ℕ) * c))) ^ d ≤ M := fun j' => by
+    rw [hMdef]; exact heatBound_anti hc d j' Real.pi Real.pi_pos.le
+  have hL0 : 0 ≤ L := by rw [hLdef]; positivity
+  have hpM : ∀ u, heatTorus d c u ≤ M := fun u => by rw [hMdef]; exact heatTorus_le hc d u
+  have hplip : ∀ u u', |heatTorus d c u - heatTorus d c u'| ≤ L * dist u u' := fun u u' => by
+    rw [hLdef]; exact heatTorus_lipschitz hc d u u'
+  have hlipm : ∀ (m' : ℕ) (u u' : FlatTorus d),
+      |heatTorus d ((m' + 1 : ℕ) * c) u - heatTorus d ((m' + 1 : ℕ) * c) u'| ≤ L * dist u u' :=
+    fun m' u u' => (heatTorus_lipschitz (hmc m') d u u').trans
+      (mul_le_mul_of_nonneg_right (by rw [hLdef]; exact heatLip_anti hc d m') dist_nonneg)
+  have hr : (0 : ℝ) ≤ 1 / m := by positivity
+  -- normalisation
+  have hBn := uniform_concentration_bernstein (μ := μ) (T := FlatTorus d) X h_indep hX
+    (fun x y => heatTorus d c (x - y))
+    (fun x => (hcont hc).measurable.comp (measurable_const.sub measurable_id)) hM0' hL0
+    (fun x y => ⟨heatTorus_nonneg hc d _, hpM _⟩)
+    (fun x x' y => by
+      have := hplip (x - y) (x' - y); rwa [dist_sub_right] at this)
+    (fun _ => 1)
+    (fun x j => by
+      have h1 : ∫ ω, heatTorus d c (x - X j ω) ∂μ
+          = ∫ y, heatTorus d c (x - y) ∂(μ.map (X j)) :=
+        (integral_map (hX j).aemeasurable
+          (((hcont hc).measurable.comp (measurable_const.sub measurable_id)).aestronglyMeasurable)).symm
+      rw [h1, hlaw j, integral_sub_left_eq_self (heatTorus d c) (flatTorusMeasure d) x,
+        heatTorus_mass hc d])
+    (qmax := 1) (fun _ => le_rfl)
+    (fun x x' => by simpa using mul_nonneg hL0 dist_nonneg)
+    (torusNet d m) (torusNet_dense d hm) N hn0
+  simp only [mul_one] at hBn
+  -- consistency
+  have hBc : ∀ m' < k, μ.real {ω | ∃ u : FlatTorus d × FlatTorus d,
+        epsc0 + 2 * (N * (L * M + M * L + 2 * L)) * (1 / m)
+        < |∑ j ∈ Finset.range N, heatTorus d c (u.1 - X j ω)
+              * heatTorus d ((m' + 1 : ℕ) * c) (X j ω - u.2)
+            - N * heatTorus d ((m' + 1 + 1 : ℕ) * c) (u.1 - u.2)|}
+      ≤ (m : ℝ) ^ (2 * d) * (2 * Real.exp (-epsc0 ^ 2
+            / (4 * (N * (M * (1 + Real.sqrt (Real.pi / ((m' + 1 : ℕ) * c))) ^ d
+                  * (1 + Real.sqrt (Real.pi / ((m' + 1 + 1 : ℕ) * c))) ^ d))
+              + 2 * (M * (1 + Real.sqrt (Real.pi / ((m' + 1 : ℕ) * c))) ^ d) * epsc0))) := by
+    intro m' _
+    have h := consistency_uniform_bernstein (μ := μ) (flatTorusMeasure d)
+      (fun x x' y => dist_sub_right x x' y) (fun x y y' => dist_sub_left x y y')
+      X h_indep hX hlaw (heatTorus d c) m'
+      (fun x y => by
+        rw [(heatTorus_convPow hc d m').1]
+        exact ((hcont hc).measurable.comp (measurable_const.sub measurable_id)).mul
+          ((hcont (hmc m')).measurable.comp (measurable_id.sub measurable_const)))
+      (M := M) (B := (1 + Real.sqrt (Real.pi / ((m' + 1 : ℕ) * c))) ^ d)
+      (Bq := (1 + Real.sqrt (Real.pi / ((m' + 1 + 1 : ℕ) * c))) ^ d)
+      (L := L) (Lq := L) (Lq' := L) (Lstar := L * M + M * L + 2 * L)
+      (r := 1 / m) hM0 (hBfpos m').le (mul_pos hM0' (hBfpos m'))
+      (fun u => by rw [(heatTorus_convPow hc d (m' + 1)).1]; exact heatTorus_le (hmc (m' + 1)) d u)
+      hL0 hL0 hL0 (heatTorus_nonneg hc d) hpM
+      (fun u => by rw [(heatTorus_convPow hc d m').1]; exact heatTorus_nonneg (hmc m') d u)
+      (fun u => by
+        rw [(heatTorus_convPow hc d m').1]
+        exact heatTorus_le (hmc m') d u)
+      hplip
+      (fun u u' => by rw [(heatTorus_convPow hc d m').1]; exact hlipm m' u u')
+      (fun u u' => by rw [(heatTorus_convPow hc d (m' + 1)).1]; exact hlipm (m' + 1) u u')
+      (by nlinarith [mul_le_mul_of_nonneg_left (hBfM m') hL0, mul_nonneg hL0 hM0])
+      (by nlinarith [mul_nonneg hL0 hM0])
+      (torusNet d m ×ˢ torusNet d m) (torusNet2_dense d hm) N hc0
+    rw [(heatTorus_convPow hc d m').1, (heatTorus_convPow hc d (m' + 1)).1] at h
+    refine h.trans (mul_le_mul_of_nonneg_right ?_ (by positivity))
+    exact_mod_cast torusNet2_card d m
+  -- Gram matrix
+  have hBg := flatTorus_gram_whp (μ := μ) d X h_indep hX hlaw (modeSet d H)
+    (fun n b h => hH0 n ((mem_modeSet d H n b).mp h))
+    (fun n b n' b' h h' => hH2 n ((mem_modeSet d H n b).mp h) n' ((mem_modeSet d H n' b').mp h'))
+    N (ε := N * eta) (by positivity)
+  have hc1' : ((torusNet d m).card : ℝ) ≤ (m : ℝ) ^ d := by exact_mod_cast torusNet_card d m
+  exact heatTorus_eig_whp hc d N X k H hH0 hH2
+    (fun j' => (m : ℝ) ^ (2 * d) * (2 * Real.exp (-epsc0 ^ 2
+            / (4 * (N * (M * (1 + Real.sqrt (Real.pi / ((j' + 1 : ℕ) * c))) ^ d
+                  * (1 + Real.sqrt (Real.pi / ((j' + 1 + 1 : ℕ) * c))) ^ d))
+              + 2 * (M * (1 + Real.sqrt (Real.pi / ((j' + 1 : ℕ) * c))) ^ d) * epsc0))))
+    hR (by positivity) hsmall heta
+    (hBn.trans (mul_le_mul_of_nonneg_right hc1' (by positivity))) hBc hBg
+    ht hE hDk heps j hα0 hα1 hc1 hc2 h3
+
+end TorusEigSampleB
+
+/-! ### The heat kernel of the torus as a periodised Gaussian; (P1) -/
+
+section PerGauss
+open Complex
+
+/-- Summability of a shifted Gaussian over the integers. -/
+theorem gauss_shift_summable {b : ℝ} (hb : 0 < b) (t : ℝ) :
+    Summable fun n : ℤ => Real.exp (-b * ((n : ℝ) - t) ^ 2) := by
+  have hb2 : 0 < b / 2 := by positivity
+  refine Summable.of_nonneg_of_le (fun n => (Real.exp_pos _).le) (fun n => ?_)
+    ((gauss_summable_int hb2).mul_left (Real.exp (b * t ^ 2)))
+  rw [← Real.exp_add]
+  apply Real.exp_le_exp.mpr
+  nlinarith [_root_.sq_nonneg ((n : ℝ) - 2 * t), _root_.sq_nonneg ((n : ℝ)), _root_.sq_nonneg t]
+
+/-- The one-dimensional periodised Gaussian in the variable of the Fourier form:
+    `perGauss c t = (π/c)^{1/2} ∑_n e^{-(π²/c)(n - t)²}`; with `c = 2π²τ` this is
+    `∑_n (2πτ)^{-1/2} e^{-(t - n)²/(2τ)}`. -/
+noncomputable def perGauss (c t : ℝ) : ℝ :=
+  1 / (c / Real.pi) ^ (1 / 2 : ℝ) * ∑' n : ℤ, Real.exp (-Real.pi / (c / Real.pi) * ((n : ℝ) - t) ^ 2)
+
+/-- **Poisson summation, one variable:** the Fourier series equals the periodised Gaussian. -/
+theorem theta_factor_eq {c : ℝ} (hc : 0 < c) (t : ℝ) :
+    ∑' j : ℤ, ((Real.exp (-c * (j : ℝ) ^ 2) : ℝ) : ℂ) * fourier j ((t : ℝ) : UnitAddCircle)
+      = (perGauss c t : ℂ) := by
+  have ha : 0 < c / Real.pi := div_pos hc Real.pi_pos
+  have hP := Complex.tsum_exp_neg_quadratic (a := ((c / Real.pi : ℝ) : ℂ))
+    (by rwa [ofReal_re]) (I * t)
+  have hL : ∀ j : ℤ, ((Real.exp (-c * (j : ℝ) ^ 2) : ℝ) : ℂ) * fourier j ((t : ℝ) : UnitAddCircle)
+      = cexp (-Real.pi * ((c / Real.pi : ℝ) : ℂ) * j ^ 2 + 2 * Real.pi * (I * t) * j) := by
+    intro j
+    rw [fourier_coe_apply, ofReal_exp, ← Complex.exp_add]
+    congr 1
+    push_cast
+    field_simp
+  have hR : ∀ n : ℤ, cexp (-Real.pi / ((c / Real.pi : ℝ) : ℂ) * (n + I * (I * t)) ^ 2)
+      = ((Real.exp (-Real.pi / (c / Real.pi) * ((n : ℝ) - t) ^ 2) : ℝ) : ℂ) := by
+    intro n
+    rw [ofReal_exp]
+    congr 1
+    have : (n : ℂ) + I * (I * t) = ((n : ℝ) - t : ℝ) := by
+      rw [← mul_assoc, I_mul_I]; push_cast; ring
+    rw [this]; push_cast; ring
+  simp_rw [hL]
+  rw [hP]
+  simp_rw [hR]
+  rw [← ofReal_tsum]
+  unfold perGauss
+  push_cast
+  rw [ofReal_cpow ha.le]
+  push_cast
+  ring
+
+/-- The periodised Gaussian is nonnegative. -/
+theorem perGauss_nonneg {c : ℝ} (hc : 0 < c) (t : ℝ) : 0 ≤ perGauss c t := by
+  have ha : 0 < c / Real.pi := div_pos hc Real.pi_pos
+  unfold perGauss
+  exact mul_nonneg (by positivity) (tsum_nonneg fun n => (Real.exp_pos _).le)
+
+/-- **The heat kernel of the flat torus is the product of one-dimensional periodised Gaussians.** -/
+theorem heatTorus_eq_prod {c : ℝ} (hc : 0 < c) (d : ℕ) (t : Fin d → ℝ) :
+    heatTorus d c (fun i => ((t i : ℝ) : UnitAddCircle)) = ∏ i, perGauss c (t i) := by
+  set x : FlatTorus d := fun i => ((t i : ℝ) : UnitAddCircle) with hx
+  have hnorm : ∀ (i : Fin d) (j : ℤ),
+      ‖((Real.exp (-c * (j : ℝ) ^ 2) : ℝ) : ℂ) * fourier j (x i)‖ = Real.exp (-c * (j : ℝ) ^ 2) := by
+    intro i j
+    rw [norm_mul, Complex.norm_real, Real.norm_eq_abs, abs_of_pos (Real.exp_pos _), fourier_apply,
+      Circle.norm_coe, mul_one]
+  have hS := hasSum_pi_prod d (fun i j => ((Real.exp (-c * (j : ℝ) ^ 2) : ℝ) : ℂ) * fourier j (x i))
+    (fun i => by simp_rw [hnorm]; exact gauss_summable_int hc)
+  have hreq : ∀ i, ∑' j : ℤ, ((Real.exp (-c * (j : ℝ) ^ 2) : ℝ) : ℂ) * fourier j (x i)
+      = (perGauss c (t i) : ℂ) := fun i => theta_factor_eq hc (t i)
+  simp_rw [hreq] at hS
+  have hG : ∀ n : Fin d → ℤ,
+      (∏ i, ((Real.exp (-c * ((n i : ℤ) : ℝ) ^ 2) : ℝ) : ℂ) * fourier (n i) (x i)).re
+        = Real.exp (-c * ∑ i, ((n i : ℤ) : ℝ) ^ 2) * (torusChar d n x).re := by
+    intro n
+    rw [Finset.prod_mul_distrib, ← Complex.ofReal_prod, ← Real.exp_sum, ← Finset.mul_sum]
+    unfold torusChar
+    rw [Complex.re_ofReal_mul]
+  have hre := Complex.hasSum_re hS
+  simp_rw [hG] at hre
+  have hval : heatTorus d c x = (∏ i, (perGauss c (t i) : ℂ)).re := hre.tsum_eq
+  rw [hval, ← Complex.ofReal_prod, Complex.ofReal_re]
+
+/-- (P1) in one variable: for `c_a ≤ c_t`, `perGauss c_a ≤ (c_t/c_a)^{1/2} perGauss c_t`. -/
+theorem perGauss_P1 {ca ct : ℝ} (ha : 0 < ca) (hat : ca ≤ ct) (t : ℝ) :
+    perGauss ca t ≤ (ct / ca) ^ (1 / 2 : ℝ) * perGauss ct t := by
+  have ht : 0 < ct := lt_of_lt_of_le ha hat
+  have h1 : 0 < ca / Real.pi := div_pos ha Real.pi_pos
+  have h2 : 0 < ct / Real.pi := div_pos ht Real.pi_pos
+  unfold perGauss
+  have hsum : ∑' n : ℤ, Real.exp (-Real.pi / (ca / Real.pi) * ((n : ℝ) - t) ^ 2)
+      ≤ ∑' n : ℤ, Real.exp (-Real.pi / (ct / Real.pi) * ((n : ℝ) - t) ^ 2) := by
+    have e1 : ∀ c' : ℝ, 0 < c' → (fun n : ℤ => Real.exp (-Real.pi / (c' / Real.pi) * ((n : ℝ) - t) ^ 2))
+        = fun n : ℤ => Real.exp (-(Real.pi / (c' / Real.pi)) * ((n : ℝ) - t) ^ 2) := fun c' _ => by
+      funext n; rw [neg_div]
+    refine Summable.tsum_le_tsum (fun n => ?_) ?_ ?_
+    · apply Real.exp_le_exp.mpr
+      have : Real.pi / (ct / Real.pi) ≤ Real.pi / (ca / Real.pi) :=
+        div_le_div_of_nonneg_left Real.pi_pos.le h1 (div_le_div_of_nonneg_right hat Real.pi_pos.le)
+      rw [neg_div, neg_div]
+      nlinarith [_root_.sq_nonneg ((n : ℝ) - t)]
+    · rw [e1 ca ha]; exact gauss_shift_summable (by positivity) t
+    · rw [e1 ct ht]; exact gauss_shift_summable (by positivity) t
+  have hpre : 1 / (ca / Real.pi) ^ (1 / 2 : ℝ)
+      = (ct / ca) ^ (1 / 2 : ℝ) * (1 / (ct / Real.pi) ^ (1 / 2 : ℝ)) := by
+    have : ct / ca = (ct / Real.pi) / (ca / Real.pi) := by field_simp
+    rw [this, Real.div_rpow h2.le h1.le]
+    have h3 : 0 < (ct / Real.pi) ^ (1 / 2 : ℝ) := Real.rpow_pos_of_pos h2 _
+    have h4 : 0 < (ca / Real.pi) ^ (1 / 2 : ℝ) := Real.rpow_pos_of_pos h1 _
+    field_simp
+  rw [hpre, mul_assoc]
+  refine mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_left hsum (by positivity)) (by positivity)
+
+/-- Every point of the flat torus has real coordinates. -/
+theorem flatTorus_lift (d : ℕ) (x : FlatTorus d) :
+    ∃ t : Fin d → ℝ, x = fun i => ((t i : ℝ) : UnitAddCircle) := by
+  choose t ht using fun i => QuotientAddGroup.mk_surjective (x i)
+  exact ⟨t, funext fun i => (ht i).symm⟩
+
+/-- **(P1) for the heat kernel of the torus:** for `c_a ≤ c_t`,
+    `p_{c_a} ≤ (c_t/c_a)^{d/2} p_{c_t}` pointwise. -/
+theorem heatTorus_P1 {ca ct : ℝ} (ha : 0 < ca) (hat : ca ≤ ct) (d : ℕ) (x : FlatTorus d) :
+    heatTorus d ca x ≤ ((ct / ca) ^ (1 / 2 : ℝ)) ^ d * heatTorus d ct x := by
+  obtain ⟨t, rfl⟩ := flatTorus_lift d x
+  have ht : 0 < ct := lt_of_lt_of_le ha hat
+  rw [heatTorus_eq_prod ha, heatTorus_eq_prod ht]
+  calc ∏ i, perGauss ca (t i) ≤ ∏ i : Fin d, (ct / ca) ^ (1 / 2 : ℝ) * perGauss ct (t i) :=
+        Finset.prod_le_prod (fun i _ => perGauss_nonneg ha _) (fun i _ => perGauss_P1 ha hat _)
+    _ = _ := by rw [Finset.prod_mul_distrib, Finset.prod_const, Finset.card_univ, Fintype.card_fin]
+
+end PerGauss
+
+/-! ### Core of (P5) -/
+
+/-- `√(∑ a_i) ≤ ∑ √a_i` for finite sums of nonnegative numbers. -/
+theorem sqrt_finset_sum_le {ι : Type*} (s : Finset ι) (a : ι → ℝ) (ha : ∀ i, 0 ≤ a i) :
+    Real.sqrt (∑ i ∈ s, a i) ≤ ∑ i ∈ s, Real.sqrt (a i) := by
+  classical
+  induction s using Finset.induction_on with
+  | empty => simp
+  | insert j s hj ih =>
+    rw [Finset.sum_insert hj, Finset.sum_insert hj]
+    have h1 : Real.sqrt (a j + ∑ i ∈ s, a i) ≤ Real.sqrt (a j) + Real.sqrt (∑ i ∈ s, a i) := by
+      rw [Real.sqrt_le_left (by positivity)]
+      have e1 := Real.sq_sqrt (ha j)
+      have e2 := Real.sq_sqrt (Finset.sum_nonneg fun i _ => ha i : (0:ℝ) ≤ ∑ i ∈ s, a i)
+      nlinarith [Real.sqrt_nonneg (a j), Real.sqrt_nonneg (∑ i ∈ s, a i)]
+    linarith
+
+open Filter Topology in
+/-- The square root of a series of nonnegative terms is at most the series of the square roots. -/
+theorem sqrt_tsum_le {ι : Type*} (a : ι → ℝ) (ha : ∀ i, 0 ≤ a i) (hs : Summable a)
+    (hs' : Summable fun i => Real.sqrt (a i)) :
+    Real.sqrt (∑' i, a i) ≤ ∑' i, Real.sqrt (a i) := by
+  have h1 : Tendsto (fun s : Finset ι => Real.sqrt (∑ i ∈ s, a i)) atTop
+      (𝓝 (Real.sqrt (∑' i, a i))) :=
+    (Real.continuous_sqrt.tendsto _).comp hs.hasSum
+  refine le_of_tendsto h1 (Eventually.of_forall fun s => ?_)
+  exact (sqrt_finset_sum_le s a ha).trans (hs'.sum_le_tsum s fun i _ => Real.sqrt_nonneg _)
+
+/-- **Core of (P5) in one variable:** `√(perGauss c t) · pre(2c) ≤ √(pre(c)) · perGauss (2c) t`, where
+    `pre(c) = 1/(c/π)^{1/2}` is the prefactor of the periodised Gaussian. -/
+theorem perGauss_sqrt {c : ℝ} (hc : 0 < c) (t : ℝ) :
+    Real.sqrt (perGauss c t) * (1 / (2 * c / Real.pi) ^ (1 / 2 : ℝ))
+      ≤ Real.sqrt (1 / (c / Real.pi) ^ (1 / 2 : ℝ)) * perGauss (2 * c) t := by
+  have ha : 0 < c / Real.pi := div_pos hc Real.pi_pos
+  have ha2 : 0 < 2 * c / Real.pi := div_pos (by positivity) Real.pi_pos
+  have hpre : 0 ≤ 1 / (c / Real.pi) ^ (1 / 2 : ℝ) := by positivity
+  have hpre2 : 0 ≤ 1 / (2 * c / Real.pi) ^ (1 / 2 : ℝ) := by positivity
+  have hb : 0 < Real.pi / (c / Real.pi) := div_pos Real.pi_pos ha
+  have e1 : (fun n : ℤ => Real.exp (-Real.pi / (c / Real.pi) * ((n : ℝ) - t) ^ 2))
+      = fun n : ℤ => Real.exp (-(Real.pi / (c / Real.pi)) * ((n : ℝ) - t) ^ 2) := by
+    funext n; rw [neg_div]
+  have hsqrt : ∀ n : ℤ, Real.sqrt (Real.exp (-Real.pi / (c / Real.pi) * ((n : ℝ) - t) ^ 2))
+      = Real.exp (-Real.pi / (2 * c / Real.pi) * ((n : ℝ) - t) ^ 2) := by
+    intro n
+    rw [Real.sqrt_eq_iff_mul_self_eq (Real.exp_pos _).le (Real.exp_pos _).le, ← Real.exp_add]
+    congr 1
+    field_simp
+    ring
+  have hs1 : Summable fun n : ℤ => Real.exp (-Real.pi / (c / Real.pi) * ((n : ℝ) - t) ^ 2) := by
+    rw [e1]; exact gauss_shift_summable hb t
+  have hs2 : Summable fun n : ℤ =>
+      Real.sqrt (Real.exp (-Real.pi / (c / Real.pi) * ((n : ℝ) - t) ^ 2)) := by
+    simp_rw [hsqrt]
+    have : (fun n : ℤ => Real.exp (-Real.pi / (2 * c / Real.pi) * ((n : ℝ) - t) ^ 2))
+        = fun n : ℤ => Real.exp (-(Real.pi / (2 * c / Real.pi)) * ((n : ℝ) - t) ^ 2) := by
+      funext n; rw [neg_div]
+    rw [this]; exact gauss_shift_summable (div_pos Real.pi_pos ha2) t
+  have h := sqrt_tsum_le _ (fun n => (Real.exp_pos _).le) hs1 hs2
+  simp_rw [hsqrt] at h
+  unfold perGauss
+  rw [Real.sqrt_mul hpre]
+  calc Real.sqrt (1 / (c / Real.pi) ^ (1 / 2 : ℝ))
+        * Real.sqrt (∑' n : ℤ, Real.exp (-Real.pi / (c / Real.pi) * ((n : ℝ) - t) ^ 2))
+        * (1 / (2 * c / Real.pi) ^ (1 / 2 : ℝ))
+      ≤ Real.sqrt (1 / (c / Real.pi) ^ (1 / 2 : ℝ))
+        * (∑' n : ℤ, Real.exp (-Real.pi / (2 * c / Real.pi) * ((n : ℝ) - t) ^ 2))
+        * (1 / (2 * c / Real.pi) ^ (1 / 2 : ℝ)) := by
+        gcongr
+    _ = _ := by ring
+
+/-! ### (P4) in one variable -/
+
+section P4
+open Complex
+
+/-- `∑_{j ∈ ℤ} e^{-c j²} ≤ 1 + √(π/c)`. -/
+theorem gauss_tsum_int_le {c : ℝ} (hc : 0 < c) :
+    ∑' j : ℤ, Real.exp (-c * (j : ℝ) ^ 2) ≤ 1 + Real.sqrt (Real.pi / c) := by
+  refine (gauss_summable_int hc).tsum_le_of_sum_le fun T => ?_
+  have hsub : T ⊆ Finset.Icc (-((T.sup Int.natAbs : ℕ) : ℤ)) (T.sup Int.natAbs : ℕ) := by
+    intro j hj
+    have : j.natAbs ≤ T.sup Int.natAbs := Finset.le_sup (f := Int.natAbs) hj
+    rw [Finset.mem_Icc]; omega
+  exact (Finset.sum_le_sum_of_subset_of_nonneg hsub fun j _ _ => (Real.exp_pos _).le).trans
+    (gauss_sum_int_le hc _)
+
+/-- **Uniform bound for the periodised Gaussian (one variable):** `perGauss c t ≤ 1 + √(π/c)`.
+    Equivalently `∑_n e^{-b(n-t)²} ≤ √(π/b) + 1` for every shift `t`. -/
+theorem perGauss_le {c : ℝ} (hc : 0 < c) (t : ℝ) : perGauss c t ≤ 1 + Real.sqrt (Real.pi / c) := by
+  have h := theta_factor_eq hc t
+  have hn : ∀ j : ℤ, ‖((Real.exp (-c * (j : ℝ) ^ 2) : ℝ) : ℂ) * fourier j ((t : ℝ) : UnitAddCircle)‖
+      = Real.exp (-c * (j : ℝ) ^ 2) := by
+    intro j
+    rw [norm_mul, Complex.norm_real, Real.norm_eq_abs, abs_of_pos (Real.exp_pos _), fourier_apply,
+      Circle.norm_coe, mul_one]
+  have hs : Summable fun j : ℤ =>
+      ‖((Real.exp (-c * (j : ℝ) ^ 2) : ℝ) : ℂ) * fourier j ((t : ℝ) : UnitAddCircle)‖ := by
+    simp_rw [hn]; exact gauss_summable_int hc
+  have h1 := norm_tsum_le_tsum_norm hs
+  rw [h] at h1
+  simp_rw [hn] at h1
+  rw [Complex.norm_real, Real.norm_eq_abs] at h1
+  exact (le_abs_self _).trans (h1.trans (gauss_tsum_int_le hc))
+
+/-- Shifted Gaussian sums are bounded uniformly in the shift. -/
+theorem gauss_shift_tsum_le {b : ℝ} (hb : 0 < b) (t : ℝ) :
+    ∑' n : ℤ, Real.exp (-b * ((n : ℝ) - t) ^ 2) ≤ Real.sqrt (Real.pi / b) + 1 := by
+  have hc : 0 < Real.pi ^ 2 / b := by positivity
+  have h := perGauss_le hc t
+  unfold perGauss at h
+  have e1 : Real.pi ^ 2 / b / Real.pi = Real.pi / b := by field_simp
+  have e2 : -Real.pi / (Real.pi / b) = -b := by field_simp
+  rw [e1, e2] at h
+  have hpos : 0 < (Real.pi / b) ^ (1 / 2 : ℝ) := Real.rpow_pos_of_pos (by positivity) _
+  have hsq : (Real.pi / b) ^ (1 / 2 : ℝ) = Real.sqrt (Real.pi / b) := (Real.sqrt_eq_rpow _).symm
+  have e3 : Real.pi / (Real.pi ^ 2 / b) = b / Real.pi := by field_simp
+  rw [e3] at h
+  have hsb : Real.sqrt (b / Real.pi) * Real.sqrt (Real.pi / b) = 1 := by
+    rw [← Real.sqrt_mul (by positivity)]
+    have : b / Real.pi * (Real.pi / b) = 1 := by field_simp
+    rw [this, Real.sqrt_one]
+  rw [hsq] at h hpos
+  have h2 : ∑' n : ℤ, Real.exp (-b * ((n : ℝ) - t) ^ 2)
+      ≤ Real.sqrt (Real.pi / b) * (1 + Real.sqrt (b / Real.pi)) := by
+    have := mul_le_mul_of_nonneg_left h hpos.le
+    rwa [← mul_assoc, mul_one_div_cancel hpos.ne', one_mul] at this
+  nlinarith [h2, hsb]
+
+/-- **Double-sum step of (P4), one variable.** For `a, t > 0` and all real `u, z`,
+    `(∑_n e^{-(n-u)²/(2a)}) (∑_{n'} e^{-(n'-(z-u))²/(2t)})
+      ≤ (∑_n e^{-(n-u)²/(4a)}) (∑_n e^{-(n-z)²/(2(t+2a))})`. -/
+theorem gauss_double_sum {a t : ℝ} (ha : 0 < a) (ht : 0 < t) (u z : ℝ) :
+    (∑' n : ℤ, Real.exp (-(1 / (2 * a)) * ((n : ℝ) - u) ^ 2))
+        * (∑' n : ℤ, Real.exp (-(1 / (2 * t)) * ((n : ℝ) - (z - u)) ^ 2))
+      ≤ (∑' n : ℤ, Real.exp (-(1 / (4 * a)) * ((n : ℝ) - u) ^ 2))
+        * (∑' n : ℤ, Real.exp (-(1 / (2 * (t + 2 * a))) * ((n : ℝ) - z) ^ 2)) := by
+  have hf := gauss_shift_summable (b := 1 / (2 * a)) (by positivity) u
+  have hg := gauss_shift_summable (b := 1 / (2 * t)) (by positivity) (z - u)
+  have hF := gauss_shift_summable (b := 1 / (4 * a)) (by positivity) u
+  have hG := gauss_shift_summable (b := 1 / (2 * (t + 2 * a))) (by positivity) z
+  have hfg := Summable.mul_of_nonneg hf hg (fun n => (Real.exp_pos _).le) (fun n => (Real.exp_pos _).le)
+  have hFG := Summable.mul_of_nonneg hF hG (fun n => (Real.exp_pos _).le) (fun n => (Real.exp_pos _).le)
+  let e : ℤ × ℤ ≃ ℤ × ℤ :=
+    { toFun := fun p => (p.1, p.1 + p.2), invFun := fun p => (p.1, p.2 - p.1),
+      left_inv := fun p => by simp, right_inv := fun p => by simp }
+  have hFG' : Summable fun p : ℤ × ℤ =>
+      Real.exp (-(1 / (4 * a)) * ((p.1 : ℝ) - u) ^ 2)
+        * Real.exp (-(1 / (2 * (t + 2 * a))) * (((p.1 + p.2 : ℤ) : ℝ) - z) ^ 2) :=
+    (Equiv.summable_iff e).mpr hFG
+  have hR : ∑' p : ℤ × ℤ, Real.exp (-(1 / (4 * a)) * ((p.1 : ℝ) - u) ^ 2)
+        * Real.exp (-(1 / (2 * (t + 2 * a))) * ((p.2 : ℝ) - z) ^ 2)
+      = ∑' p : ℤ × ℤ, Real.exp (-(1 / (4 * a)) * ((p.1 : ℝ) - u) ^ 2)
+        * Real.exp (-(1 / (2 * (t + 2 * a))) * (((p.1 + p.2 : ℤ) : ℝ) - z) ^ 2) :=
+    (Equiv.tsum_eq e (fun p : ℤ × ℤ => Real.exp (-(1 / (4 * a)) * ((p.1 : ℝ) - u) ^ 2)
+        * Real.exp (-(1 / (2 * (t + 2 * a))) * ((p.2 : ℝ) - z) ^ 2))).symm
+  rw [hf.tsum_mul_tsum hg hfg, hF.tsum_mul_tsum hG hFG, hR]
+  refine hfg.tsum_le_tsum (fun p => ?_) hFG'
+  show Real.exp (-(1 / (2 * a)) * ((p.1 : ℝ) - u) ^ 2)
+      * Real.exp (-(1 / (2 * t)) * ((p.2 : ℝ) - (z - u)) ^ 2)
+    ≤ Real.exp (-(1 / (4 * a)) * ((p.1 : ℝ) - u) ^ 2)
+      * Real.exp (-(1 / (2 * (t + 2 * a))) * (((p.1 + p.2 : ℤ) : ℝ) - z) ^ 2)
+  rw [← Real.exp_add, ← Real.exp_add]
+  apply Real.exp_le_exp.mpr
+  have h := gauss_product_core ha ht ((p.1 : ℝ) - u) ((p.2 : ℝ) - (z - u))
+  have e1 : ((p.1 : ℝ) - u) + ((p.2 : ℝ) - (z - u)) = ((p.1 + p.2 : ℤ) : ℝ) - z := by
+    push_cast; ring
+  rw [e1] at h
+  have r1 : (1 / (2 * a)) * ((p.1 : ℝ) - u) ^ 2 = ((p.1 : ℝ) - u) ^ 2 / (2 * a) := by ring
+  have r2 : (1 / (2 * t)) * ((p.2 : ℝ) - (z - u)) ^ 2 = ((p.2 : ℝ) - (z - u)) ^ 2 / (2 * t) := by ring
+  have r3 : (1 / (4 * a)) * ((p.1 : ℝ) - u) ^ 2 = ((p.1 : ℝ) - u) ^ 2 / (4 * a) := by ring
+  have r4 : (1 / (2 * (t + 2 * a))) * (((p.1 + p.2 : ℤ) : ℝ) - z) ^ 2
+      = (((p.1 + p.2 : ℤ) : ℝ) - z) ^ 2 / (2 * (t + 2 * a)) := by ring
+  linarith
+
+/-- The periodised Gaussian in the time variable `τ` (`c = 2π²τ`):
+    `perGauss (2π²τ) x = (2πτ)^{-1/2} ∑_n e^{-(n-x)²/(2τ)}`. -/
+theorem perGauss_time {τ : ℝ} (hτ : 0 < τ) (x : ℝ) :
+    perGauss (2 * Real.pi ^ 2 * τ) x
+      = 1 / (2 * Real.pi * τ) ^ (1 / 2 : ℝ)
+        * ∑' n : ℤ, Real.exp (-(1 / (2 * τ)) * ((n : ℝ) - x) ^ 2) := by
+  unfold perGauss
+  have e1 : 2 * Real.pi ^ 2 * τ / Real.pi = 2 * Real.pi * τ := by
+    field_simp
+  have e2 : -Real.pi / (2 * Real.pi * τ) = -(1 / (2 * τ)) := by
+    field_simp
+  rw [e1, e2]
+
+/-- **(P4) in one variable.** For `a, t > 0` and all real `u, z`, with `pre(τ) = (2πτ)^{-1/2}`,
+    `p_a(u) p_t(z - u) · pre(t + 2a) ≤ pre(a) pre(t) (√(4πa) + 1) · p_{t+2a}(z)`. -/
+theorem perGauss_P4 {a t : ℝ} (ha : 0 < a) (ht : 0 < t) (u z : ℝ) :
+    perGauss (2 * Real.pi ^ 2 * a) u * perGauss (2 * Real.pi ^ 2 * t) (z - u)
+        * (1 / (2 * Real.pi * (t + 2 * a)) ^ (1 / 2 : ℝ))
+      ≤ 1 / (2 * Real.pi * a) ^ (1 / 2 : ℝ) * (1 / (2 * Real.pi * t) ^ (1 / 2 : ℝ))
+        * (Real.sqrt (Real.pi / (1 / (4 * a))) + 1)
+        * perGauss (2 * Real.pi ^ 2 * (t + 2 * a)) z := by
+  have hta : 0 < t + 2 * a := by positivity
+  rw [perGauss_time ha, perGauss_time ht, perGauss_time hta]
+  have hd := gauss_double_sum ha ht u z
+  have hs := gauss_shift_tsum_le (b := 1 / (4 * a)) (by positivity) u
+  have hpa : 0 ≤ 1 / (2 * Real.pi * a) ^ (1 / 2 : ℝ) := by positivity
+  have hpt : 0 ≤ 1 / (2 * Real.pi * t) ^ (1 / 2 : ℝ) := by positivity
+  have hpta : 0 ≤ 1 / (2 * Real.pi * (t + 2 * a)) ^ (1 / 2 : ℝ) := by positivity
+  have hG : 0 ≤ ∑' n : ℤ, Real.exp (-(1 / (2 * (t + 2 * a))) * ((n : ℝ) - z) ^ 2) :=
+    tsum_nonneg fun n => (Real.exp_pos _).le
+  have h1 : (∑' n : ℤ, Real.exp (-(1 / (2 * a)) * ((n : ℝ) - u) ^ 2))
+        * (∑' n : ℤ, Real.exp (-(1 / (2 * t)) * ((n : ℝ) - (z - u)) ^ 2))
+      ≤ (Real.sqrt (Real.pi / (1 / (4 * a))) + 1)
+        * (∑' n : ℤ, Real.exp (-(1 / (2 * (t + 2 * a))) * ((n : ℝ) - z) ^ 2)) :=
+    hd.trans (mul_le_mul_of_nonneg_right hs hG)
+  have h2 := mul_le_mul_of_nonneg_left h1 (mul_nonneg (mul_nonneg hpa hpt) hpta)
+  calc _ = 1 / (2 * Real.pi * a) ^ (1 / 2 : ℝ) * (1 / (2 * Real.pi * t) ^ (1 / 2 : ℝ))
+        * (1 / (2 * Real.pi * (t + 2 * a)) ^ (1 / 2 : ℝ))
+        * ((∑' n : ℤ, Real.exp (-(1 / (2 * a)) * ((n : ℝ) - u) ^ 2))
+          * (∑' n : ℤ, Real.exp (-(1 / (2 * t)) * ((n : ℝ) - (z - u)) ^ 2))) := by ring
+    _ ≤ _ := h2
+    _ = _ := by ring
+
+end P4
+
+/-! ### (P4) and (P5) on the torus -/
+
+/-- **(P4) for the heat kernel of the flat torus** (time variables, `c = 2π²τ`): for `a, t > 0`,
+    `p_a(u) p_t(z - u) · pre(t+2a)^d ≤ (pre(a) pre(t) (√(4πa) + 1))^d · p_{t+2a}(z)`,
+    `pre(τ) = (2πτ)^{-1/2}`. -/
+theorem heatTorus_P4 {a t : ℝ} (ha : 0 < a) (ht : 0 < t) (d : ℕ) (u z : FlatTorus d) :
+    heatTorus d (2 * Real.pi ^ 2 * a) u * heatTorus d (2 * Real.pi ^ 2 * t) (z - u)
+        * (1 / (2 * Real.pi * (t + 2 * a)) ^ (1 / 2 : ℝ)) ^ d
+      ≤ (1 / (2 * Real.pi * a) ^ (1 / 2 : ℝ) * (1 / (2 * Real.pi * t) ^ (1 / 2 : ℝ))
+          * (Real.sqrt (Real.pi / (1 / (4 * a))) + 1)) ^ d
+        * heatTorus d (2 * Real.pi ^ 2 * (t + 2 * a)) z := by
+  obtain ⟨tu, rfl⟩ := flatTorus_lift d u
+  obtain ⟨tz, rfl⟩ := flatTorus_lift d z
+  have hca : 0 < 2 * Real.pi ^ 2 * a := by positivity
+  have hct : 0 < 2 * Real.pi ^ 2 * t := by positivity
+  have hcta : 0 < 2 * Real.pi ^ 2 * (t + 2 * a) := by positivity
+  have hsub : ((fun i => ((tz i : ℝ) : UnitAddCircle)) - fun i => ((tu i : ℝ) : UnitAddCircle))
+      = fun i => (((tz i - tu i : ℝ)) : UnitAddCircle) := by
+    funext i; simp
+  rw [hsub, heatTorus_eq_prod hca, heatTorus_eq_prod hct, heatTorus_eq_prod hcta,
+    ← Finset.prod_mul_distrib]
+  have hcard : ∀ x : ℝ, x ^ d = ∏ _i : Fin d, x := fun x => by
+    rw [Finset.prod_const, Finset.card_univ, Fintype.card_fin]
+  rw [hcard, hcard, ← Finset.prod_mul_distrib, ← Finset.prod_mul_distrib]
+  refine Finset.prod_le_prod (fun i _ => ?_) (fun i _ => perGauss_P4 ha ht (tu i) (tz i))
+  exact mul_nonneg (mul_nonneg (perGauss_nonneg hca _) (perGauss_nonneg hct _)) (by positivity)
+
+/-- **Core of (P5) on the torus:** `√(p_c(z)) · pre(2c)^d ≤ √(pre(c))^d · p_{2c}(z)`. -/
+theorem heatTorus_sqrt {c : ℝ} (hc : 0 < c) (d : ℕ) (z : FlatTorus d) :
+    Real.sqrt (heatTorus d c z) * (1 / (2 * c / Real.pi) ^ (1 / 2 : ℝ)) ^ d
+      ≤ (Real.sqrt (1 / (c / Real.pi) ^ (1 / 2 : ℝ))) ^ d * heatTorus d (2 * c) z := by
+  obtain ⟨tz, rfl⟩ := flatTorus_lift d z
+  have hc2 : 0 < 2 * c := by positivity
+  rw [heatTorus_eq_prod hc, heatTorus_eq_prod hc2]
+  have hsq : Real.sqrt (∏ i, perGauss c (tz i)) = ∏ i, Real.sqrt (perGauss c (tz i)) := by
+    rw [Real.sqrt_eq_iff_mul_self_eq (Finset.prod_nonneg fun i _ => perGauss_nonneg hc _)
+      (Finset.prod_nonneg fun i _ => Real.sqrt_nonneg _), ← Finset.prod_mul_distrib]
+    exact Finset.prod_congr rfl fun i _ => (Real.mul_self_sqrt (perGauss_nonneg hc _)).symm
+  have hcard : ∀ x : ℝ, x ^ d = ∏ _i : Fin d, x := fun x => by
+    rw [Finset.prod_const, Finset.card_univ, Fintype.card_fin]
+  rw [hsq, hcard, hcard, ← Finset.prod_mul_distrib, ← Finset.prod_mul_distrib]
+  refine Finset.prod_le_prod (fun i _ => ?_) (fun i _ => perGauss_sqrt hc (tz i))
+  exact mul_nonneg (Real.sqrt_nonneg _) (by positivity)
+
+/-- **(P5) for the heat kernel of the flat torus, with an explicit factor:**
+    `(p_{c'}(0) p_c(z))^{1/2} · pre(2c)^d ≤ (1 + √(π/c'))^{d/2} √(pre(c))^d · p_{2c}(z)`; in the lemma
+    of the paper `c' = 2c/3` (times `2t` and `3t`) and `2c` is the time `6t`. -/
+theorem heatTorus_P5 {c c' : ℝ} (hc : 0 < c) (hc' : 0 < c') (d : ℕ) (z : FlatTorus d) :
+    Real.sqrt (heatTorus d c' 0 * heatTorus d c z) * (1 / (2 * c / Real.pi) ^ (1 / 2 : ℝ)) ^ d
+      ≤ Real.sqrt ((1 + Real.sqrt (Real.pi / c')) ^ d)
+        * ((Real.sqrt (1 / (c / Real.pi) ^ (1 / 2 : ℝ))) ^ d * heatTorus d (2 * c) z) := by
+  have h0 := heatTorus_nonneg hc' d 0
+  rw [Real.sqrt_mul h0, mul_assoc]
+  exact mul_le_mul (Real.sqrt_le_sqrt (heatTorus_le hc' d 0)) (heatTorus_sqrt hc d z)
+    (mul_nonneg (Real.sqrt_nonneg _) (by positivity)) (Real.sqrt_nonneg _)
+
+/-! ### Explicit variance of a Gaussian under a Gaussian -/
+
+/-- Algebra for `gauss_variance_core`. -/
+theorem vc_aux1 {s : ℝ} (hs : 0 < s) (σ e : ℝ) :
+    1 / (2 * Real.pi * s) * (σ / s ^ 2 * (6 * s * e)) = σ / s * (3 / (Real.pi * s)) * e := by
+  have := Real.pi_pos
+  field_simp; ring
+
+/-- Algebra for `gauss_variance_core`. -/
+theorem vc_aux2 {s : ℝ} (hs : 0 < s) (σ e : ℝ) :
+    σ / s * (1 / (4 * Real.pi * s)) * e + σ / s * (3 / (Real.pi * s)) * e
+      = σ / s * ((13 / 4) / (Real.pi * s)) * e := by
+  have := Real.pi_pos
+  field_simp; ring
+
+/-- Algebra for `gauss_variance_core`. -/
+theorem vc_aux3 {s σ : ℝ} (hs : 0 < s) (hσ : 0 < σ) (hσs : σ ≤ s) :
+    σ ^ 2 / (4 * Real.pi * s ^ 3) ≤ σ / s * (1 / (4 * Real.pi * s)) := by
+  have hpi := Real.pi_pos
+  have e : σ / s * (1 / (4 * Real.pi * s)) = σ * s / (4 * Real.pi * s ^ 3) := by
+    field_simp
+  rw [e]
+  exact div_le_div_of_nonneg_right (by nlinarith) (by positivity)
+
+/-- Assembly step of `gauss_variance_core`, with free variables. -/
+theorem vc_assemble {s σ z A1 A2 E1 E2 E6 : ℝ} (hs : 0 < s) (hσ : 0 < σ) (hσs : σ ≤ s)
+    (hE1pos : 0 < E1) (hE6pos : 0 < E6) (hA2n : 0 ≤ A2)
+    (hA : A1 - A2 ≤ σ ^ 2 / (4 * Real.pi * s ^ 3)) (h16 : E1 ≤ E6)
+    (hE12 : E1 - E2 ≤ E1 * (z ^ 2 * σ / s ^ 2)) (hzE : z ^ 2 * E1 ≤ 6 * s * E6)
+    (hA2 : A2 ≤ 1 / (2 * Real.pi * s)) :
+    A1 * E1 - A2 * E2 ≤ σ / s * (4 / (Real.pi * s)) * E6 := by
+  have hpi := Real.pi_pos
+  have hsplit : A1 * E1 - A2 * E2 = (A1 - A2) * E1 + A2 * (E1 - E2) := by ring
+  rw [hsplit]
+  have hterm1 : (A1 - A2) * E1 ≤ σ / s * (1 / (4 * Real.pi * s)) * E6 := by
+    have hpre := vc_aux3 hs hσ hσs
+    have h0 : 0 ≤ σ / s * (1 / (4 * Real.pi * s)) := by positivity
+    calc _ ≤ σ ^ 2 / (4 * Real.pi * s ^ 3) * E1 := mul_le_mul_of_nonneg_right hA hE1pos.le
+      _ ≤ σ / s * (1 / (4 * Real.pi * s)) * E6 := mul_le_mul hpre h16 hE1pos.le h0
+  have hterm2 : A2 * (E1 - E2) ≤ σ / s * (3 / (Real.pi * s)) * E6 := by
+    have hq : 0 ≤ σ / s ^ 2 := by positivity
+    have h1 : E1 - E2 ≤ σ / s ^ 2 * (6 * s * E6) := by
+      calc E1 - E2 ≤ E1 * (z ^ 2 * σ / s ^ 2) := hE12
+        _ = σ / s ^ 2 * (z ^ 2 * E1) := by ring
+        _ ≤ σ / s ^ 2 * (6 * s * E6) := mul_le_mul_of_nonneg_left hzE hq
+    have h0 : 0 ≤ σ / s ^ 2 * (6 * s * E6) := by positivity
+    calc A2 * (E1 - E2) ≤ A2 * (σ / s ^ 2 * (6 * s * E6)) := mul_le_mul_of_nonneg_left h1 hA2n
+      _ ≤ 1 / (2 * Real.pi * s) * (σ / s ^ 2 * (6 * s * E6)) := mul_le_mul_of_nonneg_right hA2 h0
+      _ = σ / s * (3 / (Real.pi * s)) * E6 := vc_aux1 hs σ E6
+  have hfin : σ / s * (1 / (4 * Real.pi * s)) * E6 + σ / s * (3 / (Real.pi * s)) * E6
+      ≤ σ / s * (4 / (Real.pi * s)) * E6 := by
+    rw [vc_aux2 hs σ E6]
+    have h1 : (13 / 4 : ℝ) / (Real.pi * s) ≤ 4 / (Real.pi * s) :=
+      div_le_div_of_nonneg_right (by norm_num) (by positivity)
+    have h2 : 0 ≤ σ / s := by positivity
+    exact mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_left h1 h2) hE6pos.le
+  linarith
+
+/-- **Explicit variance of a Gaussian under a Gaussian, the inequality replacing the Gaussian
+    Poincaré inequality.** For `0 < σ ≤ s`,
+    `(E γ_s(z + √σ Z)²) - (E γ_s(z + √σ Z))²
+      = e^{-z²/(s+2σ)} / (2π √(s(s+2σ))) - e^{-z²/(s+σ)} / (2π (s+σ))`
+    (the identity itself is not formalised here), and this difference is at most
+    `(σ/s) · 4/(π s) · e^{-z²/(6s)}`: the factor `σ/s = 1/m` of the consistency lemma. -/
+theorem gauss_variance_core {s σ : ℝ} (hs : 0 < s) (hσ : 0 < σ) (hσs : σ ≤ s) (z : ℝ) :
+    1 / (2 * Real.pi * Real.sqrt (s * (s + 2 * σ))) * Real.exp (-(z ^ 2) / (s + 2 * σ))
+        - 1 / (2 * Real.pi * (s + σ)) * Real.exp (-(z ^ 2) / (s + σ))
+      ≤ σ / s * (4 / (Real.pi * s)) * Real.exp (-(z ^ 2) / (6 * s)) := by
+  have hpi := Real.pi_pos
+  set r := Real.sqrt (s * (s + 2 * σ)) with hr
+  have hr2 : r ^ 2 = s * (s + 2 * σ) := Real.sq_sqrt (by positivity)
+  have hr0 : 0 < r := Real.sqrt_pos.mpr (by positivity)
+  have hrs : s ≤ r := by
+    by_contra h; push Not at h
+    nlinarith
+  have hrs2 : r ≤ s + σ := by
+    by_contra h; push Not at h
+    nlinarith
+  set E1 := Real.exp (-(z ^ 2) / (s + 2 * σ)) with hE1
+  set E2 := Real.exp (-(z ^ 2) / (s + σ)) with hE2
+  set E6 := Real.exp (-(z ^ 2) / (6 * s)) with hE6
+  have hE1pos : 0 < E1 := Real.exp_pos _
+  have hE6pos : 0 < E6 := Real.exp_pos _
+  have hz : 0 ≤ z ^ 2 := _root_.sq_nonneg z
+  -- E1 ≤ E6
+  have h16 : E1 ≤ E6 := by
+    apply Real.exp_le_exp.mpr
+    rw [neg_div, neg_div, neg_le_neg_iff]
+    exact div_le_div_of_nonneg_left hz (by positivity) (by linarith)
+  -- (i) prefactors
+  have hA : 1 / (2 * Real.pi * r) - 1 / (2 * Real.pi * (s + σ)) ≤ σ ^ 2 / (4 * Real.pi * s ^ 3) := by
+    have hdiff : (s + σ) - r ≤ σ ^ 2 / (2 * s) := by
+      rw [le_div_iff₀ (by positivity)]
+      nlinarith
+    have hdiff0 : 0 ≤ (s + σ) - r := by linarith
+    have e : 1 / (2 * Real.pi * r) - 1 / (2 * Real.pi * (s + σ))
+        = ((s + σ) - r) / (2 * Real.pi * r * (s + σ)) := by field_simp
+    rw [e, div_le_div_iff₀ (by positivity) (by positivity)]
+    have h1 : ((s + σ) - r) * (4 * Real.pi * s ^ 3) ≤ σ ^ 2 / (2 * s) * (4 * Real.pi * s ^ 3) :=
+      mul_le_mul_of_nonneg_right hdiff (by positivity)
+    have h2 : σ ^ 2 / (2 * s) * (4 * Real.pi * s ^ 3) = 2 * Real.pi * σ ^ 2 * s ^ 2 := by
+      field_simp; ring
+    have h3 : s ^ 2 ≤ r * (s + σ) := by nlinarith
+    have h4 : 2 * Real.pi * σ ^ 2 * s ^ 2 ≤ σ ^ 2 * (2 * Real.pi * r * (s + σ)) := by
+      have : 0 ≤ 2 * Real.pi * σ ^ 2 := by positivity
+      nlinarith [mul_le_mul_of_nonneg_left h3 this]
+    linarith
+  -- (iii) difference of exponentials
+  have hE12 : E1 - E2 ≤ E1 * (z ^ 2 * σ / s ^ 2) := by
+    have hx : 0 ≤ z ^ 2 / (s + σ) - z ^ 2 / (s + 2 * σ) := by
+      rw [sub_nonneg]; exact div_le_div_of_nonneg_left hz (by positivity) (by linarith)
+    have hE2' : E2 = E1 * Real.exp (-(z ^ 2 / (s + σ) - z ^ 2 / (s + 2 * σ))) := by
+      rw [hE1, hE2, ← Real.exp_add]; congr 1; ring
+    have h1 : 1 - (z ^ 2 / (s + σ) - z ^ 2 / (s + 2 * σ))
+        ≤ Real.exp (-(z ^ 2 / (s + σ) - z ^ 2 / (s + 2 * σ))) := by
+      have := Real.add_one_le_exp (-(z ^ 2 / (s + σ) - z ^ 2 / (s + 2 * σ)))
+      linarith
+    have h2 : z ^ 2 / (s + σ) - z ^ 2 / (s + 2 * σ) ≤ z ^ 2 * σ / s ^ 2 := by
+      have e : z ^ 2 / (s + σ) - z ^ 2 / (s + 2 * σ) = z ^ 2 * σ / ((s + σ) * (s + 2 * σ)) := by
+        field_simp; ring
+      rw [e]
+      exact div_le_div_of_nonneg_left (by positivity) (by positivity) (by nlinarith)
+    rw [hE2']
+    nlinarith [mul_le_mul_of_nonneg_left h1 hE1pos.le, mul_le_mul_of_nonneg_left h2 hE1pos.le]
+  -- (iv) z² E1 ≤ 6 s E6
+  have hzE : z ^ 2 * E1 ≤ 6 * s * E6 := by
+    set x := z ^ 2 / (s + 2 * σ) with hx
+    have hx0 : 0 ≤ x := by positivity
+    have hE1x : E1 = Real.exp (-x) := by rw [hE1, hx, neg_div]
+    have hhalf : Real.exp (-(x / 2)) ≤ E6 := by
+      apply Real.exp_le_exp.mpr
+      rw [hx, neg_div, neg_le_neg_iff, div_div]
+      exact div_le_div_of_nonneg_left hz (by positivity) (by linarith)
+    have hxe : x * Real.exp (-x) ≤ 2 * Real.exp (-(x / 2)) := by
+      have h1 := Real.add_one_le_exp (x / 2)
+      have h2 : Real.exp (-x) = Real.exp (-(x / 2)) * Real.exp (-(x / 2)) := by
+        rw [← Real.exp_add]; congr 1; ring
+      have h3 : Real.exp (x / 2) * Real.exp (-(x / 2)) = 1 := by
+        rw [← Real.exp_add]; simp
+      have hp := Real.exp_pos (-(x / 2))
+      rw [h2]
+      have h4 : x * Real.exp (-(x / 2)) ≤ 2 := by nlinarith
+      nlinarith
+    have hz2 : z ^ 2 = (s + 2 * σ) * x := by rw [hx]; field_simp
+    rw [hz2, hE1x]
+    have h5 : (s + 2 * σ) * x * Real.exp (-x) ≤ (s + 2 * σ) * (2 * Real.exp (-(x / 2))) := by
+      rw [mul_assoc]; exact mul_le_mul_of_nonneg_left hxe (by positivity)
+    have h6 : (s + 2 * σ) * (2 * Real.exp (-(x / 2))) ≤ 3 * s * (2 * E6) := by
+      have hp := Real.exp_pos (-(x / 2))
+      nlinarith
+    linarith
+  have hA2 : 1 / (2 * Real.pi * (s + σ)) ≤ 1 / (2 * Real.pi * s) :=
+    div_le_div_of_nonneg_left (by norm_num) (by positivity) (by nlinarith)
+  have hA2n : 0 ≤ 1 / (2 * Real.pi * (s + σ)) := by positivity
+  exact vc_assemble hs hσ hσs hE1pos hE6pos hA2n hA h16 hE12 hzE hA2
+
+/-! ### Moments of a Gaussian under a Gaussian on the line -/
+
+/-- Completing the square for a product of two Gaussians. -/
+theorem gauss_square_complete {σ τ : ℝ} (hσ : 0 < σ) (hτ : 0 < τ) (z y : ℝ) :
+    -((z - y) ^ 2) / (2 * σ) + -(y ^ 2) / (2 * τ)
+      = -(z ^ 2) / (2 * (σ + τ))
+        + -((σ + τ) / (2 * σ * τ)) * (y - z * τ / (σ + τ)) ^ 2 := by
+  have h : 0 < σ + τ := by positivity
+  field_simp
+  ring
+
+/-- **Convolution of two Gaussians on the line (exponent form):**
+    `∫ e^{-(z-y)²/(2σ)} e^{-y²/(2τ)} dy = e^{-z²/(2(σ+τ))} √(π / ((σ+τ)/(2στ)))`. -/
+theorem gauss_conv_core {σ τ : ℝ} (hσ : 0 < σ) (hτ : 0 < τ) (z : ℝ) :
+    ∫ y : ℝ, Real.exp (-((z - y) ^ 2) / (2 * σ)) * Real.exp (-(y ^ 2) / (2 * τ))
+      = Real.exp (-(z ^ 2) / (2 * (σ + τ))) * Real.sqrt (Real.pi / ((σ + τ) / (2 * σ * τ))) := by
+  have e : ∀ y : ℝ, Real.exp (-((z - y) ^ 2) / (2 * σ)) * Real.exp (-(y ^ 2) / (2 * τ))
+      = Real.exp (-(z ^ 2) / (2 * (σ + τ)))
+        * Real.exp (-((σ + τ) / (2 * σ * τ)) * (y - z * τ / (σ + τ)) ^ 2) := by
+    intro y
+    rw [← Real.exp_add, ← Real.exp_add, gauss_square_complete hσ hτ]
+  simp_rw [e]
+  rw [integral_const_mul]
+  congr 1
+  have h := integral_sub_right_eq_self
+    (fun y : ℝ => Real.exp (-((σ + τ) / (2 * σ * τ)) * y ^ 2)) (z * τ / (σ + τ)) (μ := volume)
+  rw [h, integral_gaussian]
+
+/-- Prefactor identity for the first moment. -/
+theorem sqrt_pref_first {σ s : ℝ} (hσ : 0 < σ) (hs : 0 < s) :
+    1 / Real.sqrt (2 * Real.pi * σ) * (1 / Real.sqrt (2 * Real.pi * s))
+        * Real.sqrt (Real.pi / ((σ + s) / (2 * σ * s)))
+      = 1 / Real.sqrt (2 * Real.pi * (σ + s)) := by
+  have hpi := Real.pi_pos
+  have h1 : 0 < Real.sqrt (2 * Real.pi * σ) := Real.sqrt_pos.mpr (by positivity)
+  have h2 : 0 < Real.sqrt (2 * Real.pi * s) := Real.sqrt_pos.mpr (by positivity)
+  have h3 : 0 < Real.sqrt (2 * Real.pi * (σ + s)) := Real.sqrt_pos.mpr (by positivity)
+  have a1 := Real.mul_self_sqrt (show (0 : ℝ) ≤ 2 * Real.pi * σ by positivity)
+  have a2 := Real.mul_self_sqrt (show (0 : ℝ) ≤ 2 * Real.pi * s by positivity)
+  have a3 := Real.mul_self_sqrt (show (0 : ℝ) ≤ 2 * Real.pi * (σ + s) by positivity)
+  have hR : Real.sqrt (Real.pi / ((σ + s) / (2 * σ * s)))
+      = Real.sqrt (2 * Real.pi * σ) * Real.sqrt (2 * Real.pi * s)
+        / Real.sqrt (2 * Real.pi * (σ + s)) := by
+    rw [Real.sqrt_eq_iff_mul_self_eq_of_pos (by positivity)]
+    rw [div_mul_div_comm, mul_mul_mul_comm, a1, a2, a3]
+    field_simp
+  rw [hR]
+  field_simp
+
+/-- First moment: `∫ γ_σ(z - y) γ_s(y) dy = γ_{σ+s}(z)`. -/
+theorem gauss_first_moment {σ s : ℝ} (hσ : 0 < σ) (hs : 0 < s) (z : ℝ) :
+    ∫ y : ℝ, (1 / Real.sqrt (2 * Real.pi * σ) * Real.exp (-((z - y) ^ 2) / (2 * σ)))
+        * (1 / Real.sqrt (2 * Real.pi * s) * Real.exp (-(y ^ 2) / (2 * s)))
+      = 1 / Real.sqrt (2 * Real.pi * (σ + s)) * Real.exp (-(z ^ 2) / (2 * (σ + s))) := by
+  have e : ∀ y : ℝ, (1 / Real.sqrt (2 * Real.pi * σ) * Real.exp (-((z - y) ^ 2) / (2 * σ)))
+        * (1 / Real.sqrt (2 * Real.pi * s) * Real.exp (-(y ^ 2) / (2 * s)))
+      = (1 / Real.sqrt (2 * Real.pi * σ) * (1 / Real.sqrt (2 * Real.pi * s)))
+        * (Real.exp (-((z - y) ^ 2) / (2 * σ)) * Real.exp (-(y ^ 2) / (2 * s))) := fun y => by ring
+  simp_rw [e]
+  rw [integral_const_mul, gauss_conv_core hσ hs, ← sqrt_pref_first hσ hs]
+  ring
+
+/-- Prefactor identity for the second moment. -/
+theorem sqrt_pref_second {σ s : ℝ} (hσ : 0 < σ) (hs : 0 < s) :
+    1 / Real.sqrt (2 * Real.pi * σ) * (1 / (2 * Real.pi * s))
+        * Real.sqrt (Real.pi / ((σ + s / 2) / (2 * σ * (s / 2))))
+      = 1 / (2 * Real.pi * Real.sqrt (s * (s + 2 * σ))) := by
+  have hpi := Real.pi_pos
+  have h1 : 0 < Real.sqrt (2 * Real.pi * σ) := Real.sqrt_pos.mpr (by positivity)
+  have h3 : 0 < Real.sqrt (s * (s + 2 * σ)) := Real.sqrt_pos.mpr (by positivity)
+  have a1 := Real.mul_self_sqrt (show (0 : ℝ) ≤ 2 * Real.pi * σ by positivity)
+  have a3 := Real.mul_self_sqrt (show (0 : ℝ) ≤ s * (s + 2 * σ) by positivity)
+  have hR : Real.sqrt (Real.pi / ((σ + s / 2) / (2 * σ * (s / 2))))
+      = Real.sqrt (2 * Real.pi * σ) * s / Real.sqrt (s * (s + 2 * σ)) := by
+    rw [Real.sqrt_eq_iff_mul_self_eq_of_pos (by positivity)]
+    rw [div_mul_div_comm, mul_mul_mul_comm, a1, a3]
+    field_simp
+    ring
+  rw [hR]
+  field_simp
+
+/-- Second moment: `∫ γ_σ(z - y) γ_s(y)² dy = e^{-z²/(s+2σ)} / (2π √(s(s+2σ)))`. -/
+theorem gauss_second_moment {σ s : ℝ} (hσ : 0 < σ) (hs : 0 < s) (z : ℝ) :
+    ∫ y : ℝ, (1 / Real.sqrt (2 * Real.pi * σ) * Real.exp (-((z - y) ^ 2) / (2 * σ)))
+        * (1 / Real.sqrt (2 * Real.pi * s) * Real.exp (-(y ^ 2) / (2 * s))) ^ 2
+      = 1 / (2 * Real.pi * Real.sqrt (s * (s + 2 * σ))) * Real.exp (-(z ^ 2) / (s + 2 * σ)) := by
+  have hpi := Real.pi_pos
+  have hsq : (1 / Real.sqrt (2 * Real.pi * s)) ^ 2 = 1 / (2 * Real.pi * s) := by
+    rw [div_pow, one_pow, Real.sq_sqrt (by positivity)]
+  have e : ∀ y : ℝ, (1 / Real.sqrt (2 * Real.pi * σ) * Real.exp (-((z - y) ^ 2) / (2 * σ)))
+        * (1 / Real.sqrt (2 * Real.pi * s) * Real.exp (-(y ^ 2) / (2 * s))) ^ 2
+      = (1 / Real.sqrt (2 * Real.pi * σ) * (1 / (2 * Real.pi * s)))
+        * (Real.exp (-((z - y) ^ 2) / (2 * σ)) * Real.exp (-(y ^ 2) / (2 * (s / 2)))) := fun y => by
+    rw [mul_pow, hsq, ← Real.exp_nat_mul]
+    have : ((2 : ℕ) : ℝ) * (-(y ^ 2) / (2 * s)) = -(y ^ 2) / (2 * (s / 2)) := by
+      push_cast; field_simp
+    rw [this]; ring
+  simp_rw [e]
+  rw [integral_const_mul, gauss_conv_core hσ (by positivity : (0 : ℝ) < s / 2),
+    ← sqrt_pref_second hσ hs]
+  have : (2 : ℝ) * (σ + s / 2) = s + 2 * σ := by ring
+  rw [this]
+  ring
+
+/-- **Variance of a Gaussian under a Gaussian on the line, as integrals, with the factor `σ/s`:**
+    for `0 < σ ≤ s`,
+    `∫ γ_σ(z - y) γ_s(y)² dy - (∫ γ_σ(z - y) γ_s(y) dy)² ≤ (σ/s) · 4/(π s) · e^{-z²/(6s)}`. -/
+theorem gauss_variance_line {σ s : ℝ} (hσ : 0 < σ) (hs : 0 < s) (hσs : σ ≤ s) (z : ℝ) :
+    (∫ y : ℝ, (1 / Real.sqrt (2 * Real.pi * σ) * Real.exp (-((z - y) ^ 2) / (2 * σ)))
+        * (1 / Real.sqrt (2 * Real.pi * s) * Real.exp (-(y ^ 2) / (2 * s))) ^ 2)
+      - (∫ y : ℝ, (1 / Real.sqrt (2 * Real.pi * σ) * Real.exp (-((z - y) ^ 2) / (2 * σ)))
+        * (1 / Real.sqrt (2 * Real.pi * s) * Real.exp (-(y ^ 2) / (2 * s)))) ^ 2
+      ≤ σ / s * (4 / (Real.pi * s)) * Real.exp (-(z ^ 2) / (6 * s)) := by
+  have hpi := Real.pi_pos
+  rw [gauss_second_moment hσ hs, gauss_first_moment hσ hs]
+  have h := gauss_variance_core hs hσ hσs z
+  have e : (1 / Real.sqrt (2 * Real.pi * (σ + s)) * Real.exp (-(z ^ 2) / (2 * (σ + s)))) ^ 2
+      = 1 / (2 * Real.pi * (s + σ)) * Real.exp (-(z ^ 2) / (s + σ)) := by
+    rw [mul_pow, div_pow, one_pow, Real.sq_sqrt (by positivity), ← Real.exp_nat_mul]
+    have : ((2 : ℕ) : ℝ) * (-(z ^ 2) / (2 * (σ + s))) = -(z ^ 2) / (s + σ) := by
+      push_cast; field_simp; ring
+    rw [this, add_comm σ s]
+  rw [e]
+  exact h
+
+/-! ### Lattice-pair terms of the periodised variance -/
+
+/-- Shifting the centre of a Gaussian by `k/2` at the cost of a factor in `k`:
+    `e^{-(v - k/2)²/(6s)} ≤ e^{-v²/(12s)} e^{k²/(24s)}`. -/
+theorem gauss_shift_cost {s : ℝ} (hs : 0 < s) (v k : ℝ) :
+    Real.exp (-((v - k / 2) ^ 2) / (6 * s))
+      ≤ Real.exp (-(v ^ 2) / (12 * s)) * Real.exp (k ^ 2 / (24 * s)) := by
+  rw [← Real.exp_add]
+  apply Real.exp_le_exp.mpr
+  have h : v ^ 2 ≤ 2 * (v - k / 2) ^ 2 + 2 * (k / 2) ^ 2 := by nlinarith [_root_.sq_nonneg (v - k)]
+  have e : -((v - k / 2) ^ 2) / (6 * s) = -(2 * (v - k / 2) ^ 2) / (12 * s) := by
+    field_simp; ring
+  have e2 : -(v ^ 2) / (12 * s) + k ^ 2 / (24 * s) = -(v ^ 2 - k ^ 2 / 2) / (12 * s) := by
+    field_simp; ring
+  rw [e, e2]
+  exact div_le_div_of_nonneg_right (by nlinarith) (by positivity)
+
+/-- **One lattice-pair term of the periodised variance.** For `0 < σ ≤ s`, with `w = v - k/2`
+    (`v = x + n`, `k = n - n'`), the term
+    `e^{-k²/(4s)} M₂(w) - e^{-k²/(4(s+σ))} M₁²(w)` of
+    `∫ γ_σ(x - y) g(y)² dy - (∫ γ_σ(x - y) g(y) dy)²`, `g = ∑_n γ_s(· + n)`, is at most
+    `(σ/s) · 4/(π s) · e^{-k²/(12s)} e^{-v²/(12s)}`. -/
+theorem pair_variance_term {s σ : ℝ} (hs : 0 < s) (hσ : 0 < σ) (hσs : σ ≤ s) (v k : ℝ) :
+    Real.exp (-(k ^ 2) / (4 * s))
+        * (1 / (2 * Real.pi * Real.sqrt (s * (s + 2 * σ)))
+            * Real.exp (-((v - k / 2) ^ 2) / (s + 2 * σ)))
+      - Real.exp (-(k ^ 2) / (4 * (s + σ)))
+        * (1 / (2 * Real.pi * (s + σ)) * Real.exp (-((v - k / 2) ^ 2) / (s + σ)))
+      ≤ σ / s * (4 / (Real.pi * s))
+        * (Real.exp (-(k ^ 2) / (12 * s)) * Real.exp (-(v ^ 2) / (12 * s))) := by
+  have hpi := Real.pi_pos
+  have hcore := gauss_variance_core hs hσ hσs (v - k / 2)
+  have hM2 : 0 ≤ 1 / (2 * Real.pi * Real.sqrt (s * (s + 2 * σ)))
+      * Real.exp (-((v - k / 2) ^ 2) / (s + 2 * σ)) := by positivity
+  have hk : Real.exp (-(k ^ 2) / (4 * s)) ≤ Real.exp (-(k ^ 2) / (4 * (s + σ))) := by
+    apply Real.exp_le_exp.mpr
+    rw [neg_div, neg_div, neg_le_neg_iff]
+    exact div_le_div_of_nonneg_left (_root_.sq_nonneg k) (by positivity) (by linarith)
+  have hk2 : Real.exp (-(k ^ 2) / (4 * (s + σ))) ≤ Real.exp (-(k ^ 2) / (8 * s)) := by
+    apply Real.exp_le_exp.mpr
+    rw [neg_div, neg_div, neg_le_neg_iff]
+    exact div_le_div_of_nonneg_left (_root_.sq_nonneg k) (by positivity) (by linarith)
+  have hshift := gauss_shift_cost hs v k
+  have hcomb : Real.exp (-(k ^ 2) / (8 * s)) * Real.exp (k ^ 2 / (24 * s))
+      = Real.exp (-(k ^ 2) / (12 * s)) := by
+    rw [← Real.exp_add]; congr 1; field_simp; ring
+  have hE := Real.exp_pos (-(k ^ 2) / (4 * (s + σ)))
+  have hc0 : 0 ≤ σ / s * (4 / (Real.pi * s)) := by positivity
+  calc _ ≤ Real.exp (-(k ^ 2) / (4 * (s + σ)))
+          * (1 / (2 * Real.pi * Real.sqrt (s * (s + 2 * σ)))
+              * Real.exp (-((v - k / 2) ^ 2) / (s + 2 * σ)))
+        - Real.exp (-(k ^ 2) / (4 * (s + σ)))
+          * (1 / (2 * Real.pi * (s + σ)) * Real.exp (-((v - k / 2) ^ 2) / (s + σ))) := by
+        have := mul_le_mul_of_nonneg_right hk hM2
+        linarith
+    _ = Real.exp (-(k ^ 2) / (4 * (s + σ)))
+          * (1 / (2 * Real.pi * Real.sqrt (s * (s + 2 * σ)))
+              * Real.exp (-((v - k / 2) ^ 2) / (s + 2 * σ))
+            - 1 / (2 * Real.pi * (s + σ)) * Real.exp (-((v - k / 2) ^ 2) / (s + σ))) := by ring
+    _ ≤ Real.exp (-(k ^ 2) / (4 * (s + σ)))
+          * (σ / s * (4 / (Real.pi * s)) * Real.exp (-((v - k / 2) ^ 2) / (6 * s))) :=
+        mul_le_mul_of_nonneg_left hcore hE.le
+    _ ≤ Real.exp (-(k ^ 2) / (8 * s))
+          * (σ / s * (4 / (Real.pi * s))
+            * (Real.exp (-(v ^ 2) / (12 * s)) * Real.exp (k ^ 2 / (24 * s)))) := by
+        refine mul_le_mul hk2 (mul_le_mul_of_nonneg_left hshift hc0) (by positivity) (by positivity)
+    _ = σ / s * (4 / (Real.pi * s))
+          * (Real.exp (-(k ^ 2) / (12 * s)) * Real.exp (-(v ^ 2) / (12 * s))) := by
+        rw [← hcomb]; ring
+
+/-- **Sum over the lattice pairs of the bounds of `pair_variance_term`.** The double series
+    factorises, and
+    `∑_{n,k} e^{-k²/(12s)} e^{-(n+x)²/(12s)} ≤ (1 + √(12πs)) ∑_n e^{-(n+x)²/(12s)}`:
+    up to the factor `(σ/s) · 4/(πs) · (1 + √(12πs)) · √(12πs)` the periodised variance is at most
+    the periodised Gaussian at time `6s`. -/
+theorem pair_variance_sum {s : ℝ} (hs : 0 < s) (x : ℝ) :
+    Summable (fun p : ℤ × ℤ => Real.exp (-(1 / (12 * s)) * ((p.1 : ℝ) - (-x)) ^ 2)
+        * Real.exp (-(1 / (12 * s)) * (p.2 : ℝ) ^ 2)) ∧
+    ∑' p : ℤ × ℤ, Real.exp (-(1 / (12 * s)) * ((p.1 : ℝ) - (-x)) ^ 2)
+        * Real.exp (-(1 / (12 * s)) * (p.2 : ℝ) ^ 2)
+      ≤ (1 + Real.sqrt (Real.pi / (1 / (12 * s))))
+        * ∑' n : ℤ, Real.exp (-(1 / (12 * s)) * ((n : ℝ) - (-x)) ^ 2) := by
+  have hb : 0 < 1 / (12 * s) := by positivity
+  have hf := gauss_shift_summable hb (-x)
+  have hg := gauss_summable_int hb
+  have hfg := Summable.mul_of_nonneg hf hg (fun n => (Real.exp_pos _).le) (fun n => (Real.exp_pos _).le)
+  refine ⟨hfg, ?_⟩
+  rw [← hf.tsum_mul_tsum hg hfg, mul_comm]
+  exact mul_le_mul_of_nonneg_right (gauss_tsum_int_le hb) (tsum_nonneg fun n => (Real.exp_pos _).le)
+
+/-! ### Integrals of the lattice pairs -/
+
+/-- Product of two shifted Gaussians of the same variance: centre at the midpoint. -/
+theorem gauss_prod_shift {s : ℝ} (hs : 0 < s) (y a b : ℝ) :
+    Real.exp (-((y + a) ^ 2) / (2 * s)) * Real.exp (-((y + b) ^ 2) / (2 * s))
+      = Real.exp (-((a - b) ^ 2) / (4 * s)) * Real.exp (-((y + (a + b) / 2) ^ 2) / (2 * s)) ^ 2 := by
+  rw [← Real.exp_add, ← Real.exp_nat_mul, ← Real.exp_add]
+  congr 1
+  push_cast
+  field_simp
+  ring
+
+/-- **Integral of one lattice pair:** for `σ, s > 0` and real shifts `a, b`,
+    `∫ γ_σ(x - y) γ_s(y + a) γ_s(y + b) dy
+      = e^{-(a-b)²/(4s)} · e^{-(x + (a+b)/2)²/(s+2σ)} / (2π √(s(s+2σ)))`. -/
+theorem gauss_pair_integral {σ s : ℝ} (hσ : 0 < σ) (hs : 0 < s) (x a b : ℝ) :
+    ∫ y : ℝ, (1 / Real.sqrt (2 * Real.pi * σ) * Real.exp (-((x - y) ^ 2) / (2 * σ)))
+        * ((1 / Real.sqrt (2 * Real.pi * s) * Real.exp (-((y + a) ^ 2) / (2 * s)))
+          * (1 / Real.sqrt (2 * Real.pi * s) * Real.exp (-((y + b) ^ 2) / (2 * s))))
+      = Real.exp (-((a - b) ^ 2) / (4 * s))
+        * (1 / (2 * Real.pi * Real.sqrt (s * (s + 2 * σ)))
+          * Real.exp (-((x + (a + b) / 2) ^ 2) / (s + 2 * σ))) := by
+  have e : ∀ y : ℝ, (1 / Real.sqrt (2 * Real.pi * σ) * Real.exp (-((x - y) ^ 2) / (2 * σ)))
+        * ((1 / Real.sqrt (2 * Real.pi * s) * Real.exp (-((y + a) ^ 2) / (2 * s)))
+          * (1 / Real.sqrt (2 * Real.pi * s) * Real.exp (-((y + b) ^ 2) / (2 * s))))
+      = Real.exp (-((a - b) ^ 2) / (4 * s))
+        * ((1 / Real.sqrt (2 * Real.pi * σ)
+              * Real.exp (-(((x + (a + b) / 2) - (y + (a + b) / 2)) ^ 2) / (2 * σ)))
+          * (1 / Real.sqrt (2 * Real.pi * s)
+              * Real.exp (-((y + (a + b) / 2) ^ 2) / (2 * s))) ^ 2) := by
+    intro y
+    have h := gauss_prod_shift hs y a b
+    have hx : (x + (a + b) / 2) - (y + (a + b) / 2) = x - y := by ring
+    rw [hx, mul_pow]
+    calc _ = 1 / Real.sqrt (2 * Real.pi * σ) * Real.exp (-((x - y) ^ 2) / (2 * σ))
+          * ((1 / Real.sqrt (2 * Real.pi * s)) ^ 2
+            * (Real.exp (-((y + a) ^ 2) / (2 * s)) * Real.exp (-((y + b) ^ 2) / (2 * s)))) := by
+          ring
+      _ = _ := by rw [h]; ring
+  simp_rw [e]
+  rw [integral_const_mul]
+  congr 1
+  have h := integral_add_right_eq_self (μ := volume)
+    (fun u : ℝ => (1 / Real.sqrt (2 * Real.pi * σ)
+          * Real.exp (-(((x + (a + b) / 2) - u) ^ 2) / (2 * σ)))
+        * (1 / Real.sqrt (2 * Real.pi * s) * Real.exp (-(u ^ 2) / (2 * s))) ^ 2) ((a + b) / 2)
+  rw [h]
+  exact gauss_second_moment hσ hs (x + (a + b) / 2)
+
+/-- First moment with a shift: `∫ γ_σ(x - y) γ_s(y + a) dy = γ_{σ+s}(x + a)`. -/
+theorem gauss_first_moment_shift {σ s : ℝ} (hσ : 0 < σ) (hs : 0 < s) (x a : ℝ) :
+    ∫ y : ℝ, (1 / Real.sqrt (2 * Real.pi * σ) * Real.exp (-((x - y) ^ 2) / (2 * σ)))
+        * (1 / Real.sqrt (2 * Real.pi * s) * Real.exp (-((y + a) ^ 2) / (2 * s)))
+      = 1 / Real.sqrt (2 * Real.pi * (σ + s)) * Real.exp (-((x + a) ^ 2) / (2 * (σ + s))) := by
+  have h := integral_add_right_eq_self (μ := volume)
+    (fun u : ℝ => (1 / Real.sqrt (2 * Real.pi * σ) * Real.exp (-(((x + a) - u) ^ 2) / (2 * σ)))
+        * (1 / Real.sqrt (2 * Real.pi * s) * Real.exp (-(u ^ 2) / (2 * s)))) a
+  have e : ∀ y : ℝ, (x + a) - (y + a) = x - y := fun y => by ring
+  simp only [e] at h
+  rw [h]
+  exact gauss_first_moment hσ hs (x + a)
+
+/-- Product of two values of a Gaussian of variance `τ` at shifted points. -/
+theorem gauss_first_pair {τ : ℝ} (hτ : 0 < τ) (x a b : ℝ) :
+    (1 / Real.sqrt (2 * Real.pi * τ) * Real.exp (-((x + a) ^ 2) / (2 * τ)))
+        * (1 / Real.sqrt (2 * Real.pi * τ) * Real.exp (-((x + b) ^ 2) / (2 * τ)))
+      = Real.exp (-((a - b) ^ 2) / (4 * τ))
+        * (1 / (2 * Real.pi * τ) * Real.exp (-((x + (a + b) / 2) ^ 2) / τ)) := by
+  have hpi := Real.pi_pos
+  have h := gauss_prod_shift hτ x a b
+  have hsq : 1 / Real.sqrt (2 * Real.pi * τ) * (1 / Real.sqrt (2 * Real.pi * τ))
+      = 1 / (2 * Real.pi * τ) := by
+    rw [div_mul_div_comm, one_mul, Real.mul_self_sqrt (by positivity)]
+  have he : Real.exp (-((x + (a + b) / 2) ^ 2) / (2 * τ)) ^ 2
+      = Real.exp (-((x + (a + b) / 2) ^ 2) / τ) := by
+    rw [← Real.exp_nat_mul]; congr 1; push_cast; field_simp
+  calc _ = (1 / Real.sqrt (2 * Real.pi * τ) * (1 / Real.sqrt (2 * Real.pi * τ)))
+        * (Real.exp (-((x + a) ^ 2) / (2 * τ)) * Real.exp (-((x + b) ^ 2) / (2 * τ))) := by ring
+    _ = _ := by rw [hsq, h, he]; ring
+
+/-! ### Variance of the periodised Gaussian under a Gaussian, one variable -/
+
+/-- The Gaussian density of variance `τ` on the line. -/
+noncomputable def gaussR (τ u : ℝ) : ℝ :=
+  1 / Real.sqrt (2 * Real.pi * τ) * Real.exp (-(u ^ 2) / (2 * τ))
+
+/-- Nonnegativity. -/
+theorem gaussR_nonneg (τ u : ℝ) : 0 ≤ gaussR τ u := by
+  unfold gaussR; positivity
+
+/-- Upper bound by the value at the origin. -/
+theorem gaussR_le {τ : ℝ} (u : ℝ) (hτ : 0 < τ) : gaussR τ u ≤ 1 / Real.sqrt (2 * Real.pi * τ) := by
+  unfold gaussR
+  have h : Real.exp (-(u ^ 2) / (2 * τ)) ≤ 1 := by
+    rw [Real.exp_le_one_iff, neg_div]
+    exact neg_nonpos.mpr (div_nonneg (_root_.sq_nonneg u) (by positivity))
+  have h0 : 0 ≤ 1 / Real.sqrt (2 * Real.pi * τ) := by positivity
+  nlinarith
+
+/-- Continuity. -/
+theorem gaussR_continuous (τ : ℝ) : Continuous (gaussR τ) := by
+  unfold gaussR; fun_prop
+
+/-- Integrability of the reflected and translated density. -/
+theorem gaussR_integrable_sub {σ : ℝ} (hσ : 0 < σ) (x : ℝ) :
+    Integrable fun y : ℝ => gaussR σ (x - y) := by
+  have h := (integrable_exp_neg_mul_sq (b := 1 / (2 * σ)) (by positivity)).comp_sub_left x
+  have e : (fun y : ℝ => gaussR σ (x - y))
+      = fun y : ℝ => 1 / Real.sqrt (2 * Real.pi * σ) * Real.exp (-(1 / (2 * σ)) * (x - y) ^ 2) := by
+    funext y; unfold gaussR; congr 2; ring
+  rw [e]
+  exact h.const_mul _
+
+/-- Summability over integer shifts. -/
+theorem gaussR_shift_summable {s : ℝ} (hs : 0 < s) (y : ℝ) :
+    Summable fun n : ℤ => gaussR s (y + n) := by
+  have h := gauss_shift_summable (b := 1 / (2 * s)) (by positivity) (-y)
+  have e : (fun n : ℤ => gaussR s (y + n))
+      = fun n : ℤ => 1 / Real.sqrt (2 * Real.pi * s)
+          * Real.exp (-(1 / (2 * s)) * ((n : ℝ) - (-y)) ^ 2) := by
+    funext n; unfold gaussR; congr 2; ring
+  rw [e]
+  exact h.mul_left _
+
+/-- The pair integral in the short notation. -/
+theorem gaussR_pair_integral {σ s : ℝ} (hσ : 0 < σ) (hs : 0 < s) (x a b : ℝ) :
+    ∫ y : ℝ, gaussR σ (x - y) * (gaussR s (y + a) * gaussR s (y + b))
+      = Real.exp (-((a - b) ^ 2) / (4 * s))
+        * (1 / (2 * Real.pi * Real.sqrt (s * (s + 2 * σ)))
+          * Real.exp (-((x + (a + b) / 2) ^ 2) / (s + 2 * σ))) :=
+  gauss_pair_integral hσ hs x a b
+
+/-- The shifted first moment in the short notation. -/
+theorem gaussR_first_integral {σ s : ℝ} (hσ : 0 < σ) (hs : 0 < s) (x a : ℝ) :
+    ∫ y : ℝ, gaussR σ (x - y) * gaussR s (y + a) = gaussR (σ + s) (x + a) :=
+  gauss_first_moment_shift hσ hs x a
+
+/-- Integrability of a product of the Gaussian weight with bounded continuous factors. -/
+theorem gaussR_weight_integrable {σ : ℝ} (hσ : 0 < σ) (x : ℝ) (f : ℝ → ℝ) (hf : Continuous f)
+    {B : ℝ} (hB : ∀ y, |f y| ≤ B) : Integrable fun y : ℝ => gaussR σ (x - y) * f y := by
+  have h := (gaussR_integrable_sub hσ x).bdd_mul (c := B) hf.aestronglyMeasurable
+    (Filter.Eventually.of_forall fun y => by simpa using hB y)
+  simpa [mul_comm] using h
+
+/-- Integrability of weight times a shifted density. -/
+theorem gaussR_shift_integrable {σ s : ℝ} (hσ : 0 < σ) (hs : 0 < s) (x a : ℝ) :
+    Integrable fun y : ℝ => gaussR σ (x - y) * gaussR s (y + a) :=
+  gaussR_weight_integrable hσ x (fun y => gaussR s (y + a))
+    ((gaussR_continuous s).comp (continuous_id.add continuous_const))
+    (fun y => by rw [abs_of_nonneg (gaussR_nonneg _ _)]; exact gaussR_le _ hs)
+
+/-- **First moment of the periodised Gaussian under a Gaussian:**
+    `∫ γ_σ(x - y) ∑_n γ_s(y + n) dy = ∑_n γ_{σ+s}(x + n)`. -/
+theorem per_first_moment {σ s : ℝ} (hσ : 0 < σ) (hs : 0 < s) (x : ℝ) :
+    ∫ y : ℝ, gaussR σ (x - y) * ∑' n : ℤ, gaussR s (y + n) = ∑' n : ℤ, gaussR (σ + s) (x + n) := by
+  have hint : ∀ n : ℤ, Integrable fun y : ℝ => gaussR σ (x - y) * gaussR s (y + n) :=
+    fun n => gaussR_shift_integrable hσ hs x n
+  have hval : ∀ n : ℤ, ∫ y : ℝ, ‖gaussR σ (x - y) * gaussR s (y + n)‖ = gaussR (σ + s) (x + n) := by
+    intro n
+    have : ∀ y : ℝ, ‖gaussR σ (x - y) * gaussR s (y + n)‖ = gaussR σ (x - y) * gaussR s (y + n) :=
+      fun y => by rw [Real.norm_eq_abs, abs_of_nonneg (mul_nonneg (gaussR_nonneg _ _) (gaussR_nonneg _ _))]
+    simp_rw [this]
+    exact gaussR_first_integral hσ hs x n
+  have hsum : Summable fun n : ℤ => ∫ y : ℝ, ‖gaussR σ (x - y) * gaussR s (y + n)‖ := by
+    simp_rw [hval]; exact gaussR_shift_summable (by positivity) x
+  have h := integral_tsum_of_summable_integral_norm hint hsum
+  have e : ∀ y : ℝ, ∑' n : ℤ, gaussR σ (x - y) * gaussR s (y + n)
+      = gaussR σ (x - y) * ∑' n : ℤ, gaussR s (y + n) := fun y => tsum_mul_left
+  simp_rw [e] at h
+  rw [← h]
+  exact tsum_congr fun n => gaussR_first_integral hσ hs x n
+
+/-- The bounding double series in the coordinates `(n, n')`. -/
+theorem pair_bound_summable {s : ℝ} (hs : 0 < s) (x : ℝ) :
+    Summable (fun p : ℤ × ℤ => Real.exp (-(1 / (12 * s)) * ((p.1 : ℝ) - (-x)) ^ 2)
+        * Real.exp (-(1 / (12 * s)) * (((p.1 - p.2 : ℤ) : ℝ)) ^ 2)) ∧
+    ∑' p : ℤ × ℤ, Real.exp (-(1 / (12 * s)) * ((p.1 : ℝ) - (-x)) ^ 2)
+        * Real.exp (-(1 / (12 * s)) * (((p.1 - p.2 : ℤ) : ℝ)) ^ 2)
+      ≤ (1 + Real.sqrt (Real.pi / (1 / (12 * s))))
+        * ∑' n : ℤ, Real.exp (-(1 / (12 * s)) * ((n : ℝ) - (-x)) ^ 2) := by
+  obtain ⟨hsum, hle⟩ := pair_variance_sum hs x
+  let e : ℤ × ℤ ≃ ℤ × ℤ :=
+    { toFun := fun p => (p.1, p.1 - p.2), invFun := fun p => (p.1, p.1 - p.2),
+      left_inv := fun p => by simp, right_inv := fun p => by simp }
+  refine ⟨(Equiv.summable_iff e).mpr hsum, ?_⟩
+  have h := Equiv.tsum_eq e (fun p : ℤ × ℤ => Real.exp (-(1 / (12 * s)) * ((p.1 : ℝ) - (-x)) ^ 2)
+        * Real.exp (-(1 / (12 * s)) * (p.2 : ℝ) ^ 2))
+  exact (le_of_eq h).trans hle
+
+/-- The value of the pair integral for the lattice pair `p = (n, n')`. -/
+noncomputable def pairVal (σ s x : ℝ) (p : ℤ × ℤ) : ℝ :=
+  Real.exp (-(((p.1 : ℝ) - p.2) ^ 2) / (4 * s))
+    * (1 / (2 * Real.pi * Real.sqrt (s * (s + 2 * σ)))
+      * Real.exp (-((x + ((p.1 : ℝ) + p.2) / 2) ^ 2) / (s + 2 * σ)))
+
+/-- Nonnegativity of the pair values. -/
+theorem pairVal_nonneg (σ s x : ℝ) (p : ℤ × ℤ) : 0 ≤ pairVal σ s x p := by
+  unfold pairVal; positivity
+
+/-- Each pair value is bounded by a term of the factorising double series. -/
+theorem pairVal_le {σ s : ℝ} (hσ : 0 < σ) (hs : 0 < s) (hσs : σ ≤ s) (x : ℝ) (p : ℤ × ℤ) :
+    pairVal σ s x p ≤ 1 / (2 * Real.pi * Real.sqrt (s * (s + 2 * σ)))
+      * (Real.exp (-(1 / (12 * s)) * ((p.1 : ℝ) - (-x)) ^ 2)
+        * Real.exp (-(1 / (12 * s)) * (((p.1 - p.2 : ℤ) : ℝ)) ^ 2)) := by
+  unfold pairVal
+  set v : ℝ := x + p.1 with hv
+  set k : ℝ := (p.1 : ℝ) - p.2 with hk
+  have hpi := Real.pi_pos
+  have hc : 0 ≤ 1 / (2 * Real.pi * Real.sqrt (s * (s + 2 * σ))) := by positivity
+  have e1 : x + ((p.1 : ℝ) + p.2) / 2 = v - k / 2 := by rw [hv, hk]; ring
+  have e2 : (p.1 : ℝ) - (-x) = v := by rw [hv]; ring
+  have e3 : (((p.1 - p.2 : ℤ) : ℝ)) = k := by rw [hk]; push_cast; ring
+  rw [e1, e2, e3]
+  have h1 : Real.exp (-((v - k / 2) ^ 2) / (s + 2 * σ)) ≤ Real.exp (-((v - k / 2) ^ 2) / (6 * s)) := by
+    apply Real.exp_le_exp.mpr
+    rw [neg_div, neg_div, neg_le_neg_iff]
+    exact div_le_div_of_nonneg_left (_root_.sq_nonneg _) (by positivity) (by linarith)
+  have h2 := gauss_shift_cost hs v k
+  have h3 : Real.exp (-(k ^ 2) / (4 * s)) ≤ Real.exp (-(k ^ 2) / (8 * s)) := by
+    apply Real.exp_le_exp.mpr
+    rw [neg_div, neg_div, neg_le_neg_iff]
+    exact div_le_div_of_nonneg_left (_root_.sq_nonneg _) (by positivity) (by linarith)
+  have hcomb : Real.exp (-(k ^ 2) / (8 * s)) * Real.exp (k ^ 2 / (24 * s))
+      = Real.exp (-(1 / (12 * s)) * k ^ 2) := by
+    rw [← Real.exp_add]; congr 1; field_simp; ring
+  have e4 : Real.exp (-(1 / (12 * s)) * v ^ 2) = Real.exp (-(v ^ 2) / (12 * s)) := by
+    congr 1; ring
+  rw [e4, ← hcomb]
+  have hA := Real.exp_pos (-(k ^ 2) / (4 * s))
+  have hB := Real.exp_pos (-(k ^ 2) / (8 * s))
+  have hC := Real.exp_pos (-((v - k / 2) ^ 2) / (s + 2 * σ))
+  have hD := Real.exp_pos (-(v ^ 2) / (12 * s))
+  have hE := Real.exp_pos (k ^ 2 / (24 * s))
+  have h4 : Real.exp (-(k ^ 2) / (4 * s)) * Real.exp (-((v - k / 2) ^ 2) / (s + 2 * σ))
+      ≤ Real.exp (-(k ^ 2) / (8 * s))
+        * (Real.exp (-(v ^ 2) / (12 * s)) * Real.exp (k ^ 2 / (24 * s))) :=
+    mul_le_mul h3 (h1.trans h2) hC.le hB.le
+  calc _ = 1 / (2 * Real.pi * Real.sqrt (s * (s + 2 * σ)))
+        * (Real.exp (-(k ^ 2) / (4 * s)) * Real.exp (-((v - k / 2) ^ 2) / (s + 2 * σ))) := by ring
+    _ ≤ 1 / (2 * Real.pi * Real.sqrt (s * (s + 2 * σ)))
+        * (Real.exp (-(k ^ 2) / (8 * s))
+          * (Real.exp (-(v ^ 2) / (12 * s)) * Real.exp (k ^ 2 / (24 * s)))) :=
+        mul_le_mul_of_nonneg_left h4 hc
+    _ = _ := by ring
+
+/-- Summability of the pair values. -/
+theorem pairVal_summable {σ s : ℝ} (hσ : 0 < σ) (hs : 0 < s) (hσs : σ ≤ s) (x : ℝ) :
+    Summable (pairVal σ s x) :=
+  Summable.of_nonneg_of_le (pairVal_nonneg σ s x) (pairVal_le hσ hs hσs x)
+    ((pair_bound_summable hs x).1.mul_left _)
+
+/-- **Second moment of the periodised Gaussian under a Gaussian, as a sum over lattice pairs.** -/
+theorem per_second_moment {σ s : ℝ} (hσ : 0 < σ) (hs : 0 < s) (hσs : σ ≤ s) (x : ℝ) :
+    ∫ y : ℝ, gaussR σ (x - y) * (∑' n : ℤ, gaussR s (y + n)) ^ 2 = ∑' p : ℤ × ℤ, pairVal σ s x p := by
+  have hpi := Real.pi_pos
+  have hint : ∀ p : ℤ × ℤ,
+      Integrable fun y : ℝ => gaussR σ (x - y) * (gaussR s (y + p.1) * gaussR s (y + p.2)) := by
+    intro p
+    refine gaussR_weight_integrable hσ x (fun y => gaussR s (y + p.1) * gaussR s (y + p.2))
+      (((gaussR_continuous s).comp (continuous_id.add continuous_const)).mul
+        ((gaussR_continuous s).comp (continuous_id.add continuous_const)))
+      (B := 1 / Real.sqrt (2 * Real.pi * s) * (1 / Real.sqrt (2 * Real.pi * s))) (fun y => ?_)
+    rw [abs_of_nonneg (mul_nonneg (gaussR_nonneg _ _) (gaussR_nonneg _ _))]
+    exact mul_le_mul (gaussR_le _ hs) (gaussR_le _ hs) (gaussR_nonneg _ _) (by positivity)
+  have hpv : ∀ p : ℤ × ℤ,
+      ∫ y : ℝ, gaussR σ (x - y) * (gaussR s (y + p.1) * gaussR s (y + p.2)) = pairVal σ s x p :=
+    fun p => gaussR_pair_integral hσ hs x p.1 p.2
+  have hval : ∀ p : ℤ × ℤ,
+      ∫ y : ℝ, ‖gaussR σ (x - y) * (gaussR s (y + p.1) * gaussR s (y + p.2))‖
+        = pairVal σ s x p := by
+    intro p
+    have : ∀ y : ℝ, ‖gaussR σ (x - y) * (gaussR s (y + p.1) * gaussR s (y + p.2))‖
+        = gaussR σ (x - y) * (gaussR s (y + p.1) * gaussR s (y + p.2)) := fun y => by
+      rw [Real.norm_eq_abs, abs_of_nonneg (mul_nonneg (gaussR_nonneg _ _)
+        (mul_nonneg (gaussR_nonneg _ _) (gaussR_nonneg _ _)))]
+    simp_rw [this]
+    exact hpv p
+  have hsum : Summable fun p : ℤ × ℤ =>
+      ∫ y : ℝ, ‖gaussR σ (x - y) * (gaussR s (y + p.1) * gaussR s (y + p.2))‖ := by
+    simp_rw [hval]; exact pairVal_summable hσ hs hσs x
+  have h := integral_tsum_of_summable_integral_norm hint hsum
+  have hsq : ∀ y : ℝ, (∑' n : ℤ, gaussR s (y + n)) ^ 2
+      = ∑' p : ℤ × ℤ, gaussR s (y + p.1) * gaussR s (y + p.2) := by
+    intro y
+    have hf := gaussR_shift_summable hs y
+    rw [_root_.sq, hf.tsum_mul_tsum hf (Summable.mul_of_nonneg hf hf (fun n => gaussR_nonneg _ _)
+      (fun n => gaussR_nonneg _ _))]
+  have e : ∀ y : ℝ, ∑' p : ℤ × ℤ, gaussR σ (x - y) * (gaussR s (y + p.1) * gaussR s (y + p.2))
+      = gaussR σ (x - y) * (∑' n : ℤ, gaussR s (y + n)) ^ 2 := fun y => by
+    rw [hsq y, tsum_mul_left]
+  simp_rw [e] at h
+  rw [← h]
+  exact tsum_congr hpv
+
+/-- **Variance of the periodised Gaussian under a Gaussian, one variable, with the factor
+    `σ/s`:** for `0 < σ ≤ s` and `g = ∑_n γ_s(· + n)`,
+    `∫ γ_σ(x - y) g(y)² dy - (∫ γ_σ(x - y) g(y) dy)²
+      ≤ (σ/s) · 4/(πs) · (1 + √(12πs)) · ∑_n e^{-(x+n)²/(12s)}`.
+    This is the variance bound of the consistency lemma in one variable, without the Gaussian
+    Poincaré inequality; the right-hand side is a multiple of the periodised Gaussian at time `6s`. -/
+theorem per_variance_line {σ s : ℝ} (hσ : 0 < σ) (hs : 0 < s) (hσs : σ ≤ s) (x : ℝ) :
+    (∫ y : ℝ, gaussR σ (x - y) * (∑' n : ℤ, gaussR s (y + n)) ^ 2)
+      - (∫ y : ℝ, gaussR σ (x - y) * ∑' n : ℤ, gaussR s (y + n)) ^ 2
+      ≤ σ / s * (4 / (Real.pi * s)) * ((1 + Real.sqrt (Real.pi / (1 / (12 * s))))
+        * ∑' n : ℤ, Real.exp (-(1 / (12 * s)) * ((n : ℝ) - (-x)) ^ 2)) := by
+  have hpi := Real.pi_pos
+  have hτ : 0 < σ + s := by positivity
+  rw [per_second_moment hσ hs hσs, per_first_moment hσ hs]
+  have hf := gaussR_shift_summable hτ x
+  have hprod := Summable.mul_of_nonneg hf hf (fun n => gaussR_nonneg _ _) (fun n => gaussR_nonneg _ _)
+  rw [_root_.sq, hf.tsum_mul_tsum hf hprod, ← (pairVal_summable hσ hs hσs x).tsum_sub hprod]
+  obtain ⟨hbs, hble⟩ := pair_bound_summable hs x
+  have hc0 : 0 ≤ σ / s * (4 / (Real.pi * s)) := by positivity
+  have hterm : ∀ p : ℤ × ℤ, pairVal σ s x p - gaussR (σ + s) (x + p.1) * gaussR (σ + s) (x + p.2)
+      ≤ σ / s * (4 / (Real.pi * s))
+        * (Real.exp (-(1 / (12 * s)) * ((p.1 : ℝ) - (-x)) ^ 2)
+          * Real.exp (-(1 / (12 * s)) * (((p.1 - p.2 : ℤ) : ℝ)) ^ 2)) := by
+    intro p
+    have h := pair_variance_term hs hσ hσs (x + p.1) ((p.1 : ℝ) - p.2)
+    have e1 : x + (p.1 : ℝ) - ((p.1 : ℝ) - p.2) / 2 = x + ((p.1 : ℝ) + p.2) / 2 := by ring
+    have hQ : gaussR (σ + s) (x + p.1) * gaussR (σ + s) (x + p.2)
+        = Real.exp (-(((p.1 : ℝ) - p.2) ^ 2) / (4 * (s + σ)))
+          * (1 / (2 * Real.pi * (s + σ))
+            * Real.exp (-((x + ((p.1 : ℝ) + p.2) / 2) ^ 2) / (s + σ))) := by
+      have := gauss_first_pair hτ x (p.1 : ℝ) (p.2 : ℝ)
+      unfold gaussR
+      rw [this, add_comm σ s]
+    rw [e1] at h
+    rw [hQ]
+    unfold pairVal
+    have e2 : Real.exp (-(1 / (12 * s)) * ((p.1 : ℝ) - (-x)) ^ 2)
+        = Real.exp (-((x + (p.1 : ℝ)) ^ 2) / (12 * s)) := by congr 1; ring
+    have e3 : Real.exp (-(1 / (12 * s)) * (((p.1 - p.2 : ℤ) : ℝ)) ^ 2)
+        = Real.exp (-(((p.1 : ℝ) - p.2) ^ 2) / (12 * s)) := by
+      congr 1; push_cast; ring
+    rw [e2, e3]
+    calc _ ≤ σ / s * (4 / (Real.pi * s))
+          * (Real.exp (-(((p.1 : ℝ) - p.2) ^ 2) / (12 * s))
+            * Real.exp (-((x + (p.1 : ℝ)) ^ 2) / (12 * s))) := h
+      _ = _ := by ring
+  have hdiffsum : Summable fun p : ℤ × ℤ =>
+      pairVal σ s x p - gaussR (σ + s) (x + p.1) * gaussR (σ + s) (x + p.2) :=
+    (pairVal_summable hσ hs hσs x).sub hprod
+  calc _ ≤ ∑' p : ℤ × ℤ, σ / s * (4 / (Real.pi * s))
+          * (Real.exp (-(1 / (12 * s)) * ((p.1 : ℝ) - (-x)) ^ 2)
+            * Real.exp (-(1 / (12 * s)) * (((p.1 - p.2 : ℤ) : ℝ)) ^ 2)) :=
+        hdiffsum.tsum_le_tsum hterm (hbs.mul_left _)
+    _ = σ / s * (4 / (Real.pi * s))
+          * ∑' p : ℤ × ℤ, Real.exp (-(1 / (12 * s)) * ((p.1 : ℝ) - (-x)) ^ 2)
+            * Real.exp (-(1 / (12 * s)) * (((p.1 - p.2 : ℤ) : ℝ)) ^ 2) := tsum_mul_left
+    _ ≤ _ := mul_le_mul_of_nonneg_left hble hc0
+
+/-! ### Unfolding integrals over the circle -/
+
+/-- Integer translations act trivially on the unit circle. -/
+theorem coe_add_int_unit (x : ℝ) (n : ℤ) :
+    (((x + n : ℝ)) : UnitAddCircle) = ((x : ℝ) : UnitAddCircle) := by
+  have h : (((n : ℝ)) : UnitAddCircle) = 0 := by
+    have := AddCircle.coe_period (1 : ℝ)
+    rw [show (n : ℝ) = n • (1 : ℝ) by simp, AddCircle.coe_zsmul, this, smul_zero]
+  rw [AddCircle.coe_add, h, add_zero]
+
+/-- **Unfolding.** For an integrable `γ` on the line and a bounded measurable function `F` on the
+    circle, `∫_ℝ γ(y) F(y mod 1) dy = ∫_0^1 (∑_n γ(x + n)) F(x mod 1) dx`. -/
+theorem line_unfold (γ : ℝ → ℝ) (hγ : Integrable γ) (F : UnitAddCircle → ℝ) (hF : Measurable F)
+    {B : ℝ} (hFb : ∀ u, |F u| ≤ B) :
+    ∫ y : ℝ, γ y * F (y : UnitAddCircle)
+      = ∫ x in (0 : ℝ)..1, (∑' n : ℤ, γ (x + n)) * F (x : UnitAddCircle) := by
+  have hFm : Measurable fun y : ℝ => F (y : UnitAddCircle) :=
+    hF.comp (AddCircle.measurable_mk')
+  have hint : Integrable fun y : ℝ => γ y * F (y : UnitAddCircle) := by
+    have h := hγ.bdd_mul (c := B) hFm.aestronglyMeasurable
+      (Filter.Eventually.of_forall fun y => by simpa using hFb (y : UnitAddCircle))
+    simpa [mul_comm] using h
+  have h1 := hint.hasSum_intervalIntegral_comp_add_int
+  simp_rw [coe_add_int_unit] at h1
+  -- exchange on (0, 1]
+  have hterm : ∀ n : ℤ, Integrable (fun x : ℝ => γ (x + n) * F (x : UnitAddCircle))
+      (volume.restrict (Set.Ioc (0 : ℝ) 1)) := by
+    intro n
+    have hg : Integrable fun x : ℝ => γ (x + n) := hγ.comp_add_right (n : ℝ)
+    have h := hg.bdd_mul (c := B) hFm.aestronglyMeasurable
+      (Filter.Eventually.of_forall fun y => by simpa using hFb (y : UnitAddCircle))
+    have h' : Integrable fun x : ℝ => γ (x + n) * F (x : UnitAddCircle) := by
+      simpa [mul_comm] using h
+    exact h'.restrict
+  have habs := hγ.norm.hasSum_intervalIntegral_comp_add_int
+  have hsum : Summable fun n : ℤ =>
+      ∫ x, ‖γ (x + n) * F (x : UnitAddCircle)‖ ∂(volume.restrict (Set.Ioc (0 : ℝ) 1)) := by
+    have hB0 : 0 ≤ B := (abs_nonneg _).trans (hFb 0)
+    refine Summable.of_nonneg_of_le (fun n => integral_nonneg fun x => norm_nonneg _) (fun n => ?_)
+      (habs.summable.mul_left B)
+    have hg : Integrable (fun x : ℝ => ‖γ (x + n)‖) (volume.restrict (Set.Ioc (0 : ℝ) 1)) :=
+      ((hγ.comp_add_right (n : ℝ)).norm).restrict
+    rw [intervalIntegral.integral_of_le zero_le_one, ← integral_const_mul]
+    refine integral_mono (hterm n).norm (hg.const_mul B) fun x => ?_
+    show ‖γ (x + n) * F (x : UnitAddCircle)‖ ≤ B * ‖γ (x + n)‖
+    rw [norm_mul, mul_comm]
+    exact mul_le_mul_of_nonneg_right (by simpa using hFb (x : UnitAddCircle)) (norm_nonneg _)
+  have h2 := integral_tsum_of_summable_integral_norm hterm hsum
+  have e : ∀ x : ℝ, ∑' n : ℤ, γ (x + n) * F (x : UnitAddCircle)
+      = (∑' n : ℤ, γ (x + n)) * F (x : UnitAddCircle) := fun x => tsum_mul_right
+  simp_rw [e] at h2
+  rw [intervalIntegral.integral_of_le zero_le_one, ← h2, ← h1.tsum_eq]
+  exact tsum_congr fun n => intervalIntegral.integral_of_le zero_le_one
+
+/-- **Unfolding on the circle.** If `Γ` is the function on the circle with
+    `Γ(x mod 1) = ∑_n γ(x + n)`, then `∫_circle Γ F = ∫_ℝ γ(y) F(y mod 1) dy` (Haar probability
+    measure on the circle). -/
+theorem circle_unfold (γ : ℝ → ℝ) (hγ : Integrable γ) (Γ : UnitAddCircle → ℝ)
+    (hΓ : ∀ x : ℝ, Γ (x : UnitAddCircle) = ∑' n : ℤ, γ (x + n))
+    (F : UnitAddCircle → ℝ) (hF : Measurable F) {B : ℝ} (hFb : ∀ u, |F u| ≤ B) :
+    ∫ u, Γ u * F u ∂(AddCircle.haarAddCircle : Measure UnitAddCircle)
+      = ∫ y : ℝ, γ y * F (y : UnitAddCircle) := by
+  rw [AddCircle.integral_haarAddCircle, inv_one, one_smul,
+    ← UnitAddCircle.intervalIntegral_preimage 0 (fun u => Γ u * F u), line_unfold γ hγ F hF hFb]
+  simp only [zero_add, hΓ]
+
+/-! ### The variance bound on the circle -/
+
+/-- The periodised Gaussian in time variables as a sum of Gaussian densities. -/
+theorem perGauss_eq_tsum_gaussR {τ : ℝ} (hτ : 0 < τ) (t : ℝ) :
+    perGauss (2 * Real.pi ^ 2 * τ) t = ∑' n : ℤ, gaussR τ (t + n) := by
+  rw [perGauss_time hτ, ← tsum_mul_left, ← (Equiv.neg ℤ).tsum_eq]
+  refine tsum_congr fun n => ?_
+  unfold gaussR
+  rw [Real.sqrt_eq_rpow]
+  congr 2
+  simp only [Equiv.neg_apply, Int.cast_neg]
+  ring
+
+/-- The heat kernel of the circle as a function on the circle. -/
+noncomputable def pC (c : ℝ) (u : UnitAddCircle) : ℝ := heatTorus 1 c (fun _ => u)
+
+/-- Its value at a real point is the periodised Gaussian. -/
+theorem pC_coe {c : ℝ} (hc : 0 < c) (t : ℝ) : pC c (t : UnitAddCircle) = perGauss c t := by
+  unfold pC
+  rw [heatTorus_eq_prod hc 1 (fun _ => t)]
+  simp
+
+/-- Continuity. -/
+theorem pC_continuous {c : ℝ} (hc : 0 < c) : Continuous (pC c) := by
+  have habs : Summable fun n : Fin 1 → ℤ => |Real.exp (-c * ∑ i, ((n i : ℤ) : ℝ) ^ 2)| := by
+    simpa [abs_of_pos (Real.exp_pos _)] using gauss_summable hc 1
+  unfold pC
+  exact (cosSeries_continuous 1 _ habs).comp (continuous_pi fun _ => continuous_id)
+
+/-- Nonnegativity. -/
+theorem pC_nonneg {c : ℝ} (hc : 0 < c) (u : UnitAddCircle) : 0 ≤ pC c u :=
+  heatTorus_nonneg hc 1 _
+
+/-- Upper bound. -/
+theorem pC_le {c : ℝ} (hc : 0 < c) (u : UnitAddCircle) :
+    pC c u ≤ (1 + Real.sqrt (Real.pi / c)) ^ 1 := heatTorus_le hc 1 _
+
+/-- Integration against the heat kernel of the circle is integration against the Gaussian on
+    the line. -/
+theorem circle_gauss_integral {σ : ℝ} (hσ : 0 < σ) (x : ℝ) (F : UnitAddCircle → ℝ)
+    (hF : Measurable F) {B : ℝ} (hFb : ∀ u, |F u| ≤ B) :
+    ∫ u, pC (2 * Real.pi ^ 2 * σ) ((x : UnitAddCircle) - u) * F u
+        ∂(AddCircle.haarAddCircle : Measure UnitAddCircle)
+      = ∫ y : ℝ, gaussR σ (x - y) * F (y : UnitAddCircle) := by
+  have hc : 0 < 2 * Real.pi ^ 2 * σ := by positivity
+  refine circle_unfold (fun y => gaussR σ (x - y)) (gaussR_integrable_sub hσ x)
+    (fun u => pC (2 * Real.pi ^ 2 * σ) ((x : UnitAddCircle) - u)) (fun y => ?_) F hF hFb
+  show pC (2 * Real.pi ^ 2 * σ) ((x : UnitAddCircle) - (y : UnitAddCircle))
+    = ∑' n : ℤ, gaussR σ (x - (y + n))
+  rw [← AddCircle.coe_sub, pC_coe hc, perGauss_eq_tsum_gaussR hσ, ← (Equiv.neg ℤ).tsum_eq]
+  refine tsum_congr fun n => ?_
+  simp only [Equiv.neg_apply, Int.cast_neg]
+  congr 1; ring
+
+/-- **Variance bound on the circle, with the factor `σ/s`.** For `0 < σ ≤ s`, with `P_σ`, `P_s`
+    the heat kernels of the circle at times `σ`, `s` (`c = 2π²τ`) and real `x, w`,
+    `∫ P_σ(x - u) P_s(u - w)² du - (∫ P_σ(x - u) P_s(u - w) du)²
+      ≤ (σ/s) · 4/(πs) · (1 + √(12πs)) · ∑_n e^{-(x - w + n)²/(12s)}`. -/
+theorem circle_variance {σ s : ℝ} (hσ : 0 < σ) (hs : 0 < s) (hσs : σ ≤ s) (x w : ℝ) :
+    (∫ u, pC (2 * Real.pi ^ 2 * σ) ((x : UnitAddCircle) - u)
+          * pC (2 * Real.pi ^ 2 * s) (u - (w : UnitAddCircle)) ^ 2
+        ∂(AddCircle.haarAddCircle : Measure UnitAddCircle))
+      - (∫ u, pC (2 * Real.pi ^ 2 * σ) ((x : UnitAddCircle) - u)
+          * pC (2 * Real.pi ^ 2 * s) (u - (w : UnitAddCircle))
+        ∂(AddCircle.haarAddCircle : Measure UnitAddCircle)) ^ 2
+      ≤ σ / s * (4 / (Real.pi * s)) * ((1 + Real.sqrt (Real.pi / (1 / (12 * s))))
+        * ∑' n : ℤ, Real.exp (-(1 / (12 * s)) * ((n : ℝ) - (-(x - w))) ^ 2)) := by
+  have hcs : 0 < 2 * Real.pi ^ 2 * s := by positivity
+  have hG : Continuous fun u : UnitAddCircle => pC (2 * Real.pi ^ 2 * s) (u - (w : UnitAddCircle)) :=
+    (pC_continuous hcs).comp (continuous_id.sub continuous_const)
+  have hGb : ∀ u : UnitAddCircle, |pC (2 * Real.pi ^ 2 * s) (u - (w : UnitAddCircle))|
+      ≤ (1 + Real.sqrt (Real.pi / (2 * Real.pi ^ 2 * s))) ^ 1 := fun u => by
+    rw [abs_of_nonneg (pC_nonneg hcs _)]; exact pC_le hcs _
+  have hval : ∀ y : ℝ, pC (2 * Real.pi ^ 2 * s) ((y : UnitAddCircle) - (w : UnitAddCircle))
+      = ∑' n : ℤ, gaussR s (y - w + n) := fun y => by
+    rw [← AddCircle.coe_sub, pC_coe hcs, perGauss_eq_tsum_gaussR hs]
+  have h2 := circle_gauss_integral hσ x
+    (fun u => pC (2 * Real.pi ^ 2 * s) (u - (w : UnitAddCircle)) ^ 2) (hG.pow 2).measurable
+    (B := ((1 + Real.sqrt (Real.pi / (2 * Real.pi ^ 2 * s))) ^ 1) ^ 2) (fun u => by
+      rw [abs_pow]; exact pow_le_pow_left₀ (abs_nonneg _) (hGb u) 2)
+  have h1 := circle_gauss_integral hσ x
+    (fun u => pC (2 * Real.pi ^ 2 * s) (u - (w : UnitAddCircle))) hG.measurable hGb
+  simp only [hval] at h1 h2
+  rw [h1, h2]
+  have t2 := integral_add_right_eq_self (μ := volume)
+    (fun y : ℝ => gaussR σ (x - y) * (∑' n : ℤ, gaussR s (y - w + n)) ^ 2) w
+  have t1 := integral_add_right_eq_self (μ := volume)
+    (fun y : ℝ => gaussR σ (x - y) * ∑' n : ℤ, gaussR s (y - w + n)) w
+  have e : ∀ y : ℝ, x - (y + w) = (x - w) - y := fun y => by ring
+  have e' : ∀ y : ℝ, y + w - w = y := fun y => by ring
+  simp only [e, e'] at t1 t2
+  rw [← t1, ← t2]
+  exact per_variance_line hσ hs hσs (x - w)
 
 end Probability
 
