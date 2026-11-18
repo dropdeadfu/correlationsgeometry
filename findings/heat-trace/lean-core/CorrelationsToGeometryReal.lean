@@ -725,6 +725,133 @@ theorem tail_modes {ι : Type} (s : Finset ι) (lam : ι → ℝ) {t b : ℝ} (h
   have := mul_le_mul_of_nonneg_left (hb i hi) ht
   linarith
 
+/-! ### Theorem "kernel" (uniform comparison of the sampled walk with the heat kernel):
+     the deterministic core for matrices -/
+
+/-- Stability: a row-stochastic matrix with nonnegative entries does not increase the supremum
+    norm. -/
+theorem sup_mulVec_le {n : Type} [Fintype n] (P : Matrix n n ℝ) (h0 : ∀ i j, 0 ≤ P i j)
+    (hrow : ∀ i, ∑ j, P i j = 1) (v : n → ℝ) {c : ℝ} (hv : ∀ b, |v b| ≤ c) (a : n) :
+    |(P *ᵥ v) a| ≤ c := by
+  calc |(P *ᵥ v) a| = |∑ b, P a b * v b| := rfl
+    _ ≤ ∑ b, |P a b * v b| := Finset.abs_sum_le_sum_abs _ _
+    _ ≤ ∑ b, P a b * c := Finset.sum_le_sum (fun b _ => by
+        rw [abs_mul, abs_of_nonneg (h0 a b)]
+        exact mul_le_mul_of_nonneg_left (hv b) (h0 a b))
+    _ = c := by rw [← Finset.sum_mul, hrow a, one_mul]
+
+/-- Stability of the powers. -/
+theorem sup_pow_mulVec_le {n : Type} [Fintype n] [DecidableEq n] (P : Matrix n n ℝ)
+    (h0 : ∀ i j, 0 ≤ P i j) (hrow : ∀ i, ∑ j, P i j = 1) (k : ℕ) (v : n → ℝ) {c : ℝ}
+    (hv : ∀ b, |v b| ≤ c) (a : n) : |((P ^ k) *ᵥ v) a| ≤ c := by
+  induction k generalizing v a with
+  | zero => simpa using hv a
+  | succ k ih =>
+    rw [pow_succ, ← mulVec_mulVec]
+    exact ih (P *ᵥ v) (fun b => sup_mulVec_le P h0 hrow v hv b) a
+
+/-- Step 1 of the proof of Theorem "kernel": `P^k g_1 - g_{k+1}` is the telescoping sum of the
+    one-step defects `h_m = P g_m - g_{m+1}`, transported by powers of `P`. In the paper
+    `g_m(b) = p_m(x_b - x_i)`. -/
+theorem lax_telescope {n : Type} [Fintype n] [DecidableEq n] (P : Matrix n n ℝ) (g : ℕ → n → ℝ)
+    (k : ℕ) :
+    (P ^ k) *ᵥ g 1 - g (k + 1)
+      = ∑ m ∈ Finset.range k, (P ^ (k - 1 - m)) *ᵥ (P *ᵥ g (m + 1) - g (m + 2)) := by
+  induction k with
+  | zero => simp
+  | succ k ih =>
+    rw [Finset.sum_range_succ]
+    have e1 : ∀ m ∈ Finset.range k, (P ^ (k + 1 - 1 - m)) *ᵥ (P *ᵥ g (m + 1) - g (m + 2))
+        = P *ᵥ ((P ^ (k - 1 - m)) *ᵥ (P *ᵥ g (m + 1) - g (m + 2))) := by
+      intro m hm
+      have hm' : m < k := Finset.mem_range.mp hm
+      have : k + 1 - 1 - m = (k - 1 - m) + 1 := by omega
+      rw [this, pow_succ', ← mulVec_mulVec]
+    rw [Finset.sum_congr rfl e1, ← mulVec_sum, ← ih]
+    have e2 : k + 1 - 1 - k = 0 := by omega
+    rw [e2, pow_zero, one_mulVec, mulVec_sub, mulVec_mulVec, ← pow_succ']
+    abel
+
+/-- Stability plus consistency in the supremum norm (the argument of Theorem "kernel" in its
+    simplest form): if the defects satisfy `|h_m| ≤ eta_m` at every point, then
+    `|P^k g_1 - g_{k+1}| ≤ sum_{m ≤ k} eta_m` at every point. -/
+theorem lax_kernel_bound {n : Type} [Fintype n] [DecidableEq n] (P : Matrix n n ℝ)
+    (h0 : ∀ i j, 0 ≤ P i j) (hrow : ∀ i, ∑ j, P i j = 1) (g : ℕ → n → ℝ) (eta : ℕ → ℝ) (k : ℕ)
+    (hcons : ∀ m < k, ∀ b, |(P *ᵥ g (m + 1) - g (m + 2)) b| ≤ eta (m + 1)) (a : n) :
+    |((P ^ k) *ᵥ g 1 - g (k + 1)) a| ≤ ∑ m ∈ Finset.range k, eta (m + 1) := by
+  rw [lax_telescope P g k, Finset.sum_apply]
+  calc |∑ m ∈ Finset.range k, ((P ^ (k - 1 - m)) *ᵥ (P *ᵥ g (m + 1) - g (m + 2))) a|
+      ≤ ∑ m ∈ Finset.range k, |((P ^ (k - 1 - m)) *ᵥ (P *ᵥ g (m + 1) - g (m + 2))) a| :=
+        Finset.abs_sum_le_sum_abs _ _
+    _ ≤ ∑ m ∈ Finset.range k, eta (m + 1) := Finset.sum_le_sum (fun m hm =>
+        sup_pow_mulVec_le P h0 hrow _ _ (hcons m (Finset.mem_range.mp hm)) a)
+
+/-- The powers of a matrix with nonnegative entries have nonnegative entries. -/
+theorem pow_entries_nonneg {n : Type} [Fintype n] [DecidableEq n] (P : Matrix n n ℝ)
+    (h0 : ∀ i j, 0 ≤ P i j) (k : ℕ) : ∀ i j, 0 ≤ (P ^ k) i j := by
+  induction k with
+  | zero => intro i j; simp [Matrix.one_apply]; split_ifs <;> norm_num
+  | succ k ih =>
+    intro i j
+    rw [pow_succ, Matrix.mul_apply]
+    exact Finset.sum_nonneg (fun l _ => mul_nonneg (ih i l) (h0 l j))
+
+/-- Step 2 of the proof of Theorem "kernel", the last step of the walk: if `|c - g| ≤ theta g`
+    pointwise and `B` has nonnegative entries, then `|B c - B g| ≤ theta B g` pointwise. In the
+    paper `c_b = N P_{bi}`, `g_b = p(x_b - x_i)`, `theta = 4 delta`, `B = P^k`. -/
+theorem last_step {n : Type} [Fintype n] (B : Matrix n n ℝ) (hB : ∀ i j, 0 ≤ B i j)
+    (c g : n → ℝ) {theta : ℝ} (hc : ∀ b, |c b - g b| ≤ theta * g b) (a : n) :
+    |(B *ᵥ c) a - (B *ᵥ g) a| ≤ theta * (B *ᵥ g) a := by
+  have e : (B *ᵥ c) a - (B *ᵥ g) a = ∑ b, B a b * (c b - g b) := by
+    simp only [mulVec, dotProduct, ← Finset.sum_sub_distrib]
+    exact Finset.sum_congr rfl (fun b _ => by ring)
+  rw [e]
+  calc |∑ b, B a b * (c b - g b)| ≤ ∑ b, |B a b * (c b - g b)| := Finset.abs_sum_le_sum_abs _ _
+    _ ≤ ∑ b, B a b * (theta * g b) := Finset.sum_le_sum (fun b _ => by
+        rw [abs_mul, abs_of_nonneg (hB a b)]
+        exact mul_le_mul_of_nonneg_left (hc b) (hB a b))
+    _ = theta * (B *ᵥ g) a := by
+        simp only [mulVec, dotProduct, Finset.mul_sum]
+        exact Finset.sum_congr rfl (fun b _ => by ring)
+
+/-- The weighted form used in Step 3: `|(B v)_a| ≤ (max |B_ab|) sum_b |v_b|`. -/
+theorem weighted_mulVec_le {n : Type} [Fintype n] (B : Matrix n n ℝ) (v : n → ℝ) {w : ℝ}
+    (hB : ∀ a b, |B a b| ≤ w) (a : n) : |(B *ᵥ v) a| ≤ w * ∑ b, |v b| := by
+  calc |(B *ᵥ v) a| = |∑ b, B a b * v b| := rfl
+    _ ≤ ∑ b, |B a b * v b| := Finset.abs_sum_le_sum_abs _ _
+    _ ≤ ∑ b, w * |v b| := Finset.sum_le_sum (fun b _ => by
+        rw [abs_mul]; exact mul_le_mul_of_nonneg_right (hB a b) (abs_nonneg _))
+    _ = w * ∑ b, |v b| := by rw [Finset.mul_sum]
+
+/-- **Theorem "kernel", conditional form for matrices.** `P` row-stochastic with nonnegative
+    entries; `g_m` arbitrary vectors (in the paper the heat kernel `p_m(· - x_i)` at the sample
+    points); `c` with `|c - g_1| ≤ theta g_1` (in the paper the column `N P_{·i}`).
+    HYPOTHESIS `hcons` (the consistency lemma, which is probabilistic and NOT formalised):
+    `|P g_m - g_{m+1}| ≤ eta_m` pointwise for `m ≤ k`. Conclusion:
+    `|P^k c - g_{k+1}| ≤ theta (g_{k+1} + sum eta_m) + sum eta_m` pointwise, that is, the entries
+    `N (P^{k+1})_{ai}` follow the heat kernel. This is the unweighted form; the paper's sharper
+    bound uses the mean of `|h_m|` (see `weighted_mulVec_le`) and the induction `kernel_induction`
+    of the core file. -/
+theorem kernel_theorem_conditional {n : Type} [Fintype n] [DecidableEq n] (P : Matrix n n ℝ)
+    (h0 : ∀ i j, 0 ≤ P i j) (hrow : ∀ i, ∑ j, P i j = 1) (g : ℕ → n → ℝ) (c : n → ℝ)
+    {theta : ℝ} (hth : 0 ≤ theta) (hc : ∀ b, |c b - g 1 b| ≤ theta * g 1 b)
+    (eta : ℕ → ℝ) (k : ℕ)
+    (hcons : ∀ m < k, ∀ b, |(P *ᵥ g (m + 1) - g (m + 2)) b| ≤ eta (m + 1)) (a : n) :
+    |((P ^ k) *ᵥ c) a - g (k + 1) a|
+      ≤ theta * (g (k + 1) a + ∑ m ∈ Finset.range k, eta (m + 1))
+        + ∑ m ∈ Finset.range k, eta (m + 1) := by
+  have h1 := last_step (P ^ k) (pow_entries_nonneg P h0 k) c (g 1) hc a
+  have h2 := lax_kernel_bound P h0 hrow g eta k hcons a
+  have h2' : |((P ^ k) *ᵥ g 1) a - g (k + 1) a| ≤ ∑ m ∈ Finset.range k, eta (m + 1) := by
+    simpa using h2
+  have h3 : ((P ^ k) *ᵥ g 1) a ≤ g (k + 1) a + ∑ m ∈ Finset.range k, eta (m + 1) := by
+    linarith [(abs_le.mp h2').2]
+  have h4 : theta * ((P ^ k) *ᵥ g 1) a
+      ≤ theta * (g (k + 1) a + ∑ m ∈ Finset.range k, eta (m + 1)) :=
+    mul_le_mul_of_nonneg_left h3 hth
+  rw [abs_le] at h1 h2' ⊢
+  constructor <;> linarith [h1.1, h1.2, h2'.1, h2'.2]
+
 end Spectral
 
 
