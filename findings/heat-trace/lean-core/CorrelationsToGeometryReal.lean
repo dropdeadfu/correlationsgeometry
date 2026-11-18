@@ -2712,6 +2712,159 @@ theorem kernel_fixed_scale_torus_walk {Ω : Type*} {mΩ : MeasurableSpace Ω} {�
     linarith
   exact (div_pos hpos hNpos).ne'
 
+/-- Two elementary inequalities for the exponents in `kernel_fixed_scale_ae`. -/
+theorem exponent_aux1 {s M : ℝ} (hM1 : 1 ≤ M) (n : ℕ) :
+    -(((n + 1 : ℕ) : ℝ) * s) ^ 2 / (2 * ((n + 1 : ℕ) : ℝ) * (M / 2) ^ 2)
+      ≤ -(2 * s ^ 2 / M ^ 4 * n) := by
+  have hM0 : 0 < M := by linarith
+  have hx : (0 : ℝ) < ((n + 1 : ℕ) : ℝ) := by positivity
+  have e : -(((n + 1 : ℕ) : ℝ) * s) ^ 2 / (2 * ((n + 1 : ℕ) : ℝ) * (M / 2) ^ 2)
+      = -(2 * s ^ 2 / M ^ 2 * ((n + 1 : ℕ) : ℝ)) := by field_simp
+  rw [e]
+  have h1 : 2 * s ^ 2 / M ^ 4 ≤ 2 * s ^ 2 / M ^ 2 :=
+    div_le_div_of_nonneg_left (by positivity) (by positivity)
+      (pow_le_pow_right₀ hM1 (show 2 ≤ 4 by norm_num))
+  have h2 : (n : ℝ) ≤ ((n + 1 : ℕ) : ℝ) := by push_cast; linarith
+  have h4 := mul_le_mul h1 h2 (Nat.cast_nonneg n) (by positivity : (0 : ℝ) ≤ 2 * s ^ 2 / M ^ 2)
+  linarith
+
+theorem exponent_aux2 {s M : ℝ} (hM1 : 1 ≤ M) (n : ℕ) :
+    -(((n + 1 : ℕ) : ℝ) * s) ^ 2 / (2 * ((n + 1 : ℕ) : ℝ) * (M * M / 2) ^ 2)
+      ≤ -(2 * s ^ 2 / M ^ 4 * n) := by
+  have hM0 : 0 < M := by linarith
+  have hx : (0 : ℝ) < ((n + 1 : ℕ) : ℝ) := by positivity
+  have e : -(((n + 1 : ℕ) : ℝ) * s) ^ 2 / (2 * ((n + 1 : ℕ) : ℝ) * (M * M / 2) ^ 2)
+      = -(2 * s ^ 2 / M ^ 4 * ((n + 1 : ℕ) : ℝ)) := by field_simp
+  rw [e]
+  have h2 : (n : ℝ) ≤ ((n + 1 : ℕ) : ℝ) := by push_cast; linarith
+  have h4 := mul_le_mul_of_nonneg_left h2 (by positivity : (0 : ℝ) ≤ 2 * s ^ 2 / M ^ 4)
+  linarith
+
+/-- An elementary inequality used for the choice of the tolerance in `kernel_fixed_scale_ae`. -/
+theorem tolerance_aux {s A1 M e q : ℝ} (hs0 : 0 ≤ s) (hs1 : s ≤ 1) (hA : 0 ≤ A1) (he : 0 ≤ e)
+    (hq : q ≤ M) :
+    10 * (s * A1) * (q + s * e) + s * e ≤ s * (10 * A1 * (M + e) + e) := by
+  have hse : s * e ≤ e := by nlinarith
+  have h2 : 10 * (s * A1) * (q + s * e) ≤ 10 * (s * A1) * (M + e) :=
+    mul_le_mul_of_nonneg_left (by linarith) (by positivity)
+  have e3 : s * (10 * A1 * (M + e) + e) = 10 * (s * A1) * (M + e) + s * e := by ring
+  rw [e3]; linarith
+
+/-- **The kernel of the sampled walk at a fixed kernel scale converges almost surely.** `G` a
+    compact abelian group with a translation-invariant metric and its invariant probability
+    measure; independent points with this law; `p` a measurable Lipschitz probability density with
+    `0 ≤ p ≤ M` and `p(0) > 0`. For every fixed `k` and every `eta > 0`, almost surely, for all
+    large `N`, every entry of the walk matrix of the first `N + 1` points satisfies
+    `|(N+1) (P^{k+1})_{ai} - p^{*(k+1)}(X_a - X_i)| ≤ eta`. This is the entrywise analogue of
+    Theorem "fixed kernel scale" of the paper; the kernel scale is fixed, no rate is claimed. -/
+theorem kernel_fixed_scale_ae {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {G : Type*} [AddCommGroup G] [MetricSpace G] [CompactSpace G]
+    [MeasurableSpace G] [BorelSpace G] [IsTopologicalAddGroup G] [SecondCountableTopology G]
+    (ν : Measure G) [IsProbabilityMeasure ν] [ν.IsAddLeftInvariant] [ν.IsNegInvariant]
+    (hdist : ∀ x x' y : G, dist (x - y) (x' - y) = dist x x')
+    (hdist2 : ∀ x y y' : G, dist (x - y) (x - y') = dist y y')
+    (X : ℕ → Ω → G) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = ν)
+    (p : G → ℝ) (hp : Measurable p) {M L : ℝ} (hM1 : 1 ≤ M) (hL : 0 ≤ L)
+    (hp0 : ∀ u, 0 ≤ p u) (hpM : ∀ u, p u ≤ M) (hmass : ∫ u, p u ∂ν = 1)
+    (hlip : ∀ u u', |p u - p u'| ≤ L * dist u u') (hpzero : 0 < p 0) (k : ℕ)
+    {eta : ℝ} (heta : 0 < eta) :
+    ∀ᵐ ω ∂μ, ∀ᶠ N in Filter.atTop, ∀ a i : Fin (N + 1),
+      |((N + 1 : ℕ) : ℝ) * (walkMatrix (fun i j : Fin (N + 1) => p (X i ω - X j ω))
+            (fun i : Fin (N + 1) => (∑ l : Fin (N + 1), p (X i ω - X l ω)) / (N + 1 : ℕ))
+              ^ (k + 1)) a i - convPow ν p k (X a ω - X i ω)| ≤ eta := by
+  have hM0 : 0 < M := by linarith
+  set Ls := L * M + M * (L * max 1 M) + 2 * (L * max 1 M) with hLs
+  have hLs0 : 0 ≤ Ls := by
+    have h1 : 0 ≤ L * max 1 M := mul_nonneg hL (le_trans zero_le_one (le_max_left _ _))
+    rw [hLs]; nlinarith [mul_nonneg hL hM0.le, mul_nonneg hM0.le h1]
+  set A1 := 1 + 2 * L with hA1
+  set A2 := 1 + 2 * Ls with hA2
+  have hA1pos : 0 < A1 := by rw [hA1]; linarith
+  have hA2pos : 0 < A2 := by rw [hA2]; linarith
+  set e := (k : ℝ) * (3 * A2 + 11 * A1 * M) with he
+  have he0 : 0 ≤ e := by rw [he]; positivity
+  set D := 10 * A1 * (M + e) + e with hD
+  have hDpos : 0 < D := by rw [hD]; positivity
+  set s := min 1 (min (1 / (8 * A1)) (eta / D)) with hs
+  have hspos : 0 < s := by rw [hs]; positivity
+  have hs1 : s ≤ 1 := min_le_left _ _
+  have hs2 : s * A1 ≤ 1 / 8 := by
+    have h := (min_le_right 1 (min (1 / (8 * A1)) (eta / D))).trans (min_le_left _ _)
+    calc s * A1 ≤ 1 / (8 * A1) * A1 := mul_le_mul_of_nonneg_right h hA1pos.le
+      _ = 1 / 8 := by field_simp
+  have hs3 : s * D ≤ eta := by
+    have h := (min_le_right 1 (min (1 / (8 * A1)) (eta / D))).trans (min_le_right _ _)
+    calc s * D ≤ eta / D * D := mul_le_mul_of_nonneg_right h hDpos.le
+      _ = eta := by field_simp
+  obtain ⟨M1, M2, hM⟩ := kernel_fixed_scale_torus_walk (μ := μ) ν hdist hdist2 X h_indep hX hlaw
+    p hp hM1 hL hp0 hpM hmass hlip hpzero hspos k
+  have hqB := convPow_le_all ν p hp hp0 hpM
+    (Integrable.of_bound hp.aestronglyMeasurable M (Filter.Eventually.of_forall (fun u => by
+      rw [Real.norm_eq_abs, abs_of_nonneg (hp0 u)]; exact hpM u))) hmass
+  have hbad := ae_eventually_of_exp_bound (μ := μ)
+    (fun N => {ω | ¬ ∀ a i : Fin (N + 1),
+      |((N + 1 : ℕ) : ℝ) * (walkMatrix (fun i j : Fin (N + 1) => p (X i ω - X j ω))
+            (fun i : Fin (N + 1) => (∑ l : Fin (N + 1), p (X i ω - X l ω)) / (N + 1 : ℕ))
+              ^ (k + 1)) a i - convPow ν p k (X a ω - X i ω)| ≤ eta})
+    (C := 2 * M1 + k * (2 * M2)) (c := 2 * s ^ 2 / M ^ 4) (by positivity) (by positivity) ?_
+  · filter_upwards [hbad] with ω hω
+    filter_upwards [hω] with N hN
+    simpa using hN
+  · intro N
+    have hN1 : (0 : ℝ) < ((N + 1 : ℕ) : ℝ) := by positivity
+    have hcond : ((N + 1 : ℕ) : ℝ) * s + 2 * (((N + 1 : ℕ) : ℝ) * L) * s
+        ≤ ((N + 1 : ℕ) : ℝ) / 8 := by
+      have : ((N + 1 : ℕ) : ℝ) * s + 2 * (((N + 1 : ℕ) : ℝ) * L) * s
+          = ((N + 1 : ℕ) : ℝ) * (s * A1) := by rw [hA1]; ring
+      rw [this]; nlinarith
+    have h := hM (N + 1) (((N + 1 : ℕ) : ℝ) * s) (((N + 1 : ℕ) : ℝ) * s)
+      (by positivity) (by positivity) hcond
+    -- the two normalised tolerances
+    have e1 : (((N + 1 : ℕ) : ℝ) * s + 2 * (((N + 1 : ℕ) : ℝ) * L) * s) / ((N + 1 : ℕ) : ℝ)
+        = s * A1 := by rw [hA1]; field_simp
+    have e2 : (((N + 1 : ℕ) : ℝ) * s + 2 * (((N + 1 : ℕ) : ℝ) * Ls) * s) / ((N + 1 : ℕ) : ℝ)
+        = s * A2 := by rw [hA2]; field_simp
+    rw [e1, e2] at h
+    -- the bound of the theorem is at most eta
+    have hsum : ∑ _m ∈ Finset.range k, (3 * (s * A2) + 11 * (s * A1) * M) = s * e := by
+      rw [Finset.sum_const, Finset.card_range, nsmul_eq_mul, he]; ring
+    rw [hsum] at h
+    have hbound : ∀ q : ℝ, q ≤ M → 10 * (s * A1) * (q + s * e) + s * e ≤ eta := by
+      intro q hq
+      exact (tolerance_aux hspos.le hs1 hA1pos.le he0 hq).trans hs3
+    have hsub : {ω | ¬ ∀ a i : Fin (N + 1),
+          |((N + 1 : ℕ) : ℝ) * (walkMatrix (fun i j : Fin (N + 1) => p (X i ω - X j ω))
+                (fun i : Fin (N + 1) => (∑ l : Fin (N + 1), p (X i ω - X l ω)) / (N + 1 : ℕ))
+                  ^ (k + 1)) a i - convPow ν p k (X a ω - X i ω)| ≤ eta}
+        ⊆ {ω | ∃ a i : Fin (N + 1),
+          10 * (s * A1) * (convPow ν p k (X a ω - X i ω) + s * e) + s * e
+            < |((N + 1 : ℕ) : ℝ) * (walkMatrix (fun i j : Fin (N + 1) => p (X i ω - X j ω))
+                (fun i : Fin (N + 1) => (∑ l : Fin (N + 1), p (X i ω - X l ω)) / (N + 1 : ℕ))
+                  ^ (k + 1)) a i - convPow ν p k (X a ω - X i ω)|} := by
+      intro ω hω
+      simp only [Set.mem_setOf_eq, not_forall, not_le] at hω ⊢
+      obtain ⟨a, i, hai⟩ := hω
+      exact ⟨a, i, lt_of_le_of_lt (hbound _ (hqB k _)) hai⟩
+    refine (measureReal_mono hsub).trans (h.trans ?_)
+    -- the exponentials
+    have hexp1 := exponent_aux1 (s := s) hM1 N
+    have hexp2 := exponent_aux2 (s := s) hM1 N
+    have hE1 := Real.exp_le_exp.mpr hexp1
+    have hE2 := Real.exp_le_exp.mpr hexp2
+    have hM1' : (0 : ℝ) ≤ M1 := Nat.cast_nonneg M1
+    have hM2' : (0 : ℝ) ≤ M2 := Nat.cast_nonneg M2
+    calc (M1 : ℝ) * (2 * Real.exp (-(((N + 1 : ℕ) : ℝ) * s) ^ 2
+              / (2 * ((N + 1 : ℕ) : ℝ) * (M / 2) ^ 2)))
+          + ∑ _m ∈ Finset.range k, (M2 : ℝ) * (2 * Real.exp (-(((N + 1 : ℕ) : ℝ) * s) ^ 2
+              / (2 * ((N + 1 : ℕ) : ℝ) * (M * M / 2) ^ 2)))
+        ≤ (M1 : ℝ) * (2 * Real.exp (-(2 * s ^ 2 / M ^ 4 * N)))
+          + ∑ _m ∈ Finset.range k, (M2 : ℝ) * (2 * Real.exp (-(2 * s ^ 2 / M ^ 4 * N))) := by
+          refine add_le_add (mul_le_mul_of_nonneg_left (by linarith) hM1') ?_
+          exact Finset.sum_le_sum (fun _ _ => mul_le_mul_of_nonneg_left (by linarith) hM2')
+      _ = (2 * M1 + k * (2 * M2)) * Real.exp (-(2 * s ^ 2 / M ^ 4 * N)) := by
+          rw [Finset.sum_const, Finset.card_range, nsmul_eq_mul]; ring
+
 end Probability
 
 end CTG.Reals
