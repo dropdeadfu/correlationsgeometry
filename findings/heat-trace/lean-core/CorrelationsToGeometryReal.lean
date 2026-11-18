@@ -601,6 +601,43 @@ theorem trace_sq_le_of_entry_le {n : Type} [Fintype n] [DecidableEq n] (P : Matr
       _ = b := by rw [← Finset.sum_mul, hrow i, one_mul]
   simpa [Matrix.trace, Matrix.mul_apply] using h
 
+/-- Lemma "traces", from the normalisation to the entries of the walk: if the kernel has values
+    in `[0, A]` and the estimated normalisation `q_i = (1/N) sum_l K_il` lies in `[qmin, qmax]` with
+    `qmin > 0`, then every entry of `P = D^{-1} W`, `W_ij = K_ij/(q_i q_j)`, is at most
+    `A qmax / (N qmin^2)`. With `trace_le_of_entry_le` and `trace_sq_le_of_entry_le` this gives
+    `Tr P, Tr P^2 ≤ A qmax/qmin^2`, which is of the order `xi^{-d}` in the paper. -/
+theorem walk_entry_le {n : Type} [Fintype n] (K : n → n → ℝ) (qv : n → ℝ) {A qmin qmax : ℝ}
+    (hK0 : ∀ i j, 0 ≤ K i j) (hKA : ∀ i j, K i j ≤ A)
+    (hq : ∀ i, (Fintype.card n : ℝ) * qv i = ∑ l, K i l)
+    (hqmin : 0 < qmin) (hlo : ∀ i, qmin ≤ qv i) (hhi : ∀ i, qv i ≤ qmax) (i j : n) :
+    (K i j / (qv i * qv j)) / (∑ l, K i l / (qv i * qv l))
+      ≤ A * qmax / ((Fintype.card n : ℝ) * qmin ^ 2) := by
+  have hqi : ∀ l, 0 < qv l := fun l => lt_of_lt_of_le hqmin (hlo l)
+  have hqmax : 0 < qmax := lt_of_lt_of_le (hqi i) (hhi i)
+  have hN : 0 < (Fintype.card n : ℝ) := by
+    have : Nonempty n := ⟨i⟩
+    exact_mod_cast Fintype.card_pos
+  have hA : 0 ≤ A := (hK0 i j).trans (hKA i j)
+  -- denominator from below
+  have hden : (Fintype.card n : ℝ) / qmax ≤ ∑ l, K i l / (qv i * qv l) := by
+    have h1 : ∀ l, K i l / (qv i * qmax) ≤ K i l / (qv i * qv l) := fun l =>
+      div_le_div_of_nonneg_left (hK0 i l) (mul_pos (hqi i) (hqi l))
+        (mul_le_mul_of_nonneg_left (hhi l) (hqi i).le)
+    calc (Fintype.card n : ℝ) / qmax = ∑ l, K i l / (qv i * qmax) := by
+          rw [← Finset.sum_div, ← hq i]
+          have := (hqi i).ne'
+          field_simp
+      _ ≤ ∑ l, K i l / (qv i * qv l) := Finset.sum_le_sum (fun l _ => h1 l)
+  have hdenpos : 0 < (Fintype.card n : ℝ) / qmax := div_pos hN hqmax
+  -- numerator from above
+  have hnum : K i j / (qv i * qv j) ≤ A / (qmin * qmin) :=
+    div_le_div₀ hA (hKA i j) (mul_pos hqmin hqmin) (mul_le_mul (hlo i) (hlo j) hqmin.le (hqi i).le)
+  have hnum0 : 0 ≤ K i j / (qv i * qv j) := div_nonneg (hK0 i j) (mul_pos (hqi i) (hqi j)).le
+  calc (K i j / (qv i * qv j)) / (∑ l, K i l / (qv i * qv l))
+      ≤ (A / (qmin * qmin)) / ((Fintype.card n : ℝ) / qmax) :=
+        div_le_div₀ (div_nonneg hA (mul_pos hqmin hqmin).le) hnum hdenpos hden
+    _ = A * qmax / ((Fintype.card n : ℝ) * qmin ^ 2) := by field_simp
+
 end Spectral
 
 
@@ -638,6 +675,127 @@ theorem normalisation_concentration {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ 
   have hc : (((‖A - 0‖₊ / 2) ^ 2 : ℝ≥0) : ℝ) = (A / 2) ^ 2 := by
     simp [abs_of_nonneg hA]
   rwa [hc] at h
+
+/-- Two-sided form: `P(|sum_{j<N} Y j - N m| ≥ eps) ≤ 2 exp(-eps^2 / (2 N (A/2)^2))`. -/
+theorem normalisation_two_sided {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] (Y : ℕ → Ω → ℝ) (h_indep : iIndepFun Y μ)
+    (hm : ∀ j, AEMeasurable (Y j) μ) {A m : ℝ} (hA : 0 ≤ A)
+    (hb : ∀ j, ∀ᵐ ω ∂μ, Y j ω ∈ Set.Icc 0 A) (hmean : ∀ j, μ[Y j] = m)
+    (N : ℕ) {ε : ℝ} (hε : 0 ≤ ε) :
+    μ.real {ω | ε ≤ |∑ j ∈ Finset.range N, Y j ω - N * m|}
+      ≤ 2 * Real.exp (-ε ^ 2 / (2 * N * (A / 2) ^ 2)) := by
+  have h1 := normalisation_concentration Y h_indep hm hA hb hmean N hε
+  have hZ : iIndepFun (fun j ω => A - Y j ω) μ :=
+    h_indep.comp (fun _ x => A - x) (fun _ => measurable_const.sub measurable_id)
+  have hm' : ∀ j, AEMeasurable (fun ω => A - Y j ω) μ := fun j => (hm j).const_sub A
+  have hb' : ∀ j, ∀ᵐ ω ∂μ, A - Y j ω ∈ Set.Icc 0 A := fun j => by
+    filter_upwards [hb j] with ω h
+    exact ⟨by linarith [h.2], by linarith [h.1]⟩
+  have hint : ∀ j, Integrable (Y j) μ := fun j => Integrable.of_mem_Icc 0 A (hm j) (hb j)
+  have hmean' : ∀ j, μ[fun ω => A - Y j ω] = A - m := fun j => by
+    rw [integral_sub (integrable_const A) (hint j), hmean j]; simp
+  have h2 := normalisation_concentration (fun j ω => A - Y j ω) hZ hm' hA hb' hmean' N hε
+  have hsub : {ω | ε ≤ |∑ j ∈ Finset.range N, Y j ω - N * m|}
+      ⊆ {ω | ε ≤ ∑ j ∈ Finset.range N, Y j ω - N * m}
+        ∪ {ω | ε ≤ ∑ j ∈ Finset.range N, (A - Y j ω) - N * (A - m)} := by
+    intro ω hω
+    simp only [Set.mem_setOf_eq, Set.mem_union] at hω ⊢
+    have e : ∑ j ∈ Finset.range N, (A - Y j ω) - N * (A - m)
+        = -(∑ j ∈ Finset.range N, Y j ω - N * m) := by
+      rw [Finset.sum_sub_distrib]; simp; ring
+    rw [e]
+    rcases le_abs.mp hω with h | h
+    · exact Or.inl h
+    · exact Or.inr h
+  calc μ.real {ω | ε ≤ |∑ j ∈ Finset.range N, Y j ω - N * m|}
+      ≤ μ.real ({ω | ε ≤ ∑ j ∈ Finset.range N, Y j ω - N * m}
+        ∪ {ω | ε ≤ ∑ j ∈ Finset.range N, (A - Y j ω) - N * (A - m)}) := measureReal_mono hsub
+    _ ≤ _ := (measureReal_union_le _ _).trans (by linarith)
+
+/-- Union bound over a finite set of points (a net): the two-sided estimate holds simultaneously
+    for all `a ∈ s` except on an event of probability at most `|s|` times the single bound. -/
+theorem net_concentration {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {ι : Type*} (s : Finset ι) (Y : ι → ℕ → Ω → ℝ)
+    (h_indep : ∀ a ∈ s, iIndepFun (Y a) μ) (hm : ∀ a ∈ s, ∀ j, AEMeasurable (Y a j) μ)
+    {A : ℝ} (m : ι → ℝ) (hA : 0 ≤ A)
+    (hb : ∀ a ∈ s, ∀ j, ∀ᵐ ω ∂μ, Y a j ω ∈ Set.Icc 0 A) (hmean : ∀ a ∈ s, ∀ j, μ[Y a j] = m a)
+    (N : ℕ) {ε : ℝ} (hε : 0 ≤ ε) :
+    μ.real {ω | ∃ a ∈ s, ε ≤ |∑ j ∈ Finset.range N, Y a j ω - N * m a|}
+      ≤ s.card * (2 * Real.exp (-ε ^ 2 / (2 * N * (A / 2) ^ 2))) := by
+  have hset : {ω | ∃ a ∈ s, ε ≤ |∑ j ∈ Finset.range N, Y a j ω - N * m a|}
+      = ⋃ a ∈ s, {ω | ε ≤ |∑ j ∈ Finset.range N, Y a j ω - N * m a|} := by
+    ext ω; simp
+  rw [hset]
+  calc μ.real (⋃ a ∈ s, {ω | ε ≤ |∑ j ∈ Finset.range N, Y a j ω - N * m a|})
+      ≤ ∑ a ∈ s, μ.real {ω | ε ≤ |∑ j ∈ Finset.range N, Y a j ω - N * m a|} :=
+        measureReal_biUnion_finset_le _ _
+    _ ≤ ∑ _a ∈ s, 2 * Real.exp (-ε ^ 2 / (2 * N * (A / 2) ^ 2)) :=
+        Finset.sum_le_sum (fun a ha =>
+          normalisation_two_sided (Y a) (h_indep a ha) (hm a ha) hA (hb a ha) (hmean a ha) N hε)
+    _ = _ := by simp
+
+/-- From a net to all points: if two `L`-Lipschitz functions are within `s` of each other on an
+    `r`-net, they are within `s + 2 L r` everywhere. -/
+theorem sup_from_net {E : Type*} [PseudoMetricSpace E] (f g : E → ℝ) {L r s : ℝ} (hL : 0 ≤ L)
+    (hf : ∀ x y, |f x - f y| ≤ L * dist x y) (hg : ∀ x y, |g x - g y| ≤ L * dist x y)
+    (net : Finset E) (hnet : ∀ x, ∃ a ∈ net, dist x a ≤ r)
+    (hs : ∀ a ∈ net, |f a - g a| ≤ s) (x : E) : |f x - g x| ≤ s + 2 * L * r := by
+  obtain ⟨a, ha, hd⟩ := hnet x
+  have h1 := hf x a
+  have h2 := hg x a
+  have h3 := hs a ha
+  have h4 : L * dist x a ≤ L * r := mul_le_mul_of_nonneg_left hd hL
+  rw [abs_le] at h1 h2 h3 ⊢
+  constructor <;> linarith [h1.1, h1.2, h2.1, h2.2, h3.1, h3.2]
+
+/-- **Uniform concentration of the normalisation (Lemma "weights", Proposition "rate in N",
+    Step 1).** `X j` independent random points of a metric space `E`; `k` a kernel with values in
+    `[0, A]`, measurable in the second and `L`-Lipschitz in the first argument;
+    `q x = E k(x, X_j)` for every `j` (HYPOTHESIS `hq`: this is where identical distribution
+    enters), `q` being `L`-Lipschitz (HYPOTHESIS `hqlip`, a consequence not derived here); a finite
+    `r`-net of `E` (HYPOTHESIS `hnet`: its existence and size are geometry). Conclusion: the
+    probability that `|sum_{j<N} k(x, X_j) - N q(x)|` exceeds `eps + 2 N L r` for SOME point `x`,
+    in particular for some sample point, is at most `2 |net| exp(-eps^2 / (2 N (A/2)^2))`. No
+    conditioning is needed, because the estimate is uniform in `x`. -/
+theorem uniform_normalisation {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {E : Type*} [PseudoMetricSpace E] [MeasurableSpace E]
+    (X : ℕ → Ω → E) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (k : E → E → ℝ) (hk : ∀ x, Measurable (k x)) {A L r : ℝ} (hA : 0 ≤ A) (hL : 0 ≤ L)
+    (hbound : ∀ x y, k x y ∈ Set.Icc 0 A)
+    (hlip : ∀ x x' y, |k x y - k x' y| ≤ L * dist x x')
+    (q : E → ℝ) (hq : ∀ x j, μ[fun ω => k x (X j ω)] = q x)
+    (hqlip : ∀ x x', |q x - q x'| ≤ L * dist x x')
+    (net : Finset E) (hnet : ∀ x, ∃ a ∈ net, dist x a ≤ r)
+    (N : ℕ) {ε : ℝ} (hε : 0 ≤ ε) :
+    μ.real {ω | ∃ x, ε + 2 * (N * L) * r < |∑ j ∈ Finset.range N, k x (X j ω) - N * q x|}
+      ≤ net.card * (2 * Real.exp (-ε ^ 2 / (2 * N * (A / 2) ^ 2))) := by
+  have hnetbound := net_concentration (μ := μ) net (fun a j ω => k a (X j ω))
+    (fun a _ => h_indep.comp (fun _ y => k a y) (fun _ => hk a))
+    (fun a _ j => ((hk a).comp (hX j)).aemeasurable) q hA
+    (fun a _ j => Filter.Eventually.of_forall (fun ω => hbound a (X j ω)))
+    (fun a _ j => hq a j) N hε
+  refine (measureReal_mono ?_).trans hnetbound
+  intro ω hω
+  simp only [Set.mem_setOf_eq] at hω ⊢
+  by_contra hcon
+  push Not at hcon
+  obtain ⟨x, hx⟩ := hω
+  have hNL : 0 ≤ (N : ℝ) * L := mul_nonneg (Nat.cast_nonneg _) hL
+  have hf : ∀ x y : E, |∑ j ∈ Finset.range N, k x (X j ω) - ∑ j ∈ Finset.range N, k y (X j ω)|
+      ≤ (N * L) * dist x y := by
+    intro x y
+    rw [← Finset.sum_sub_distrib]
+    calc |∑ j ∈ Finset.range N, (k x (X j ω) - k y (X j ω))|
+        ≤ ∑ j ∈ Finset.range N, |k x (X j ω) - k y (X j ω)| := Finset.abs_sum_le_sum_abs _ _
+      _ ≤ ∑ _j ∈ Finset.range N, L * dist x y := Finset.sum_le_sum (fun j _ => hlip x y (X j ω))
+      _ = (N * L) * dist x y := by simp; ring
+  have hg : ∀ x y : E, |(N : ℝ) * q x - N * q y| ≤ (N * L) * dist x y := by
+    intro x y
+    rw [← mul_sub, abs_mul, abs_of_nonneg (Nat.cast_nonneg N), mul_assoc]
+    exact mul_le_mul_of_nonneg_left (hqlip x y) (Nat.cast_nonneg N)
+  have := sup_from_net (fun x => ∑ j ∈ Finset.range N, k x (X j ω)) (fun x => (N : ℝ) * q x)
+    hNL hf hg net hnet (fun a ha => (hcon a ha).le) x
+  linarith
 
 end Probability
 
