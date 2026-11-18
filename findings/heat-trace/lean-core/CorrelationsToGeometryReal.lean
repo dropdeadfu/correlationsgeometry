@@ -290,6 +290,177 @@ theorem heat_lower_matrix {n : Type} [Fintype n] [DecidableEq n] (S : Matrix n n
     nlinarith [Real.exp_pos (-tau)]
   linarith
 
+/-! ### Theorem "Convergence of the heat trace" (Theorem 3.12): the deterministic part
+
+  The proof of Theorem 3.12 splits the graph modes into low ones, `1 - s_a < kappa`, and high ones,
+  compares the low modes with numbers `mu_a = t lambda_a` (in the paper the eigenvalues of the
+  manifold), and estimates the high modes with `Tr S^2`. The theorem below is this splitting as an
+  inequality for an arbitrary real symmetric matrix and arbitrary numbers `mu_a`, without
+  hypotheses. What the paper adds, and what is NOT formalised: the eigenvalue estimates of Theorem
+  "Eigenvalues" for the low modes, Weyl's law, the bounds `Tr P, Tr S^2 ≤ C xi^{-d}` (all on an
+  event of probability one), and the passage to the limit. -/
+
+/-- `|e^{-a} - e^{-b}| ≤ |a - b| e^{-min(a,b)}`. -/
+theorem abs_exp_neg_sub (a b : ℝ) :
+    |Real.exp (-a) - Real.exp (-b)| ≤ |a - b| * Real.exp (-(min a b)) := by
+  have key : ∀ x y : ℝ, x ≤ y →
+      |Real.exp (-x) - Real.exp (-y)| ≤ |x - y| * Real.exp (-(min x y)) := by
+    intro x y hxy
+    have h1 : Real.exp (-y) = Real.exp (-x) * Real.exp (-(y - x)) := by
+      rw [← Real.exp_add]; congr 1; ring
+    have h2 : 1 - (y - x) ≤ Real.exp (-(y - x)) := by
+      have := Real.add_one_le_exp (-(y - x)); linarith
+    have h3 : Real.exp (-(y - x)) ≤ 1 := by
+      rw [Real.exp_le_one_iff]; linarith
+    have hpos := Real.exp_pos (-x)
+    have h4 : 0 ≤ Real.exp (-x) - Real.exp (-y) := by
+      rw [h1]; nlinarith
+    have h5 : Real.exp (-x) - Real.exp (-y) ≤ (y - x) * Real.exp (-x) := by
+      rw [h1]; nlinarith
+    rw [abs_of_nonneg h4, min_eq_left hxy, abs_of_nonpos (by linarith)]
+    linarith
+  rcases le_total a b with h | h
+  · exact key a b h
+  · have := key b a h
+    rwa [abs_sub_comm, abs_sub_comm b a, min_comm] at this
+
+/-- One high mode, `s ≤ 1 - kappa`: `0 ≤ e^{-tau(1-s)} - e^{-tau} - tau s e^{-tau}
+    ≤ (tau s)^2/2 e^{-kappa tau}`. The upper bound is `high_mode` of the core file for `Real.exp`. -/
+theorem real_high_mode {tau kappa s : ℝ} (ht : 0 ≤ tau) (hk1 : kappa ≤ 1) (hs : s ≤ 1 - kappa) :
+    0 ≤ Real.exp (-(tau * (1 - s))) - Real.exp (-tau) - tau * s * Real.exp (-tau) ∧
+    Real.exp (-(tau * (1 - s))) - Real.exp (-tau) - tau * s * Real.exp (-tau)
+      ≤ (tau * s) * (tau * s) / 2 * Real.exp (-(kappa * tau)) := by
+  have h1 : Real.exp (-(tau * (1 - s))) = Real.exp (-tau) * Real.exp (tau * s) := by
+    rw [← Real.exp_add]; congr 1; ring
+  have h2 : Real.exp (-(tau * (1 - s))) - Real.exp (-tau) - tau * s * Real.exp (-tau)
+      = Real.exp (-tau) * (Real.exp (tau * s) - 1 - tau * s) := by rw [h1]; ring
+  rw [h2]
+  constructor
+  · have := Real.add_one_le_exp (tau * s)
+    exact mul_nonneg (Real.exp_pos _).le (by linarith)
+  · exact high_mode real_isExp2 ht hk1 hs
+
+/-- **The deterministic part of Theorem 3.12.** For every real symmetric matrix `S` with
+    eigenvalues `s_i`, every `tau ≥ 0`, `kappa ≤ 1` and all real numbers `mu_i`: with the low modes
+    `1 - s_i < kappa` and the high modes the others,
+    `|Tr e^{-tL} - N e^{-tau} - sum_low e^{-mu_i}|` is at most the sum of four terms: the comparison
+    of the low modes, `sum_low |tau (1 - s_i) - mu_i| e^{-min(tau(1 - s_i), mu_i)}`; the subtracted
+    terms of the low modes, `n_low e^{-tau}`; the linear part of the high modes,
+    `tau e^{-tau} |sum_high s_i|`; and the quadratic part, `tau^2/2 e^{-kappa tau} Tr S^2`.
+    Here `Tr e^{-tL} = Tr exp(tau (S - 1))`. -/
+theorem trace_deterministic {n : Type} [Fintype n] [DecidableEq n] (S : Matrix n n ℝ)
+    (hS : S.IsHermitian) {tau kappa : ℝ} (ht : 0 ≤ tau) (hk1 : kappa ≤ 1) (mu : n → ℝ) :
+    |(NormedSpace.exp (tau • (S - 1))).trace - (Fintype.card n : ℝ) * Real.exp (-tau)
+        - ∑ i ∈ Finset.univ.filter (fun i => 1 - hS.eigenvalues i < kappa), Real.exp (-(mu i))|
+      ≤ ∑ i ∈ Finset.univ.filter (fun i => 1 - hS.eigenvalues i < kappa),
+            |tau * (1 - hS.eigenvalues i) - mu i|
+              * Real.exp (-(min (tau * (1 - hS.eigenvalues i)) (mu i)))
+        + ((Finset.univ.filter (fun i => 1 - hS.eigenvalues i < kappa)).card : ℝ) * Real.exp (-tau)
+        + tau * Real.exp (-tau)
+            * |∑ i ∈ Finset.univ.filter (fun i => ¬ (1 - hS.eigenvalues i < kappa)), hS.eigenvalues i|
+        + tau ^ 2 / 2 * Real.exp (-(kappa * tau)) * (S ^ 2).trace := by
+  set s := hS.eigenvalues with hs_def
+  set low := Finset.univ.filter (fun i => 1 - s i < kappa) with hlow
+  set high := Finset.univ.filter (fun i => ¬ (1 - s i < kappa)) with hhigh
+  set E : n → ℝ := fun i => Real.exp (-(tau * (1 - s i))) with hE
+  have hsplit : ∀ f : n → ℝ, ∑ i, f i = ∑ i ∈ low, f i + ∑ i ∈ high, f i := fun f =>
+    (Finset.sum_filter_add_sum_filter_not Finset.univ (fun i => 1 - s i < kappa) f).symm
+  have htr : (NormedSpace.exp (tau • (S - 1))).trace = ∑ i, E i := trace_exp_heat S hS tau
+  have hN : (Fintype.card n : ℝ) * Real.exp (-tau) = ∑ _i : n, Real.exp (-tau) := by
+    simp [Finset.sum_const, Finset.card_univ]
+  have hlowcard : ∑ _i ∈ low, Real.exp (-tau) = (low.card : ℝ) * Real.exp (-tau) := by
+    simp [Finset.sum_const]
+  -- the quantity inside the absolute value, rearranged
+  have hid : (NormedSpace.exp (tau • (S - 1))).trace - (Fintype.card n : ℝ) * Real.exp (-tau)
+        - ∑ i ∈ low, Real.exp (-(mu i))
+      = ∑ i ∈ low, (E i - Real.exp (-(mu i))) - (low.card : ℝ) * Real.exp (-tau)
+        + tau * Real.exp (-tau) * ∑ i ∈ high, s i
+        + ∑ i ∈ high, (E i - Real.exp (-tau) - tau * s i * Real.exp (-tau)) := by
+    rw [htr, hN, hsplit E, hsplit (fun _ => Real.exp (-tau)), hlowcard, Finset.sum_sub_distrib,
+      Finset.sum_sub_distrib, Finset.sum_sub_distrib, Finset.mul_sum]
+    have : ∑ i ∈ high, tau * s i * Real.exp (-tau) = ∑ i ∈ high, tau * Real.exp (-tau) * s i :=
+      Finset.sum_congr rfl (fun i _ => by ring)
+    rw [this]; ring
+  -- the four bounds
+  have hb1 : |∑ i ∈ low, (E i - Real.exp (-(mu i)))|
+      ≤ ∑ i ∈ low, |tau * (1 - s i) - mu i| * Real.exp (-(min (tau * (1 - s i)) (mu i))) :=
+    (Finset.abs_sum_le_sum_abs _ _).trans
+      (Finset.sum_le_sum (fun i _ => abs_exp_neg_sub (tau * (1 - s i)) (mu i)))
+  have hmode : ∀ i ∈ high, 0 ≤ E i - Real.exp (-tau) - tau * s i * Real.exp (-tau) ∧
+      E i - Real.exp (-tau) - tau * s i * Real.exp (-tau)
+        ≤ (tau * s i) * (tau * s i) / 2 * Real.exp (-(kappa * tau)) := by
+    intro i hi
+    have hi' : ¬ (1 - s i < kappa) := (Finset.mem_filter.mp hi).2
+    exact real_high_mode ht hk1 (by linarith [not_lt.mp hi'])
+  have hb4lo : 0 ≤ ∑ i ∈ high, (E i - Real.exp (-tau) - tau * s i * Real.exp (-tau)) :=
+    Finset.sum_nonneg (fun i hi => (hmode i hi).1)
+  have hsq : (S ^ 2).trace = ∑ i, s i ^ 2 := trace_pow_eq_sum_eigenvalues S hS 2
+  have hb4 : ∑ i ∈ high, (E i - Real.exp (-tau) - tau * s i * Real.exp (-tau))
+      ≤ tau ^ 2 / 2 * Real.exp (-(kappa * tau)) * (S ^ 2).trace := by
+    calc ∑ i ∈ high, (E i - Real.exp (-tau) - tau * s i * Real.exp (-tau))
+        ≤ ∑ i ∈ high, (tau * s i) * (tau * s i) / 2 * Real.exp (-(kappa * tau)) :=
+          Finset.sum_le_sum (fun i hi => (hmode i hi).2)
+      _ = tau ^ 2 / 2 * Real.exp (-(kappa * tau)) * ∑ i ∈ high, s i ^ 2 := by
+          rw [Finset.mul_sum]; exact Finset.sum_congr rfl (fun i _ => by ring)
+      _ ≤ tau ^ 2 / 2 * Real.exp (-(kappa * tau)) * (S ^ 2).trace := by
+          rw [hsq, hsplit (fun i => s i ^ 2)]
+          have hlowsq : 0 ≤ ∑ i ∈ low, s i ^ 2 := Finset.sum_nonneg (fun i _ => sq_nonneg _)
+          have hc : 0 ≤ tau ^ 2 / 2 * Real.exp (-(kappa * tau)) :=
+            mul_nonneg (by positivity) (Real.exp_pos _).le
+          nlinarith
+  have hb2 : 0 ≤ (low.card : ℝ) * Real.exp (-tau) :=
+    mul_nonneg (Nat.cast_nonneg _) (Real.exp_pos _).le
+  have hb3 : |tau * Real.exp (-tau) * ∑ i ∈ high, s i|
+      = tau * Real.exp (-tau) * |∑ i ∈ high, s i| := by
+    rw [abs_mul, abs_of_nonneg (mul_nonneg ht (Real.exp_pos _).le)]
+  rw [hid]
+  have habs := abs_le.mp hb1
+  have habs3 := abs_le.mp (le_of_eq hb3)
+  rw [abs_le]
+  constructor <;> linarith [habs.1, habs.2, habs3.1, habs3.2, neg_abs_le (tau * Real.exp (-tau) * ∑ i ∈ high, s i), le_abs_self (tau * Real.exp (-tau) * ∑ i ∈ high, s i)]
+
+/-- **Theorem 3.12, conditional form.** HYPOTHESES (in the paper: Theorem "Eigenvalues" on an
+    event of probability one, with `mu_i = t lambda_i` the eigenvalues of the manifold): for every
+    low mode, `mu_i ≥ 0`, `|tau (1 - s_i) - mu_i| ≤ eps * mu_i` and `c * mu_i ≤ tau (1 - s_i)` with
+    `c ≤ 1`. Conclusion: the subtracted trace differs from `sum_low e^{-mu_i}` by at most
+    `eps * sum_low mu_i e^{-c mu_i} + n_low e^{-tau} + tau e^{-tau} |sum_high s_i|
+     + tau^2/2 e^{-kappa tau} Tr S^2`. -/
+theorem trace_conditional {n : Type} [Fintype n] [DecidableEq n] (S : Matrix n n ℝ)
+    (hS : S.IsHermitian) {tau kappa eps c : ℝ} (ht : 0 ≤ tau) (hk1 : kappa ≤ 1)
+    (hc1 : c ≤ 1) (mu : n → ℝ)
+    (hmu : ∀ i, 1 - hS.eigenvalues i < kappa → 0 ≤ mu i)
+    (heig : ∀ i, 1 - hS.eigenvalues i < kappa →
+      |tau * (1 - hS.eigenvalues i) - mu i| ≤ eps * mu i)
+    (hlow : ∀ i, 1 - hS.eigenvalues i < kappa → c * mu i ≤ tau * (1 - hS.eigenvalues i)) :
+    |(NormedSpace.exp (tau • (S - 1))).trace - (Fintype.card n : ℝ) * Real.exp (-tau)
+        - ∑ i ∈ Finset.univ.filter (fun i => 1 - hS.eigenvalues i < kappa), Real.exp (-(mu i))|
+      ≤ eps * ∑ i ∈ Finset.univ.filter (fun i => 1 - hS.eigenvalues i < kappa),
+            mu i * Real.exp (-(c * mu i))
+        + ((Finset.univ.filter (fun i => 1 - hS.eigenvalues i < kappa)).card : ℝ) * Real.exp (-tau)
+        + tau * Real.exp (-tau)
+            * |∑ i ∈ Finset.univ.filter (fun i => ¬ (1 - hS.eigenvalues i < kappa)), hS.eigenvalues i|
+        + tau ^ 2 / 2 * Real.exp (-(kappa * tau)) * (S ^ 2).trace := by
+  have h := trace_deterministic S hS ht hk1 mu
+  have hterm : ∑ i ∈ Finset.univ.filter (fun i => 1 - hS.eigenvalues i < kappa),
+        |tau * (1 - hS.eigenvalues i) - mu i|
+          * Real.exp (-(min (tau * (1 - hS.eigenvalues i)) (mu i)))
+      ≤ eps * ∑ i ∈ Finset.univ.filter (fun i => 1 - hS.eigenvalues i < kappa),
+          mu i * Real.exp (-(c * mu i)) := by
+    rw [Finset.mul_sum]
+    refine Finset.sum_le_sum (fun i hi => ?_)
+    have hi' : 1 - hS.eigenvalues i < kappa := (Finset.mem_filter.mp hi).2
+    have h0 := hmu i hi'
+    have hmin : c * mu i ≤ min (tau * (1 - hS.eigenvalues i)) (mu i) :=
+      le_min (hlow i hi') (by nlinarith)
+    have hexp : Real.exp (-(min (tau * (1 - hS.eigenvalues i)) (mu i))) ≤ Real.exp (-(c * mu i)) :=
+      Real.exp_le_exp.mpr (by linarith)
+    calc |tau * (1 - hS.eigenvalues i) - mu i|
+            * Real.exp (-(min (tau * (1 - hS.eigenvalues i)) (mu i)))
+        ≤ (eps * mu i) * Real.exp (-(c * mu i)) :=
+          mul_le_mul (heig i hi') hexp (Real.exp_pos _).le ((abs_nonneg _).trans (heig i hi'))
+      _ = eps * (mu i * Real.exp (-(c * mu i))) := by ring
+  linarith
+
 end Spectral
 
 end CTG.Reals
