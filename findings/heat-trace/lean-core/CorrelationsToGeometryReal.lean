@@ -645,6 +645,15 @@ theorem walk_entry_le {n : Type} [Fintype n] (K : n → n → ℝ) (qv : n → �
 noncomputable def walkMatrix {n : Type} [Fintype n] (K : n → n → ℝ) (qv : n → ℝ) : Matrix n n ℝ :=
   Matrix.of fun i j => (K i j / (qv i * qv j)) / (∑ l, K i l / (qv i * qv l))
 
+/-- The entries of the walk matrix: the normalisation of the row cancels. -/
+theorem walkMatrix_apply' {n : Type} [Fintype n] (K : n → n → ℝ) (qv : n → ℝ) (b j : n)
+    (hb : qv b ≠ 0) :
+    walkMatrix K qv b j = (K b j / qv j) / ∑ l, K b l / qv l := by
+  have e : ∀ l, K b l / (qv b * qv l) = (K b l / qv l) / qv b := fun l => by
+    rw [div_div, mul_comm]
+  simp only [walkMatrix, Matrix.of_apply, e]
+  rw [← Finset.sum_div, div_div_div_cancel_right₀ hb]
+
 /-- Lemma "traces", deterministic assembly: if the kernel has values in `[0, A]` and the estimated
     normalisation `q_i = (1/N) sum_l K_il` lies in `[q0/2, 3 q0/2]` with `q0 > 0`, then
     `Tr P ≤ 6A/q0` and `Tr P^2 ≤ 6A/q0`. -/
@@ -2286,6 +2295,54 @@ theorem convPow_succ_lipschitz {G : Type*} [AddCommGroup G] [PseudoMetricSpace G
   have h := norm_integral_le_of_norm_le_const (μ := ν) (Filter.Eventually.of_forall hbound)
   simpa [Real.norm_eq_abs] using h
 
+/-- All convolution powers of a measurable kernel are measurable. -/
+theorem convPow_measurable {G : Type*} [AddCommGroup G] [MeasurableSpace G] [MeasurableSub₂ G]
+    (ν : Measure G) [SFinite ν] (p : G → ℝ) (hp : Measurable p) :
+    ∀ m, Measurable (convPow ν p m)
+  | 0 => hp
+  | m + 1 => by
+    have ih := convPow_measurable ν p hp m
+    have hF : Measurable (fun z : G × G => p (z.1 - z.2) * convPow ν p m z.2) :=
+      (hp.comp (measurable_fst.sub measurable_snd)).mul (ih.comp measurable_snd)
+    exact (hF.stronglyMeasurable.integral_prod_right').measurable
+
+/-- All convolution powers of a kernel of mass one with `0 ≤ p ≤ M` are at most `M`
+    (fact (P1) in its qualitative form, without the decay in `m`). -/
+theorem convPow_le_all {G : Type*} [AddCommGroup G] [MeasurableSpace G] [MeasurableAdd₂ G]
+    [MeasurableSub₂ G] [MeasurableNeg G] (ν : Measure G) [IsFiniteMeasure ν]
+    [ν.IsAddLeftInvariant] [ν.IsNegInvariant]
+    (p : G → ℝ) (hp : Measurable p) (hp0 : ∀ u, 0 ≤ p u) {M : ℝ} (hpM : ∀ u, p u ≤ M)
+    (hpint : Integrable p ν) (hmass : ∫ u, p u ∂ν = 1) : ∀ m u, convPow ν p m u ≤ M
+  | 0, u => hpM u
+  | m + 1, u => convPow_succ_le ν p hp0 hpint hmass m (convPow_le_all ν p hp hp0 hpM hpint hmass m)
+      (convPow_measurable ν p hp m).aestronglyMeasurable u
+
+/-- All convolution powers of an `L`-Lipschitz kernel of mass one with `0 ≤ p ≤ M` are
+    `L max(1, M)`-Lipschitz. -/
+theorem convPow_lipschitz_all {G : Type*} [AddCommGroup G] [PseudoMetricSpace G]
+    [MeasurableSpace G] [MeasurableAdd₂ G] [MeasurableSub₂ G] [MeasurableNeg G] (ν : Measure G)
+    [IsProbabilityMeasure ν] [ν.IsAddLeftInvariant] [ν.IsNegInvariant]
+    (hdist : ∀ x x' y : G, dist (x - y) (x' - y) = dist x x')
+    (p : G → ℝ) (hp : Measurable p) (hp0 : ∀ u, 0 ≤ p u) {M L : ℝ} (hpM : ∀ u, p u ≤ M)
+    (hpint : Integrable p ν) (hmass : ∫ u, p u ∂ν = 1) (hL : 0 ≤ L)
+    (hlip : ∀ u u', |p u - p u'| ≤ L * dist u u') (m : ℕ) (u u' : G) :
+    |convPow ν p m u - convPow ν p m u'| ≤ L * max 1 M * dist u u' := by
+  have hd : 0 ≤ dist u u' := dist_nonneg
+  cases m with
+  | zero =>
+    calc |convPow ν p 0 u - convPow ν p 0 u'| = |p u - p u'| := rfl
+      _ ≤ L * dist u u' := hlip u u'
+      _ = L * 1 * dist u u' := by ring
+      _ ≤ L * max 1 M * dist u u' :=
+          mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_left (le_max_left _ _) hL) hd
+  | succ m =>
+    calc |convPow ν p (m + 1) u - convPow ν p (m + 1) u'| ≤ L * M * dist u u' :=
+          convPow_succ_lipschitz ν hdist p hp0 hpint hL hlip m
+            (convPow_le_all ν p hp hp0 hpM hpint hmass m)
+            (convPow_measurable ν p hp m).aestronglyMeasurable u u'
+      _ ≤ L * max 1 M * dist u u' :=
+          mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_left (le_max_right _ _) hL) hd
+
 /-- The semigroup property in the form used by Lemma "consistency": for a point `X` with law `ν`
     (translation invariant), `E p(x - X) p^{*(m+1)}(X - y) = p^{*(m+2)}(x - y)`. -/
 theorem transported_mean {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
@@ -2513,6 +2570,147 @@ theorem kernel_fixed_scale_whp {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Mea
     _ ≤ pn + ∑ m ∈ Finset.range k, pc m := by
         refine add_le_add hBn ((measureReal_biUnion_finset_le _ _).trans ?_)
         exact Finset.sum_le_sum (fun m hm => hBc m (Finset.mem_range.mp hm))
+
+/-- **The kernel theorem at a fixed kernel scale on a torus, without intermediate hypotheses.**
+    `G` a compact abelian group with a translation-invariant metric and its invariant probability
+    measure `ν`; `X_j` independent with law `ν`; `p` a measurable `L`-Lipschitz probability density
+    with `0 ≤ p ≤ M`; `P` the walk matrix of the first `N` points with the estimated normalisation
+    (HYPOTHESIS `hP`: the formula for its entries). For every `r > 0` and `k` there are numbers
+    `M1`, `M2` (sizes of `r`-nets of `G` and of `G × G`, not quantified) such that for all `N ≥ 1`
+    and `epsn, epsc ≥ 0` with `epsn + 2 N L r ≤ N/8`: with `en = epsn + 2 N L r`,
+    `ec = epsc + 2 N Lstar r`, `delta = en/N` and `E = sum_{m<k} (3 ec/N + 11 delta M)`, the
+    probability that some entry violates
+    `|N (P^{k+1})_{ai} - p^{*(k+1)}(X_a - X_i)| ≤ 10 delta (p^{*(k+1)}(X_a - X_i) + E) + E`
+    is at most `2 M1 exp(-epsn^2/(2N(M/2)^2)) + sum_{m<k} 2 M2 exp(-epsc^2/(2N(M^2/2)^2))`.
+    No rate in the kernel scale is claimed, and the bound is of the weak form (see
+    `defect_decomposition`). -/
+theorem kernel_fixed_scale_torus {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {G : Type*} [AddCommGroup G] [MetricSpace G] [CompactSpace G]
+    [MeasurableSpace G] [BorelSpace G] [IsTopologicalAddGroup G] [SecondCountableTopology G]
+    (ν : Measure G) [IsProbabilityMeasure ν] [ν.IsAddLeftInvariant] [ν.IsNegInvariant]
+    (hdist : ∀ x x' y : G, dist (x - y) (x' - y) = dist x x')
+    (hdist2 : ∀ x y y' : G, dist (x - y) (x - y') = dist y y')
+    (X : ℕ → Ω → G) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = ν)
+    (p : G → ℝ) (hp : Measurable p) {M L r : ℝ} (hM1 : 1 ≤ M) (hL : 0 ≤ L)
+    (hp0 : ∀ u, 0 ≤ p u) (hpM : ∀ u, p u ≤ M) (hmass : ∫ u, p u ∂ν = 1)
+    (hlip : ∀ u u', |p u - p u'| ≤ L * dist u u') (hr : 0 < r) (k : ℕ) :
+    ∃ M1 M2 : ℕ, ∀ (N : ℕ) [NeZero N] (P : Ω → Matrix (Fin N) (Fin N) ℝ),
+      (∀ ω b j, P ω b j
+        = (p (X b ω - X j ω) / ((∑ l : Fin N, p (X j ω - X l ω)) / N))
+          / ∑ l : Fin N, p (X b ω - X l ω) / ((∑ l' : Fin N, p (X l ω - X l' ω)) / N)) →
+      ∀ (epsn epsc : ℝ), 0 ≤ epsn → 0 ≤ epsc → epsn + 2 * (N * L) * r ≤ N / 8 →
+      μ.real {ω | ∃ a i : Fin N,
+          10 * ((epsn + 2 * (N * L) * r) / N) * (convPow ν p k (X a ω - X i ω)
+              + ∑ m ∈ Finset.range k,
+                  (3 * ((epsc + 2 * (N * (L * M + M * (L * max 1 M) + 2 * (L * max 1 M))) * r) / N)
+                    + 11 * ((epsn + 2 * (N * L) * r) / N) * M))
+            + ∑ m ∈ Finset.range k,
+                (3 * ((epsc + 2 * (N * (L * M + M * (L * max 1 M) + 2 * (L * max 1 M))) * r) / N)
+                  + 11 * ((epsn + 2 * (N * L) * r) / N) * M)
+          < |(N : ℝ) * (P ω ^ (k + 1)) a i - convPow ν p k (X a ω - X i ω)|}
+        ≤ M1 * (2 * Real.exp (-epsn ^ 2 / (2 * N * (M / 2) ^ 2)))
+          + ∑ _m ∈ Finset.range k, M2 * (2 * Real.exp (-epsc ^ 2 / (2 * N * (M * M / 2) ^ 2))) := by
+  have hM0 : 0 ≤ M := by linarith
+  have hpint : Integrable p ν :=
+    Integrable.of_bound hp.aestronglyMeasurable M (Filter.Eventually.of_forall (fun u => by
+      rw [Real.norm_eq_abs, abs_of_nonneg (hp0 u)]; exact hpM u))
+  have hq0 := convPow_nonneg ν p hp0
+  have hqB := convPow_le_all ν p hp hp0 hpM hpint hmass
+  have hqlip := convPow_lipschitz_all ν hdist p hp hp0 hpM hpint hmass hL hlip
+  have hLq : 0 ≤ L * max 1 M := mul_nonneg hL (le_trans zero_le_one (le_max_left _ _))
+  -- nets
+  obtain ⟨t1, -, ht1fin, ht1cover⟩ := finite_cover_balls_of_compact (isCompact_univ (X := G)) hr
+  have hnet1 : ∀ x : G, ∃ a ∈ ht1fin.toFinset, dist x a ≤ r := by
+    intro x
+    have hx := ht1cover (Set.mem_univ x)
+    simp only [Set.mem_iUnion, Metric.mem_ball] at hx
+    obtain ⟨a, ha, hd⟩ := hx
+    exact ⟨a, ht1fin.mem_toFinset.mpr ha, hd.le⟩
+  obtain ⟨t2, -, ht2fin, ht2cover⟩ :=
+    finite_cover_balls_of_compact (isCompact_univ (X := G × G)) hr
+  have hnet2 : ∀ x : G × G, ∃ a ∈ ht2fin.toFinset, dist x a ≤ r := by
+    intro x
+    have hx := ht2cover (Set.mem_univ x)
+    simp only [Set.mem_iUnion, Metric.mem_ball] at hx
+    obtain ⟨a, ha, hd⟩ := hx
+    exact ⟨a, ht2fin.mem_toFinset.mpr ha, hd.le⟩
+  refine ⟨ht1fin.toFinset.card, ht2fin.toFinset.card, fun N _ P hP epsn epsc hn hc hsmall => ?_⟩
+  have hNpos : 0 < (N : ℝ) := by exact_mod_cast Nat.pos_of_ne_zero (NeZero.ne N)
+  -- the normalisation event
+  have hBn := uniform_normalisation (μ := μ) X h_indep hX (fun x y => p (x - y))
+    (fun x => hp.comp (measurable_const.sub measurable_id)) hM0 hL
+    (fun x y => ⟨hp0 _, hpM _⟩)
+    (fun x x' y => by rw [← hdist x x' y]; exact hlip (x - y) (x' - y))
+    (fun _ => 1)
+    (fun x j => by
+      have h1 : ∫ ω, p (x - X j ω) ∂μ = ∫ y, p (x - y) ∂(μ.map (X j)) :=
+        (integral_map (hX j).aemeasurable
+          ((hp.comp (measurable_const.sub measurable_id)).aestronglyMeasurable)).symm
+      rw [h1, hlaw j, integral_sub_left_eq_self p ν x, hmass])
+    (fun x x' => by simpa using mul_nonneg hL dist_nonneg)
+    ht1fin.toFinset hnet1 N hn
+  simp only [mul_one] at hBn
+  -- the consistency events
+  have hBc : ∀ m < k, μ.real {ω | ∃ t : G × G,
+        epsc + 2 * (N * (L * M + M * (L * max 1 M) + 2 * (L * max 1 M))) * r
+        < |∑ j ∈ Finset.range N, p (t.1 - X j ω) * convPow ν p m (X j ω - t.2)
+            - N * convPow ν p (m + 1) (t.1 - t.2)|}
+      ≤ ht2fin.toFinset.card * (2 * Real.exp (-epsc ^ 2 / (2 * N * (M * M / 2) ^ 2))) := by
+    intro m _
+    exact consistency_uniform_exact (μ := μ) ν hdist hdist2 X h_indep hX hlaw p m
+      (fun x y => (hp.comp (measurable_const.sub measurable_id)).mul
+        ((convPow_measurable ν p hp m).comp (measurable_id.sub measurable_const)))
+      hM0 hM0 hL hLq hLq hp0 hpM (hq0 m) (hqB m) hlip (hqlip m) (hqlip (m + 1))
+      (by nlinarith [hLq]) (by nlinarith [mul_nonneg hL hM0, mul_nonneg hM0 hLq])
+      ht2fin.toFinset hnet2 N hc
+  exact kernel_fixed_scale_whp (μ := μ) ν X p (fun _ => M) N k hq0 hqB P hP
+    (fun _ => ht2fin.toFinset.card * (2 * Real.exp (-epsc ^ 2 / (2 * N * (M * M / 2) ^ 2))))
+    (by positivity) hsmall hBn hBc
+
+/-- **The kernel theorem at a fixed kernel scale on a torus for the walk matrix itself.** As
+    `kernel_fixed_scale_torus`, with `P` the matrix `walkMatrix` of the first `N` points with the
+    estimated normalisation; the formula for its entries is derived, using `p(0) > 0` (self-loops),
+    so that no hypothesis on the walk remains. -/
+theorem kernel_fixed_scale_torus_walk {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {G : Type*} [AddCommGroup G] [MetricSpace G] [CompactSpace G]
+    [MeasurableSpace G] [BorelSpace G] [IsTopologicalAddGroup G] [SecondCountableTopology G]
+    (ν : Measure G) [IsProbabilityMeasure ν] [ν.IsAddLeftInvariant] [ν.IsNegInvariant]
+    (hdist : ∀ x x' y : G, dist (x - y) (x' - y) = dist x x')
+    (hdist2 : ∀ x y y' : G, dist (x - y) (x - y') = dist y y')
+    (X : ℕ → Ω → G) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = ν)
+    (p : G → ℝ) (hp : Measurable p) {M L r : ℝ} (hM1 : 1 ≤ M) (hL : 0 ≤ L)
+    (hp0 : ∀ u, 0 ≤ p u) (hpM : ∀ u, p u ≤ M) (hmass : ∫ u, p u ∂ν = 1)
+    (hlip : ∀ u u', |p u - p u'| ≤ L * dist u u') (hpzero : 0 < p 0) (hr : 0 < r) (k : ℕ) :
+    ∃ M1 M2 : ℕ, ∀ (N : ℕ) [NeZero N],
+      ∀ (epsn epsc : ℝ), 0 ≤ epsn → 0 ≤ epsc → epsn + 2 * (N * L) * r ≤ N / 8 →
+      μ.real {ω | ∃ a i : Fin N,
+          10 * ((epsn + 2 * (N * L) * r) / N) * (convPow ν p k (X a ω - X i ω)
+              + ∑ m ∈ Finset.range k,
+                  (3 * ((epsc + 2 * (N * (L * M + M * (L * max 1 M) + 2 * (L * max 1 M))) * r) / N)
+                    + 11 * ((epsn + 2 * (N * L) * r) / N) * M))
+            + ∑ m ∈ Finset.range k,
+                (3 * ((epsc + 2 * (N * (L * M + M * (L * max 1 M) + 2 * (L * max 1 M))) * r) / N)
+                  + 11 * ((epsn + 2 * (N * L) * r) / N) * M)
+          < |(N : ℝ) * (walkMatrix (fun i j : Fin N => p (X i ω - X j ω))
+              (fun i : Fin N => (∑ l : Fin N, p (X i ω - X l ω)) / N) ^ (k + 1)) a i - convPow ν p k (X a ω - X i ω)|}
+        ≤ M1 * (2 * Real.exp (-epsn ^ 2 / (2 * N * (M / 2) ^ 2)))
+          + ∑ _m ∈ Finset.range k, M2 * (2 * Real.exp (-epsc ^ 2 / (2 * N * (M * M / 2) ^ 2))) := by
+  obtain ⟨M1, M2, h⟩ := kernel_fixed_scale_torus (μ := μ) ν hdist hdist2 X h_indep hX hlaw p hp
+    hM1 hL hp0 hpM hmass hlip hr k
+  refine ⟨M1, M2, fun N _ => ?_⟩
+  have hNpos : 0 < (N : ℝ) := by exact_mod_cast Nat.pos_of_ne_zero (NeZero.ne N)
+  refine h N (fun ω => walkMatrix (fun i j : Fin N => p (X i ω - X j ω))
+    (fun i : Fin N => (∑ l : Fin N, p (X i ω - X l ω)) / N)) (fun ω b j => ?_)
+  refine walkMatrix_apply' _ _ b j ?_
+  have hpos : 0 < ∑ l : Fin N, p (X b ω - X l ω) := by
+    have h1 : p (X b ω - X b ω) ≤ ∑ l : Fin N, p (X b ω - X l ω) :=
+      Finset.single_le_sum (f := fun l : Fin N => p (X b ω - X l ω)) (fun l _ => hp0 _)
+        (Finset.mem_univ b)
+    rw [sub_self] at h1
+    linarith
+  exact (div_pos hpos hNpos).ne'
 
 end Probability
 
