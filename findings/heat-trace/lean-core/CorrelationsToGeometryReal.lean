@@ -16528,6 +16528,80 @@ theorem eig_theorem_G38 {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω
   rw [hCp] at s2 ⊢
   exact s2
 
+/-- **The largest eigenvalue of `S` is exactly one.** For a symmetric kernel `K ≥ 0`, `ρ > 0` and
+    positive degrees, the vector `(√D_i)` is fixed by `S = D^{-1/2} W D^{-1/2}`; hence the largest
+    eigenvalue of `S` is `1`, that is `λ^N_1 = 0`. -/
+theorem symGraph_top_eigenvalue {n : Type} [Fintype n] [DecidableEq n] (K : n → n → ℝ)
+    (rho : n → ℝ) (hK : ∀ i j, K i j = K j i) (hK0 : ∀ i j, 0 ≤ K i j) (hrho : ∀ i, 0 < rho i)
+    (hD : ∀ i, 0 < ∑ l, K i l / (rho i * rho l))
+    (hS : (symGraph K rho).IsHermitian) (h0 : 0 < Fintype.card n) :
+    hS.eigenvalues₀ ⟨0, h0⟩ = 1 := by
+  haveI : Nonempty n := Fintype.card_pos_iff.mp h0
+  obtain ⟨v, hv⟩ : ∃ v : n → ℝ, v = fun i => Real.sqrt (∑ l, K i l / (rho i * rho l)) := ⟨_, rfl⟩
+  have hvpos : ∀ i, 0 < v i := fun i => by rw [hv]; exact Real.sqrt_pos.mpr (hD i)
+  have hvv : ∀ i, v i * v i = ∑ l, K i l / (rho i * rho l) := fun i => by
+    rw [hv]; exact Real.mul_self_sqrt (hD i).le
+  have hSv : symGraph K rho *ᵥ v = v := by
+    funext i
+    show ∑ j, symGraph K rho i j * v j = v i
+    have e : ∀ j, symGraph K rho i j * v j = (K i j / (rho i * rho j)) / v i := by
+      intro j
+      have h1 := (hvpos i).ne'
+      have h2 := (hvpos j).ne'
+      simp only [symGraph, Matrix.of_apply]
+      rw [show Real.sqrt (∑ l, K i l / (rho i * rho l)) = v i by rw [hv],
+        show Real.sqrt (∑ l, K j l / (rho j * rho l)) = v j by rw [hv]]
+      field_simp
+    rw [Finset.sum_congr rfl fun j _ => e j, ← Finset.sum_div, ← hvv i]
+    have h1 := (hvpos i).ne'
+    field_simp
+  have hv0 : v ≠ 0 := by
+    intro h
+    have := hvpos (Classical.arbitrary n)
+    rw [h] at this
+    simp at this
+  have hdet : (1 - symGraph K rho).det = 0 :=
+    Matrix.exists_mulVec_eq_zero_iff.mp ⟨v, hv0, by rw [Matrix.sub_mulVec, Matrix.one_mulVec, hSv, sub_self]⟩
+  have hmem : (1 : ℝ) ∈ spectrum ℝ (symGraph K rho) := by
+    rw [spectrum.mem_iff, Matrix.isUnit_iff_isUnit_det, map_one, hdet]
+    simp
+  rw [hS.spectrum_real_eq_range_eigenvalues] at hmem
+  obtain ⟨i, hi⟩ := hmem
+  have hi' : hS.eigenvalues₀ ((Fintype.equivOfCardEq (Fintype.card_fin _)).symm i) = 1 := by
+    simpa [IsHermitian.eigenvalues] using hi
+  have h1 : hS.eigenvalues₀ ((Fintype.equivOfCardEq (Fintype.card_fin _)).symm i)
+      ≤ hS.eigenvalues₀ ⟨0, h0⟩ := hS.eigenvalues₀_antitone (Fin.zero_le _)
+  have h2 := symGraph_eig_le_one K rho hK hK0 hrho hD hS ⟨0, h0⟩
+  linarith
+
+/-- **The trace statement of Theorem "kernel" for random samples.** In the situation of
+    `kernel_theorem_G28`: except on an event of probability at most `3/N³`,
+    `|Tr P^k - m_k| ≤ C₁ δ' √k m_k` for all `1 ≤ k ≤ K`. -/
+theorem kernel_trace_G28 {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {σ : ℝ} (hσ : 0 < σ) (hσ1 : σ ≤ 1) (d : ℕ) (hd : 1 ≤ d)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (N K : ℕ) (hN2 : 2 ≤ N) (hK : 0 < K)
+    {Mp δp : ℝ} (hMp : Mp = heatTorus d (2 * Real.pi ^ 2 * σ) 0)
+    (hδp : δp = Real.sqrt (Mp * Real.log N / N))
+    (hrange : kernelC1 d * δp * Real.sqrt K ≤ 1) :
+    μ.real {ω | ¬ ∀ k, 1 ≤ k → k ≤ K →
+        |((walkMatrix
+              (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X a ω - X j ω))
+              (fun a : Fin N => heatRho d σ N (fun j => X j ω) a)) ^ k).trace
+            - heatTorus d (2 * Real.pi ^ 2 * ((k : ℝ) * σ)) 0|
+          ≤ kernelC1 d * δp * Real.sqrt k * heatTorus d (2 * Real.pi ^ 2 * ((k : ℝ) * σ)) 0}
+      ≤ 3 / (N : ℝ) ^ 3 := by
+  have h := kernel_theorem_G28 hσ hσ1 d hd X h_indep hX hlaw N K hN2 hK hMp hδp hrange
+  refine le_trans (measureReal_mono ?_ (measure_ne_top μ _)) h
+  intro ω hω hgood
+  apply hω
+  intro k hk hkK
+  refine trace_from_diagonal (by omega) _ ?_
+  intro a
+  have h1 := hgood k hk hkK a a
+  rw [sub_self, heatP_of_ne d σ (by omega)] at h1
+  exact h1
+
 end KernelL1
 
 end Probability
