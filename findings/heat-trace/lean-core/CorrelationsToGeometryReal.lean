@@ -16602,6 +16602,96 @@ theorem kernel_trace_G28 {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure �
   rw [sub_self, heatP_of_ne d σ (by omega)] at h1
   exact h1
 
+/-! ### Measurability of the exceptional set of `kernel_theorem_G28` -/
+
+/-- The heat kernel at a difference of two sample points is measurable. -/
+theorem heatTorus_sample_measurable {Ω : Type*} {mΩ : MeasurableSpace Ω} {c : ℝ} (hc : 0 < c)
+    (d : ℕ) (X : ℕ → Ω → FlatTorus d) (hX : ∀ j, Measurable (X j)) (a b : ℕ) :
+    Measurable fun ω => heatTorus d c (X a ω - X b ω) :=
+  (heatTorus_continuous hc d).measurable.comp ((hX a).sub (hX b))
+
+theorem heatP_sample_measurable {Ω : Type*} {mΩ : MeasurableSpace Ω} {σ : ℝ} (hσ : 0 < σ)
+    (d : ℕ) (X : ℕ → Ω → FlatTorus d) (hX : ∀ j, Measurable (X j)) (k a b : ℕ) :
+    Measurable fun ω => heatP d σ k (X a ω - X b ω) := by
+  by_cases hk : k = 0
+  · subst hk
+    simp only [heatP, if_true]
+    exact measurable_const
+  · have hkr : (0 : ℝ) < k := by exact_mod_cast Nat.pos_of_ne_zero hk
+    have hc : 0 < 2 * Real.pi ^ 2 * ((k : ℝ) * σ) := by
+      have := Real.pi_pos; positivity
+    simp only [heatP, if_neg hk]
+    exact heatTorus_sample_measurable hc d X hX a b
+
+theorem heatRho_sample_measurable {Ω : Type*} {mΩ : MeasurableSpace Ω} {σ : ℝ} (hσ : 0 < σ)
+    (d : ℕ) (X : ℕ → Ω → FlatTorus d) (hX : ∀ j, Measurable (X j)) (N a : ℕ) :
+    Measurable fun ω => heatRho d σ N (fun j => X j ω) a := by
+  have hc : 0 < 2 * Real.pi ^ 2 * σ := by
+    have := Real.pi_pos; positivity
+  unfold heatRho
+  exact (Finset.measurable_sum _ fun l _ =>
+    heatTorus_sample_measurable hc d X hX a l).div_const _
+
+/-- The entries of the sampled walk matrix are measurable. -/
+theorem walk_entry_measurable {Ω : Type*} {mΩ : MeasurableSpace Ω} {σ : ℝ} (hσ : 0 < σ)
+    (d : ℕ) (X : ℕ → Ω → FlatTorus d) (hX : ∀ j, Measurable (X j)) (N : ℕ) (a i : Fin N) :
+    Measurable fun ω => (walkMatrix
+        (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X a ω - X j ω))
+        (fun a : Fin N => heatRho d σ N (fun j => X j ω) a)) a i := by
+  have hc : 0 < 2 * Real.pi ^ 2 * σ := by
+    have := Real.pi_pos; positivity
+  have hK : ∀ a j : Fin N, Measurable fun ω =>
+      heatTorus d (2 * Real.pi ^ 2 * σ) (X a ω - X j ω) := fun a j =>
+    heatTorus_sample_measurable hc d X hX a j
+  have hR : ∀ a : Fin N, Measurable fun ω => heatRho d σ N (fun j => X j ω) a := fun a =>
+    heatRho_sample_measurable hσ d X hX N a
+  simp only [walkMatrix, Matrix.of_apply]
+  exact ((hK a i).div ((hR a).mul (hR i))).div
+    (Finset.measurable_sum _ fun l _ => (hK a l).div ((hR a).mul (hR l)))
+
+/-- The entries of the powers of the sampled walk matrix are measurable. -/
+theorem walk_pow_entry_measurable {Ω : Type*} {mΩ : MeasurableSpace Ω} {σ : ℝ} (hσ : 0 < σ)
+    (d : ℕ) (X : ℕ → Ω → FlatTorus d) (hX : ∀ j, Measurable (X j)) (N k : ℕ) (a i : Fin N) :
+    Measurable fun ω => ((walkMatrix
+        (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X a ω - X j ω))
+        (fun a : Fin N => heatRho d σ N (fun j => X j ω) a)) ^ k) a i := by
+  induction k generalizing a i with
+  | zero =>
+    simp only [pow_zero, Matrix.one_apply]
+    exact measurable_const
+  | succ k ih =>
+    simp only [pow_succ, Matrix.mul_apply]
+    exact Finset.measurable_sum _ fun j _ =>
+      (ih a j).mul (walk_entry_measurable hσ d X hX N j i)
+
+/-- The good event of `kernel_theorem_G28` (with a general constant) is measurable. -/
+theorem kernel_G28_event_measurable {Ω : Type*} {mΩ : MeasurableSpace Ω} {σ : ℝ} (hσ : 0 < σ)
+    (d : ℕ) (X : ℕ → Ω → FlatTorus d) (hX : ∀ j, Measurable (X j)) (N K : ℕ) (c : ℝ) :
+    MeasurableSet {ω | ∀ k, 1 ≤ k → k ≤ K → ∀ a i : Fin N,
+        |(N : ℝ) * ((walkMatrix
+              (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X a ω - X j ω))
+              (fun a : Fin N => heatRho d σ N (fun j => X j ω) a)) ^ k) a i
+            - heatP d σ k (X a ω - X i ω)|
+          ≤ c * Real.sqrt k * heatTorus d (2 * Real.pi ^ 2 * ((k : ℝ) * σ)) 0} := by
+  simp only [Set.setOf_forall]
+  refine MeasurableSet.iInter fun k => MeasurableSet.iInter fun _ => MeasurableSet.iInter fun _ =>
+    MeasurableSet.iInter fun a => MeasurableSet.iInter fun i => ?_
+  exact measurableSet_le
+    (((walk_pow_entry_measurable hσ d X hX N k a i).const_mul _).sub
+      (heatP_sample_measurable hσ d X hX k a i)).abs measurable_const
+
+/-- The exceptional set of `kernel_theorem_G28`, verbatim, is measurable. -/
+theorem kernel_theorem_G28_set_measurable {Ω : Type*} {mΩ : MeasurableSpace Ω} {σ : ℝ}
+    (hσ : 0 < σ) (d : ℕ) (X : ℕ → Ω → FlatTorus d) (hX : ∀ j, Measurable (X j)) (N K : ℕ)
+    (δp : ℝ) :
+    MeasurableSet {ω | ¬ ∀ k, 1 ≤ k → k ≤ K → ∀ a i : Fin N,
+        |(N : ℝ) * ((walkMatrix
+              (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X a ω - X j ω))
+              (fun a : Fin N => heatRho d σ N (fun j => X j ω) a)) ^ k) a i
+            - heatP d σ k (X a ω - X i ω)|
+          ≤ kernelC1 d * δp * Real.sqrt k * heatTorus d (2 * Real.pi ^ 2 * ((k : ℝ) * σ)) 0} :=
+  (kernel_G28_event_measurable hσ d X hX N K (kernelC1 d * δp)).compl
+
 end KernelL1
 
 end Probability
