@@ -23,6 +23,7 @@
 \newcommand{\dd}{\mathrm{d}}
 \newcommand{\Lie}{\mathcal{L}}
 \newcommand{\Lc}{\mathsf{L}}
+\DeclareMathOperator{\Ric}{Ric}
 \newcommand{\status}[1]{\par\noindent\textsf{\small Status: #1}\par}
 \title{Time and dynamics: working draft}
 \author{Draft accompanying ``From Correlations to Geometry''}
@@ -410,6 +411,69 @@ For a power law $F\propto r^{-(D-1)}$ the factor $F/(rF')$ is $-1/(D-1)$; in the
 \status{proven as a consequence of Proposition~\ref{prop:prefactor}, given the assumed expansion of $u$. For the situation of \texttt{thm:curved} of the paper the prefactor is the Van Vleck factor, for which $a=\tfrac1{12}\mathrm{Ric}$ is the standard leading term; this value and the resulting statement ``relative order $r^2/L_{\mathrm{curv}}^2$'' of the paper are \emph{not checked here against a reference}, and the further corrections in \texttt{thm:curved} (the term with $u_1$, of relative order $r/m$) are not treated. \emph{Open:} the same for the mutual information $C_{ij}$ in place of $X$, where the node factors and the dependence on $P$ and $Y$ enter.}
 
 \section{B3. A map of the missing principle}
-\emph{Not started.}
+
+This section proves little. It orders what the paper and Sections B0--B2 establish into three lists: what is excluded, what a model would have to deliver, and which routes remain, each with its status. One statement is new: the static field equations as a relation between two quantities that the correlation data determine without knowledge of the nodes (Proposition~\ref{prop:static-test}).
+
+\subsection{What is excluded}
+
+\begin{enumerate}
+\item[(X1)] \emph{Self-consistency.} The map background $\to$ ground state $\to$ reconstructed $(h,K)$ is the identity on every background that has a ground state (stationary, $|\beta|_h<\Omega$, $m>0$; see B0). It selects nothing. \emph{Status:} consequence of the reconstruction theorems of the paper, statuses as there.
+\item[(X2)] \emph{Extremising a heat-trace functional.} No positive mixture of heat traces has a stationary metric (\texttt{thm:nostat}, proven); the earlier ansatz is withdrawn in the paper.
+\item[(X3)] \emph{More data about the gapped sector.} None of the tiers \textup{(D0)}--\textup{(D4)} constrains the background: the data determine $(h,K,\Omega,\beta)$ to the extent stated in Theorem~\ref{thm:summary} on \emph{every} background, and what the field equations need in addition is listed in Theorem~\ref{thm:free} (statuses there; the Casimir example in that theorem is unverified).
+\item[(X4)] \emph{A local coupling, or a scalar mediator.} A local coupling of matter to the gapped field changes the correlations only where matter is. A light scalar that controls the gap gives the conformally flat spacetime $\Omega^2(-\dd t^2+\dd x^2)$, that is, Nordstr\"om's theory with $\Psi=-\Phi$ (\texttt{prop:nordstrom}; proven given \texttt{prop:lapse}).
+\item[(X5)] \emph{Persistent nodes with the fields computed so far.} A cutoff carried by nodes is tied to a foliation, and the induced action is of Ho\v{r}ava type. If the Hamiltonian is linear in the shift, $\lambda\le1$ (\texttt{prop:lambda}); every model in \texttt{tab:models} of the paper has $\lambda<1$ or the wrong speed of the tensor modes, and for the oscillators on the kernel graph $\lambda=-\tfrac12$ (\texttt{prop:graphlong}). With special field contents the non-covariant terms cancel, but together with a vanishing vacuum energy the induced action vanishes to the orders computed (\texttt{cor:vanish}). \emph{Status:} the individual propositions as in the paper, all at second order around a flat slice; the conclusion about field contents is, in the words of the paper, evidence and not a no-go theorem, and has changed several times during the work.
+\end{enumerate}
+
+\subsection{What a model would have to deliver}
+
+\begin{enumerate}
+\item[(R1)] \emph{A reason for the background to be a variable.} Equation \texttt{eq:induced} of the paper is $\langle T^{\mathrm{gap}}_{\mu\nu}\rangle+\langle T^{\mathrm{mat}}_{\mu\nu}\rangle=0$; the geometric side is always available, the reason for the total to vanish is not. Known sufficient condition: the background is summed over without an action of its own and the gapped sector has many fields (Section~\texttt{sec:central}(d) of the paper; \emph{conditional}, with the caveats stated there: the conformal mode, the measure).
+\item[(R2)] \emph{The right tensor structure in the potential sector}: matter must change the spatial metric and the lapse so that $\Psi=\Phi$. This is testable in the data; see Proposition~\ref{prop:static-test}.
+\item[(R3)] \emph{The right kinetic sector}: $\lambda=1$ and tensor modes with the speed of the field, to the accuracy quoted in \texttt{tab:models}. By (X5) this requires a cutoff that is not tied to a foliation, or a cancellation that the computed contents do not provide.
+\item[(R4)] \emph{The vacuum term.} For a fixed number of nodes the terms $\Lambda^4$ and $m^2\Lambda^2$ are the energy of a medium and cannot be removed by a counterterm (paper, after \texttt{cor:vanish}); a model has to cancel them or explain why they do not gravitate.
+\item[(R5)] \emph{The constants and the source.} By Theorem~\ref{thm:free} the data fix neither $G$ nor $\Lambda$ nor the definition of the matter source and its subtraction. In the entropic form $G=1/4\eta$ with $\eta$ the area-law coefficient of the gapped sector, a quantity of the data; $\Lambda$ remains free in both candidate principles (\texttt{prop:principles}).
+\end{enumerate}
+
+\begin{proposition}[The static field equations in node-independent data]\label{prop:static-test}
+Let the spacetime be static, $-\Omega^2\dd t^2+\hat g$ on $\R\times\M$, $D=\dim\M=3$, and $E=-\operatorname{Hess}_{\hat g}\Omega/\Omega$ the tidal tensor of Proposition~\ref{prop:tidal}. For a static source with energy density $\rho$ and spatial stress $S_{ij}$ with respect to the static observers, Einstein's equation $R_{\mu\nu}=8\pi G(T_{\mu\nu}-\tfrac12Tg_{\mu\nu})$ is equivalent to
+\begin{equation}\label{eq:static-test}
+\Ric_{\hat g}+E=8\pi G\Big(S+\tfrac12(\rho-\tr S)\,\hat g\Big),\qquad -\tr_{\hat g}E=4\pi G\,(\rho+\tr S).
+\end{equation}
+In particular:
+\begin{enumerate}
+\item[(i)] in vacuum, $\Ric_{\hat g}=-E$ and $\tr_{\hat g}E=0$;
+\item[(ii)] for pressureless matter, $\Ric_{\hat g}=-E-(\tr_{\hat g}E)\,\hat g$, a relation in which neither $G$ nor $\rho$ appears;
+\item[(iii)] for the scalar response of \textup{(X4)}, $\hat g=\Omega^2\delta$, to first order in $\Phi=\Omega-1$ one has instead $\Ric_{\hat g}=+E+(\tr E)\,\delta$.
+\end{enumerate}
+Both sides of \textup{(i)}--\textup{(iii)} are determined by correlation data without knowledge of the node systems: $\Ric_{\hat g}$ by the reconstructed metric (tier \textup{(D0)}), $E$ by the node-independent cross-ratios (Proposition~\ref{prop:tidal}).
+\end{proposition}
+
+\begin{proof}
+For a static metric the components of the spacetime Ricci tensor are $R_{ij}=(\Ric_{\hat g})_{ij}-\nabla_i\nabla_j\Omega/\Omega=(\Ric_{\hat g}+E)_{ij}$, $R_{nn}=\Delta_{\hat g}\Omega/\Omega=-\tr E$ and $R_{ni}=0$, with $n=\Omega^{-1}\partial_t$. With $T=-\rho+\tr S$, the right-hand sides are $8\pi G(S_{ij}+\tfrac12(\rho-\tr S)\hat g_{ij})$ and $8\pi G(\rho+\tfrac12T)=4\pi G(\rho+\tr S)$. This gives \eqref{eq:static-test}; (i) and (ii) are the cases $\rho=S=0$ and $S=0$, where $4\pi G\rho=-\tr E$. For (iii): for $\hat g=e^{2f}\delta$ in dimension three, $\Ric=-(\partial\partial f-\partial f\otimes\partial f)-(\Delta f+|\partial f|^2)\delta$; with $f=\Phi$ to first order, $\Ric=-\partial\partial\Phi-\Delta\Phi\,\delta$, and $E=-\partial\partial\Phi$.
+\end{proof}
+\status{proven as a computation, with two ingredients quoted without a reference and \emph{not looked up}: the decomposition of the Ricci tensor of a static metric and the formula for the Ricci tensor of a conformally flat metric. Consistency checks made here: the trace of \eqref{eq:static-test} gives $R_{\hat g}=16\pi G\rho$, which is the Hamiltonian constraint used in the paper ($R=2G_{00}$); and for $\hat g=(1-2\Psi)\delta$, $\Omega=1+\Phi$ the linearisation of (ii) is $\partial\partial\Psi+\Delta\Psi\,\delta=\partial\partial\Phi+\Delta\Phi\,\delta$, whose trace gives $\Delta(\Psi-\Phi)=0$ and then $\partial\partial(\Psi-\Phi)=0$, that is $\Psi=\Phi$ up to an affine function, in agreement with the paragraph ``What the equation predicts for the data'' of the paper. The statement says nothing about whether the relation holds; it turns (R2) into a test. What the test needs and is \emph{open}: an estimator of $E$ in dimension $D\ge2$ (B1 treats $D=1$ only, where $\Ric=0$ and the test is empty) and an estimator of $\Ric_{\hat g}$ from the reconstructed distances with an error bound (second derivatives of the metric; not in the paper).}
+
+\subsection{Routes and their status}
+
+\begin{center}\small
+\begin{tabular}{p{0.3\textwidth}p{0.62\textwidth}}
+\hline
+route & status\\
+\hline
+extremal principle for a spectral functional & excluded for positive weights (X2); for signed weights three free moments, a restatement of the cosmological constant problem (\texttt{rem:coeff})\\
+fixed points of the spectral image & kinematic characterisation of vacuum Einstein metrics with a free constant (\texttt{cor:fixed}, proven); gives no reason for the fixed-point condition and no coupling to matter\\
+(P1) no external geometry & conditional; follows from a sum over backgrounds with many fields (R1); gives \texttt{eq:induced} at leading order of the curvature expansion\\
+(P2) entanglement equilibrium & conditional; agrees with (P1) at leading order (\texttt{prop:principles}, a justification from cited results, not a proof); does not fix $\Lambda$; the matter entropy is not in the data\\
+scalar mediator (``dilaton'') & excluded as a route to Einstein's equation (X4)\\
+node systems with a foliated cutoff & kinetic sector fails for every content computed (X5); evidence, not a theorem\\
+modular data, tier \textup{(D4)} & open; see the remark in B0: whether $K$ can be read from modular data is not settled, and no field equation has been attempted from it\\
+\hline
+\end{tabular}
+\end{center}
+
+\begin{question}\label{q:b3}
+\textup{(a)} Is there a system of nodes (a lattice Hamiltonian whose couplings are dynamical variables without an action of their own) for which the induced action at second order around a flat slice has $\lambda=1$ and tensor modes with the speed of the field? By (X5) the Hamiltonian must not be linear in the shift, or the cutoff must not be carried by the nodes. \textup{(b)} Can the stationarity in (P2) be formulated for the gapped sector alone in terms of the correlation data (the area-law coefficient $\eta$ and the reconstructed $h$), so that the vacuum case becomes a statement about $C_{ij}$? The paper computes the variation (\texttt{eq:equilibrium}) but not an estimator. \textup{(c)} Does relation \textup{(ii)} of Proposition~\ref{prop:static-test} hold for the ground state of any model in which matter acts on the gapped sector other than through the gap? No such model is known to us.
+\end{question}
+\status{\emph{open}, all three; (a) and (c) ask for a model, (b) for a formulation. Nothing in this section derives a field equation.}
 
 \end{document}
