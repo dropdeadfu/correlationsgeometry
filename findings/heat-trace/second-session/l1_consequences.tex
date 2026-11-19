@@ -1,0 +1,164 @@
+% Two consequences of Lemma lem:kernel-l1 (l1_kernel_lemma.tex), written out line by line.
+% Fragment in the notation of Appendix G of "From Correlations to Geometry"; it uses the macros and labels
+% of the paper (lem:consistency, thm:kernel, prop:reduction, lem:pibound, cor:secondstage,
+% lem:kernelmatrix, thm:eigtorus) and does not compile on its own.
+% Written on 19 November 2026 by the second session (the repository owner's side).
+% STATUS: checked by its author session only; NOT yet read by another session; not formalised; not read by
+% a person; not part of the paper. The constants C, C_2', C_7, C_8, C_9 depend only on d.
+
+\begin{proposition}[The reduction in every dimension]\label{prop:reduction-alld}
+In the situation and with the notation of Proposition~\ref{prop:reduction}, on the event $E$ and for all
+integers $1\le k<(C_1\delta')^{-2}$,
+\[
+ \big|\Tr P^{k+1}-m_{k+1}-\Pi_k\big|\le C_2'\,\delta'^2\,k\,m_{k+1},
+\]
+in every dimension $d\ge1$.
+\end{proposition}
+
+\begin{proof}
+Steps~1, 2, 3(a) and 3(c) of the proof of Proposition~\ref{prop:reduction} are used unchanged. They give
+the identity for $\Tr P^{k+1}-m_{k+1}$, the bounds
+\begin{equation}\label{eq:alld-hh}
+ \big|(h-\hat h)^{(i)}_m(b)\big|\le C\delta'^2m^{-1/2}p_{6m}(x_b-x_i),\qquad
+ \big|\hat h^{(i)}_m(b)\big|\le C\delta'm^{-1/2}p_{6m}(x_b-x_i)
+\end{equation}
+for $1\le m\le k$ (the second from (ii) of Lemma~\ref{lem:consistency}, the first bound and $\delta'\le1$),
+and the estimates $C\delta'^2\sqrt k\,m_k$ for the last step of the walk and $C\delta'^2m_k$ for the term
+$m=k$. By \eqref{eq:alld-hh}, $p_{6m}\le m_{6m}$ and (iii) of Lemma~\ref{lem:consistency},
+\begin{equation}\label{eq:alld-norms}
+ \max_{i,b}|h-\hat h|\le C\delta'^2m^{-1/2}m_{6m},\quad\max_i\frac1N\sum_b|h-\hat h|\le C\delta'^2m^{-1/2},\quad
+ \max_{i,b}|\hat h|\le C\delta'm^{-1/2}m_{6m},\quad\max_i\frac1N\sum_b|\hat h|\le C\delta'm^{-1/2}.
+\end{equation}
+It remains to estimate, for $1\le m\le k-1$ and $l=k-m\ge1$, the two sums
+\[
+ A_m=\frac1N\sum_{i,b}(P^l)_{ib}\,(h-\hat h)^{(i)}_m(b),\qquad
+ B_m=\frac1N\sum_{i,b}\Big[(P^l)_{ib}-\frac{p_l(x_i-x_b)}N\Big]\hat h^{(i)}_m(b),
+\]
+whose sum is the difference in Step~3(b). Recall that $s\mapsto m_s$ is non-increasing and
+$m_s\le2^{d/2}m_{2s}$, that $D_l\le C_1\delta'\sqrt l\,m_l\le m_l$ for $l\le k$, and that $l\le k\le\delta'^{-2}$
+because $C_1\ge1$.
+
+\emph{The case $l>k/2$.} As in the proof of Proposition~\ref{prop:reduction}, with
+$N(P^l)_{ib}\le m_l+D_l\le2m_l$ and $m_l\le m_{k/2}\le2^{d/2}m_k$,
+\[
+ |A_m|\le2m_l\max_i\frac1N\sum_b|h-\hat h|\le C\delta'^2m^{-1/2}m_k,\qquad
+ |B_m|\le D_l\max_i\frac1N\sum_b|\hat h|\le C\delta'^2\sqrt l\,m^{-1/2}m_k .
+\]
+\emph{The case $l\le k/2$.} Then $m\ge k/2$, so $6m\ge3k$ and $m_{6m}\le m_k$. The rows of $P^l$ are
+nonnegative with sum one, hence $|A_m|\le\max_{i,b}|h-\hat h|\le C\delta'^2m^{-1/2}m_k$. For $B_m$ take the
+supremum of $\hat h$ out and sum over the first index first:
+\[
+ |B_m|\le\max_{i,b}\big|\hat h^{(i)}_m(b)\big|\cdot\frac1N\sum_b\Big[\frac1N\sum_i\big|N(P^l)_{ib}-p_l(x_i-x_b)\big|\Big]
+ \le C\delta'm^{-1/2}m_k\cdot C_3\,\delta'\sqrt l ,
+\]
+by Lemma~\ref{lem:kernel-l1}, applied with the number of steps $l$, the fixed second index $b$ and the
+sum over the first index $i$ (and $p_l(x_i-x_b)=p_l(x_b-x_i)$).
+
+\emph{Summation.} In both cases $|A_m|+|B_m|\le C\delta'^2\sqrt l\,m^{-1/2}m_k$, and
+\[
+ \sum_{m=1}^{k-1}\frac{\sqrt{k-m}}{\sqrt m}\le\sqrt k\sum_{m=1}^{k-1}m^{-1/2}\le2k .
+\]
+Adding the terms of Steps~3(a) and~3(c) and using $m_k\le2^{d/2}m_{k+1}$ gives the claim.
+\end{proof}
+
+\begin{corollary}[The second stage in every dimension]\label{cor:secondstage-alld}
+Corollary~\ref{cor:secondstage} holds in every dimension $d\ge1$ with $\varphi_d\equiv1$: if $\xi_N\to0$
+and $N\xi_N^{d+2}/\log N\to\infty$, then for every sequence $t_N\in[\xi_N^2,1]$
+\[
+ \frac{\Tr e^{-t_N\Lc}-Ne^{-\tau}}{T_\sigma(t_N)}=1+O_{\mathbb P}\Big(\frac{M\log N}{N}\,J\Big),
+\]
+and the error is $o_{\mathbb P}(\xi_N^2)$ if $N\xi_N^{d+4}/\log N\to\infty$.
+\end{corollary}
+
+\begin{proof}
+The proof of Corollary~\ref{cor:secondstage} with Proposition~\ref{prop:reduction-alld} in place of
+Proposition~\ref{prop:reduction}; Lemma~\ref{lem:pibound} does not depend on the dimension. For the last
+statement: if $\log N\le\xi_N^{-2}$, then $J\le19\xi_N^{-2}$ and the error is $O(\log N/N\xi_N^{d+2})$;
+otherwise $J\le20\log N$, $M\le C(\log N)^{d/2}$ and $\xi_N^2>1/\log N$, so the error divided by $\xi_N^2$ is
+at most $C(\log N)^{d/2+3}/N$.
+\end{proof}
+
+\begin{theorem}[The eigenvalues on a flat torus, with the operator norm from the mean]\label{thm:eigtorus-l1}
+In the situation of Theorem~\ref{thm:eigtorus}, on the intersection of the events of
+Lemmas~\ref{lem:consistency} and~\ref{lem:kernelmatrix}:
+\begin{enumerate}
+\item[(i)] for all integers $1\le k\le\delta'^{-2}$ and all $1\le j\le N$,
+\[
+ \big|s_j^k-e^{-k\sigma\lambda_j}\big|\le C_7\,\delta'\sqrt k+C\sqrt{\frac{\log N}N}\;m_k ;
+\]
+\item[(ii)] for all $j\le N$ with $\lambda_j\le\xi^{-2}$ and, with $\lambda_*=1\vee\lambda_j$,
+\begin{equation}\label{eq:l1-cond}
+ C_8\Big[\frac{\delta'}\xi\,\lambda_*^{-1/2}+\sqrt{\frac{\log N}N}\;\lambda_*^{d/2}\Big]\le1,
+\end{equation}
+\[
+ \Big|\lambda^N_j-\frac{1-e^{-\sigma\lambda_j}}{\sigma}\Big|\le C_9\Big[\frac{\delta'}\xi\,\lambda_*^{1/2}
+ +\sqrt{\frac{\log N}N}\;\lambda_*^{(d+2)/2}\Big].
+\]
+\end{enumerate}
+\end{theorem}
+
+\begin{proof}
+\emph{(i).} $S^k-Q_k$ is real and symmetric, so its operator norm is at most its largest column sum. As in
+the proof of Theorem~\ref{thm:eigtorus}, $N(S^k)_{ai}=\rho_{ai}\,N(P^k)_{ai}$ with
+$\rho_{ai}=(D_a/D_i)^{1/2}$ and $|\rho_{ai}-1|\le8\delta$, hence
+\[
+ \sum_a\big|(S^k-Q_k)_{ai}\big|\le8\delta\sum_a(P^k)_{ai}+\frac1N\sum_a\big|N(P^k)_{ai}-p_k(x_a-x_i)\big| .
+\]
+With the stationary weight $w$ of the proof of Lemma~\ref{lem:kernel-l1}, $\sum_aw_a(P^k)_{ai}=w_i$, so
+that $\sum_a(P^k)_{ai}\le w_i/\min_bw_b\le\frac{1+\delta}{1-\delta}\le\frac97$. By
+Lemma~\ref{lem:kernel-l1} the second term is at most $C_3\delta'\sqrt k$ for $1\le k\le\delta'^{-2}$. With
+$\delta\le6\delta'$,
+\[
+ \|S^k-Q_k\|\le\tfrac{72}7\,\delta+C_3\,\delta'\sqrt k\le C_7\,\delta'\sqrt k,\qquad C_7=62+C_3 .
+\]
+$S$ is positive semidefinite, so the eigenvalues of $S^k$ in decreasing order are $s_j^k$; Weyl's inequality
+and Lemma~\ref{lem:kernelmatrix} give (i).
+
+\emph{(ii).} Let $a=e^{-\sigma\lambda_j}$ and $k=\lfloor1/\sigma\lambda_*\rfloor$. As in the proof of
+Theorem~\ref{thm:eigtorus}: $\sigma\lambda_*\le\frac12$, $k\ge2$, $\frac12\le k\sigma\lambda_*\le1$,
+$a^k\ge e^{-1}$, $\sqrt k\le(\sigma\lambda_*)^{-1/2}=\sqrt2\,\xi^{-1}\lambda_*^{-1/2}$ and $m_k\le C\lambda_*^{d/2}$. Hence
+the right-hand side of (i) is
+\[
+ \eta\le\sqrt2\,C_7\,\frac{\delta'}\xi\,\lambda_*^{-1/2}+C\sqrt{\frac{\log N}N}\;\lambda_*^{d/2}.
+\]
+Two conditions are needed. First $k\le\delta'^{-2}$, the range of (i): since $k\le2/\xi^2\lambda_*$, it holds
+if $\sqrt2\,\frac{\delta'}\xi\lambda_*^{-1/2}\le1$. Second $a^k\ge2\eta$, which holds if $2e\,\eta\le1$. Both
+follow from \eqref{eq:l1-cond} with $C_8=\max(\sqrt2,\,2\sqrt2\,e\,C_7,\,2eC)$. Then, by the step from
+powers to eigenvalues in the proof of Theorem~\ref{thm:eigtorus} (which uses only $a^k\ge2\eta$ and
+$|s_j^k-a^k|\le\eta$),
+\[
+ \Big|\lambda^N_j-\frac{1-a}\sigma\Big|\le\frac{2\,\eta\,e^{k\sigma\lambda_j}}{k\sigma}\le4e\,\lambda_*\,\eta ,
+\]
+because $k\sigma\ge1/2\lambda_*$ and $k\sigma\lambda_j\le1$. This is (ii) with $C_9=4e\max(\sqrt2\,C_7,C)$.
+\end{proof}
+
+\begin{remark}[What changes against Theorem~\ref{thm:eigtorus}]\label{rem:eigtorus-l1}
+(i) The random error $C\frac{\delta'}\xi\lambda_*^{(d+1)/2}$ of Theorem~\ref{thm:eigtorus}(ii) is replaced
+by $C\frac{\delta'}\xi\lambda_*^{1/2}+C\sqrt{\log N/N}\,\lambda_*^{(d+2)/2}$. The first term is the old bound
+times $\lambda_*^{-d/2}$. The second is the old bound times $\xi\lambda_*^{1/2}M^{-1/2}$, which is at most
+$C\xi^{d/2}$ in the range $\lambda_*\le\xi^{-2}$, because $M\ge(2\pi\xi^2)^{-d/2}$. The first term comes from the kernel of the
+walk (Lemma~\ref{lem:kernel-l1}), the second from the spectrum of the kernel matrix
+(Lemma~\ref{lem:kernelmatrix}, a bound in the Hilbert--Schmidt norm, probably not sharp).
+
+(ii) Condition \eqref{eq:l1-cond} holds for all $\lambda_j\le\xi^{-2}$ at once if
+$C_8\big[\frac{\delta'}\xi+\sqrt{\log N/N}\,\xi^{-d}\big]\le1$. In the form of
+Remark~\ref{rem:eigtorus}(ii): for $1\le\lambda_j\le\xi^{-2}$,
+\[
+ |\lambda^N_j-\lambda_j|\le\Big(C_9\Big[\frac{\delta'}\xi\,\lambda_j^{-1/2}+\sqrt{\frac{\log N}N}\,\lambda_j^{d/2}\Big]
+ +\tfrac14\xi^2\lambda_j\Big)\lambda_j\le\big(\eta_N+\tfrac14\xi^2\lambda_j\big)\lambda_j,\qquad
+ \eta_N=C_9\Big[\frac{\delta'}\xi+\sqrt{\frac{\log N}N}\,\xi^{-d}\Big],
+\]
+and $\eta_N\to0$ if and only if $N\xi_N^{\max(d+2,\,2d)}/\log N\to\infty$ (in place of
+$N\xi_N^{3d}/\log N\to\infty$): the same condition in dimension one, $N\xi^4$ against $N\xi^6$ in dimension
+two, $N\xi^6$ against $N\xi^9$ in dimension three. Whether this is the form \eqref{eq:eigrate2} of the
+paper has not been checked by the second session, which has not seen that equation.
+
+(iii) Corollaries~\ref{cor:eigspace} and~\ref{cor:deloc} use $\|S^k-Q_k\|\le16\delta m_k+D_k$ and the
+entries of $S^{2k}$; with (i) the approximate-eigenvector estimate in Corollary~\ref{cor:eigspace} becomes
+$\eta_1\le C\delta'm_k+C_7\delta'\sqrt k$. This has not been carried through.
+
+(iv) \emph{Numerical check} (\texttt{scripts/operator\_norm\_check.py}, one sample, $d=2$, $\xi=0.1$,
+$N=2500$, $\delta'=0.223$): $\|S^k-Q_k\|=0.091$, $0.061$, $0.046$, $0.031$, $0.023$ for $k=1,2,4,8,16$,
+against $\delta'\sqrt k=0.22,\dots,0.89$ and $\delta'\sqrt k\,m_k=3.55,\dots,1.05$. Compatible with (i); in
+this run $\delta'$ is not small.
+\end{remark}
