@@ -242,7 +242,100 @@ Data & Determines & Not determined, or gauge\\
 \end{table}
 
 \section{B1. A lapse estimator from cross-ratios}
-\emph{Not started.}
+
+Throughout this section the configuration is static ($\beta=0$, $\partial_th=0$), $\hat g$ is the reconstructed metric of the paper (\texttt{thm:vargap}), $\Omega$ the lapse, and for a unit-speed $\hat g$-geodesic $\gamma$ we write $W(s)=\int^s\Omega(\gamma)^{-2}$, so that the second length of the paper is $T(x,y)=\int_\gamma\Omega^{-2}\,\dd s_{\hat g}=W(s_y)-W(s_x)$.
+
+\subsection{What the node-independent data contain: the tidal tensor}
+
+By \texttt{thm:vargap}(b) the lapse enters the correlators through $\Theta(x,y)=\hat r/(\Omega(x)\Omega(y)T(x,y))$. The factors $\Omega(x)\Omega(y)$ are indistinguishable from node factors. Two lapses $\Omega$, $\tilde\Omega$ are therefore indistinguishable by node-independent data exactly when $\tilde T(x,y)=b(x)b(y)T(x,y)$ for some positive function $b$; this is the hypothesis of \texttt{prop:rigid}.
+
+\begin{proposition}[The invariant content of the lapse]\label{prop:tidal}
+Let $\Omega,\tilde\Omega>0$ be smooth on $(\M,\hat g)$ and let $T$, $\tilde T$ be the corresponding second lengths along minimising $\hat g$-geodesics. The following are equivalent on a geodesically convex open set $U$:
+\begin{enumerate}[label=\textup{(\roman*)}]
+\item there is a positive function $b$ with $\tilde T(x,y)=b(x)\,b(y)\,T(x,y)$ for all $x,y\in U$;
+\item $\operatorname{Hess}_{\hat g}\tilde\Omega/\tilde\Omega=\operatorname{Hess}_{\hat g}\Omega/\Omega$ on $U$.
+\end{enumerate}
+In this case $b=\Omega/\tilde\Omega$ up to a constant factor. Hence the node-independent data determine exactly the symmetric tensor field
+\[
+E=-\frac{\operatorname{Hess}_{\hat g}\Omega}{\Omega},
+\]
+and the lapses compatible with them are the positive solutions $u$ of the linear system $\operatorname{Hess}_{\hat g}u+E\,u=0$.
+\end{proposition}
+
+\begin{proof}
+Along a unit-speed geodesic write $\Omega(s)$, $\tilde\Omega(s)$ for the restrictions and $q=\Omega''/\Omega$. Since $W'=\Omega^{-2}$, $(\Omega W)''=\Omega''W+2\Omega'W'+\Omega W''=\Omega''W$, so $\Omega$ and $\Omega W$ are two independent solutions of $y''=qy$.
+
+(ii)$\Rightarrow$(i): then $\tilde\Omega''=q\tilde\Omega$ along the geodesic, so $\tilde\Omega=\Omega\,(\alpha+\kappa W)$ with constants $\alpha,\kappa$ depending on the geodesic, and $\alpha+\kappa W=\tilde\Omega/\Omega>0$. Then $\tilde W'=\tilde\Omega^{-2}=W'/(\alpha+\kappa W)^2$, hence
+\[
+\tilde T(x,y)=\int_{s_x}^{s_y}\frac{W'}{(\alpha+\kappa W)^2}=\frac{W(s_y)-W(s_x)}{(\alpha+\kappa W(s_x))(\alpha+\kappa W(s_y))}=\frac{\Omega(x)}{\tilde\Omega(x)}\,\frac{\Omega(y)}{\tilde\Omega(y)}\,T(x,y),
+\]
+and $b=\Omega/\tilde\Omega$ does not depend on the geodesic.
+
+(i)$\Rightarrow$(ii): fix a geodesic and three of its points; the relation $\tilde W(s_y)-\tilde W(s_x)=b(x)b(y)(W(s_y)-W(s_x))$ for all pairs implies that the cross-ratios of $\tilde W$ and of $W$ at any four points of the geodesic agree, so $\tilde W$ is a M\"obius function of $W$, $\tilde W'=cW'/(\alpha+\kappa W)^2$, that is $\tilde\Omega=c^{-1/2}\Omega\,|\alpha+\kappa W|$, a solution of $y''=qy$. Thus $\tilde\Omega''/\tilde\Omega=\Omega''/\Omega$ along every geodesic, which is (ii) evaluated on $(\dot\gamma,\dot\gamma)$; polarisation gives the tensor identity.
+\end{proof}
+\status{proven. The direction (i)$\Rightarrow$(ii) is \texttt{prop:rigid} of the paper in another form (with $u=1/b$ one checks $\operatorname{Hess}(\Omega u)=u\operatorname{Hess}\Omega$ $\Leftrightarrow$ the equation of \texttt{prop:rigid}); the converse and the formulation through $E$ are new here. The computation was checked independently by the second session before this text was written; nobody has read the text.}
+
+\begin{corollary}[How large the ambiguity is]\label{cor:ambiguity}
+The space of solutions of $\operatorname{Hess}_{\hat g}u+Eu=0$ on a connected $\M$ has dimension at most $D+1$, since a solution is determined by its value and its gradient at one point; it contains $\Omega$. For $D=1$ it is two-dimensional, spanned by $\Omega$ and $\Omega W$: this is the M\"obius family of \texttt{prop:crossratio}, and the invariant is the function $\mathcal K=-\Omega''/\Omega$, the Gauss curvature of the two-dimensional metric $\Omega^2\dd\tau^2+\dd s^2$. For $D\ge2$ the system is overdetermined, and the lapse is determined up to a constant factor unless $(\hat g,E)$ satisfies the integrability conditions of the system.
+\end{corollary}
+\status{the dimension bound and the case $D=1$ are proven (a solution vanishing with its gradient at a point vanishes along every geodesic through it). ``Unless the integrability conditions hold'' replaces the unquantified ``generically'' of the paper; the integrability conditions have \emph{not} been written out, so for $D\ge2$ this is a precise formulation of what is open, not a theorem. $E$ is the electric part of the curvature of the static metric $\Omega^2\dd\tau^2+\hat g$ in the direction of the Killing field (stated without a checked reference).}
+
+\begin{remark}[The constant]
+The constant factor that remains is the unit of the static time. It is fixed by one datum of tier \textup{(D3)}: the velocity map of Proposition~\ref{prop:velocity} at one node.
+\end{remark}
+
+\subsection{An estimator in one dimension}
+
+Let $D=1$. Measured correlators are $x_{ab}=F_aF_bX(a,b)$ with unknown node factors. Let $\mathfrak D_{ab}=\bar m\,\hat r(a,b)$ be the reconstructed distance in units of the correlation length and
+\[
+Z_{ab}=\frac{x_{ab}}{K_0(\mathfrak D_{ab})},\qquad
+\rho(a,b,c,d)=\Big(\frac{Z_{ad}\,Z_{bc}}{Z_{ac}\,Z_{bd}}\Big)^2\qquad(a<b<c<d),
+\]
+where $K_0$ is the Macdonald function, so that $X^{\mathrm{flat}}_{\bar m}(\hat r)=K_0(\bar m\hat r)/2\pi$ in one dimension. The node factors and the factor $2\pi$ cancel in $\rho$.
+
+\begin{lemma}[Cross-ratio and Schwarzian]\label{lem:schwarz}
+Let $W\in C^5$ with $W'>0$ on an interval, and for four points $s_a<s_b<s_c<s_d$ let $r_{xy}=s_y-s_x$ and
+\[
+\rho_0=\frac{r_{ad}\,r_{bc}}{r_{ac}\,r_{bd}}\cdot\frac{(W_c-W_a)(W_d-W_b)}{(W_d-W_a)(W_c-W_b)} .
+\]
+For equally spaced points with spacing $\ell$ and centre $\tau$,
+\[
+\rho_0=1+\tfrac16\,S(W)(\tau)\,\ell^2+O(\ell^4),\qquad S(W)=\frac{W'''}{W'}-\frac32\Big(\frac{W''}{W'}\Big)^2 ,
+\]
+with a constant in $O(\ell^4)$ that depends only on bounds for $W',\dots,W^{(5)}$ and a lower bound for $W'$. For $W'=\Omega^{-2}$ one has $S(W)=-2\Omega''/\Omega=2\mathcal K$, hence $\rho_0=1+\tfrac13\mathcal K(\tau)\ell^2+O(\ell^4)$.
+\end{lemma}
+
+\begin{proof}
+For a function $f$ with $f'>0$, $(f(x)-f(y))^2=f'(x)f'(y)(x-y)^2\big(1-\tfrac16S(f)(z)(x-y)^2+O((x-y)^4)\big)$ with $z$ the midpoint, by Taylor expansion at $z$ (the term of third order vanishes by symmetry). In $\rho_0$ the factors $f'$ and $r$ cancel, and
+$\rho_0=1-\tfrac1{12}\big[S(z_{ac})r_{ac}^2+S(z_{bd})r_{bd}^2-S(z_{ad})r_{ad}^2-S(z_{bc})r_{bc}^2\big]+O(\ell^4)$. With $r_{ac}=r_{bd}=2\ell$, $r_{ad}=3\ell$, $r_{bc}=\ell$ the bracket at $S=S(\tau)$ is $-2\ell^2$, and the first-order variations of $S$ at the midpoints $\tau\mp\ell/2$ of $ac$ and $bd$ cancel. Finally $W''/W'=-2\Omega'/\Omega$ gives $S(W)=-2\Omega''/\Omega$.
+\end{proof}
+\status{proven by Taylor expansion as indicated; the remainder is stated, its constant is not tracked. The coefficient $\tfrac13$ is confirmed by the numerical experiment below.}
+
+\begin{theorem}[A consistent estimator of the curvature of the static spacetime]\label{thm:lapse-est}
+Let $D=1$ and suppose the conclusion of \texttt{thm:vargap}(b) of the paper holds: for $1/\bar m\le\hat r\le r_0$, $\big|X(x,y)/X^{\mathrm{flat}}_{\bar m}(\hat r)-\Theta(x,y)^{1/2}\big|\le C\hat r/\bar m$. Let $a<b<c<d$ be nodes whose reconstructed positions are equally spaced with spacing $\ell$, $1/\bar m\le\ell$, $3\ell\le r_0$, and centre $\tau$, and let
+\[
+\hat{\mathcal K}=\frac{3\,(\rho(a,b,c,d)-1)}{\ell^2} .
+\]
+Then there is $C'$, depending on $C$, on bounds for $\Omega$ and its first four derivatives and on $\min\Omega$, such that
+\[
+\big|\hat{\mathcal K}-\mathcal K(\tau)\big|\le C'\Big(\ell^2+\frac1{\bar m\,\ell}\Big),\qquad\mathcal K=-\frac{\Omega''}{\Omega}
+\]
+(derivatives with respect to $\hat g$-arc length). With $\ell=\bar m^{-1/3}$ the error is $O(\bar m^{-2/3})$. The estimator uses only the node-independent quantity $\rho$ and the reconstructed distances $\mathfrak D$; in the unit of the correlation length, $\hat{\mathcal K}/\bar m^2=3(\rho-1)/(\Delta\mathfrak D)^2$ with $\Delta\mathfrak D=\bar m\ell$.
+\end{theorem}
+
+\begin{proof}
+In one dimension $\hat u_0=1$ and the prefactor $(\Omega(x)\Omega(y))^{(D-1)/2}$ is one. Since $\Theta$ is bounded below, the hypothesis gives $Z_{xy}=F_xF_y\,(2\pi)^{-1}\Theta(x,y)^{1/2}(1+\eta_{xy})$ with $|\eta_{xy}|\le C''\ell/\bar m$ for the six pairs. Hence $\rho=\rho_\Theta\,(1+O(\ell/\bar m))$ with $\rho_\Theta=\Theta_{ad}\Theta_{bc}/(\Theta_{ac}\Theta_{bd})$. In $\rho_\Theta$ the factors $\Omega$ cancel and $\rho_\Theta=\rho_0$ of Lemma~\ref{lem:schwarz} with $W=\int\Omega^{-2}$. Therefore $\rho-1=\tfrac13\mathcal K(\tau)\ell^2+O(\ell^4)+O(\ell/\bar m)$, and dividing by $\ell^2/3$ gives the claim.
+\end{proof}
+\status{\emph{conditional} on \texttt{thm:vargap}(b) of the paper in $D=1$ (status there: proven by the paper's standards, not read by a person). Not included: the error of the reconstructed distances $\mathfrak D$ themselves, which enter through $K_0(\mathfrak D)$ and through $\ell$; and nodes that are not exactly equally spaced (for these the script uses $\hat{\mathcal K}=6(\rho-1)/(r_{ad}^2+r_{bc}^2-r_{ac}^2-r_{bd}^2)$, which follows from the same expansion to leading order). The second session expected an error term $1/(\bar m\ell^3)$ instead of $1/(\bar m\ell)$; the difference is whether the relative error of the normalised correlator is $\hat r/\bar m$, as \texttt{thm:vargap}(b) states when the exact flat correlator is used for the normalisation, or $1/(\bar m\hat r)$, as it would be with the leading asymptotic form of $K_0$. The numbers below are compatible with the theorem and show no growth like $1/(\bar m\ell^3)$.}
+
+\begin{remark}[Numerical experiment]
+\texttt{scripts/lapse\_tidal\_estimator.py}: a chain with lattice spacing $0.05/\bar m$, $A=-\Delta+\bar m^2\Omega^2$, $\Omega(x)=1+0.25\sin x$, exact distances, correlators $X=\tfrac12A^{-1/2}$ computed with high relative accuracy from the resolvent. With $\ell=\bar m^{-1/3}$ and $\bar m=20,40,80,160$: at $x_0=1.0$ ($\mathcal K=0.1271$) the errors of $\hat{\mathcal K}$ are $+0.0014$, $+0.0008$, $+0.0004$, $+0.0001$; at $x_0=2.5$ ($\mathcal K=0.1214$) they are $+0.0001$, $-0.0000$, $-0.0001$, $-0.0002$; at $x_0=4.5$ ($\mathcal K=-0.558$) they are $+0.075$, $+0.049$, $+0.031$, $+0.020$, that is $0.56$ to $0.58$ times $\ell^2$. At fixed $\bar m=80$, $x_0=2.5$ and $\ell=0.10,0.15,0.20,0.30,0.40,0.60$ the errors are $-0.0041$, $-0.0011$, $-0.0003$, $+0.0002$, $+0.0005$, $+0.0009$. The errors are far below the bound $\ell^2+1/(\bar m\ell)$, which is therefore probably not sharp in its second term. These are single deterministic runs with exact distances; they do not test the reconstruction of the distances.
+\end{remark}
+
+\begin{question}[What is open in B1]\label{q:b1}
+\textup{(a)} $D\ge2$: an estimator of $E$ from nodes of a point cloud, where four nodes do not lie on a common geodesic; it needs the Van Vleck factor $\hat u_0$ of the reconstructed metric and the second length for general pairs. \textup{(b)} The error of the reconstructed distances. \textup{(c)} The integrability conditions in Corollary~\ref{cor:ambiguity}. \textup{(d)} The true order of the model error in Theorem~\ref{thm:lapse-est}; the experiment suggests a higher power of $1/(\bar m\ell)$.
+\end{question}
+\status{open.}
 
 \section{B2. The $N$-point version of the differentiated pipeline; corrections to the profile form}
 \emph{Not started.}
