@@ -1,0 +1,144 @@
+% An independent proof of the bound E|Pi_k| <= C (M/N) k m_k of Lemma lem:pibound (second stage).
+% Fragment in the notation of Appendix G of "From Correlations to Geometry"; it uses the macros and labels
+% of the paper and does not compile on its own.
+% Written on 17 November 2026 by the second session (the repository owner's side), before it had seen the
+% proof of Lemmas lem:degenerate and lem:pibound in ../second_stage_excerpt.tex. The two proofs use the same
+% decomposition of Pi_k; this one asks for degeneracy in every index and bounds the projections, the one in
+% the paper needs degeneracy in the last index only and is shorter.
+% STATUS (19 November 2026): checked by its author session only. Not read by a person. Not part of the paper.
+% The label lem:degenerate below is this file's own lemma, not the one of the paper.
+
+\paragraph{The statistic.} With $c_{jv}=p(x_j-x_v)-1$ for $j\ne v$, $c_{jj}=M-1$, so that
+$\epsilon_j=\frac1N\sum_vc_{jv}$, let
+\[
+ \theta^1_{bi}=-\epsilon_i-\epsilon_b+(\tilde P\epsilon)_b,\qquad
+ \hat h^{(i)}_m(b)=\sum_j\tilde P_{bj}\,(1-\epsilon_j)\,\big(p_m(x_j-x_i)-p_{m+1}(x_b-x_i)\big),
+\]
+\[
+ \Pi_k=\frac1{N^2}\sum_{i,b}p_k(x_i-x_b)\,p(x_b-x_i)\,\theta^1_{bi}
+ +\sum_{m=1}^{k-1}\frac1{N^2}\sum_{i,b}p_{k-m}(x_i-x_b)\,\hat h^{(i)}_m(b)
+ +\frac1N\sum_i\hat h^{(i)}_k(i).
+\]
+
+\begin{lemma}[Degenerate statistics]\label{lem:degenerate}
+Let $r\ge2$ and let $K\colon\M^r\to\R$ be bounded and such that
+$\mathbb E[K(x_1,\dots,x_r)\mid x_a]=0$ for every $a\in\{1,\dots,r\}$. For $S\subseteq\{1,\dots,r\}$ let
+$K_S=\mathbb E[K(x_1,\dots,x_r)\mid x_a,\ a\in S]$ and $\|K_S\|_2=(\mathbb E K_S^2)^{1/2}$. Let
+$Z^\circ=N^{-r}\sum K(x_{\iota_1},\dots,x_{\iota_r})$, summed over the injective
+$\iota\colon\{1,\dots,r\}\to\{1,\dots,N\}$. Then $\mathbb E Z^\circ=0$ and
+\[
+ \big(\mathbb E\,(Z^\circ)^2\big)^{1/2}\le C_r\sum_{s=2}^rN^{-s/2}\max_{|S|=s}\|K_S\|_2 .
+\]
+\end{lemma}
+\begin{proof}
+$\mathbb E(Z^\circ)^2=N^{-2r}\sum_{\iota,\iota'}\mathbb E[K(x_\iota)K(x_{\iota'})]$. If the images of $\iota$
+and $\iota'$ have exactly $s$ points in common, at the positions $S$ of $\iota$ and $S'$ of $\iota'$, then,
+given these points, $K(x_\iota)$ and $K(x_{\iota'})$ are independent, so
+$\mathbb E[K(x_\iota)K(x_{\iota'})]=\mathbb E[K_SK_{S'}]$ (as functions of the common points), which is
+$0$ for $s\le1$ and at most $\|K_S\|_2\|K_{S'}\|_2$ otherwise. There are at most
+$\binom rs^2s!\,N^{2r-s}$ such pairs.
+\end{proof}
+
+\begin{lemma}[The polynomial part of the trace error]\label{lem:pi-bound}
+In the situation of Lemma~\ref{lem:consistency}, without any condition on $\delta'$ and for $M\le N$, there
+is a constant $C$ depending only on $d$ such that for all $k\ge1$
+\[
+ \mathbb E\,|\Pi_k|\le C\,\frac MN\,k\,m_k .
+\]
+\end{lemma}
+
+\begin{proof}
+All kernels below are functions of differences of points, so the conditional expectation of a product
+given one of its points is a constant, equal to its expectation. We use: $m_a\le M$;
+$\int p_ap_b=m_{a+b}$; $m_am_b\le2^{d/2}M\,m_{a+b}$ (the larger index is at least $(a+b)/2$, then (P1));
+$\|p_ap_b\|_2^2\le m_am_bm_{a+b}$; $|c|\le M$, $\int c=0$ and $\int c^2=m_2-1\le M$ for $c=p-1$;
+$\|f*p\|_2\le\|f\|_1\,m_2^{1/2}\le\|f\|_1M^{1/2}$ and $\|f*p\|_2\le\|f\|_2$. $C$ denotes constants that
+depend only on $d$.
+
+\emph{Decomposition.} Fix $1\le m\le k-1$, put $l=k-m$ and
+\[
+ K_m(x_i,x_b,x_j)=p_l(x_i-x_b)\,p(x_b-x_j)\,\big[p_m(x_j-x_i)-p_{m+1}(x_b-x_i)\big],\qquad
+ K_m^+=p_l\,p\,\big[p_m+p_{m+1}\big]\ge|K_m| .
+\]
+Then $\frac1{N^2}\sum_{i,b}p_l(x_i-x_b)\hat h^{(i)}_m(b)=B^1_m+B^2_m$ with
+\[
+ B^1_m=N^{-3}\sum_{i,b,j}K_m(x_i,x_b,x_j),\qquad B^2_m=-N^{-4}\sum_{i,b,j,v}K_m(x_i,x_b,x_j)\,c_{jv},
+\]
+where coinciding indices are evaluated with $p(0)=M$, $p_a(0)=m_a$ and $c_{jj}=M-1$. Likewise, with
+$F=p_k\,p$ and $\Psi_k=p\,(p_k-m_{k+1})$,
+\[
+ \Pi^A:=\frac1{N^2}\sum_{i,b}F(x_i-x_b)\,\theta^1_{bi},\qquad
+ \Pi^C:=\frac1N\sum_i\hat h^{(i)}_k(i)=N^{-2}\sum_{i,j}\Psi_k(x_i-x_j)\,(1-\epsilon_j),
+\]
+and $\Pi_k=\Pi^A+\sum_{m=1}^{k-1}(B^1_m+B^2_m)+\Pi^C$. We show that each of $\Pi^A$, $B^1_m$, $B^2_m$,
+$\Pi^C$ has $\mathbb E|\cdot|\le C\frac MNm_k$.
+
+\emph{Three bounds for $K_m$.} (a) $\mathbb EK_m^+=2m_{k+1}$ for distinct points, since
+$\int p(x_b-y)p_m(y-x_i)\,dy=p_{m+1}(x_b-x_i)$; for the same reason $\mathbb E[K_m\mid x_i,x_b]=0$.
+(b) If exactly two of $i,b,j$ coincide, $\mathbb EK_m^+\le C\,M\,m_k$: for $j=i$ it is
+$\int p_lp\,(m_m+p_{m+1})\le m_mm_{l+1}+Mm_{k+1}$; for $j=b$ it is $M\int p_l(p_m+p_{m+1})\le2Mm_k$; for
+$i=b$ it is $m_l\int p\,(p_m+m_{m+1})=2m_lm_{m+1}$. (c) If $i=b=j$, $K_m^+=m_lM(m_m+m_{m+1})\le CM^2m_k$.
+
+\emph{The projections of $K_m$.} $\mathbb E[K_m\mid x_i,x_b]=0$;
+$\mathbb E[K_m\mid x_b,x_j]=p(w)\,(p_k(w)-m_{k+1})=\Psi_k(w)$, $w=x_b-x_j$;
+$\mathbb E[K_m\mid x_i,x_j]=\Phi_m(y)$, $y=x_j-x_i$, with
+$\Phi_m=p_{l+1}\,p_m-(p_l\,p_{m+1})*p$. Both have integral $0$, and
+\[
+ \|\Psi_k\|_2\le M^{1/2}m_k,\qquad\|\Psi_k\|_1\le2m_{k+1},\qquad
+ \|\Phi_m\|_2\le\|p_{l+1}p_m\|_2+\|p_lp_{m+1}\|_2\le C\,M^{1/2}m_k,\qquad\|\Phi_m\|_1\le2m_{k+1},
+\]
+and $\|K_m\|_2^2\le m_l\,M\,m_m\,\mathbb EK_m^+\le C\,M^2m_k^2$.
+
+\emph{$B^1_m$.} The injective part is as in Lemma~\ref{lem:degenerate} with $r=3$:
+its root mean square is at most $C[N^{-1}M^{1/2}m_k+N^{-3/2}Mm_k]\le C\frac MNm_k$. The maps with exactly
+two distinct values contribute at most $N^{-1}\cdot C\,M\,m_k$ to $\mathbb E|B^1_m|$ by (b), the constant
+maps at most $N^{-2}\cdot C\,M^2m_k$ by (c).
+
+\emph{$B^2_m$.} The kernel $K_m(x_i,x_b,x_j)\,c(x_j-x_v)$ satisfies the hypothesis of
+Lemma~\ref{lem:degenerate} with $r=4$: given $x_i$, $x_b$ or $x_j$ integrate $x_v$ first; given $x_v$,
+integrate $x_i,x_b$ first. A projection onto a set $S$ of positions vanishes unless $v\in S$. The others
+are: $\{j,v\}$: $0$; $\{i,v\}$: $\Phi_m*p$; $\{b,v\}$: $\Psi_k*p$, both of $L^2$ norm at most
+$2m_{k+1}M^{1/2}$; $\{i,j,v\}$: $\Phi_m(x_j-x_i)c(x_j-x_v)$ and $\{b,j,v\}$: $\Psi_k(x_b-x_j)c(x_j-x_v)$,
+of norm at most $C\,M\,m_k$; $\{i,b,v\}$: $\Xi=\int K_m(x_i,x_b,y)\,c(y-x_v)\,dy$, for which the
+Cauchy--Schwarz inequality gives
+\[
+ \|\Xi\|_2^2\le M\,\sup_{x_i,x_b}\int|K_m|\,dy\cdot\mathbb E|K_m|\le M\cdot2m_lm_{m+1}\cdot2m_{k+1}\le C\,M^2m_k^2;
+\]
+and the full kernel has norm at most $M^{1/2}\|K_m\|_2\le C\,M^{3/2}m_k$. Hence the injective part has root
+mean square at most $C[N^{-1}M^{1/2}m_k+N^{-3/2}Mm_k+N^{-2}M^{3/2}m_k]\le C\frac MNm_k$. For the other maps
+use $|c|\le M$ if $v$ coincides with one of $i,b,j$ and $\mathbb E|c(x_j-x_v)|\le2$ otherwise, together
+with (a)--(c): $v$ alone and one coincidence among $i,b,j$: $N^{-1}\cdot2CMm_k$; $v$ alone and $i=b=j$:
+$N^{-2}\cdot2CM^2m_k$; $v$ merged and $i,b,j$ distinct: $N^{-1}\cdot M\cdot2m_{k+1}$; $v$ merged and one
+coincidence: $N^{-2}\cdot M\cdot CMm_k$; all four equal: $N^{-3}\cdot M\cdot CM^2m_k$. With $M\le N$ all are
+at most $C\frac MNm_k$.
+
+\emph{$\Pi^C$.} $\int\Psi_k=0$, so $N^{-2}\sum_{i\ne j}\Psi_k(x_i-x_j)$ has root mean square at most
+$CN^{-1}M^{1/2}m_k$, and the diagonal is $\frac MN(m_k-m_{k+1})$. The part with $\epsilon_j$ is
+$-N^{-3}\sum_{i,j,v}\Psi_k(x_i-x_j)c_{jv}$: its kernel satisfies the hypothesis of
+Lemma~\ref{lem:degenerate} with $r=3$, with projections $\{i,v\}$: $\Psi_k*p$, $\{j,v\}$ and $\{i,j\}$: $0$,
+and full norm at most $Mm_k$; the maps with coincidences contribute at most
+$N^{-1}(M\cdot2m_{k+1}+M\cdot2m_{k+1}+2Mm_k)+N^{-2}M^2m_k$.
+
+\emph{$\Pi^A$.} $\int F=m_{k+1}$, $\|F\|_2^2\le M\,m_k\,m_{k+1}$, $F(0)=Mm_k$. The three parts of
+$\theta^1_{bi}$ give $-N^{-3}\sum F(x_i-x_b)c_{iv}$, $-N^{-3}\sum F(x_i-x_b)c_{bv}$ and
+$N^{-4}\sum F(x_i-x_b)\,g_{bj}\,c_{jv}$ ($g_{bj}=p(x_b-x_j)$, $g_{bb}=M$). Each kernel satisfies the
+hypothesis of Lemma~\ref{lem:degenerate}. Projections of the first: $\{i,v\}$: $m_{k+1}c$; $\{b,v\}$:
+$F*p-m_{k+1}$; $\{i,b\}$: $0$; all of norm at most $2m_{k+1}M^{1/2}$; full norm at most $Mm_k$. The second
+is the first with $i$ and $b$ exchanged. Projections of the third (those without $v$ vanish):
+$\{j,v\}$: $m_{k+1}c$; $\{b,v\}$: $m_{k+1}(p_2-1)$; $\{i,v\}$: $F*p_2-m_{k+1}$, of norm at most
+$2m_{k+1}M^{1/2}$; the three projections onto triples have norm at most $Mm_k$, the full kernel
+$M^{3/2}m_k$. The maps with coincidences are bounded as for $B^2_m$, with $\mathbb EF=m_{k+1}$ for distinct
+points, $F(0)=Mm_k$, $|c|\le M$ and $g\le M$: each identification costs a factor $N^{-1}$ and at most a
+factor $M$. Hence $\mathbb E|\Pi^A|\le C\frac MNm_k$.
+
+\emph{Conclusion.} $\mathbb E|\Pi_k|\le\mathbb E|\Pi^A|+\sum_{m=1}^{k-1}\big(\mathbb E|B^1_m|+\mathbb E|B^2_m|\big)
++\mathbb E|\Pi^C|\le C\frac MN\,k\,m_k$.
+\end{proof}
+
+\begin{remark}
+The factor $k$ comes from the sum over $m$ and from estimating the coincidence terms in $L^1$, where the
+cancellations between them (for instance $M(m_k-m_{k+1})$ for $j=b$) are lost. By
+Proposition~\ref{prop:bias} the true size at a fixed kernel scale is $\frac MNm_k$ without the factor
+$k$; a bound of that order uniformly in $k$ would need the sum over $m$ to be carried out before the
+estimate.
+\end{remark}

@@ -4,7 +4,8 @@ For whoever picks this work up next, human or agent. It says where the project s
 next and what is easy to get wrong. `README.md` lists what is proven; `PLAN.md` describes the next
 block of work. This file does not repeat them.
 
-Last updated: 2026-11-16, with the push that added this file.
+Last updated: 2026-11-19, on the branch `mesh/heat-trace-findings` (this is the branch's copy; the copy on
+`main` is older and does not mention the branch).
 
 ## Keeping this file current
 
@@ -36,7 +37,23 @@ Everything in `README.md` under "What is proven" is done and builds. The last pi
 analytic half of Proposition 4.2 (`CorrelationsGeometry/TwoModeExpansion.lean`, main theorems
 `two_mode_expansion` and `two_mode_expansion_isBigO`).
 
-Nothing is in progress. There are no open branches and no uncommitted work.
+One branch is open: `mesh/heat-trace-findings`. It adds the folder `findings/heat-trace/` and changes
+nothing in the Mathlib project. The folder holds working material on Appendix G of a longer version of
+the paper (about 100 pages; `main` refers to the 74-page version): proofs, numerics and two Lean files of
+the author's side, written by two AI sessions, one on the author's side and one on the owner's side.
+Start with `findings/heat-trace/README.md` (status of every item) and
+`findings/heat-trace/second-session/README.md` (what the owner-side session wrote and what it has and
+has not read). No statement there has been read by a person.
+
+Pending with the owner, for that branch:
+
+* Whether and when it is merged into `main`. `README.md` and `CorrelationsGeometry/Audit.lean` on `main`
+  list what the Mathlib project proves; nothing on the branch is on those lists.
+* Whether `findings/heat-trace/second-session/KernelRecursion.lean` (deterministic half of Theorem G.28,
+  accepted by Lean with this project's Mathlib) is adopted into `CorrelationsGeometry/`. The steps are
+  in the README of that folder.
+Both sides push to the branch. Fetch and rebase or merge before pushing. Never force-push and never
+rewrite the branch's history without the owner's word.
 
 Not done, and known:
 

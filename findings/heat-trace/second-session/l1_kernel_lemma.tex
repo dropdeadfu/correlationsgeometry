@@ -1,0 +1,120 @@
+% The kernel of the sampled walk in the mean (L^1 form of Theorem thm:kernel) and two consequences.
+% Fragment in the notation of Appendix G of "From Correlations to Geometry" (Lemma lem:consistency,
+% Theorem thm:kernel, Proposition prop:reduction, Theorem thm:eigtorus); it uses the macros and labels of
+% the paper and does not compile on its own.
+% Written on 17 November 2026 by the second session (the repository owner's side).
+% STATUS (19 November 2026): the lemma and its proof were recomputed on paper by the author-side session,
+% which found no error and improved the constant from 3 to 9/7; the two consequences have NOT yet been
+% read line by line by another session. Not read by a person. Not part of the paper.
+
+\begin{lemma}[The kernel of the sampled walk in the mean]\label{lem:kernel-l1}
+On the event of Lemma~\ref{lem:consistency} there is a constant $C_3$ depending only on $d$ such that for
+all $i$ and all integers $1\le k\le\delta'^{-2}$
+\[
+ \frac1N\sum_a\big|N(P^k)_{ai}-p_k(x_a-x_i)\big|\le C_3\,\delta'\,\sqrt k .
+\]
+\end{lemma}
+
+\begin{proof}
+\emph{Step 1: a stationary weight.} Let $w_b=u_br_b$. Then $w_bP_{bj}=u_b\tilde P_{bj}u_j$ is symmetric in
+$b$ and $j$, hence $\sum_bw_bP_{bj}=w_j\sum_bP_{jb}=w_j$, and for every vector $h$ and every $n\ge0$
+\[
+ \sum_bw_b\,\big|(P^nh)(b)\big|\le\sum_bw_b\,|h(b)| ,
+\]
+by the triangle inequality, $P\ge0$ and induction on $n$.
+
+\emph{Step 2: the weights are close to one.} Since $\sum_j\tilde P_{bj}=1+\epsilon_b=1/u_b$, the number
+$r_b=\sum_j\tilde P_{bj}u_j$ is $1/u_b$ times a weighted mean of the $u_j\in[\frac1{1+\delta},\frac1{1-\delta}]$, so
+that $\frac1{1+\delta}\le w_b\le\frac1{1-\delta}$. For $\delta\le\frac18$ the ratio of the two bounds is at
+most $\frac97$, and
+\[
+ \frac1N\sum_b\big|(P^nh)(b)\big|\le\frac97\cdot\frac1N\sum_b|h(b)| .
+\]
+\emph{Step 3: the identity.} By Steps~1 and~2 of the proof of Theorem~\ref{thm:kernel}, for $k\ge1$,
+\[
+ N(P^{k+1})_{ai}-p_{k+1}(x_a-x_i)=\sum_{m=1}^k\big(P^{k-m}h^{(i)}_m\big)(a)+(P^kv)(a),\qquad
+ v(b)=p(x_b-x_i)\,\theta_{bi},
+\]
+with $|\theta_{bi}|\le4\delta$ and $\frac1N\sum_bp(x_b-x_i)=1+\epsilon_i\le1+\delta$.
+
+\emph{Step 4: the mean over $a$.} By Lemma~\ref{lem:consistency},
+$\frac1N\sum_b|h^{(i)}_m(b)|\le2C\delta'm^{-1/2}$ for $m\le k\le\delta'^{-2}$, and
+$\sum_{m\le k}m^{-1/2}\le2\sqrt k$. Hence
+\[
+ \frac1N\sum_a\big|N(P^{k+1})_{ai}-p_{k+1}(x_a-x_i)\big|\le\frac97\Big[4C\,\delta'\sqrt k+4\delta(1+\delta)\Big]
+ \le\frac97\big[4C\sqrt k+27\big]\,\delta' ,
+\]
+because $\delta\le6\delta'\le\frac18$. For the first power, $\frac1N\sum_a|NP_{ai}-p(x_a-x_i)|\le4\delta(1+\delta)\le27\,\delta'$.
+\end{proof}
+
+\begin{remark}[On Lemma~\ref{lem:kernel-l1}]
+(i) The proof uses no induction on $k$, no doubling property of $m_s$ and no condition of the form
+$C_1\delta'\sqrt k\le1$; only $m\le\delta'^{-2}$, the range of Lemma~\ref{lem:consistency}. (ii) The row
+form, with the sum over the second index, follows from the reversibility
+$w_i(P^k)_{ia}=w_a(P^k)_{ai}$ and (iii) of Lemma~\ref{lem:consistency}. (iii) The improvement of the
+constant in Step~2 from $3$ (bounding $u_b$ and $r_b$ separately) to $\frac97$ is due to the author-side
+session.
+\end{remark}
+
+\begin{remark}[First consequence: $\varphi_d\equiv1$ in Proposition~\ref{prop:reduction}]\label{rem:l1-reduction}
+\emph{Not yet read by a second session.} Replace Step~3(b) and Step~4 of the proof of
+Proposition~\ref{prop:reduction} as follows. Let $1\le m\le k-1$ and $l=k-m$.
+
+\emph{The second sum}, $\frac1N\sum_{i,b}\big|(P^l)_{ib}-p_l(x_i-x_b)/N\big|\,|\hat h^{(i)}_m(b)|$. For
+$l>k/2$ it is at most $D_l\max_i\frac1N\sum_b|\hat h|\le C\delta'^2\sqrt l\,m^{-1/2}m_l$, as before, and
+$m_l\le2^{d/2}m_k$. For $l\le k/2$ it is at most
+\[
+ \max_b\Big[\frac1N\sum_i\big|N(P^l)_{ib}-p_l(x_i-x_b)\big|\Big]\cdot\max_{i,b}\big|\hat h^{(i)}_m(b)\big|
+ \le C_3\,\delta'\sqrt l\cdot C\,\delta'\,m^{-1/2}\,m_{6m},
+\]
+by Lemma~\ref{lem:kernel-l1} for the column $b$ (the sum runs over the first index, which is the form of
+the lemma), and $m_{6m}\le m_k$ because $6m\ge3k$.
+
+\emph{The first sum}, $\frac1N\sum_{i,b}(P^l)_{ib}\,|h-\hat h|$. For $l>k/2$ it is at most
+$(m_l+D_l)\max_i\frac1N\sum_b|h-\hat h|\le C\delta'^2m^{-1/2}m_k$; for $l\le k/2$, because the rows of
+$P^l$ sum to one, at most $\max|h-\hat h|\le C\delta'^2m^{-1/2}m_{6m}\le C\delta'^2m^{-1/2}m_k$.
+
+\emph{The sum over $l$.} $\sum_{l=1}^{k-1}\sqrt l\,(k-l)^{-1/2}\le\sqrt k\cdot2\sqrt k=2k$. Hence, on the
+event $E$ and for $1\le k<(C_1\delta')^{-2}$,
+\[
+ \big|\Tr P^{k+1}-m_{k+1}-\Pi_k\big|\le C_2\,\delta'^2\,k\,m_{k+1}\qquad\text{in every dimension.}
+\]
+With Lemma~\ref{lem:pibound}, Corollary~\ref{cor:secondstage} then holds for every $d\ge1$ with
+$\varphi_d\equiv1$: the rate $\xi^2/t$ with the sharp coefficient, in probability and for every sequence
+$t_N$, under $N\xi_N^{d+4}/\log N\to\infty$, without the logarithm in dimension three.
+\end{remark}
+
+\begin{remark}[Second consequence: the operator norm in Theorem~\ref{thm:eigtorus}]\label{rem:l1-eig}
+\emph{Not yet read by a second session.} $S^k-Q_k$ is symmetric, so its operator norm is at most its
+largest column sum. With $N(S^k)_{ai}-p_k(x_a-x_i)=(\rho_{ai}-1)\,N(P^k)_{ai}+\big(N(P^k)_{ai}-p_k(x_a-x_i)\big)$
+and $|\rho_{ai}-1|\le8\delta$,
+\[
+ \sum_a\big|(S^k-Q_k)_{ai}\big|\le8\delta\sum_a(P^k)_{ai}+\frac1N\sum_a\big|N(P^k)_{ai}-p_k(x_a-x_i)\big|
+ \le\frac{72}7\,\delta+C_3\,\delta'\sqrt k ,
+\]
+because $\sum_a(P^k)_{ai}\le w_i/\min_bw_b\le\frac97$ by the stationarity of $w$. Hence
+$\|S^k-Q_k\|\le C\delta'\sqrt k$, without the factor $m_k$, and with Lemma~\ref{lem:kernelmatrix} and Weyl's
+inequality
+\[
+ \big|s_j^k-e^{-k\sigma\lambda_j}\big|\le C\,\delta'\sqrt k+C\sqrt{\frac{\log N}{N}}\;m_k\qquad\text{for }1\le k\le\delta'^{-2}.
+\]
+With the same choice $k=\lfloor1/\sigma\lambda_*\rfloor$, $\lambda_*=1\vee\lambda_j$, as in the proof of
+Theorem~\ref{thm:eigtorus},
+\[
+ \Big|\lambda^N_j-\frac{1-e^{-\sigma\lambda_j}}{\sigma}\Big|\le C\,\frac{\delta'}\xi\,\lambda_*^{1/2}
+ +C\sqrt{\frac{\log N}{N}}\;\lambda_*^{(d+2)/2},
+\]
+under the corresponding smallness condition. In the form \eqref{eq:eigrate2} this gives
+$\eta_N=C\max\big(\delta'/\xi_N,\sqrt{\log N/N}\,\xi_N^{-d}\big)$, that is, the condition
+$N\xi_N^{\max(d+2,2d)}/\log N\to\infty$ in place of $N\xi_N^{3d}/\log N\to\infty$. The conditions of this
+last step have not been written out.
+\end{remark}
+
+% Numerical checks (one sample each; scripts/l1_kernel_check.py and scripts/operator_norm_check.py).
+% d = 3, xi = 0.2, N = 1500 (delta' = 0.197): L1 error/(delta' sqrt k) = 0.51, 0.18, 0.08, 0.05, 0.035 and
+%   remainder of the reduction/(delta'^2 k m_{k+1}) = 0.061, 0.005, 0.008, 0.0035, 0.0015 for k = 1, 2, 4, 8, 16.
+% d = 4, xi = 0.3, N = 1500 (delta' = 0.125): 0.37, 0.075, 0.028, 0.019, 0.014 and 0.033, 0.002, 0.003, 0.002, 0.001.
+% d = 2, xi = 0.1, N = 2500 (delta' = 0.223): ||S^k - Q_k|| = 0.091, 0.061, 0.046, 0.031, 0.023 for
+%   k = 1, 2, 4, 8, 16, against delta' sqrt k = 0.22 ... 0.89 and delta' sqrt k m_k = 3.55 ... 1.05.
+% In these runs xi is large and delta' is not small: they show compatibility with the bounds, not their
+% validity as xi -> 0.
