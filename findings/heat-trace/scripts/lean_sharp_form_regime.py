@@ -255,6 +255,48 @@ def rate_cfin(d):
     return 48 * A + 3 * 2 ** d * max(2 * CA, CB)
 
 
+def rate_cfin3(d):
+    """The constant `rateCfin3 d` of `heat_kernel_rate_paper_g3` (grid N^3, all times)."""
+    cK = ((math.sqrt(4 * PI) + 1) * math.sqrt(3)) ** d
+    cv = 4 / PI * (1 + math.sqrt(12 * PI)) * math.sqrt(12 * PI) * math.sqrt(2 * PI)
+    rA = math.sqrt(d * cv * (2 * math.sqrt(6)) * (12 * (1 + math.sqrt(2 * PI))) ** (d - 1))
+    A = math.sqrt(3 * d + 5)
+    CA = 3 * (9 / 8) * ((5 / 4) * (16 * (cK + 1) + 2 * math.sqrt(7) * rA) + 12 * A * rA)
+    CB = 3 * ((5 / 4) * (16 * (cK + 1) + 2 * math.sqrt(7) * rA) + 12 * A * rA)
+    return 48 * A + 3 * 2 ** d * max(2 * CA, CB)
+
+
+def kernel_c1(d):
+    """The constant `kernelC1 d` of `kernel_theorem_G28`."""
+    return rate_cfin3(d) * ((1 + math.sqrt(2 * PI)) ** d) ** 2
+
+
+def eig_c4(d):
+    """The constant `eigC4 d` of `eig_theorem_G38`."""
+    cp = (36 * math.sqrt(3 * d + 5) + rate_cfin3(d) + 1
+          + math.sqrt(8 * (3 + 2 * (3 * d + 1))) * (1 + 2 * 2 ** d))
+    return 16 * cp * (1 + math.sqrt(2 * PI)) ** d
+
+
+def p_zero(d, xi):
+    """The periodised Gaussian kernel of variance xi^2 at the origin, M = p(0)."""
+    t = xi ** 2
+    return (sum(math.exp(-n * n / (2 * t)) for n in range(-50, 51)) / math.sqrt(2 * PI * t)) ** d
+
+
+def g28_holds(d, xi, N, K):
+    """Hypothesis of `kernel_theorem_G28`: kernelC1(d) delta' sqrt(K) <= 1 with M = p(0)."""
+    dprime = math.sqrt(p_zero(d, xi) * math.log(N) / N)
+    return xi <= 1 and N >= 2 and kernel_c1(d) * dprime * math.sqrt(K) <= 1
+
+
+def g38_holds(d, xi, N, r):
+    """Hypotheses of `eig_theorem_G38` for the shell |n|^2 = r."""
+    dprime = math.sqrt(p_zero(d, xi) * math.log(N) / N)
+    return (xi <= 1 and N >= 2 and 2 * PI ** 2 * xi ** 2 * r <= 0.5
+            and eig_c4(d) * dprime / xi * (2 * PI * math.sqrt(r)) ** (d - 1) <= 1)
+
+
 def paper_form(d, xi, N, K):
     """Hypotheses of `heat_kernel_rate_paper`: N >= 12, K <= N, K sigma <= 1, sigma <= 1,
     2 Lip <= 3 sqrt(N M log N), rateCfin(d) delta' sqrt(K) <= 1."""
@@ -358,6 +400,29 @@ def main():
                         found = e
                         break
                 print(f"{d}  {xi:4.2f} {K:4d}   " + ("none up to 1e60" if found is None else f"1e{found}"))
+    print()
+    print("statements in the form of the appendix (kernel_theorem_G28, eig_theorem_G38)")
+    for d in (1, 2, 3):
+        print(f"kernelC1({d}) = {kernel_c1(d):.4g}   eigC4({d}) = {eig_c4(d):.4g}")
+    print("d   xi    K   smallest N (power of ten) with kernelC1 delta' sqrt(K) <= 1")
+    for d in (1, 2, 3):
+        for xi in (1.0, 0.3, 0.1):
+            for K in (1, max(1, int(1 / xi ** 2))):
+                found = None
+                for e in range(2, 81):
+                    if g28_holds(d, xi, 10 ** e, K):
+                        found = e
+                        break
+                print(f"{d}  {xi:4.2f} {K:4d}   " + ("none up to 1e80" if found is None else f"1e{found}"))
+    print("d   xi   smallest N (power of ten) with the condition of eig_theorem_G38 for the first shell")
+    for d in (1, 2, 3):
+        for xi in (0.15, 0.1, 0.05):
+            found = None
+            for e in range(2, 81):
+                if g38_holds(d, xi, 10 ** e, 1):
+                    found = e
+                    break
+            print(f"{d}  {xi:4.2f}   " + ("none up to 1e80" if found is None else f"1e{found}"))
 
 
 if __name__ == "__main__":
