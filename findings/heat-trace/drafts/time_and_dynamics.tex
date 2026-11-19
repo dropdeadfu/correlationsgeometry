@@ -22,6 +22,7 @@
 \newcommand{\R}{\mathbb{R}}
 \newcommand{\dd}{\mathrm{d}}
 \newcommand{\Lie}{\mathcal{L}}
+\newcommand{\Lc}{\mathsf{L}}
 \newcommand{\status}[1]{\par\noindent\textsf{\small Status: #1}\par}
 \title{Time and dynamics: working draft}
 \author{Draft accompanying ``From Correlations to Geometry''}
@@ -338,7 +339,75 @@ In one dimension $\hat u_0=1$ and the prefactor $(\Omega(x)\Omega(y))^{(D-1)/2}$
 \status{open.}
 
 \section{B2. The $N$-point version of the differentiated pipeline; corrections to the profile form}
-\emph{Not started.}
+
+\subsection{The $N$-point version of \texttt{prop:dotL}}
+
+Setting of \texttt{prop:dotL} of the paper: a smooth family of metrics $h_\tau$, $|\tau|\le\tau_0$, on $\M$ with $\partial_\tau h_\tau=2K_\tau$; a profile $h\in C^2$ with $|h^{(j)}(s)|\le Ae^{-s}$ for $j\le2$; points $x_1,\dots,x_N$ independent with a density $\mu\in C^6$, $\mu>0$, that do not depend on $\tau$; kernel $K_{ij}(\tau)=h(d_{h_\tau}(x_i,x_j)/\xi)$, the graph operator of the paper built from it,
+\[
+(\Lc_N^\tau f)(i)=\frac{2}{c_h\xi^2}\Big(f(x_i)-\sum_jP^\tau_{ij}f(x_j)\Big),
+\]
+and the population operator $\Lc^\tau_\xi$. Let $\delta'=\sqrt{\log N/(N\xi^d)}$.
+
+\begin{proposition}[Differentiated pipeline at the sample points]\label{prop:dotLN}
+Let $f\in C^6(\M)$, $\xi\le c$ and $N\xi^{d+2}\ge C\log N$. For every fixed $\tau$, with probability at least $1-CN^{-2}$,
+\[
+\max_i\Big|\partial_\tau\big(\Lc^\tau_Nf\big)(i)-\partial_\tau\big(\Lc^\tau_\xi f\big)(x_i)\Big|\le C_f\,\frac{\delta'}{\xi}=C_f\sqrt{\frac{\log N}{N\xi^{d+2}}},
+\]
+and therefore, by \texttt{prop:dotL},
+\[
+\max_i\Big|\partial_\tau\big(\Lc^\tau_Nf\big)(i)+\partial_\tau\big(\Delta_{h_\tau}f\big)(x_i)\Big|\le C_f\Big(\xi+\sqrt{\frac{\log N}{N\xi^{d+2}}}\Big).
+\]
+\end{proposition}
+
+\begin{proof}[Proof in outline]
+As in the proof of \texttt{lem:pointwise} write $\sum_jP_{ij}(f_j-f_i)=\mathcal N_i/\mathcal D_i$ with $\mathcal N_i=\frac1N\sum_jK_{ij}(f_j-f_i)/q_j$, $\mathcal D_i=\frac1N\sum_jK_{ij}/q_j$ and $q_j=\frac1N\sum_kK_{jk}$. A dot denotes $\partial_\tau$. Then
+\[
+\dot{\mathcal N}_i=\frac1N\sum_j\Big[\frac{\dot K_{ij}}{q_j}-\frac{K_{ij}\,\dot q_j}{q_j^2}\Big](f_j-f_i),\qquad
+\dot K_{ij}=h'\!\Big(\frac{d_{ij}}\xi\Big)\frac{\dot d_{ij}}\xi,\qquad|\dot d_{ij}|\le\|K\|_\infty d_{ij},
+\]
+the last by the first variation of arc length; hence $|\dot K_{ij}|\le C\tilde k(d_{ij}/\xi)$ with $\tilde k(s)=s|h'(s)|$, which decays like $h$. \emph{Normalisations.} $q_j=q_\xi(x_j)(1+O(\delta'))$ uniformly in $j$ (proof of \texttt{lem:weights}), and in the same way $\dot q_j=\dot q_\xi(x_j)+O(\xi^d\delta')$: given $x_j$ the summands $\dot K_{jk}$, $k\ne j$, are independent, bounded by $C$ and of variance at most $C\xi^d$, and $\dot K_{jj}=0$. Since $q_\xi\ge c\,\xi^d$, replacing $q_j,\dot q_j$ by $q_\xi(x_j),\dot q_\xi(x_j)$ changes $\dot{\mathcal N}_i$ by at most $C\delta'\frac1N\sum_j(\tilde k+h)(d_{ij}/\xi)\,|f_j-f_i|/q_\xi(x_j)\le C_f\xi\delta'$. \emph{Concentration.} After the replacement $\dot{\mathcal N}_i$ is, given $x_i$, an average of independent variables bounded by $C_f\xi^{1-d}$ with variance at most $C_f\xi^{2-d}$; Bernstein's inequality and a union bound give a deviation at most $C_f\xi\delta'$ from the mean, which is $\dot{\mathcal N}_\xi(x_i)$, the derivative of the population numerator (differentiation under the integral is justified by the bounds on $\dot K$). In the same way $\dot{\mathcal D}_i=\dot{\mathcal D}_\xi(x_i)+O(\delta')$, and from \texttt{lem:pointwise} $\mathcal N_i=\mathcal N_\xi(x_i)+O(\xi\delta')$, $\mathcal D_i=\mathcal D_\xi(x_i)(1+O(\delta'))$. \emph{Assembly.} Only crude bounds for the population quantities are needed: $|f(y)-f(x)|\le C_fd(x,y)$ and the decay of $h$ and $\tilde k$ give $\mathcal N_\xi=O(\xi)$ and $\dot{\mathcal N}_\xi=O(\xi)$; further $c\le\mathcal D_\xi\le C$ and $\dot{\mathcal D}_\xi=O(1)$, because $|\dot q_\xi|\le Cq_\xi$. Hence
+\[
+\partial_\tau\frac{\mathcal N_i}{\mathcal D_i}-\partial_\tau\frac{\mathcal N_\xi}{\mathcal D_\xi}
+=\Big[\frac{\dot{\mathcal N}_i}{\mathcal D_i}-\frac{\dot{\mathcal N}_\xi}{\mathcal D_\xi}\Big]-\Big[\frac{\mathcal N_i\dot{\mathcal D}_i}{\mathcal D_i^2}-\frac{\mathcal N_\xi\dot{\mathcal D}_\xi}{\mathcal D_\xi^2}\Big]=O(\xi\delta'),
+\]
+and division by $c_h\xi^2/2$ gives the first claim.
+\end{proof}
+\status{\emph{proof in outline}, at the level of detail of \texttt{lem:pointwise} of the paper, on which it relies together with \texttt{lem:weights} and \texttt{prop:dotL} (statuses as in the paper). Not written out: the uniformity in $\tau$ (the statement is for fixed $\tau$), the measurability and differentiability of $d_{h_\tau}(x,y)$ in $\tau$ at pairs beyond the injectivity radius (where the kernel is exponentially small but $\dot d$ need not exist), and the constants. Not read by anyone.}
+
+\begin{remark}[In terms of the data]
+With the time-odd data $\zeta_{ij}=2Y^{\mathrm s}/P$ of the paper, $\dot d_{ij}=\zeta_{ij}/d_{ij}$ (eq.~\texttt{eq:ddot}), so $\dot K_{ij}=h'(d_{ij}/\xi)\zeta_{ij}/(\xi d_{ij})$ and $\partial_\tau\Lc_N$ is computable from \textup{(D0)} and \textup{(D1)}; then $\partial_\tau$ is the derivative along the normal and the limit is $-\Lie_n\Delta_h$. With $\partial_tC_{ij}$ of tier \textup{(D2)} in place of $\zeta$, the same construction gives the derivative in the gauge of the nodes, that is, the limit $-\partial_t\Delta_{h_t}$ with $\partial_th=2\Omega K-\Lie_\beta h$ (Proposition~\ref{prop:D2}).
+\end{remark}
+
+\begin{remark}[Numerical experiment]
+\texttt{scripts/differentiated\_pipeline\_npoint.py}: uniform points on the flat torus of dimension two, $h_\tau=(1+\tau)^2\dd x^2+\dd y^2$, Gaussian profile, $f=\sin2\pi x$, one sample with a fixed seed, derivative by a central difference. Root mean square over the sample points of $\partial_\tau\Lc_Nf$ minus the derivative of the population operator, relative to the size of the continuum value, for $N=500,1000,2000,3000$: $0.353$, $0.227$, $0.136$, $0.107$ at $\xi=0.07$; $0.159$, $0.093$, $0.059$, $0.054$ at $\xi=0.10$; $0.088$, $0.045$, $0.028$, $0.030$ at $\xi=0.14$. The decrease with $N$ is roughly like $N^{-1/2}$ and the growth as $\xi$ decreases is as expected from $\delta'/\xi$ (which is $22.8,\dots,10.5$ at $\xi=0.07$, so the constant in the proposition is small in this example). At $\xi=0.20$ the difference stays at $0.066$ for all $N$: a possible reason is that for this $\xi$ the kernel in the geodesic distance (nearest image only) differs from the heat kernel of the torus, so that the comparison value $e^{-\sigma\lambda}\lambda'f$ used by the script is not the derivative of the population operator; this has not been checked. Against the continuum value the error is dominated by the bias of the population operator, $1-e^{-\sigma\lambda}=0.092$, $0.179$, $0.321$, $0.546$ for $\xi=0.07,0.10,0.14,0.20$.
+\end{remark}
+
+\subsection{Corrections to the profile form in \texttt{thm:xray}(b)}
+
+\begin{proposition}[Exact form with a prefactor]\label{prop:prefactor}
+Suppose that on a set of pairs $X_t(x,y)=u_t(x,y)\,F(d_{h_t}(x,y))$ with $F$ independent of $t$ and a function $u_t$ that is differentiable in $t$. Then on this set
+\[
+\Omega(x)Y(y,x)+\Omega(y)Y(x,y)=u\,F'(d_h)\int_\gamma\Omega\,K(\dot\gamma,\dot\gamma)\,\dd s+F(d_h)\,\big(\partial_t+\Lie_\beta\big)u ,
+\]
+where $(\Lie_\beta u)(x,y)=(\beta(x)\cdot\nabla_x+\beta(y)\cdot\nabla_y)u(x,y)$. Consequently the estimator $\hat K(v,v)=[\Omega(x)Y(y,x)+\Omega(y)Y(x,y)]/(rF'(r))$ of the mean of $\Omega K(\dot\gamma,\dot\gamma)$ over the segment has the error
+\[
+(u-1)\cdot\frac1r\int_\gamma\Omega K(\dot\gamma,\dot\gamma)\,\dd s+\frac{F(r)}{rF'(r)}\,\big(\partial_t+\Lie_\beta\big)u .
+\]
+\end{proposition}
+
+\begin{proof}
+By \texttt{prop:kin} the left-hand side is $(\partial_t+\Lie_\beta)X_t(x,y)$; apply the product rule and, for the factor $F(d)$, the first variation of arc length as in the proof of \texttt{thm:xray}(b).
+\end{proof}
+\status{proven (product rule on top of \texttt{prop:kin} and \texttt{thm:xray}(b) of the paper).}
+
+\begin{corollary}[Order of the corrections]\label{cor:prefactor}
+If $u_t(x,y)=1+a_t(x)(v,v)\,r^2+O(r^3)$ for $y=\exp_x(rv)$ with a smooth symmetric tensor field $a_t$, uniformly with one derivative in $t$, then the error of $\hat K(v,v)$ is
+\[
+r^2\Big[a(v,v)\,\Omega K(v,v)+\frac{F(r)}{rF'(r)}\,\big(\partial_t+\Lie_\beta\big)a\,(v,v)\Big]+O(r^3) .
+\]
+For a power law $F\propto r^{-(D-1)}$ the factor $F/(rF')$ is $-1/(D-1)$; in the regime of exponential decay it is of the order $1/(mr)$. In both cases the correction is of relative order $r^2/L^2$, where $L$ is the smaller of the length on which $a$ is of order $L^{-2}$ and the length on which $(\partial_t+\Lie_\beta)a$ is of order $\|K\|L^{-2}$.
+\end{corollary}
+\status{proven as a consequence of Proposition~\ref{prop:prefactor}, given the assumed expansion of $u$. For the situation of \texttt{thm:curved} of the paper the prefactor is the Van Vleck factor, for which $a=\tfrac1{12}\mathrm{Ric}$ is the standard leading term; this value and the resulting statement ``relative order $r^2/L_{\mathrm{curv}}^2$'' of the paper are \emph{not checked here against a reference}, and the further corrections in \texttt{thm:curved} (the term with $u_1$, of relative order $r/m$) are not treated. \emph{Open:} the same for the mutual information $C_{ij}$ in place of $X$, where the node factors and the dependence on $P$ and $Y$ enter.}
 
 \section{B3. A map of the missing principle}
 \emph{Not started.}
