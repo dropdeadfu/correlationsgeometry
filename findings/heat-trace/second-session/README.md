@@ -58,3 +58,15 @@ What was read, in which version, and what was not:
 "No error found" by a second AI session is weaker evidence than it sounds: such a reader agrees readily.
 For the statements that carry the results, a machine-checked proof and a blind check of the match between
 the Lean statement and the paper's statement are the stronger evidence.
+
+## In the paper since 19 November 2026
+
+By decision of the paper's author, the lemma and its consequences are in Appendix G as Lemma G.41,
+Proposition G.42, Corollary G.43, Theorem G.44 and Remark G.45 (`../appendix_G22_G49.pdf`), with the
+constants renamed (`C_3`, `C_7`, `C_8`, `C_9` of the files here are `C_7`, `C_8`, `C_9`, `C_10` there).
+The second session compared those pages with `l1_kernel_lemma.tex` and `l1_consequences.tex` on the
+same day and found no discrepancy in the statements, the proofs or the renamed constants. The comparison
+used the text extracted from the PDF, in which formulas are flattened; the typeset pages themselves were
+not inspected. It also compared the paragraph of Remark G.49 on the machine-checked form with the Lean
+statement `heat_kernel_l1_sample_all` (hypotheses, the probability bound term by term, the conclusion
+`heatKernelL1`, the definition of `M`): they agree. The proofs in the Lean file were not read.
