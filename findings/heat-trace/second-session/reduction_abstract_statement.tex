@@ -1,0 +1,111 @@
+% The deterministic part of Proposition prop:reduction-alld (G.42) as an abstract statement about matrices,
+% written so that a Lean statement can be copied from it. No probability, no torus, no Gaussian.
+% Written on 19 November 2026 by the second session (the repository owner's side), at the request of the
+% author-side session. STATUS: written by one session, not read by another, not formalised. It is a
+% specification for a formal statement, not a new result: it restates Steps 1, 2 (its conclusions only),
+% 3(a), 3(c) and the new Step 3(b) of l1_consequences.tex with every input named.
+
+\paragraph{Data.} A finite index set $I$ with $N=|I|\ge1$ elements. A matrix $P=(P_{ab})_{a,b\in I}$ with
+$P_{ab}\ge0$ and $\sum_bP_{ab}=1$. An integer $k\ge1$. Real numbers $q_s(a,b)$ for $a,b\in I$ and
+$1\le s\le k+1$, and $m_s$ for $1\le s\le k+1$, with
+\[
+ \text{(Q)}\qquad 0\le q_s(a,b)\le m_s,\qquad q_s(a,b)=q_s(b,a),\qquad q_s(a,a)=m_s .
+\]
+(In the paper $q_s(a,b)=p_s(x_a-x_b)$ and $m_s=p_s(0)$.) Real numbers $\theta_{bi}$, $\theta^1_{bi}$ and
+$\hat h^{(i)}_m(b)$ for $b,i\in I$, $1\le m\le k$. Define
+\[
+ h^{(i)}_m(b)=\sum_jP_{bj}\,q_m(j,i)-q_{m+1}(b,i),\qquad
+ D_l=\max_{a,i}\big|N(P^l)_{ai}-q_l(a,i)\big| ,
+\]
+\[
+ \Pi_k=\frac1{N^2}\sum_{i,b}q_k(i,b)\,q_1(b,i)\,\theta^1_{bi}
+ +\sum_{m=1}^{k-1}\frac1{N^2}\sum_{i,b}q_{k-m}(i,b)\,\hat h^{(i)}_m(b)+\frac1N\sum_i\hat h^{(i)}_k(i).
+\]
+
+\paragraph{Hypotheses.} Nonnegative real numbers $\delta$, $a_\theta$, $b_\theta$, $d_l$ ($1\le l\le k$),
+$e_l$ ($1\le l\le k$), $\alpha_m$, $\bar\alpha_m$, $\beta_m$, $\bar\beta_m$ ($1\le m\le k$) such that:
+\begin{enumerate}
+\item[(H1)] $NP_{bi}=q_1(b,i)\,(1+\theta_{bi})$, $|\theta_{bi}|\le a_\theta$ and $|\theta_{bi}-\theta^1_{bi}|\le b_\theta$ for all $b,i$.
+\item[(H2)] $\frac1N\sum_bq_1(b,i)\le1+\delta$ for all $i$.
+\item[(H3)] $D_l\le d_l$ for $1\le l\le k$.
+\item[(H4)] $\frac1N\sum_i\big|N(P^l)_{ib}-q_l(i,b)\big|\le e_l$ for all $b$ and $1\le l\le k$ (sum over the first index).
+\item[(H5)] for $1\le m\le k$ and all $i,b$: $|h^{(i)}_m(b)-\hat h^{(i)}_m(b)|\le\alpha_m$,
+ $\frac1N\sum_b|h^{(i)}_m(b)-\hat h^{(i)}_m(b)|\le\bar\alpha_m$, $|\hat h^{(i)}_m(b)|\le\beta_m$,
+ $\frac1N\sum_b|\hat h^{(i)}_m(b)|\le\bar\beta_m$.
+\end{enumerate}
+(H4) is needed only for those $l$ for which the second alternative of $B$ below is used.
+
+\begin{lemma}[The reduction, deterministic form]\label{lem:reduction-abstract}
+Under \textup{(Q)} and \textup{(H1)}--\textup{(H5)},
+\[
+ \big|\Tr P^{k+1}-m_{k+1}-\Pi_k\big|\le(1+\delta)\big(a_\theta\,d_k+b_\theta\,m_k\big)+\alpha_k
+ +\sum_{m=1}^{k-1}\Big[\min\big((m_{k-m}+d_{k-m})\,\bar\alpha_m,\ \alpha_m\big)
+ +\min\big(d_{k-m}\,\bar\beta_m,\ e_{k-m}\,\beta_m\big)\Big].
+\]
+\end{lemma}
+
+\begin{proof}
+\emph{Identity.} By (H1), $\Tr P^{k+1}=\sum_i\sum_b(P^k)_{ib}P_{bi}=\frac1N\sum_{i,b}(P^k)_{ib}\,q_1(b,i)(1+\theta_{bi})$.
+For fixed $i$ let $g_n(b)=q_n(b,i)$; then $h^{(i)}_n=Pg_n-g_{n+1}$ and, by telescoping
+(\texttt{act\_telescope} in \texttt{KernelRecursion.lean}),
+$\sum_b(P^k)_{ab}\,q_1(b,i)=q_{k+1}(a,i)+\sum_{m=1}^k\big(P^{k-m}h^{(i)}_m\big)(a)$. With $a=i$ and
+$q_{k+1}(i,i)=m_{k+1}$,
+\[
+ \Tr P^{k+1}-m_{k+1}=\underbrace{\frac1N\sum_{i,b}(P^k)_{ib}\,q_1(b,i)\,\theta_{bi}}_{T_\theta}
+ +\sum_{m=1}^{k}\underbrace{\frac1N\sum_{i,b}(P^{k-m})_{ib}\,h^{(i)}_m(b)}_{T_m} .
+\]
+\emph{The term $T_\theta$.} Its difference to the first term of $\Pi_k$ is
+$\frac1N\sum_{i,b}\big[(P^k)_{ib}-\frac{q_k(i,b)}N\big]q_1(b,i)\theta_{bi}+\frac1{N^2}\sum_{i,b}q_k(i,b)q_1(b,i)(\theta_{bi}-\theta^1_{bi})$.
+By (H3), $|(P^k)_{ib}-q_k(i,b)/N|\le d_k/N$; with (H1), (H2), $q_1\ge0$ and $q_k\le m_k$ the two sums are at
+most $(1+\delta)a_\theta d_k$ and $(1+\delta)b_\theta m_k$.
+
+\emph{The term $m=k$.} $P^0$ is the identity, so $T_k=\frac1N\sum_ih^{(i)}_k(i)$, and its difference to
+the last term of $\Pi_k$ is at most $\alpha_k$ by (H5).
+
+\emph{The terms $1\le m\le k-1$.} Let $l=k-m$. The difference of $T_m$ and the $m$-th term of $\Pi_k$ is
+$A_m+B_m$ with
+\[
+ A_m=\frac1N\sum_{i,b}(P^l)_{ib}\,(h-\hat h)^{(i)}_m(b),\qquad
+ B_m=\frac1N\sum_{i,b}\Big[(P^l)_{ib}-\frac{q_l(i,b)}N\Big]\hat h^{(i)}_m(b).
+\]
+$|A_m|\le\alpha_m$, because the rows of $P^l$ are nonnegative with sum one; and
+$|A_m|\le(m_l+d_l)\bar\alpha_m$, because $N(P^l)_{ib}\le q_l(i,b)+D_l\le m_l+d_l$. $|B_m|\le d_l\bar\beta_m$ by (H3)
+and the mean bound of $\hat h$; and $|B_m|\le e_l\beta_m$, because
+$|B_m|\le\beta_m\cdot\frac1N\sum_b\big[\frac1N\sum_i|N(P^l)_{ib}-q_l(i,b)|\big]$ and (H4).
+\end{proof}
+
+\begin{corollary}[Closed form]\label{cor:reduction-abstract-closed}
+In addition let $A\ge1$, $c_\alpha,c_\beta,c_D,c_E\ge0$ and $\eta\ge0$ be such that for $1\le m\le k$ and $1\le l\le k$
+\[
+ \alpha_m=c_\alpha\eta^2m^{-1/2}m_{6m}',\quad\bar\alpha_m=c_\alpha\eta^2m^{-1/2},\quad
+ \beta_m=c_\beta\eta\,m^{-1/2}m_{6m}',\quad\bar\beta_m=c_\beta\eta\,m^{-1/2},\quad
+ d_l=c_D\eta\sqrt l\,m_l\le m_l,\quad e_l=c_E\eta\sqrt l,
+\]
+with numbers $m_{6m}'$ (in the paper $m_{6m}$) such that $m'_{6m}\le m_k$ whenever $2m\ge k$, and
+$m'_{6k}\le m_k$; and let $m_l\le A\,m_k$ whenever $k<2l\le2k$, and $m_k\le A\,m_{k+1}$. Let also
+$a_\theta\le c_\theta\eta$, $b_\theta\le c_\theta'\eta^2$ and $\delta\le1$. Then
+\[
+ \big|\Tr P^{k+1}-m_{k+1}-\Pi_k\big|\le C\,\eta^2\,k\,m_{k+1},\qquad
+ C=A\Big[2c_\theta c_D+2c_\theta'+c_\alpha+2\big(2A\,c_\alpha+c_\alpha+A\,c_Dc_\beta+c_Ec_\beta\big)\Big].
+\]
+\end{corollary}
+
+\begin{proof}
+In the lemma use, for $l>k/2$, the first alternatives: $(m_l+d_l)\bar\alpha_m\le2Am_k\,c_\alpha\eta^2m^{-1/2}$ and
+$d_l\bar\beta_m\le c_Dc_\beta\eta^2\sqrt l\,m^{-1/2}Am_k$. For $l\le k/2$, that is $2m\ge k$, use the second:
+$\alpha_m\le c_\alpha\eta^2m^{-1/2}m_k$ and $e_l\beta_m\le c_Ec_\beta\eta^2\sqrt l\,m^{-1/2}m_k$. With
+$1\le\sqrt l\le\sqrt k$ and $\sum_{m=1}^{k-1}m^{-1/2}\le2\sqrt k$ (\texttt{sum\_inv\_sqrt\_le}) the sum over $m$ is at most
+$2k\,\eta^2m_k\big(2Ac_\alpha+c_\alpha+Ac_Dc_\beta+c_Ec_\beta\big)$. The first terms are at most
+$2(c_\theta c_D\eta^2\sqrt k+c_\theta'\eta^2)m_k+c_\alpha\eta^2k^{-1/2}m_k\le(2c_\theta c_D+2c_\theta'+c_\alpha)\eta^2k\,m_k$.
+Finally $m_k\le Am_{k+1}$.
+\end{proof}
+
+% Dictionary to the paper (Proposition prop:reduction and l1_consequences.tex), on the event E:
+%   eta = delta',  delta <= 6 delta' <= 1/8,  a_theta = 4 delta <= 24 delta',  b_theta = 14 delta^2 <= 504 delta'^2,
+%   d_l = C_1 delta' sqrt(l) m_l (Theorem thm:kernel; d_l <= m_l because C_1 delta' sqrt(l) <= 1),
+%   e_l = C_7 delta' sqrt(l) (Lemma lem:kernel-l1, sum over the first index, l <= delta'^{-2}),
+%   alpha_m, bar alpha_m, beta_m, bar beta_m from (ii), (iii) of Lemma lem:consistency and Step 2,
+%   A = 2^{d/2}, m'_{6m} = m_{6m}.
+% What the abstract statement does NOT contain and the Lean proof of G.42 still needs: the proof of
+% (H1) with a_theta, b_theta from the normalisation (Step 2), the bounds (H5) for h - hat h from
+% r_b and the quantity A of the consistency lemma, and the probabilistic inputs (H2)-(H5).

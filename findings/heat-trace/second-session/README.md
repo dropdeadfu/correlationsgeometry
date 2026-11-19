@@ -70,3 +70,10 @@ used the text extracted from the PDF, in which formulas are flattened; the types
 not inspected. It also compared the paragraph of Remark G.49 on the machine-checked form with the Lean
 statement `heat_kernel_l1_sample_all` (hypotheses, the probability bound term by term, the conclusion
 `heatKernelL1`, the definition of `M`): they agree. The proofs in the Lean file were not read.
+
+## Added on 19 November 2026 (evening)
+
+| File | Content | Status |
+|---|---|---|
+| `ExceptionalSetMeasurable.lean` | Lean 4 with Mathlib: for `g x ω` continuous in `x`, measurable in `ω`, and a separable parameter space, the set `{ω | ∃ x, c < |g x ω|}` is measurable (`measurableSet_exists_lt_abs`); the same without the absolute value; and the normalisation event `{ω | ∃ x, c < |∑_{j<N} f x (X_j ω) − N|}` (`measurableSet_exists_lt_abs_sum_sub`). Compactness is not needed. | Accepted by Lean with the Mathlib of the root project (`lake env lean`, no output, exit code 0); the three statements depend only on `propext`, `Classical.choice`, `Quot.sound`. Written for the newer Mathlib; one name differs in older versions (noted in the file). |
+| `reduction_abstract_statement.tex` | The deterministic part of G.42 as a statement about matrices: data, five named hypotheses, a lemma with an explicit right-hand side, a closed form with its constant, and a dictionary to the paper. Meant as the specification from which the Lean statement is written. | Written by the second session; not read by another session; not formalised. |
