@@ -13710,6 +13710,288 @@ theorem heat_kernel_l1_sample {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Meas
     (fun τ hτ => heat_normalisation_whp (lt_of_lt_of_le hσ hτ) d X h_indep hX hlaw N hg
       (hconst τ hτ).1 (hconst τ hτ).2 hLip0 hε) (heatRateA_nonneg hM0 hL.le (div_nonneg hepsn0 hNpos.le) hθ0 d N) hEta
 
+/-- Closed bound for the coefficient `heatCV` for times `s ≥ 1` (and `σ ≤ s`): the same bound
+    `d c₁ 2√6 (12(1 + √(2π)))^{d-1} (σ/s)` as for `heatCV · heatQ²` at times `s ≤ 1`. -/
+theorem heatCV_le_large {σ s : ℝ} (hσ : 0 < σ) (hσs : σ ≤ s) (hs1 : 1 ≤ s) (d : ℕ) :
+    heatCV d σ s
+      ≤ (d : ℝ) * cvConst * (2 * Real.sqrt 6)
+          * (12 * (1 + Real.sqrt (2 * Real.pi))) ^ (d - 1) * (σ / s) := by
+  have hs : 0 < s := by linarith
+  have hpi := Real.pi_pos
+  have hc := cvConst_nonneg
+  unfold heatCV
+  simp only [← Real.sqrt_eq_rpow, pow_one]
+  have e12 : Real.pi / (1 / (12 * s)) = 12 * Real.pi * s := by field_simp
+  have e12' : 2 * Real.pi * (6 * s) = 12 * Real.pi * s := by ring
+  rw [e12, e12']
+  have hT : Real.sqrt (12 * Real.pi * s) = Real.sqrt (12 * Real.pi) * Real.sqrt s :=
+    Real.sqrt_mul (by positivity) s
+  have hss : Real.sqrt s * Real.sqrt s = s := Real.mul_self_sqrt hs.le
+  have hs1' : 1 ≤ Real.sqrt s := by
+    rw [show (1 : ℝ) = Real.sqrt 1 by simp]; exact Real.sqrt_le_sqrt hs1
+  have hT0 : 0 < Real.sqrt (12 * Real.pi) := Real.sqrt_pos.mpr (by positivity)
+  have h2pi1 : 1 ≤ Real.sqrt (2 * Real.pi) := by
+    rw [show (1 : ℝ) = Real.sqrt 1 by simp]
+    exact Real.sqrt_le_sqrt (by nlinarith [Real.two_le_pi])
+  have h61 : 1 ≤ Real.sqrt 6 := by
+    rw [show (1 : ℝ) = Real.sqrt 1 by simp]; exact Real.sqrt_le_sqrt (by norm_num)
+  -- the scalar factor
+  have hfac : 4 / (Real.pi * s) * ((1 + Real.sqrt (12 * Real.pi * s)) * Real.sqrt (12 * Real.pi * s))
+      ≤ cvConst := by
+    rw [hT]
+    have h1 : (1 + Real.sqrt (12 * Real.pi) * Real.sqrt s) * (Real.sqrt (12 * Real.pi) * Real.sqrt s)
+        ≤ s * ((1 + Real.sqrt (12 * Real.pi)) * Real.sqrt (12 * Real.pi)) := by
+      have h2 : Real.sqrt s ≤ s := by nlinarith
+      nlinarith [mul_nonneg hT0.le (sub_nonneg.mpr h2), mul_pos hT0 hT0]
+    have h3 : 4 / (Real.pi * s) * ((1 + Real.sqrt (12 * Real.pi) * Real.sqrt s)
+          * (Real.sqrt (12 * Real.pi) * Real.sqrt s))
+        ≤ 4 / (Real.pi * s) * (s * ((1 + Real.sqrt (12 * Real.pi)) * Real.sqrt (12 * Real.pi))) :=
+      mul_le_mul_of_nonneg_left h1 (by positivity)
+    have h4 : 4 / (Real.pi * s) * (s * ((1 + Real.sqrt (12 * Real.pi)) * Real.sqrt (12 * Real.pi)))
+        = 4 / Real.pi * (1 + Real.sqrt (12 * Real.pi)) * Real.sqrt (12 * Real.pi) := by
+      field_simp
+    have h5 : 4 / Real.pi * (1 + Real.sqrt (12 * Real.pi)) * Real.sqrt (12 * Real.pi) ≤ cvConst := by
+      unfold cvConst
+      have h6 : 0 ≤ 4 / Real.pi * (1 + Real.sqrt (12 * Real.pi)) * Real.sqrt (12 * Real.pi) := by
+        positivity
+      nlinarith
+    linarith
+  -- the last factor
+  have hY1 : Real.sqrt (Real.pi / (2 * Real.pi ^ 2 * s)) ≤ 1 := by
+    rw [show (1 : ℝ) = Real.sqrt 1 by simp]
+    refine Real.sqrt_le_sqrt ?_
+    rw [div_le_one (by positivity)]
+    have h1 : Real.pi ≤ Real.pi ^ 2 := by nlinarith [Real.two_le_pi]
+    have h2 : Real.pi ^ 2 ≤ Real.pi ^ 2 * s := le_mul_of_one_le_right (by positivity) hs1
+    nlinarith
+  have hlast : (1 + Real.sqrt (Real.pi / (2 * Real.pi ^ 2 * s)))
+        * Real.sqrt (2 * Real.pi ^ 2 * (6 * s) / (2 * Real.pi ^ 2 * (σ + s)))
+      ≤ 12 * (1 + Real.sqrt (2 * Real.pi)) := by
+    have h6 : Real.sqrt (2 * Real.pi ^ 2 * (6 * s) / (2 * Real.pi ^ 2 * (σ + s))) ≤ Real.sqrt 6 := by
+      refine Real.sqrt_le_sqrt ?_
+      rw [div_le_iff₀ (by positivity)]
+      nlinarith [sq_nonneg Real.pi, mul_pos hpi hpi]
+    have h66 : Real.sqrt 6 ≤ 6 := by
+      have := Real.sqrt_le_sqrt (show (6 : ℝ) ≤ 36 by norm_num)
+      rwa [show (36 : ℝ) = 6 ^ 2 by norm_num, Real.sqrt_sq (by norm_num)] at this
+    calc (1 + Real.sqrt (Real.pi / (2 * Real.pi ^ 2 * s)))
+          * Real.sqrt (2 * Real.pi ^ 2 * (6 * s) / (2 * Real.pi ^ 2 * (σ + s)))
+        ≤ 2 * 6 := mul_le_mul (by linarith) (h6.trans h66) (Real.sqrt_nonneg _) (by norm_num)
+      _ ≤ 12 * (1 + Real.sqrt (2 * Real.pi)) := by nlinarith
+  have hpow := pow_le_pow_left₀ (by positivity) hlast (d - 1)
+  have hσs0 : 0 ≤ σ / s := by positivity
+  have hP0 : 0 ≤ (12 * (1 + Real.sqrt (2 * Real.pi))) ^ (d - 1) := by positivity
+  calc (d : ℝ) * (σ / s * (4 / (Real.pi * s))
+          * ((1 + Real.sqrt (12 * Real.pi * s)) * Real.sqrt (12 * Real.pi * s)))
+        * ((1 + Real.sqrt (Real.pi / (2 * Real.pi ^ 2 * s)))
+          * Real.sqrt (2 * Real.pi ^ 2 * (6 * s) / (2 * Real.pi ^ 2 * (σ + s)))) ^ (d - 1)
+      = (d : ℝ) * (σ / s * (4 / (Real.pi * s)
+          * ((1 + Real.sqrt (12 * Real.pi * s)) * Real.sqrt (12 * Real.pi * s))))
+        * ((1 + Real.sqrt (Real.pi / (2 * Real.pi ^ 2 * s)))
+          * Real.sqrt (2 * Real.pi ^ 2 * (6 * s) / (2 * Real.pi ^ 2 * (σ + s)))) ^ (d - 1) := by
+        ring
+    _ ≤ (d : ℝ) * (σ / s * cvConst) * (12 * (1 + Real.sqrt (2 * Real.pi))) ^ (d - 1) := by
+        refine mul_le_mul ?_ hpow (by positivity) (by positivity)
+        exact mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_left hfac hσs0) (Nat.cast_nonneg d)
+    _ ≤ (d : ℝ) * cvConst * (2 * Real.sqrt 6)
+          * (12 * (1 + Real.sqrt (2 * Real.pi))) ^ (d - 1) * (σ / s) := by
+        have hA : 0 ≤ (d : ℝ) * (σ / s * cvConst) * (12 * (1 + Real.sqrt (2 * Real.pi))) ^ (d - 1) := by
+          positivity
+        have e : (d : ℝ) * cvConst * (2 * Real.sqrt 6)
+              * (12 * (1 + Real.sqrt (2 * Real.pi))) ^ (d - 1) * (σ / s)
+            = (2 * Real.sqrt 6)
+              * ((d : ℝ) * (σ / s * cvConst) * (12 * (1 + Real.sqrt (2 * Real.pi))) ^ (d - 1)) := by
+          ring
+        rw [e]
+        nlinarith
+
+/-- As `heatEtaBar_le`, with the product of `√heatCV` and the kernel quantity bounded directly
+    (hypothesis `hZ'`), so that either branch of the minimum can be used. -/
+theorem heatEtaBar_le_gen {σ M L δ kb θ r : ℝ} (hσ : 0 < σ) (hM : 0 ≤ M) (hL : 0 ≤ L) (hδ : 0 ≤ δ)
+    (d N m : ℕ) (hN : 0 < N) (hm : 1 ≤ m) (hkb : 0 ≤ kb) (hr : 0 ≤ r)
+    (hKB : heatKB d σ ((m : ℝ) * σ) ≤ kb)
+    (hZ' : Real.sqrt (heatCV d σ ((m : ℝ) * σ))
+        * min ((N : ℝ) * Real.sqrt (1 + δ))
+          (heatQ d (2 * Real.pi ^ 2 * (6 * ((m : ℝ) * σ))) * (N * (1 + δ)))
+      ≤ r / Real.sqrt m * (N * (1 + δ)))
+    (hθ : (2 * L + 2) * (kb + M) * Real.sqrt m ≤ θ * N) :
+    heatEtaBar d σ N m M L δ δ
+      ≤ 3 * (1 + δ) * ((1 + 2 * δ) * (θ + 2 * (Real.sqrt (N * M * L) / N) * r) + 2 * δ * r)
+        / Real.sqrt m := by
+  have hNpos : (0 : ℝ) < N := by exact_mod_cast hN
+  have hm1 : (1 : ℝ) ≤ m := by exact_mod_cast hm
+  have hmpos : (0 : ℝ) < m := by linarith
+  have hs : 0 < (m : ℝ) * σ := by positivity
+  have hsm : 0 < Real.sqrt m := Real.sqrt_pos.mpr hmpos
+  have hc6 : (0 : ℝ) < 2 * Real.pi ^ 2 * (6 * ((m : ℝ) * σ)) := by positivity
+  have hCV := heatCV_nonneg hσ hs d
+  have hQ := heatQ_nonneg hc6 d
+  have hKB0 := heatKB_nonneg hσ hs d
+  obtain ⟨q, hq⟩ : ∃ q, q = min ((N : ℝ) * Real.sqrt (1 + δ))
+      (heatQ d (2 * Real.pi ^ 2 * (6 * ((m : ℝ) * σ))) * (N * (1 + δ))) := ⟨_, rfl⟩
+  have hq0 : 0 ≤ q := by rw [hq]; exact le_min (by positivity) (by positivity)
+  have hZ : Real.sqrt (heatCV d σ ((m : ℝ) * σ)) * q ≤ r / Real.sqrt m * (N * (1 + δ)) := by
+    rw [hq]; exact hZ'
+  have hT : Real.sqrt (N * (M * heatCV d σ ((m : ℝ) * σ)) * L) * q
+      ≤ Real.sqrt (N * M * L) * (r / Real.sqrt m * (N * (1 + δ))) := by
+    have e : Real.sqrt (N * (M * heatCV d σ ((m : ℝ) * σ)) * L)
+        = Real.sqrt (N * M * L) * Real.sqrt (heatCV d σ ((m : ℝ) * σ)) := by
+      rw [← Real.sqrt_mul (by positivity)]
+      congr 1; ring
+    rw [e, mul_assoc]
+    exact mul_le_mul_of_nonneg_left hZ (Real.sqrt_nonneg _)
+  have hX : heatKB d σ ((m : ℝ) * σ) * (N * (1 + δ)) + M * (N * (1 + δ))
+      ≤ (kb + M) * (N * (1 + δ)) := by
+    have := mul_le_mul_of_nonneg_right hKB (by positivity : (0 : ℝ) ≤ N * (1 + δ))
+    linarith
+  have hcore := defect_closed_core (S := Real.sqrt (N * M * L)) hNpos hL hδ hX hT hZ
+  have hnum : heatDefNum d σ N m M L δ (N * (1 + δ)) (N * (1 + δ)) q
+      ≤ 3 / N * ((1 + 2 * δ) * ((2 * L + 2) * ((kb + M) * (N * (1 + δ)))
+          + 2 * Real.sqrt (N * M * L) * (r / Real.sqrt m * (N * (1 + δ))))
+        + 2 * δ * N * (r / Real.sqrt m * (N * (1 + δ)))) := by
+    refine le_trans (le_of_eq ?_) hcore
+    unfold heatDefNum
+    ring
+  have hu : (2 * L + 2) * (kb + M) / N ≤ θ / Real.sqrt m := by
+    rw [div_le_div_iff₀ hNpos hsm]; exact hθ
+  unfold heatEtaBar
+  rw [← hq]
+  calc heatDefNum d σ N m M L δ (N * (1 + δ)) (N * (1 + δ)) q / N
+      ≤ 3 / N * ((1 + 2 * δ) * ((2 * L + 2) * ((kb + M) * (N * (1 + δ)))
+          + 2 * Real.sqrt (N * M * L) * (r / Real.sqrt m * (N * (1 + δ))))
+        + 2 * δ * N * (r / Real.sqrt m * (N * (1 + δ)))) / N :=
+        div_le_div_of_nonneg_right hnum hNpos.le
+    _ = 3 * (1 + δ) * ((1 + 2 * δ) * ((2 * L + 2) * (kb + M) / N
+          + 2 * (Real.sqrt (N * M * L) / N) * (r / Real.sqrt m)) + 2 * δ * (r / Real.sqrt m)) := by
+        field_simp
+    _ ≤ 3 * (1 + δ) * ((1 + 2 * δ) * (θ / Real.sqrt m
+          + 2 * (Real.sqrt (N * M * L) / N) * (r / Real.sqrt m)) + 2 * δ * (r / Real.sqrt m)) := by
+        refine mul_le_mul_of_nonneg_left ?_ (by positivity)
+        have := mul_le_mul_of_nonneg_left hu (by linarith : (0 : ℝ) ≤ 1 + 2 * δ)
+        linarith
+    _ = _ := by field_simp
+
+/-- **The mean bound of the defect in closed form at every time:** `heatEtaBar_m ≤ a/√m` with
+    `a = heatRateA`, for `σ ≤ 1` and `(2L + 2)(kb + M) √m ≤ θ N`; no restriction `m σ ≤ 1`. For
+    `m σ ≤ 1` the branch with (P5) is used, for `m σ ≥ 1` the branch with the Cauchy--Schwarz
+    inequality. -/
+theorem heatEtaBar_closed_all {σ M L δ θ : ℝ} (hσ : 0 < σ) (hσ1 : σ ≤ 1) (hM : 0 ≤ M) (hL : 0 ≤ L)
+    (hδ : 0 ≤ δ) (d N : ℕ) (hN : 0 < N) (m : ℕ) (hm : 1 ≤ m)
+    (hθ : (2 * L + 2) * (heatKbar d σ + M) * Real.sqrt m ≤ θ * N) :
+    heatEtaBar d σ N m M L δ δ ≤ heatRateA d N M L δ θ / Real.sqrt m := by
+  have hc := cvConst_nonneg
+  have hNpos : (0 : ℝ) < N := by exact_mod_cast hN
+  have hkb0 : 0 ≤ heatKbar d σ := by unfold heatKbar; positivity
+  have hm1 : (1 : ℝ) ≤ m := by exact_mod_cast hm
+  have hmpos : (0 : ℝ) < m := by linarith
+  have hsm : 0 < Real.sqrt m := Real.sqrt_pos.mpr hmpos
+  have r1 : σ ≤ (m : ℝ) * σ := by nlinarith
+  have hs : 0 < (m : ℝ) * σ := by positivity
+  have hrc : 0 ≤ (d : ℝ) * cvConst * (2 * Real.sqrt 6)
+      * (12 * (1 + Real.sqrt (2 * Real.pi))) ^ (d - 1) := by positivity
+  have e : σ / ((m : ℝ) * σ) = 1 / m := by field_simp
+  have hc6 : (0 : ℝ) < 2 * Real.pi ^ 2 * (6 * ((m : ℝ) * σ)) := by positivity
+  have hCV := heatCV_nonneg hσ hs d
+  have hQ := heatQ_nonneg hc6 d
+  unfold heatRateA
+  refine heatEtaBar_le_gen hσ hM hL hδ d N m hN hm hkb0 (Real.sqrt_nonneg _)
+    (by unfold heatKbar; exact heatKB_le hσ r1 hσ1 d) ?_ hθ
+  have hroot : ∀ x : ℝ, 0 ≤ x → x ≤ (d : ℝ) * cvConst * (2 * Real.sqrt 6)
+        * (12 * (1 + Real.sqrt (2 * Real.pi))) ^ (d - 1) * (1 / m) →
+      Real.sqrt x ≤ Real.sqrt ((d : ℝ) * cvConst * (2 * Real.sqrt 6)
+        * (12 * (1 + Real.sqrt (2 * Real.pi))) ^ (d - 1)) / Real.sqrt m := by
+    intro x _ hx
+    rw [← Real.sqrt_div hrc]
+    refine Real.sqrt_le_sqrt ?_
+    rw [div_eq_mul_one_div]
+    exact hx
+  rcases le_total ((m : ℝ) * σ) 1 with r2 | r2
+  · have hcq := heatCV_heatQ hσ r1 r2 d
+    rw [e] at hcq
+    have h1 := hroot _ (by positivity) hcq
+    rw [Real.sqrt_mul hCV, Real.sqrt_sq hQ] at h1
+    calc Real.sqrt (heatCV d σ ((m : ℝ) * σ))
+          * min ((N : ℝ) * Real.sqrt (1 + δ))
+            (heatQ d (2 * Real.pi ^ 2 * (6 * ((m : ℝ) * σ))) * (N * (1 + δ)))
+        ≤ Real.sqrt (heatCV d σ ((m : ℝ) * σ))
+          * (heatQ d (2 * Real.pi ^ 2 * (6 * ((m : ℝ) * σ))) * (N * (1 + δ))) :=
+          mul_le_mul_of_nonneg_left (min_le_right _ _) (Real.sqrt_nonneg _)
+      _ = Real.sqrt (heatCV d σ ((m : ℝ) * σ))
+          * heatQ d (2 * Real.pi ^ 2 * (6 * ((m : ℝ) * σ))) * (N * (1 + δ)) := by ring
+      _ ≤ _ := mul_le_mul_of_nonneg_right h1 (by positivity)
+  · have hcv := heatCV_le_large hσ r1 r2 d
+    rw [e] at hcv
+    have h1 := hroot _ hCV hcv
+    have hsq1 : Real.sqrt (1 + δ) ≤ 1 + δ := by
+      rw [Real.sqrt_le_left (by linarith)]
+      nlinarith
+    calc Real.sqrt (heatCV d σ ((m : ℝ) * σ))
+          * min ((N : ℝ) * Real.sqrt (1 + δ))
+            (heatQ d (2 * Real.pi ^ 2 * (6 * ((m : ℝ) * σ))) * (N * (1 + δ)))
+        ≤ Real.sqrt (heatCV d σ ((m : ℝ) * σ)) * ((N : ℝ) * Real.sqrt (1 + δ)) :=
+          mul_le_mul_of_nonneg_left (min_le_left _ _) (Real.sqrt_nonneg _)
+      _ ≤ Real.sqrt (heatCV d σ ((m : ℝ) * σ)) * ((N : ℝ) * (1 + δ)) :=
+          mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_left hsq1 hNpos.le) (Real.sqrt_nonneg _)
+      _ ≤ _ := mul_le_mul_of_nonneg_right h1 (by positivity)
+
+/-- **The kernel theorem in the mean (`L¹` form) for a random sample on the torus.** Independent
+    uniform points on the flat torus, kernel time `σ ≤ 1`, EVERY number of steps `K` (no condition `K σ ≤ 1`),
+    `δ = (ε + 2 N Lip/g)/N ≤ 1/8`, `(2L + 2)(kb + M) √K ≤ θ N`. No hypothesis on events, no
+    summation hypothesis, NO smallness condition `4δ + (1 + 4δ) W_K ≤ 1`. CONCLUSION: except on an
+    event of probability at most `(2 + 4K) · 2 g^d exp(-ε²/(4NM + 2Mε)) + 4 K N² e^{-L}`, for all
+    `j + 1 < K` and every `i`,
+    `(1/N) ∑_a |N P^{j+2}(a,i) - p_{(j+2)σ}(x_a - x_i)| ≤ (9/7)(4δ(1+δ) + 2 a √(j+1))`,
+    `a = heatRateA`. -/
+theorem heat_kernel_l1_sample_all {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {σ : ℝ} (hσ : 0 < σ) (hσ1 : σ ≤ 1) (d : ℕ)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (N K : ℕ) (hN : 0 < N) {g : ℕ} (hg : 0 < g)
+    {M Lip L ε δ θ : ℝ} (hMdef : M = (1 + Real.sqrt (Real.pi / (2 * Real.pi ^ 2 * σ))) ^ d)
+    (hLipdef : Lip = 2 * Real.pi * (2 / (2 * Real.pi ^ 2 * σ))
+      * (1 + Real.sqrt (2 * Real.pi / (2 * Real.pi ^ 2 * σ))) ^ d)
+    (hL : 0 < L) (hε : 0 < ε) (hsmall : ε + 2 * (N * Lip) * (1 / g) ≤ N / 8)
+    (hδ : δ = (ε + 2 * (N * Lip) * (1 / g)) / N)
+    (hθ0 : 0 ≤ θ)
+    (hθ : (2 * L + 2) * (heatKbar d σ + M) * Real.sqrt K ≤ θ * N) :
+    μ.real {ω | ¬ heatKernelL1 d σ δ (heatRateA d N M L δ θ) N K (fun j => X j ω)}
+      ≤ (g : ℝ) ^ d * (2 * Real.exp (-ε ^ 2 / (4 * (N * M) + 2 * M * ε)))
+        + ((g : ℝ) ^ d * (2 * Real.exp (-ε ^ 2 / (4 * (N * M) + 2 * M * ε)))
+          + ((K : ℝ) * ((N : ℝ) ^ 2 * (2 * Real.exp (-L)))
+            + (K : ℝ) * ((N : ℝ) ^ 2 * (2 * Real.exp (-L)))))
+        + (K : ℝ) * (4 * ((g : ℝ) ^ d * (2 * Real.exp (-ε ^ 2 / (4 * (N * M) + 2 * M * ε))))) := by
+  have hcσ : 0 < 2 * Real.pi ^ 2 * σ := by positivity
+  have hM0 : 0 ≤ M := by rw [hMdef]; positivity
+  have hLip0 : 0 ≤ Lip := by rw [hLipdef]; positivity
+  have hNpos : (0 : ℝ) < N := by exact_mod_cast hN
+  have hgpos : (0 : ℝ) < g := by exact_mod_cast hg
+  have hconst : ∀ τ, σ ≤ τ →
+      (∀ u, heatTorus d (2 * Real.pi ^ 2 * τ) u ≤ M)
+      ∧ (∀ u u', |heatTorus d (2 * Real.pi ^ 2 * τ) u - heatTorus d (2 * Real.pi ^ 2 * τ) u'|
+          ≤ Lip * dist u u') := by
+    intro τ hτ
+    have hcτ : 0 < 2 * Real.pi ^ 2 * τ := by have := lt_of_lt_of_le hσ hτ; positivity
+    have hcc : 2 * Real.pi ^ 2 * σ ≤ 2 * Real.pi ^ 2 * τ :=
+      mul_le_mul_of_nonneg_left hτ (by positivity)
+    obtain ⟨a1, a2⟩ := heat_consts_anti hcσ hcc d
+    constructor
+    · intro u; rw [hMdef]; exact (heatTorus_le hcτ d u).trans a1
+    · intro u u'; rw [hLipdef]
+      exact (heatTorus_lipschitz hcτ d u u').trans (mul_le_mul_of_nonneg_right a2 dist_nonneg)
+  have hepsn0 : 0 ≤ ε + 2 * (N * Lip) * (1 / g) := by positivity
+  have hδ0 : 0 ≤ δ := by rw [hδ]; positivity
+  have hEta : ∀ m, 1 ≤ m → m < K →
+      heatEtaBar d σ N m M L δ δ ≤ heatRateA d N M L δ θ / Real.sqrt m := by
+    intro m hm hmK
+    refine heatEtaBar_closed_all hσ hσ1 hM0 hL.le hδ0 d N hN m hm ?_
+    have h1 : Real.sqrt m ≤ Real.sqrt K := Real.sqrt_le_sqrt (by exact_mod_cast hmK.le)
+    have hkb0 : 0 ≤ heatKbar d σ := by unfold heatKbar; positivity
+    have h2 : 0 ≤ (2 * L + 2) * (heatKbar d σ + M) := by positivity
+    nlinarith [mul_le_mul_of_nonneg_left h1 h2]
+  subst hδ
+  exact heat_kernel_l1_whp hσ d X h_indep hX hlaw N K hN (hconst σ le_rfl).1 hL hepsn0 hsmall
+    (fun τ hτ => heat_normalisation_whp (lt_of_lt_of_le hσ hτ) d X h_indep hX hlaw N hg
+      (hconst τ hτ).1 (hconst τ hτ).2 hLip0 hε) (heatRateA_nonneg hM0 hL.le (div_nonneg hepsn0 hNpos.le) hθ0 d N) hEta
+
 end KernelL1
 
 end Probability
