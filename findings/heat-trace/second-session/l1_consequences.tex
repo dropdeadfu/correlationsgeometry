@@ -3,8 +3,11 @@
 % of the paper (lem:consistency, thm:kernel, prop:reduction, lem:pibound, cor:secondstage,
 % lem:kernelmatrix, thm:eigtorus) and does not compile on its own.
 % Written on 19 November 2026 by the second session (the repository owner's side).
-% STATUS: checked by its author session only; NOT yet read by another session; not formalised; not read by
-% a person; not part of the paper. The constants C, C_2', C_7, C_8, C_9 depend only on d.
+% STATUS (19 November 2026): read line by line by the author-side session, which recomputed the two places
+% named as most likely to be wrong (the use of the lemma for a fixed second index, and the conditions of
+% part (ii) of the theorem) and found no error. Not checked by that session: Lemma lem:kernel-l1 with its
+% range k <= delta'^(-2) and constant C_3 as a whole in the form of l1_kernel_lemma.tex, and the numbers in
+% the last remark. Not formalised; not read by a person; not part of the paper. The constants C, C_2', C_7, C_8, C_9 depend only on d.
 
 \begin{proposition}[The reduction in every dimension]\label{prop:reduction-alld}
 In the situation and with the notation of Proposition~\ref{prop:reduction}, on the event $E$ and for all
@@ -115,7 +118,7 @@ $S$ is positive semidefinite, so the eigenvalues of $S^k$ in decreasing order ar
 and Lemma~\ref{lem:kernelmatrix} give (i).
 
 \emph{(ii).} Let $a=e^{-\sigma\lambda_j}$ and $k=\lfloor1/\sigma\lambda_*\rfloor$. As in the proof of
-Theorem~\ref{thm:eigtorus}: $\sigma\lambda_*\le\frac12$, $k\ge2$, $\frac12\le k\sigma\lambda_*\le1$,
+Theorem~\ref{thm:eigtorus}: $\sigma\lambda_*\le\frac12$ (for $\lambda_*=1$ this uses $\xi\le1$, a hypothesis of Lemma~\ref{lem:consistency}), $k\ge2$, $\frac12\le k\sigma\lambda_*\le1$,
 $a^k\ge e^{-1}$, $\sqrt k\le(\sigma\lambda_*)^{-1/2}=\sqrt2\,\xi^{-1}\lambda_*^{-1/2}$ and $m_k\le C\lambda_*^{d/2}$. Hence
 the right-hand side of (i) is
 \[
