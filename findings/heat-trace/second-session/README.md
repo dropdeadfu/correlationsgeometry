@@ -6,7 +6,7 @@ here has been read by a person. Each file states its own status at the top.
 
 | File | Content | Status on 19 November 2026 |
 |---|---|---|
-| `l1_kernel_lemma.tex` | Lemma: on the event of the consistency lemma, `(1/N) sum_a |N (P^k)_ai - p_k(x_a - x_i)| <= C delta' sqrt(k)` for `k <= delta'^(-2)`. The proof uses the stationary weight `w_b = u_b r_b` of the walk and the telescoping identity of G.28; no induction, no doubling property, no smallness condition. | Lemma and proof recomputed on paper by the author-side session: no error; that session improved a constant from 3 to 9/7. Being formalised in Lean by the author-side session. |
+| `l1_kernel_lemma.tex` | Lemma: on the event of the consistency lemma, `(1/N) sum_a |N (P^k)_ai - p_k(x_a - x_i)| <= C delta' sqrt(k)` for `k <= delta'^(-2)`. The proof uses the stationary weight `w_b = u_b r_b` of the walk and the telescoping identity of G.28; no induction, no doubling property, no smallness condition. | Lemma and proof recomputed on paper by the author-side session: no error; that session improved a constant from 3 to 9/7. Machine-checked by the author-side session for random samples on the torus: `heat_kernel_l1_sample` in `../lean-core/CorrelationsToGeometryReal.lean` (its own hypotheses and range, see `../README.md`; standard axioms only). |
 | same file, first consequence | In the reduction G.32 the factor `phi_d(k)` can be dropped in every dimension, so the second stage (G.35) would hold for all `d` under `N xi^(d+4)/log N -> infinity`. | Written by the second session; not yet read line by line by another session. |
 | same file, second consequence | `||S^k - Q_k|| <= C delta' sqrt(k)` without the factor `m_k`, which would sharpen G.38 to `C (delta'/xi) lambda^(1/2) + C sqrt(log N/N) lambda^((d+2)/2)` and the regime of `eq:eigrate2` to `N xi^(max(d+2, 2d))/log N -> infinity`. | Written by the second session; not yet read by another session; the conditions of the last step are not written out. |
 | `pi_bound_independent.tex` | A proof of `E|Pi_k| <= C (M/N) k m_k` written before the second session had seen G.33 and G.34. Same decomposition of `Pi_k`, different lemma on degenerate statistics (degeneracy in every index, bounds through projections). | Checked by its author session only. The paper's own proof (G.33, G.34) is shorter and needs less; this file is kept as an independent derivation of the same bound. |
@@ -46,8 +46,14 @@ What was read, in which version, and what was not:
 - Lemma G.37, Theorem G.38 (`lem:kernelmatrix`, `thm:eigtorus`): read on 17 November; the text of these
   two statements on this branch is unchanged since. No error; the theorem needs `N >= N_0` from the
   lemma. Not checked: the wording of `eq:eigrate2` and the comparison with `thm:rate2`.
-- NOT read by the second session: Corollaries G.39, G.40, the remarks, the Lean files in `../lean-core`,
-  and everything in the paper outside the excerpts on this branch.
+- Corollaries G.39, G.40 (`cor:eigspace`, `cor:deloc`): read on 19 November in the text of
+  `../kernel_bound_excerpt.tex` on this branch, proofs and statements. No error. In G.39 two steps are
+  implicit: that the indices `j` with `lambda_j = Lambda` are at most `N` (true for `N >= N_0(d)`, since
+  there are at most `C xi^(-d)` eigenvalues up to `xi^(-2)`), and that `k <= (C_1 delta')^(-2)`, which
+  follows from `theta_Lambda <= 1` because `Lambda^((d+1)/2)/g_Lambda >= 1`. In G.40,
+  `N (S^(2k))_aa = N (P^(2k))_aa` exactly, so the factor `1 + 16 delta` is not needed.
+- NOT read by the second session: the remarks, the Lean files in `../lean-core`, and everything in the
+  paper outside the excerpts on this branch.
 
 "No error found" by a second AI session is weaker evidence than it sounds: such a reader agrees readily.
 For the statements that carry the results, a machine-checked proof and a blind check of the match between

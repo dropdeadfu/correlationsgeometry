@@ -4,8 +4,11 @@
 % the paper and does not compile on its own.
 % Written on 17 November 2026 by the second session (the repository owner's side).
 % STATUS (19 November 2026): the lemma and its proof were recomputed on paper by the author-side session,
-% which found no error and improved the constant from 3 to 9/7; the two consequences have NOT yet been
-% read line by line by another session. Not read by a person. Not part of the paper.
+% which found no error and improved the constant from 3 to 9/7. That session has also machine-checked a
+% form of the lemma for random samples on the torus (heat_kernel_l1_sample in
+% ../lean-core/CorrelationsToGeometryReal.lean; its hypotheses and range differ from the text below).
+% The two consequences have NOT yet been read line by line by another session and are not formalised.
+% Not read by a person. Not part of the paper.
 
 \begin{lemma}[The kernel of the sampled walk in the mean]\label{lem:kernel-l1}
 On the event of Lemma~\ref{lem:consistency} there is a constant $C_3$ depending only on $d$ such that for
