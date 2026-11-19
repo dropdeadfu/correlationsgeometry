@@ -2,7 +2,9 @@
 
 Evaluates the hypotheses of `heatTorus_eig_sample_bernstein` (lean/CorrelationsToGeometryReal.lean)
 for the first nonconstant eigenvalue (frequency |n| = 1, alpha = exp(-c)) on the flat torus of
-dimension d, kernel scale xi (sigma = xi^2/2, c = 2 pi^2 sigma), and asks for the smallest sample
+dimension d, kernel scale xi (the kernel is the periodised Gaussian of variance xi^2, that is,
+heatTorus d c with c = 2 pi^2 xi^2 = 4 pi^2 sigma for sigma = xi^2/2 of the paper; corrected on
+19 November 2026, an earlier version used c = pi^2 xi^2), and asks for the smallest sample
 size N (among powers of ten) for which the parameters k, m, R, eps_n, eps_c, eta can be chosen so
 that all inequalities hold and the bound on the failure probability is at most p0.
 
@@ -70,7 +72,7 @@ def ratio(d, c, N, k, m, R):
 
 
 def search(d, xi):
-    c = math.pi ** 2 * xi ** 2
+    c = 2 * math.pi ** 2 * xi ** 2
     for e in range(3, 61):
         N = 10.0 ** e
         best = (math.inf, None)
@@ -95,7 +97,7 @@ if __name__ == "__main__":
     for d in (1, 2):
         for xi in (0.5, 0.3, 0.2, 0.1):
             e, best = search(d, xi)
-            c = math.pi ** 2 * xi ** 2
+            c = 2 * math.pi ** 2 * xi ** 2
             if e is None:
                 print("  %d  %.2f  %7.4f   none up to 10^60 (best ratio %.3g)" % (d, xi, c, best[0]))
             else:

@@ -958,9 +958,10 @@ theorem kernel_theorem_matrix {n : Type} [Fintype n] [DecidableEq n] [Nonempty n
     {d : ℝ} (K : ℕ) (hd0 : 0 ≤ d) (hd1 : 4 * d ≤ 1)
     (hmu : ∀ k, 0 ≤ mu k) (hp0 : ∀ k a i, 0 ≤ p k a i) (hpmu : ∀ k a i, p k a i ≤ mu k)
     (hlast : ∀ b i, |(Fintype.card n : ℝ) * P b i - p 1 b i| ≤ 4 * d * p 1 b i)
-    (hbar : ∀ m i, 1 ≤ m → ∑ b, |(P *ᵥ (fun b' => p m b' i)) b - p (m + 1) b i|
+    (hbar : ∀ m i, 1 ≤ m → m < K → ∑ b, |(P *ᵥ (fun b' => p m b' i)) b - p (m + 1) b i|
         ≤ (Fintype.card n : ℝ) * etabar m)
-    (hsup : ∀ m i b, 1 ≤ m → |(P *ᵥ (fun b' => p m b' i)) b - p (m + 1) b i| ≤ etasup m)
+    (hsup : ∀ m i b, 1 ≤ m → m < K →
+      |(P *ᵥ (fun b' => p m b' i)) b - p (m + 1) b i| ≤ etasup m)
     (hsum : ∀ j, j + 1 < K → ∑ m ∈ Finset.range j,
         (2 * mu (j - m) / (Fintype.card n : ℝ)) * ((Fintype.card n : ℝ) * etabar (m + 1))
           + etasup (j + 1) ≤ W (j + 1) * mu (j + 2))
@@ -988,8 +989,8 @@ theorem kernel_theorem_matrix {n : Type} [Fintype n] [DecidableEq n] [Nonempty n
       (fun b => (Fintype.card n : ℝ) * P b i) (theta := 4 * d) (by linarith)
       (fun b => hlast b i) (fun l => 2 * mu l / (Fintype.card n : ℝ))
       (fun m => (Fintype.card n : ℝ) * etabar m) (etasup (j + 1)) j hent
-      (fun m _ => by simpa using hbar (m + 1) i (by omega)) hw
-      (fun b => by simpa using hsup (j + 1) i b (by omega)) a
+      (fun m hm => by simpa using hbar (m + 1) i (by omega) (by omega)) hw
+      (fun b => by simpa using hsup (j + 1) i b (by omega) hj) a
     have e : ((P ^ (j + 1)) *ᵥ fun b => (Fintype.card n : ℝ) * P b i) a
         = (Fintype.card n : ℝ) * (P ^ (j + 2)) a i := by
       have hpow : (P ^ (j + 2)) a i = ∑ b, (P ^ (j + 1)) a b * P b i := by
@@ -7175,6 +7176,6541 @@ theorem circle_variance {σ s : ℝ} (hσ : 0 < σ) (hs : 0 < s) (hσs : σ ≤ 
   simp only [e, e'] at t1 t2
   rw [← t1, ← t2]
   exact per_variance_line hσ hs hσs (x - w)
+
+/-! ### The variance bound on the circle with the kernel weight -/
+
+/-- The Gaussian lattice sum is a multiple of the heat kernel of the circle:
+    `∑_n e^{-(n - t)²/(2τ)} = (2πτ)^{1/2} P_τ(t)`. -/
+theorem gauss_sum_eq_pC {τ : ℝ} (hτ : 0 < τ) (t : ℝ) :
+    ∑' n : ℤ, Real.exp (-(1 / (2 * τ)) * ((n : ℝ) - t) ^ 2)
+      = (2 * Real.pi * τ) ^ (1 / 2 : ℝ) * pC (2 * Real.pi ^ 2 * τ) (t : UnitAddCircle) := by
+  have hc : 0 < 2 * Real.pi ^ 2 * τ := by positivity
+  have hpos : 0 < (2 * Real.pi * τ) ^ (1 / 2 : ℝ) := Real.rpow_pos_of_pos (by positivity) _
+  rw [pC_coe hc, perGauss_time hτ, ← mul_assoc, mul_one_div_cancel hpos.ne', one_mul]
+
+/-- The heat kernel of the circle is even. -/
+theorem pC_even (c : ℝ) (u : UnitAddCircle) : pC c (-u) = pC c u := by
+  unfold pC
+  have := heatTorus_even 1 c (fun _ => u)
+  simpa using this
+
+/-- **Variance bound on the circle in the form of the consistency lemma:** for `0 < σ ≤ s`,
+    `∫ P_σ(x - u) P_s(u - w)² du - (∫ P_σ(x - u) P_s(u - w) du)²
+      ≤ (σ/s) · 4/(πs) · (1 + √(12πs)) · (12πs)^{1/2} · P_{6s}(x - w)`. -/
+theorem circle_variance_weight {σ s : ℝ} (hσ : 0 < σ) (hs : 0 < s) (hσs : σ ≤ s) (x w : ℝ) :
+    (∫ u, pC (2 * Real.pi ^ 2 * σ) ((x : UnitAddCircle) - u)
+          * pC (2 * Real.pi ^ 2 * s) (u - (w : UnitAddCircle)) ^ 2
+        ∂(AddCircle.haarAddCircle : Measure UnitAddCircle))
+      - (∫ u, pC (2 * Real.pi ^ 2 * σ) ((x : UnitAddCircle) - u)
+          * pC (2 * Real.pi ^ 2 * s) (u - (w : UnitAddCircle))
+        ∂(AddCircle.haarAddCircle : Measure UnitAddCircle)) ^ 2
+      ≤ σ / s * (4 / (Real.pi * s)) * ((1 + Real.sqrt (Real.pi / (1 / (12 * s))))
+        * ((2 * Real.pi * (6 * s)) ^ (1 / 2 : ℝ)
+          * pC (2 * Real.pi ^ 2 * (6 * s)) ((x : UnitAddCircle) - (w : UnitAddCircle)))) := by
+  have h := circle_variance hσ hs hσs x w
+  have h6 : (0 : ℝ) < 6 * s := by positivity
+  have e := gauss_sum_eq_pC h6 (-(x - w))
+  have e1 : (1 : ℝ) / (2 * (6 * s)) = 1 / (12 * s) := by ring_nf
+  rw [e1] at e
+  rw [e] at h
+  have e2 : (((-(x - w) : ℝ)) : UnitAddCircle) = -((x : UnitAddCircle) - (w : UnitAddCircle)) := by
+    rw [AddCircle.coe_neg, AddCircle.coe_sub]
+  rw [e2, pC_even] at h
+  exact h
+
+/-! ### Difference of two products -/
+
+/-- **Difference of two products.** If `0 ≤ a i ≤ α w i`, `0 ≤ b i ≤ α w i` and `a i - b i ≤ ε w i` with
+    `w i ≥ 0`, then `∏ a - ∏ b ≤ |s| · ε · α^{|s|-1} · ∏ w`. -/
+theorem prod_sub_prod_le {ι : Type*} (s : Finset ι) (a b w : ι → ℝ) {α ε : ℝ}
+    (hα : 0 ≤ α) (hε : 0 ≤ ε) (ha : ∀ i, 0 ≤ a i) (hb : ∀ i, 0 ≤ b i)
+    (hbw : ∀ i, b i ≤ α * w i) (haw : ∀ i, a i ≤ α * w i) (hd : ∀ i, a i - b i ≤ ε * w i) (hw : ∀ i, 0 ≤ w i) :
+    ∏ i ∈ s, a i - ∏ i ∈ s, b i ≤ s.card * ε * α ^ (s.card - 1) * ∏ i ∈ s, w i := by
+  classical
+  have hprodb : ∀ t : Finset ι, ∏ i ∈ t, b i ≤ α ^ t.card * ∏ i ∈ t, w i := by
+    intro t
+    calc ∏ i ∈ t, b i ≤ ∏ i ∈ t, α * w i :=
+          Finset.prod_le_prod (fun i _ => hb i) (fun i _ => hbw i)
+      _ = α ^ t.card * ∏ i ∈ t, w i := by rw [Finset.prod_mul_distrib, Finset.prod_const]
+  induction s using Finset.induction_on with
+  | empty => simp
+  | insert k s hk ih =>
+    rw [Finset.prod_insert hk, Finset.prod_insert hk, Finset.prod_insert hk,
+      Finset.card_insert_of_notMem hk]
+    have hW : 0 ≤ ∏ i ∈ s, w i := Finset.prod_nonneg fun i _ => hw i
+    have hB : 0 ≤ ∏ i ∈ s, b i := Finset.prod_nonneg fun i _ => hb i
+    have e : a k * ∏ i ∈ s, a i - b k * ∏ i ∈ s, b i
+        = a k * (∏ i ∈ s, a i - ∏ i ∈ s, b i) + (a k - b k) * ∏ i ∈ s, b i := by ring
+    rw [e]
+    have hnn : 0 ≤ (s.card : ℝ) * ε * α ^ (s.card - 1) * ∏ i ∈ s, w i := by positivity
+    have h1 : a k * (∏ i ∈ s, a i - ∏ i ∈ s, b i)
+        ≤ (α * w k) * (s.card * ε * α ^ (s.card - 1) * ∏ i ∈ s, w i) :=
+      (mul_le_mul_of_nonneg_left ih (ha k)).trans (mul_le_mul_of_nonneg_right (haw k) hnn)
+    have h2 : (a k - b k) * ∏ i ∈ s, b i ≤ (ε * w k) * (α ^ s.card * ∏ i ∈ s, w i) :=
+      mul_le_mul (hd k) (hprodb s) hB (mul_nonneg hε (hw k))
+    have hpow : (s.card : ℝ) * α ^ (s.card - 1) * α = s.card * α ^ s.card := by
+      rcases Nat.eq_zero_or_pos s.card with h0 | hpos
+      · simp [h0]
+      · rw [mul_assoc, ← pow_succ, Nat.sub_add_cancel hpos]
+    have hfin : (α * w k) * (s.card * ε * α ^ (s.card - 1) * ∏ i ∈ s, w i)
+        + (ε * w k) * (α ^ s.card * ∏ i ∈ s, w i)
+        = ((s.card + 1 : ℕ) : ℝ) * ε * α ^ (s.card + 1 - 1) * (w k * ∏ i ∈ s, w i) := by
+      rw [Nat.add_sub_cancel]
+      push_cast
+      have h3 : (α * w k) * (s.card * ε * α ^ (s.card - 1) * ∏ i ∈ s, w i)
+          = ((s.card : ℝ) * α ^ (s.card - 1) * α) * ε * (w k * ∏ i ∈ s, w i) := by ring
+      rw [h3, hpow]; ring
+    linarith
+
+/-! ### The variance bound on the torus of dimension `d` -/
+
+/-- The heat kernel of the torus is the product of the heat kernels of the circle. -/
+theorem heatTorus_eq_prod_pC {c : ℝ} (hc : 0 < c) (d : ℕ) (x : FlatTorus d) :
+    heatTorus d c x = ∏ i, pC c (x i) := by
+  obtain ⟨t, rfl⟩ := flatTorus_lift d x
+  rw [heatTorus_eq_prod hc]
+  exact Finset.prod_congr rfl fun i _ => (pC_coe hc (t i)).symm
+
+/-- Integral of a product over the coordinates of the flat torus. -/
+theorem flatTorus_integral_prod (d : ℕ) (f : Fin d → UnitAddCircle → ℝ) :
+    ∫ x, ∏ i, f i (x i) ∂flatTorusMeasure d
+      = ∏ i, ∫ u, f i u ∂(AddCircle.haarAddCircle : Measure UnitAddCircle) :=
+  integral_fintype_prod_eq_prod (𝕜 := ℝ) f
+
+/-- Semigroup on the circle: `∫ P_σ(x - u) P_s(u - w) du = P_{σ+s}(x - w)`. -/
+theorem circle_first_moment {σ s : ℝ} (hσ : 0 < σ) (hs : 0 < s) (x w : ℝ) :
+    ∫ u, pC (2 * Real.pi ^ 2 * σ) ((x : UnitAddCircle) - u)
+        * pC (2 * Real.pi ^ 2 * s) (u - (w : UnitAddCircle))
+        ∂(AddCircle.haarAddCircle : Measure UnitAddCircle)
+      = pC (2 * Real.pi ^ 2 * (σ + s)) ((x : UnitAddCircle) - (w : UnitAddCircle)) := by
+  have hcs : 0 < 2 * Real.pi ^ 2 * s := by positivity
+  have hcτ : 0 < 2 * Real.pi ^ 2 * (σ + s) := by positivity
+  have hG : Continuous fun u : UnitAddCircle => pC (2 * Real.pi ^ 2 * s) (u - (w : UnitAddCircle)) :=
+    (pC_continuous hcs).comp (continuous_id.sub continuous_const)
+  have hGb : ∀ u : UnitAddCircle, |pC (2 * Real.pi ^ 2 * s) (u - (w : UnitAddCircle))|
+      ≤ (1 + Real.sqrt (Real.pi / (2 * Real.pi ^ 2 * s))) ^ 1 := fun u => by
+    rw [abs_of_nonneg (pC_nonneg hcs _)]; exact pC_le hcs _
+  have hval : ∀ y : ℝ, pC (2 * Real.pi ^ 2 * s) ((y : UnitAddCircle) - (w : UnitAddCircle))
+      = ∑' n : ℤ, gaussR s (y - w + n) := fun y => by
+    rw [← AddCircle.coe_sub, pC_coe hcs, perGauss_eq_tsum_gaussR hs]
+  have h1 := circle_gauss_integral hσ x
+    (fun u => pC (2 * Real.pi ^ 2 * s) (u - (w : UnitAddCircle))) hG.measurable hGb
+  simp only [hval] at h1
+  rw [h1]
+  have t1 := integral_add_right_eq_self (μ := volume)
+    (fun y : ℝ => gaussR σ (x - y) * ∑' n : ℤ, gaussR s (y - w + n)) w
+  have e : ∀ y : ℝ, x - (y + w) = (x - w) - y := fun y => by ring
+  have e' : ∀ y : ℝ, y + w - w = y := fun y => by ring
+  simp only [e, e'] at t1
+  rw [← t1, per_first_moment hσ hs, ← AddCircle.coe_sub, pC_coe hcτ,
+    perGauss_eq_tsum_gaussR (by positivity : (0 : ℝ) < σ + s)]
+
+/-- Second moment on the circle against the first: `∫ P_σ(x-u) P_s(u-w)² du ≤ S · P_{σ+s}(x-w)` with
+    `S = 1 + √(π/c_s)` the bound of `P_s`. -/
+theorem circle_second_le {σ s : ℝ} (hσ : 0 < σ) (hs : 0 < s) (x w : ℝ) :
+    ∫ u, pC (2 * Real.pi ^ 2 * σ) ((x : UnitAddCircle) - u)
+        * pC (2 * Real.pi ^ 2 * s) (u - (w : UnitAddCircle)) ^ 2
+        ∂(AddCircle.haarAddCircle : Measure UnitAddCircle)
+      ≤ (1 + Real.sqrt (Real.pi / (2 * Real.pi ^ 2 * s))) ^ 1
+        * pC (2 * Real.pi ^ 2 * (σ + s)) ((x : UnitAddCircle) - (w : UnitAddCircle)) := by
+  have hcσ : 0 < 2 * Real.pi ^ 2 * σ := by positivity
+  have hcs : 0 < 2 * Real.pi ^ 2 * s := by positivity
+  have hK : Continuous fun u : UnitAddCircle => pC (2 * Real.pi ^ 2 * σ) ((x : UnitAddCircle) - u) :=
+    (pC_continuous hcσ).comp (continuous_const.sub continuous_id)
+  have hG : Continuous fun u : UnitAddCircle => pC (2 * Real.pi ^ 2 * s) (u - (w : UnitAddCircle)) :=
+    (pC_continuous hcs).comp (continuous_id.sub continuous_const)
+  rw [← circle_first_moment hσ hs x w, ← integral_const_mul]
+  refine integral_mono
+    ((hK.mul (hG.pow 2)).integrable_of_hasCompactSupport (HasCompactSupport.of_compactSpace _))
+    (((hK.mul hG).const_mul _).integrable_of_hasCompactSupport (HasCompactSupport.of_compactSpace _))
+    (fun u => ?_)
+  have h0 := pC_nonneg hcσ ((x : UnitAddCircle) - u)
+  have h1 := pC_nonneg hcs (u - (w : UnitAddCircle))
+  have h2 := pC_le hcs (u - (w : UnitAddCircle))
+  show pC (2 * Real.pi ^ 2 * σ) ((x : UnitAddCircle) - u)
+        * pC (2 * Real.pi ^ 2 * s) (u - (w : UnitAddCircle)) ^ 2
+      ≤ (1 + Real.sqrt (Real.pi / (2 * Real.pi ^ 2 * s))) ^ 1
+        * (pC (2 * Real.pi ^ 2 * σ) ((x : UnitAddCircle) - u)
+          * pC (2 * Real.pi ^ 2 * s) (u - (w : UnitAddCircle)))
+  nlinarith [mul_nonneg h0 h1, mul_le_mul_of_nonneg_left h2 (mul_nonneg h0 h1)]
+
+/-- (P1) for the heat kernel of the circle. -/
+theorem pC_P1 {ca ct : ℝ} (ha : 0 < ca) (hat : ca ≤ ct) (u : UnitAddCircle) :
+    pC ca u ≤ (ct / ca) ^ (1 / 2 : ℝ) * pC ct u := by
+  obtain ⟨t, rfl⟩ := QuotientAddGroup.mk_surjective u
+  have ht : 0 < ct := lt_of_lt_of_le ha hat
+  rw [pC_coe ha, pC_coe ht]
+  exact perGauss_P1 ha hat t
+
+/-- **Variance bound on the flat torus of dimension `d`, with the factor `σ/s` and the weight of
+    the consistency lemma.** For `0 < σ ≤ s`, with `p_τ` the heat kernel of the torus at time `τ`
+    (`c = 2π²τ`) and points `X, W` of the torus,
+    `∫ p_σ(X - y) p_s(y - W)² dy - (∫ p_σ(X - y) p_s(y - W) dy)² ≤ d · ε · α^{d-1} · p_{6s}(X - W)`,
+    where `ε = (σ/s) · 4/(πs) · (1 + √(12πs)) · (12πs)^{1/2}` carries the factor `σ/s = 1/m` and
+    `α = (1 + √(π/c_s)) · (6s/(σ+s))^{1/2}`. This is the variance bound of the consistency lemma in
+    every dimension, without the Gaussian Poincaré inequality; the constants depend on `s`. -/
+theorem torus_variance {σ s : ℝ} (hσ : 0 < σ) (hs : 0 < s) (hσs : σ ≤ s) (d : ℕ)
+    (x w : Fin d → ℝ) :
+    (∫ y, heatTorus d (2 * Real.pi ^ 2 * σ) ((fun i => ((x i : ℝ) : UnitAddCircle)) - y)
+          * heatTorus d (2 * Real.pi ^ 2 * s) (y - fun i => ((w i : ℝ) : UnitAddCircle)) ^ 2
+        ∂flatTorusMeasure d)
+      - (∫ y, heatTorus d (2 * Real.pi ^ 2 * σ) ((fun i => ((x i : ℝ) : UnitAddCircle)) - y)
+          * heatTorus d (2 * Real.pi ^ 2 * s) (y - fun i => ((w i : ℝ) : UnitAddCircle))
+        ∂flatTorusMeasure d) ^ 2
+      ≤ (d : ℝ) * (σ / s * (4 / (Real.pi * s)) * ((1 + Real.sqrt (Real.pi / (1 / (12 * s))))
+            * (2 * Real.pi * (6 * s)) ^ (1 / 2 : ℝ)))
+          * ((1 + Real.sqrt (Real.pi / (2 * Real.pi ^ 2 * s))) ^ 1
+            * ((2 * Real.pi ^ 2 * (6 * s)) / (2 * Real.pi ^ 2 * (σ + s))) ^ (1 / 2 : ℝ)) ^ (d - 1)
+          * heatTorus d (2 * Real.pi ^ 2 * (6 * s))
+              ((fun i => ((x i : ℝ) : UnitAddCircle)) - fun i => ((w i : ℝ) : UnitAddCircle)) := by
+  have hpi := Real.pi_pos
+  have hcσ : 0 < 2 * Real.pi ^ 2 * σ := by positivity
+  have hcs : 0 < 2 * Real.pi ^ 2 * s := by positivity
+  have hcτ : 0 < 2 * Real.pi ^ 2 * (σ + s) := by positivity
+  have hc6 : 0 < 2 * Real.pi ^ 2 * (6 * s) := by positivity
+  have hτ6 : 2 * Real.pi ^ 2 * (σ + s) ≤ 2 * Real.pi ^ 2 * (6 * s) := by
+    have : 0 ≤ 2 * Real.pi ^ 2 := by positivity
+    nlinarith
+  set S : ℝ := (1 + Real.sqrt (Real.pi / (2 * Real.pi ^ 2 * s))) ^ 1 with hS
+  set ρ : ℝ := ((2 * Real.pi ^ 2 * (6 * s)) / (2 * Real.pi ^ 2 * (σ + s))) ^ (1 / 2 : ℝ) with hρ
+  have hS0 : 0 ≤ S := by rw [hS]; positivity
+  have hρ0 : 0 ≤ ρ := by rw [hρ]; positivity
+  have e2 : ∀ y : FlatTorus d,
+      heatTorus d (2 * Real.pi ^ 2 * σ) ((fun i => ((x i : ℝ) : UnitAddCircle)) - y)
+          * heatTorus d (2 * Real.pi ^ 2 * s) (y - fun i => ((w i : ℝ) : UnitAddCircle)) ^ 2
+        = ∏ i, (pC (2 * Real.pi ^ 2 * σ) (((x i : ℝ) : UnitAddCircle) - y i)
+            * pC (2 * Real.pi ^ 2 * s) (y i - ((w i : ℝ) : UnitAddCircle)) ^ 2) := by
+    intro y
+    rw [heatTorus_eq_prod_pC hcσ, heatTorus_eq_prod_pC hcs, ← Finset.prod_pow,
+      ← Finset.prod_mul_distrib]
+    rfl
+  have e1 : ∀ y : FlatTorus d,
+      heatTorus d (2 * Real.pi ^ 2 * σ) ((fun i => ((x i : ℝ) : UnitAddCircle)) - y)
+          * heatTorus d (2 * Real.pi ^ 2 * s) (y - fun i => ((w i : ℝ) : UnitAddCircle))
+        = ∏ i, (pC (2 * Real.pi ^ 2 * σ) (((x i : ℝ) : UnitAddCircle) - y i)
+            * pC (2 * Real.pi ^ 2 * s) (y i - ((w i : ℝ) : UnitAddCircle))) := by
+    intro y
+    rw [heatTorus_eq_prod_pC hcσ, heatTorus_eq_prod_pC hcs, ← Finset.prod_mul_distrib]
+    rfl
+  simp_rw [e2, e1]
+  rw [flatTorus_integral_prod d (fun i u => pC (2 * Real.pi ^ 2 * σ) (((x i : ℝ) : UnitAddCircle) - u)
+        * pC (2 * Real.pi ^ 2 * s) (u - ((w i : ℝ) : UnitAddCircle)) ^ 2),
+    flatTorus_integral_prod d (fun i u => pC (2 * Real.pi ^ 2 * σ) (((x i : ℝ) : UnitAddCircle) - u)
+        * pC (2 * Real.pi ^ 2 * s) (u - ((w i : ℝ) : UnitAddCircle))),
+    ← Finset.prod_pow, heatTorus_eq_prod_pC hc6]
+  have hfirst : ∀ i : Fin d, ∫ u, pC (2 * Real.pi ^ 2 * σ) (((x i : ℝ) : UnitAddCircle) - u)
+        * pC (2 * Real.pi ^ 2 * s) (u - ((w i : ℝ) : UnitAddCircle))
+        ∂(AddCircle.haarAddCircle : Measure UnitAddCircle)
+      = pC (2 * Real.pi ^ 2 * (σ + s)) (((x i : ℝ) : UnitAddCircle) - ((w i : ℝ) : UnitAddCircle)) :=
+    fun i => circle_first_moment hσ hs (x i) (w i)
+  have hτle : ∀ z : UnitAddCircle, pC (2 * Real.pi ^ 2 * (σ + s)) z
+      ≤ ρ * pC (2 * Real.pi ^ 2 * (6 * s)) z := fun z => pC_P1 hcτ hτ6 z
+  have hτS : ∀ z : UnitAddCircle, pC (2 * Real.pi ^ 2 * (σ + s)) z ≤ S := by
+    intro z
+    refine (pC_le hcτ z).trans ?_
+    rw [hS, pow_one, pow_one]
+    have : Real.pi / (2 * Real.pi ^ 2 * (σ + s)) ≤ Real.pi / (2 * Real.pi ^ 2 * s) :=
+      div_le_div_of_nonneg_left hpi.le hcs (by nlinarith [_root_.sq_nonneg Real.pi])
+    linarith [Real.sqrt_le_sqrt this]
+  have h := prod_sub_prod_le (Finset.univ : Finset (Fin d))
+    (fun i => ∫ u, pC (2 * Real.pi ^ 2 * σ) (((x i : ℝ) : UnitAddCircle) - u)
+        * pC (2 * Real.pi ^ 2 * s) (u - ((w i : ℝ) : UnitAddCircle)) ^ 2
+        ∂(AddCircle.haarAddCircle : Measure UnitAddCircle))
+    (fun i => (∫ u, pC (2 * Real.pi ^ 2 * σ) (((x i : ℝ) : UnitAddCircle) - u)
+        * pC (2 * Real.pi ^ 2 * s) (u - ((w i : ℝ) : UnitAddCircle))
+        ∂(AddCircle.haarAddCircle : Measure UnitAddCircle)) ^ 2)
+    (fun i => pC (2 * Real.pi ^ 2 * (6 * s))
+        (((x i : ℝ) : UnitAddCircle) - ((w i : ℝ) : UnitAddCircle)))
+    (α := S * ρ)
+    (ε := σ / s * (4 / (Real.pi * s)) * ((1 + Real.sqrt (Real.pi / (1 / (12 * s))))
+            * (2 * Real.pi * (6 * s)) ^ (1 / 2 : ℝ)))
+    (mul_nonneg hS0 hρ0) (by positivity)
+    (fun i => integral_nonneg fun u => mul_nonneg (pC_nonneg hcσ _) (_root_.sq_nonneg _))
+    (fun i => _root_.sq_nonneg _)
+    (fun i => by
+      beta_reduce
+      rw [hfirst i]
+      have a1 := hτS (((x i : ℝ) : UnitAddCircle) - ((w i : ℝ) : UnitAddCircle))
+      have a2 := hτle (((x i : ℝ) : UnitAddCircle) - ((w i : ℝ) : UnitAddCircle))
+      have a0 := pC_nonneg hcτ (((x i : ℝ) : UnitAddCircle) - ((w i : ℝ) : UnitAddCircle))
+      calc _ = pC (2 * Real.pi ^ 2 * (σ + s))
+              (((x i : ℝ) : UnitAddCircle) - ((w i : ℝ) : UnitAddCircle))
+            * pC (2 * Real.pi ^ 2 * (σ + s))
+              (((x i : ℝ) : UnitAddCircle) - ((w i : ℝ) : UnitAddCircle)) := _root_.sq _
+        _ ≤ S * (ρ * pC (2 * Real.pi ^ 2 * (6 * s))
+              (((x i : ℝ) : UnitAddCircle) - ((w i : ℝ) : UnitAddCircle))) :=
+            mul_le_mul a1 a2 a0 hS0
+        _ = _ := by ring)
+    (fun i => by
+      have a2 := hτle (((x i : ℝ) : UnitAddCircle) - ((w i : ℝ) : UnitAddCircle))
+      calc _ ≤ S * pC (2 * Real.pi ^ 2 * (σ + s))
+              (((x i : ℝ) : UnitAddCircle) - ((w i : ℝ) : UnitAddCircle)) :=
+            circle_second_le hσ hs (x i) (w i)
+        _ ≤ S * (ρ * pC (2 * Real.pi ^ 2 * (6 * s))
+              (((x i : ℝ) : UnitAddCircle) - ((w i : ℝ) : UnitAddCircle))) :=
+            mul_le_mul_of_nonneg_left a2 hS0
+        _ = _ := by ring)
+    (fun i => by
+      have := circle_variance_weight hσ hs hσs (x i) (w i)
+      calc _ ≤ _ := this
+        _ = _ := by ring)
+    (fun i => pC_nonneg hc6 _)
+  rw [Finset.card_univ, Fintype.card_fin] at h
+  exact h
+
+/-! ### Conditioning by independence -/
+
+section Conditioning
+open scoped ENNReal
+
+/-- **Conditioning by independence.** `U`, `V` independent and measurable, `S` a measurable set of
+    pairs. If for every fixed value `u` the probability that `(u, V) ∈ S` is at most `q`, then the
+    probability that `(U, V) ∈ S` is at most `q`. This replaces "given `x_b` and `x_i`" in the proof
+    of the consistency lemma. -/
+theorem indep_cond_bound {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {α β : Type*} [MeasurableSpace α] [MeasurableSpace β]
+    (U : Ω → α) (V : Ω → β) (hU : Measurable U) (hV : Measurable V) (hind : IndepFun U V μ)
+    (S : Set (α × β)) (hS : MeasurableSet S) {q : ℝ≥0∞}
+    (hq : ∀ u : α, μ {ω | (u, V ω) ∈ S} ≤ q) :
+    μ {ω | (U ω, V ω) ∈ S} ≤ q := by
+  have hmap := (indepFun_iff_map_prod_eq_prod_map_map hU.aemeasurable hV.aemeasurable).mp hind
+  have hUV : Measurable fun ω => (U ω, V ω) := hU.prodMk hV
+  have h1 : μ {ω | (U ω, V ω) ∈ S} = (μ.map fun ω => (U ω, V ω)) S := by
+    rw [Measure.map_apply hUV hS]; rfl
+  haveI : IsProbabilityMeasure (μ.map U) := Measure.isProbabilityMeasure_map hU.aemeasurable
+  haveI : IsProbabilityMeasure (μ.map V) := Measure.isProbabilityMeasure_map hV.aemeasurable
+  rw [h1, hmap, Measure.prod_apply hS]
+  calc ∫⁻ u, (μ.map V) (Prod.mk u ⁻¹' S) ∂(μ.map U)
+      ≤ ∫⁻ _u, q ∂(μ.map U) := by
+        refine lintegral_mono fun u => ?_
+        rw [Measure.map_apply hV (measurable_prodMk_left hS)]
+        exact hq u
+    _ = q := by simp
+
+/-- The same with real-valued probabilities. -/
+theorem indep_cond_bound_real {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {α β : Type*} [MeasurableSpace α] [MeasurableSpace β]
+    (U : Ω → α) (V : Ω → β) (hU : Measurable U) (hV : Measurable V) (hind : IndepFun U V μ)
+    (S : Set (α × β)) (hS : MeasurableSet S) {q : ℝ} (hq0 : 0 ≤ q)
+    (hq : ∀ u : α, μ.real {ω | (u, V ω) ∈ S} ≤ q) :
+    μ.real {ω | (U ω, V ω) ∈ S} ≤ q := by
+  have h := indep_cond_bound U V hU hV hind S hS (q := ENNReal.ofReal q) (fun u => by
+    have := hq u
+    rw [Measure.real] at this
+    exact (ENNReal.le_ofReal_iff_toReal_le (measure_ne_top μ _) hq0).mpr this)
+  rw [Measure.real]
+  exact (ENNReal.le_ofReal_iff_toReal_le (measure_ne_top μ _) hq0).mp h
+
+/-- **Conditioning on part of an independent sample.** For independent `X_j`, disjoint finite index
+    sets `S`, `T` and a measurable set `A` of pairs of tuples: if for every fixed tuple `u` over `S`
+    the probability that `(u, (X_j)_{j ∈ T}) ∈ A` is at most `q`, then the probability that
+    `((X_i)_{i ∈ S}, (X_j)_{j ∈ T}) ∈ A` is at most `q`. -/
+theorem sample_cond_bound {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {E : Type*} [MeasurableSpace E] (X : ℕ → Ω → E)
+    (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j)) (S T : Finset ℕ) (hST : Disjoint S T)
+    (A : Set ((S → E) × (T → E))) (hA : MeasurableSet A) {q : ℝ} (hq0 : 0 ≤ q)
+    (hq : ∀ u : S → E, μ.real {ω | (u, fun j : T => X j ω) ∈ A} ≤ q) :
+    μ.real {ω | ((fun i : S => X i ω), (fun j : T => X j ω)) ∈ A} ≤ q :=
+  indep_cond_bound_real (fun ω (i : S) => X i ω) (fun ω (j : T) => X j ω)
+    (measurable_pi_lambda _ fun i => hX i) (measurable_pi_lambda _ fun j => hX j)
+    (h_indep.indepFun_finset S T hST hX) A hA hq0 hq
+
+end Conditioning
+
+/-! ### Bernstein two-sided, the semigroup on the torus and the centred second moment -/
+
+/-- **Bernstein's inequality, two-sided, for a function of independent points over a finite index
+    set.** `f` measurable with `|f| ≤ b`, `E f(X_j) = 0` and `E f(X_j)² ≤ v` for `j ∈ T`:
+    `P(|∑_{j ∈ T} f(X_j)| ≥ eps) ≤ 2 exp(-eps² / (4 |T| v + 2 b eps))`. -/
+theorem bernstein_two_sided_fn {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {E : Type*} [MeasurableSpace E] (X : ℕ → Ω → E)
+    (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j)) (f : E → ℝ) (hf : Measurable f)
+    (T : Finset ℕ) {b v ε : ℝ} (hb : 0 < b) (hfb : ∀ z, |f z| ≤ b)
+    (hmean : ∀ j ∈ T, μ[fun ω => f (X j ω)] = 0)
+    (hvar : ∀ j ∈ T, ∫ ω, f (X j ω) ^ 2 ∂μ ≤ v) (hε : 0 < ε) :
+    μ.real {ω | ε ≤ |∑ j ∈ T, f (X j ω)|}
+      ≤ 2 * Real.exp (-ε ^ 2 / (4 * (T.card * v) + 2 * b * ε)) := by
+  have hV : ∑ j ∈ T, ∫ ω, f (X j ω) ^ 2 ∂μ ≤ T.card * v := by
+    calc ∑ j ∈ T, ∫ ω, f (X j ω) ^ 2 ∂μ ≤ ∑ _j ∈ T, v := Finset.sum_le_sum hvar
+      _ = T.card * v := by rw [Finset.sum_const, nsmul_eq_mul]
+  have hint : ∀ j, Integrable (fun ω => f (X j ω)) μ := fun j =>
+    Integrable.of_bound (hf.comp (hX j)).aestronglyMeasurable b
+      (Filter.Eventually.of_forall fun ω => by simpa using hfb (X j ω))
+  have h1 := bernstein_inequality (μ := μ) (fun j ω => f (X j ω))
+    (h_indep.comp (fun _ z => f z) (fun _ => hf)) (fun j => hf.comp (hX j)) T hb
+    (fun j _ ω => hfb (X j ω)) hmean hV hε
+  have h2 := bernstein_inequality (μ := μ) (fun j ω => -f (X j ω))
+    (h_indep.comp (fun _ z => -f z) (fun _ => hf.neg)) (fun j => (hf.comp (hX j)).neg) T hb
+    (fun j _ ω => by rw [abs_neg]; exact hfb (X j ω))
+    (fun j hj => by
+      have : (fun ω => -f (X j ω)) = fun ω => -(f (X j ω)) := rfl
+      rw [integral_neg, hmean j hj, neg_zero])
+    (by simpa using hV) hε
+  have hsub : {ω | ε ≤ |∑ j ∈ T, f (X j ω)|}
+      ⊆ {ω | ε ≤ ∑ j ∈ T, f (X j ω)} ∪ {ω | ε ≤ ∑ j ∈ T, -f (X j ω)} := by
+    intro ω hω
+    simp only [Set.mem_setOf_eq, Set.mem_union, Finset.sum_neg_distrib] at hω ⊢
+    rcases le_abs.mp hω with h | h
+    · exact Or.inl h
+    · exact Or.inr h
+  calc μ.real {ω | ε ≤ |∑ j ∈ T, f (X j ω)|}
+      ≤ μ.real ({ω | ε ≤ ∑ j ∈ T, f (X j ω)} ∪ {ω | ε ≤ ∑ j ∈ T, -f (X j ω)}) :=
+        measureReal_mono hsub
+    _ ≤ μ.real {ω | ε ≤ ∑ j ∈ T, f (X j ω)} + μ.real {ω | ε ≤ ∑ j ∈ T, -f (X j ω)} :=
+        measureReal_union_le _ _
+    _ ≤ 2 * Real.exp (-ε ^ 2 / (4 * (T.card * v) + 2 * b * ε)) := by linarith
+
+/-- Continuity of the heat kernel of the torus. -/
+theorem heatTorus_continuous {c : ℝ} (hc : 0 < c) (d : ℕ) : Continuous (heatTorus d c) := by
+  have habs : Summable fun n : Fin d → ℤ => |Real.exp (-c * ∑ i, ((n i : ℤ) : ℝ) ^ 2)| := by
+    simpa [abs_of_pos (Real.exp_pos _)] using gauss_summable hc d
+  exact cosSeries_continuous d _ habs
+
+/-- **Semigroup on the flat torus:** `∫ p_σ(X - y) p_s(y - W) dy = p_{σ+s}(X - W)`. -/
+theorem torus_first_moment {σ s : ℝ} (hσ : 0 < σ) (hs : 0 < s) (d : ℕ) (x w : Fin d → ℝ) :
+    ∫ y, heatTorus d (2 * Real.pi ^ 2 * σ) ((fun i => ((x i : ℝ) : UnitAddCircle)) - y)
+        * heatTorus d (2 * Real.pi ^ 2 * s) (y - fun i => ((w i : ℝ) : UnitAddCircle))
+        ∂flatTorusMeasure d
+      = heatTorus d (2 * Real.pi ^ 2 * (σ + s))
+          ((fun i => ((x i : ℝ) : UnitAddCircle)) - fun i => ((w i : ℝ) : UnitAddCircle)) := by
+  have hcσ : 0 < 2 * Real.pi ^ 2 * σ := by positivity
+  have hcs : 0 < 2 * Real.pi ^ 2 * s := by positivity
+  have hcτ : 0 < 2 * Real.pi ^ 2 * (σ + s) := by positivity
+  have e1 : ∀ y : FlatTorus d,
+      heatTorus d (2 * Real.pi ^ 2 * σ) ((fun i => ((x i : ℝ) : UnitAddCircle)) - y)
+          * heatTorus d (2 * Real.pi ^ 2 * s) (y - fun i => ((w i : ℝ) : UnitAddCircle))
+        = ∏ i, (pC (2 * Real.pi ^ 2 * σ) (((x i : ℝ) : UnitAddCircle) - y i)
+            * pC (2 * Real.pi ^ 2 * s) (y i - ((w i : ℝ) : UnitAddCircle))) := by
+    intro y
+    rw [heatTorus_eq_prod_pC hcσ, heatTorus_eq_prod_pC hcs, ← Finset.prod_mul_distrib]
+    rfl
+  simp_rw [e1]
+  rw [flatTorus_integral_prod d (fun i u => pC (2 * Real.pi ^ 2 * σ) (((x i : ℝ) : UnitAddCircle) - u)
+        * pC (2 * Real.pi ^ 2 * s) (u - ((w i : ℝ) : UnitAddCircle))),
+    heatTorus_eq_prod_pC hcτ]
+  exact Finset.prod_congr rfl fun i _ => circle_first_moment hσ hs (x i) (w i)
+
+/-- **Centred second moment on the torus:**
+    `∫ p_σ(X - y) (p_s(y - W) - c)² dy = ∫ p_σ(X - y) p_s(y - W)² dy - c²` for `c = p_{σ+s}(X - W)`. -/
+theorem torus_centered_second {σ s : ℝ} (hσ : 0 < σ) (hs : 0 < s) (d : ℕ) (x w : Fin d → ℝ) :
+    ∫ y, heatTorus d (2 * Real.pi ^ 2 * σ) ((fun i => ((x i : ℝ) : UnitAddCircle)) - y)
+        * (heatTorus d (2 * Real.pi ^ 2 * s) (y - fun i => ((w i : ℝ) : UnitAddCircle))
+          - heatTorus d (2 * Real.pi ^ 2 * (σ + s))
+              ((fun i => ((x i : ℝ) : UnitAddCircle)) - fun i => ((w i : ℝ) : UnitAddCircle))) ^ 2
+        ∂flatTorusMeasure d
+      = (∫ y, heatTorus d (2 * Real.pi ^ 2 * σ) ((fun i => ((x i : ℝ) : UnitAddCircle)) - y)
+          * heatTorus d (2 * Real.pi ^ 2 * s) (y - fun i => ((w i : ℝ) : UnitAddCircle)) ^ 2
+          ∂flatTorusMeasure d)
+        - heatTorus d (2 * Real.pi ^ 2 * (σ + s))
+            ((fun i => ((x i : ℝ) : UnitAddCircle)) - fun i => ((w i : ℝ) : UnitAddCircle)) ^ 2 := by
+  have hcσ : 0 < 2 * Real.pi ^ 2 * σ := by positivity
+  have hcs : 0 < 2 * Real.pi ^ 2 * s := by positivity
+  haveI : (flatTorusMeasure d).IsNegInvariant :=
+    Measure.IsAddHaarMeasure.isNegInvariant_of_regular (flatTorusMeasure d)
+  set X : FlatTorus d := fun i => ((x i : ℝ) : UnitAddCircle) with hX
+  set W : FlatTorus d := fun i => ((w i : ℝ) : UnitAddCircle) with hW
+  set c : ℝ := heatTorus d (2 * Real.pi ^ 2 * (σ + s)) (X - W) with hc
+  have hK : Continuous fun y : FlatTorus d => heatTorus d (2 * Real.pi ^ 2 * σ) (X - y) :=
+    (heatTorus_continuous hcσ d).comp (continuous_const.sub continuous_id)
+  have hG : Continuous fun y : FlatTorus d => heatTorus d (2 * Real.pi ^ 2 * s) (y - W) :=
+    (heatTorus_continuous hcs d).comp (continuous_id.sub continuous_const)
+  have hint : ∀ f : FlatTorus d → ℝ, Continuous f → Integrable f (flatTorusMeasure d) := fun f hf =>
+    hf.integrable_of_hasCompactSupport (HasCompactSupport.of_compactSpace _)
+  have hmass : ∫ y, heatTorus d (2 * Real.pi ^ 2 * σ) (X - y) ∂flatTorusMeasure d = 1 := by
+    rw [integral_sub_left_eq_self (heatTorus d (2 * Real.pi ^ 2 * σ)) (flatTorusMeasure d) X]
+    exact heatTorus_mass hcσ d
+  have hfirst : ∫ y, heatTorus d (2 * Real.pi ^ 2 * σ) (X - y)
+      * heatTorus d (2 * Real.pi ^ 2 * s) (y - W) ∂flatTorusMeasure d = c :=
+    torus_first_moment hσ hs d x w
+  have e : ∀ y : FlatTorus d, heatTorus d (2 * Real.pi ^ 2 * σ) (X - y)
+        * (heatTorus d (2 * Real.pi ^ 2 * s) (y - W) - c) ^ 2
+      = heatTorus d (2 * Real.pi ^ 2 * σ) (X - y) * heatTorus d (2 * Real.pi ^ 2 * s) (y - W) ^ 2
+        - 2 * c * (heatTorus d (2 * Real.pi ^ 2 * σ) (X - y)
+            * heatTorus d (2 * Real.pi ^ 2 * s) (y - W))
+        + c ^ 2 * heatTorus d (2 * Real.pi ^ 2 * σ) (X - y) := fun y => by ring
+  simp_rw [e]
+  have I1 : Integrable (fun y : FlatTorus d => heatTorus d (2 * Real.pi ^ 2 * σ) (X - y)
+      * heatTorus d (2 * Real.pi ^ 2 * s) (y - W) ^ 2) (flatTorusMeasure d) :=
+    hint _ (hK.mul (hG.pow 2))
+  have I2 : Integrable (fun y : FlatTorus d => 2 * c * (heatTorus d (2 * Real.pi ^ 2 * σ) (X - y)
+      * heatTorus d (2 * Real.pi ^ 2 * s) (y - W))) (flatTorusMeasure d) :=
+    (hint _ (hK.mul hG)).const_mul _
+  have I3 : Integrable (fun y : FlatTorus d => c ^ 2 * heatTorus d (2 * Real.pi ^ 2 * σ) (X - y))
+      (flatTorusMeasure d) := (hint _ hK).const_mul _
+  have I12 : Integrable (fun y : FlatTorus d => heatTorus d (2 * Real.pi ^ 2 * σ) (X - y)
+      * heatTorus d (2 * Real.pi ^ 2 * s) (y - W) ^ 2
+      - 2 * c * (heatTorus d (2 * Real.pi ^ 2 * σ) (X - y)
+          * heatTorus d (2 * Real.pi ^ 2 * s) (y - W))) (flatTorusMeasure d) := I1.sub I2
+  rw [integral_add I12 I3, integral_sub I1 I2, integral_const_mul, integral_const_mul, hfirst,
+    hmass]
+  ring
+
+/-! ### Consistency at fixed points with the sharp variance -/
+
+/-- **Consistency at fixed points with the sharp variance (Bernstein step of the consistency
+    lemma).** Independent uniform points `X_j` on the flat torus; fixed points `x, w` (real
+    coordinates), times `0 < σ ≤ s`; `Y(z) = p_σ(x - z) (p_s(z - w) - p_{σ+s}(x - w))`. If
+    `|Y| ≤ Bb` (HYPOTHESIS, to be supplied by (P4)) and `p_σ ≤ Mσ`, then for every finite index set
+    `T`,
+    `P(|∑_{j ∈ T} Y(X_j)| ≥ eps) ≤ 2 exp(-eps² / (4 |T| Mσ V + 2 Bb eps))`,
+    where `V = d ε α^{d-1} p_{6s}(x - w)` is the bound of `torus_variance`, which carries the
+    factor `σ/s = 1/m` and the weight `p_{6s}`. -/
+theorem heat_consistency_fixed {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {σ s : ℝ} (hσ : 0 < σ) (hs : 0 < s) (hσs : σ ≤ s) (d : ℕ)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (x w : Fin d → ℝ) (T : Finset ℕ)
+    {Bb Mσ ε : ℝ} (hBb : 0 < Bb)
+    (hY : ∀ z : FlatTorus d,
+      |heatTorus d (2 * Real.pi ^ 2 * σ) ((fun i => ((x i : ℝ) : UnitAddCircle)) - z)
+        * (heatTorus d (2 * Real.pi ^ 2 * s) (z - fun i => ((w i : ℝ) : UnitAddCircle))
+          - heatTorus d (2 * Real.pi ^ 2 * (σ + s))
+              ((fun i => ((x i : ℝ) : UnitAddCircle)) - fun i => ((w i : ℝ) : UnitAddCircle)))| ≤ Bb)
+    (hMσ : ∀ u, heatTorus d (2 * Real.pi ^ 2 * σ) u ≤ Mσ) (hε : 0 < ε) :
+    μ.real {ω | ε ≤ |∑ j ∈ T,
+        heatTorus d (2 * Real.pi ^ 2 * σ) ((fun i => ((x i : ℝ) : UnitAddCircle)) - X j ω)
+        * (heatTorus d (2 * Real.pi ^ 2 * s) (X j ω - fun i => ((w i : ℝ) : UnitAddCircle))
+          - heatTorus d (2 * Real.pi ^ 2 * (σ + s))
+              ((fun i => ((x i : ℝ) : UnitAddCircle)) - fun i => ((w i : ℝ) : UnitAddCircle)))|}
+      ≤ 2 * Real.exp (-ε ^ 2 / (4 * (T.card * (Mσ
+          * ((d : ℝ) * (σ / s * (4 / (Real.pi * s)) * ((1 + Real.sqrt (Real.pi / (1 / (12 * s))))
+                * (2 * Real.pi * (6 * s)) ^ (1 / 2 : ℝ)))
+              * ((1 + Real.sqrt (Real.pi / (2 * Real.pi ^ 2 * s))) ^ 1
+                * ((2 * Real.pi ^ 2 * (6 * s)) / (2 * Real.pi ^ 2 * (σ + s))) ^ (1 / 2 : ℝ)) ^ (d - 1)
+              * heatTorus d (2 * Real.pi ^ 2 * (6 * s))
+                  ((fun i => ((x i : ℝ) : UnitAddCircle))
+                    - fun i => ((w i : ℝ) : UnitAddCircle))))) + 2 * Bb * ε)) := by
+  have hcσ : 0 < 2 * Real.pi ^ 2 * σ := by positivity
+  have hcs : 0 < 2 * Real.pi ^ 2 * s := by positivity
+  haveI : (flatTorusMeasure d).IsNegInvariant :=
+    Measure.IsAddHaarMeasure.isNegInvariant_of_regular (flatTorusMeasure d)
+  set X0 : FlatTorus d := fun i => ((x i : ℝ) : UnitAddCircle) with hX0
+  set W0 : FlatTorus d := fun i => ((w i : ℝ) : UnitAddCircle) with hW0
+  set c : ℝ := heatTorus d (2 * Real.pi ^ 2 * (σ + s)) (X0 - W0) with hc
+  have hK : Continuous fun y : FlatTorus d => heatTorus d (2 * Real.pi ^ 2 * σ) (X0 - y) :=
+    (heatTorus_continuous hcσ d).comp (continuous_const.sub continuous_id)
+  have hG : Continuous fun y : FlatTorus d => heatTorus d (2 * Real.pi ^ 2 * s) (y - W0) :=
+    (heatTorus_continuous hcs d).comp (continuous_id.sub continuous_const)
+  have hYc : Continuous fun z : FlatTorus d => heatTorus d (2 * Real.pi ^ 2 * σ) (X0 - z)
+      * (heatTorus d (2 * Real.pi ^ 2 * s) (z - W0) - c) := hK.mul (hG.sub continuous_const)
+  have hint : ∀ f : FlatTorus d → ℝ, Continuous f → Integrable f (flatTorusMeasure d) := fun f hf =>
+    hf.integrable_of_hasCompactSupport (HasCompactSupport.of_compactSpace _)
+  have hmass : ∫ y, heatTorus d (2 * Real.pi ^ 2 * σ) (X0 - y) ∂flatTorusMeasure d = 1 := by
+    rw [integral_sub_left_eq_self (heatTorus d (2 * Real.pi ^ 2 * σ)) (flatTorusMeasure d) X0]
+    exact heatTorus_mass hcσ d
+  have hfirst : ∫ y, heatTorus d (2 * Real.pi ^ 2 * σ) (X0 - y)
+      * heatTorus d (2 * Real.pi ^ 2 * s) (y - W0) ∂flatTorusMeasure d = c :=
+    torus_first_moment hσ hs d x w
+  -- transfer of integrals to the law
+  have htr : ∀ (j : ℕ) (f : FlatTorus d → ℝ), Continuous f →
+      ∫ ω, f (X j ω) ∂μ = ∫ z, f z ∂flatTorusMeasure d := fun j f hf => by
+    rw [← hlaw j, integral_map (hX j).aemeasurable hf.measurable.aestronglyMeasurable]
+  refine bernstein_two_sided_fn (μ := μ) X h_indep hX
+    (fun z => heatTorus d (2 * Real.pi ^ 2 * σ) (X0 - z)
+      * (heatTorus d (2 * Real.pi ^ 2 * s) (z - W0) - c)) hYc.measurable T hBb hY
+    (fun j _ => ?_) (fun j _ => ?_) hε
+  · -- mean zero
+    rw [htr j _ hYc]
+    have e : ∀ z : FlatTorus d, heatTorus d (2 * Real.pi ^ 2 * σ) (X0 - z)
+          * (heatTorus d (2 * Real.pi ^ 2 * s) (z - W0) - c)
+        = heatTorus d (2 * Real.pi ^ 2 * σ) (X0 - z) * heatTorus d (2 * Real.pi ^ 2 * s) (z - W0)
+          - c * heatTorus d (2 * Real.pi ^ 2 * σ) (X0 - z) := fun z => by ring
+    simp_rw [e]
+    have I1 : Integrable (fun z : FlatTorus d => heatTorus d (2 * Real.pi ^ 2 * σ) (X0 - z)
+        * heatTorus d (2 * Real.pi ^ 2 * s) (z - W0)) (flatTorusMeasure d) := hint _ (hK.mul hG)
+    have I2 : Integrable (fun z : FlatTorus d => c * heatTorus d (2 * Real.pi ^ 2 * σ) (X0 - z))
+        (flatTorusMeasure d) := (hint _ hK).const_mul _
+    rw [integral_sub I1 I2, integral_const_mul, hfirst, hmass]
+    ring
+  · -- variance
+    rw [htr j (fun z => (heatTorus d (2 * Real.pi ^ 2 * σ) (X0 - z)
+      * (heatTorus d (2 * Real.pi ^ 2 * s) (z - W0) - c)) ^ 2) (hYc.pow 2)]
+    have hle : ∫ z, (heatTorus d (2 * Real.pi ^ 2 * σ) (X0 - z)
+          * (heatTorus d (2 * Real.pi ^ 2 * s) (z - W0) - c)) ^ 2 ∂flatTorusMeasure d
+        ≤ ∫ z, Mσ * (heatTorus d (2 * Real.pi ^ 2 * σ) (X0 - z)
+          * (heatTorus d (2 * Real.pi ^ 2 * s) (z - W0) - c) ^ 2) ∂flatTorusMeasure d := by
+      refine integral_mono (hint _ (hYc.pow 2))
+        ((hint _ (hK.mul ((hG.sub continuous_const).pow 2))).const_mul _) (fun z => ?_)
+      have h0 := heatTorus_nonneg hcσ d (X0 - z)
+      have h1 := hMσ (X0 - z)
+      have h2 : 0 ≤ (heatTorus d (2 * Real.pi ^ 2 * s) (z - W0) - c) ^ 2 := _root_.sq_nonneg _
+      show (heatTorus d (2 * Real.pi ^ 2 * σ) (X0 - z)
+            * (heatTorus d (2 * Real.pi ^ 2 * s) (z - W0) - c)) ^ 2
+          ≤ Mσ * (heatTorus d (2 * Real.pi ^ 2 * σ) (X0 - z)
+            * (heatTorus d (2 * Real.pi ^ 2 * s) (z - W0) - c) ^ 2)
+      rw [mul_pow, _root_.sq (heatTorus d (2 * Real.pi ^ 2 * σ) (X0 - z))]
+      nlinarith [mul_nonneg h0 h2, mul_le_mul_of_nonneg_right h1 (mul_nonneg h0 h2)]
+    have hM0 : 0 ≤ Mσ := (heatTorus_nonneg hcσ d 0).trans (hMσ 0)
+    have hvar := torus_variance hσ hs hσs d x w
+    rw [torus_first_moment hσ hs d x w] at hvar
+    refine hle.trans ?_
+    rw [integral_const_mul, torus_centered_second hσ hs d x w]
+    exact mul_le_mul_of_nonneg_left hvar hM0
+
+/-! ### Positivity of the kernel and the bound `B` from (P4) -/
+
+/-- The periodised Gaussian is strictly positive. -/
+theorem perGauss_pos {c : ℝ} (hc : 0 < c) (t : ℝ) : 0 < perGauss c t := by
+  have ha : 0 < c / Real.pi := div_pos hc Real.pi_pos
+  have hb : 0 < Real.pi / (c / Real.pi) := div_pos Real.pi_pos ha
+  unfold perGauss
+  refine mul_pos (by positivity) ?_
+  have e : (fun n : ℤ => Real.exp (-Real.pi / (c / Real.pi) * ((n : ℝ) - t) ^ 2))
+      = fun n : ℤ => Real.exp (-(Real.pi / (c / Real.pi)) * ((n : ℝ) - t) ^ 2) := by
+    funext n; rw [neg_div]
+  rw [e]
+  exact (gauss_shift_summable hb t).tsum_pos (fun n => (Real.exp_pos _).le) 0 (Real.exp_pos _)
+
+/-- The heat kernel of the torus is strictly positive. -/
+theorem heatTorus_pos {c : ℝ} (hc : 0 < c) (d : ℕ) (x : FlatTorus d) : 0 < heatTorus d c x := by
+  obtain ⟨t, rfl⟩ := flatTorus_lift d x
+  rw [heatTorus_eq_prod hc]
+  exact Finset.prod_pos fun i _ => perGauss_pos hc (t i)
+
+/-- **The bound `B` of the consistency lemma from (P4).** For `σ, s > 0`, points `X, W` of the
+    torus and `Y(z) = p_σ(X - z) (p_s(z - W) - c)`, `c = p_{σ+s}(X - W)`, with `p_σ ≤ Mσ`:
+    `|Y(z)| ≤ K^d p_{s+2σ}(X - W) / pre(s+2σ)^d + Mσ c`, where `K = pre(σ) pre(s) (√(4πσ) + 1)` and
+    `pre(τ) = (2πτ)^{-1/2}`. -/
+theorem heat_Y_bound {σ s : ℝ} (hσ : 0 < σ) (hs : 0 < s) (d : ℕ) (X0 W0 z : FlatTorus d) {Mσ : ℝ}
+    (hMσ : ∀ u, heatTorus d (2 * Real.pi ^ 2 * σ) u ≤ Mσ) :
+    |heatTorus d (2 * Real.pi ^ 2 * σ) (X0 - z)
+        * (heatTorus d (2 * Real.pi ^ 2 * s) (z - W0)
+          - heatTorus d (2 * Real.pi ^ 2 * (σ + s)) (X0 - W0))|
+      ≤ (1 / (2 * Real.pi * σ) ^ (1 / 2 : ℝ) * (1 / (2 * Real.pi * s) ^ (1 / 2 : ℝ))
+            * (Real.sqrt (Real.pi / (1 / (4 * σ))) + 1)) ^ d
+          * heatTorus d (2 * Real.pi ^ 2 * (s + 2 * σ)) (X0 - W0)
+          / (1 / (2 * Real.pi * (s + 2 * σ)) ^ (1 / 2 : ℝ)) ^ d
+        + Mσ * heatTorus d (2 * Real.pi ^ 2 * (σ + s)) (X0 - W0) := by
+  have hcσ : 0 < 2 * Real.pi ^ 2 * σ := by positivity
+  have hcs : 0 < 2 * Real.pi ^ 2 * s := by positivity
+  have hcτ : 0 < 2 * Real.pi ^ 2 * (σ + s) := by positivity
+  have hK := heatTorus_nonneg hcσ d (X0 - z)
+  have hG := heatTorus_nonneg hcs d (z - W0)
+  have hc := heatTorus_nonneg hcτ d (X0 - W0)
+  have hpre : 0 < (1 / (2 * Real.pi * (s + 2 * σ)) ^ (1 / 2 : ℝ)) ^ d := by positivity
+  have hP4 := heatTorus_P4 hσ hs d (X0 - z) (X0 - W0)
+  have e : X0 - W0 - (X0 - z) = z - W0 := by abel
+  rw [e] at hP4
+  have h1 : heatTorus d (2 * Real.pi ^ 2 * σ) (X0 - z) * heatTorus d (2 * Real.pi ^ 2 * s) (z - W0)
+      ≤ (1 / (2 * Real.pi * σ) ^ (1 / 2 : ℝ) * (1 / (2 * Real.pi * s) ^ (1 / 2 : ℝ))
+            * (Real.sqrt (Real.pi / (1 / (4 * σ))) + 1)) ^ d
+          * heatTorus d (2 * Real.pi ^ 2 * (s + 2 * σ)) (X0 - W0)
+          / (1 / (2 * Real.pi * (s + 2 * σ)) ^ (1 / 2 : ℝ)) ^ d := by
+    rw [le_div_iff₀ hpre]; exact hP4
+  have h2 : heatTorus d (2 * Real.pi ^ 2 * σ) (X0 - z)
+        * heatTorus d (2 * Real.pi ^ 2 * (σ + s)) (X0 - W0)
+      ≤ Mσ * heatTorus d (2 * Real.pi ^ 2 * (σ + s)) (X0 - W0) :=
+    mul_le_mul_of_nonneg_right (hMσ _) hc
+  have h3 : |heatTorus d (2 * Real.pi ^ 2 * s) (z - W0)
+        - heatTorus d (2 * Real.pi ^ 2 * (σ + s)) (X0 - W0)|
+      ≤ heatTorus d (2 * Real.pi ^ 2 * s) (z - W0)
+        + heatTorus d (2 * Real.pi ^ 2 * (σ + s)) (X0 - W0) := by
+    rw [abs_le]; constructor <;> linarith
+  rw [abs_mul, abs_of_nonneg hK]
+  calc heatTorus d (2 * Real.pi ^ 2 * σ) (X0 - z)
+        * |heatTorus d (2 * Real.pi ^ 2 * s) (z - W0)
+          - heatTorus d (2 * Real.pi ^ 2 * (σ + s)) (X0 - W0)|
+      ≤ heatTorus d (2 * Real.pi ^ 2 * σ) (X0 - z)
+        * (heatTorus d (2 * Real.pi ^ 2 * s) (z - W0)
+          + heatTorus d (2 * Real.pi ^ 2 * (σ + s)) (X0 - W0)) :=
+        mul_le_mul_of_nonneg_left h3 hK
+    _ = heatTorus d (2 * Real.pi ^ 2 * σ) (X0 - z) * heatTorus d (2 * Real.pi ^ 2 * s) (z - W0)
+        + heatTorus d (2 * Real.pi ^ 2 * σ) (X0 - z)
+          * heatTorus d (2 * Real.pi ^ 2 * (σ + s)) (X0 - W0) := by ring
+    _ ≤ _ := add_le_add h1 h2
+
+/-! ### From fixed points to two sample points -/
+
+/-- **From fixed points to two sample points.** `X_j` independent; `b ≠ i` two indices and `T` a
+    finite index set containing neither. `Y x w z` and the threshold `thr x w` are jointly
+    measurable. If for all fixed `x, w` the probability that
+    `thr x w ≤ |∑_{j ∈ T} Y x w (X_j)|` is at most `q`, then the same holds with `x = X_b`,
+    `w = X_i`. This is the step "given `x_b` and `x_i`, the remaining points are independent" of
+    the consistency lemma. -/
+theorem cond_pair_bound {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {E : Type*} [MeasurableSpace E] (X : ℕ → Ω → E)
+    (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j)) (b i : ℕ) (T : Finset ℕ)
+    (hbT : b ∉ T) (hiT : i ∉ T)
+    (Y : E → E → E → ℝ) (hY : Measurable fun p : E × E × E => Y p.1 p.2.1 p.2.2)
+    (thr : E → E → ℝ) (hthr : Measurable fun p : E × E => thr p.1 p.2) {q : ℝ} (hq0 : 0 ≤ q)
+    (hfix : ∀ x w : E, μ.real {ω | thr x w ≤ |∑ j ∈ T, Y x w (X j ω)|} ≤ q) :
+    μ.real {ω | thr (X b ω) (X i ω) ≤ |∑ j ∈ T, Y (X b ω) (X i ω) (X j ω)|} ≤ q := by
+  classical
+  set S : Finset ℕ := {b, i} with hS
+  have hbS : b ∈ S := by simp [hS]
+  have hiS : i ∈ S := by simp [hS]
+  have hST : Disjoint S T := by
+    rw [Finset.disjoint_left]
+    intro j hj hjT
+    rcases Finset.mem_insert.mp hj with rfl | hj'
+    · exact hbT hjT
+    · rw [Finset.mem_singleton] at hj'; subst hj'; exact hiT hjT
+  set A : Set ((S → E) × (T → E)) :=
+    {p | thr (p.1 ⟨b, hbS⟩) (p.1 ⟨i, hiS⟩)
+      ≤ |∑ j : T, Y (p.1 ⟨b, hbS⟩) (p.1 ⟨i, hiS⟩) (p.2 j)|} with hA
+  have hub : Measurable fun p : (S → E) × (T → E) => p.1 ⟨b, hbS⟩ :=
+    (measurable_pi_apply _).comp measurable_fst
+  have hui : Measurable fun p : (S → E) × (T → E) => p.1 ⟨i, hiS⟩ :=
+    (measurable_pi_apply _).comp measurable_fst
+  have hAm : MeasurableSet A := by
+    refine measurableSet_le (hthr.comp (hub.prodMk hui)) ?_
+    refine Measurable.abs (Finset.measurable_sum _ fun j _ => ?_)
+    exact hY.comp (hub.prodMk (hui.prodMk ((measurable_pi_apply j).comp measurable_snd)))
+  have hsum : ∀ (x w : E) (f : ℕ → E), ∑ j : T, Y x w (f j) = ∑ j ∈ T, Y x w (f j) :=
+    fun x w f => Finset.sum_coe_sort T (fun j => Y x w (f j))
+  have h := sample_cond_bound (μ := μ) X h_indep hX S T hST A hAm hq0 (fun u => by
+    have := hfix (u ⟨b, hbS⟩) (u ⟨i, hiS⟩)
+    refine le_trans (le_of_eq ?_) this
+    congr 1
+    ext ω
+    simp only [hA, Set.mem_setOf_eq]
+    rw [hsum (u ⟨b, hbS⟩) (u ⟨i, hiS⟩) (fun j => X j ω)])
+  refine le_trans (le_of_eq ?_) h
+  congr 1
+  ext ω
+  simp only [hA, Set.mem_setOf_eq]
+  rw [hsum (X b ω) (X i ω) (fun j => X j ω)]
+
+/-! ### Weighted consistency at a pair of sample points -/
+
+/-- The centred summand of the consistency lemma:
+    `Y(x, w, z) = p_σ(x - z) (p_s(z - w) - p_{σ+s}(x - w))`. -/
+noncomputable def heatY (d : ℕ) (σ s : ℝ) (x w z : FlatTorus d) : ℝ :=
+  heatTorus d (2 * Real.pi ^ 2 * σ) (x - z)
+    * (heatTorus d (2 * Real.pi ^ 2 * s) (z - w) - heatTorus d (2 * Real.pi ^ 2 * (σ + s)) (x - w))
+
+/-- The variance bound of `torus_variance` as a function of `u = x - w`. -/
+noncomputable def heatV (d : ℕ) (σ s : ℝ) (u : FlatTorus d) : ℝ :=
+  (d : ℝ) * (σ / s * (4 / (Real.pi * s)) * ((1 + Real.sqrt (Real.pi / (1 / (12 * s))))
+        * (2 * Real.pi * (6 * s)) ^ (1 / 2 : ℝ)))
+    * ((1 + Real.sqrt (Real.pi / (2 * Real.pi ^ 2 * s))) ^ 1
+      * ((2 * Real.pi ^ 2 * (6 * s)) / (2 * Real.pi ^ 2 * (σ + s))) ^ (1 / 2 : ℝ)) ^ (d - 1)
+    * heatTorus d (2 * Real.pi ^ 2 * (6 * s)) u
+
+/-- The bound `B` of `heat_Y_bound` as a function of `u = x - w`. -/
+noncomputable def heatB (d : ℕ) (σ s Mσ : ℝ) (u : FlatTorus d) : ℝ :=
+  (1 / (2 * Real.pi * σ) ^ (1 / 2 : ℝ) * (1 / (2 * Real.pi * s) ^ (1 / 2 : ℝ))
+        * (Real.sqrt (Real.pi / (1 / (4 * σ))) + 1)) ^ d
+      * heatTorus d (2 * Real.pi ^ 2 * (s + 2 * σ)) u
+      / (1 / (2 * Real.pi * (s + 2 * σ)) ^ (1 / 2 : ℝ)) ^ d
+    + Mσ * heatTorus d (2 * Real.pi ^ 2 * (σ + s)) u
+
+/-- The variance bound is nonnegative. -/
+theorem heatV_nonneg {σ s : ℝ} (hσ : 0 < σ) (hs : 0 < s) (d : ℕ) (u : FlatTorus d) :
+    0 ≤ heatV d σ s u := by
+  unfold heatV
+  have h := heatTorus_nonneg (by positivity : (0 : ℝ) < 2 * Real.pi ^ 2 * (6 * s)) d u
+  have hpi := Real.pi_pos
+  positivity
+
+/-- The bound `B` is positive. -/
+theorem heatB_pos {σ s Mσ : ℝ} (hσ : 0 < σ) (hs : 0 < s) (hM : 0 < Mσ) (d : ℕ)
+    (u : FlatTorus d) : 0 < heatB d σ s Mσ u := by
+  unfold heatB
+  have h1 := heatTorus_nonneg (by positivity : (0 : ℝ) < 2 * Real.pi ^ 2 * (s + 2 * σ)) d u
+  have h2 := heatTorus_pos (by positivity : (0 : ℝ) < 2 * Real.pi ^ 2 * (σ + s)) d u
+  have hpi := Real.pi_pos
+  have : 0 ≤ (1 / (2 * Real.pi * σ) ^ (1 / 2 : ℝ) * (1 / (2 * Real.pi * s) ^ (1 / 2 : ℝ))
+        * (Real.sqrt (Real.pi / (1 / (4 * σ))) + 1)) ^ d
+      * heatTorus d (2 * Real.pi ^ 2 * (s + 2 * σ)) u
+      / (1 / (2 * Real.pi * (s + 2 * σ)) ^ (1 / 2 : ℝ)) ^ d := by positivity
+  have h3 : 0 < Mσ * heatTorus d (2 * Real.pi ^ 2 * (σ + s)) u := mul_pos hM h2
+  linarith
+
+/-- The Bernstein step at arbitrary fixed points of the torus, with the bound `B` from (P4). -/
+theorem heat_consistency_fixed_all {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {σ s : ℝ} (hσ : 0 < σ) (hs : 0 < s) (hσs : σ ≤ s) (d : ℕ)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (x w : FlatTorus d) (T : Finset ℕ)
+    {Mσ ε : ℝ} (hMσ : ∀ u, heatTorus d (2 * Real.pi ^ 2 * σ) u ≤ Mσ) (hε : 0 < ε) :
+    μ.real {ω | ε ≤ |∑ j ∈ T, heatY d σ s x w (X j ω)|}
+      ≤ 2 * Real.exp (-ε ^ 2 / (4 * (T.card * (Mσ * heatV d σ s (x - w)))
+          + 2 * heatB d σ s Mσ (x - w) * ε)) := by
+  obtain ⟨tx, rfl⟩ := flatTorus_lift d x
+  obtain ⟨tw, rfl⟩ := flatTorus_lift d w
+  have hM : 0 < Mσ :=
+    lt_of_lt_of_le (heatTorus_pos (by positivity : (0 : ℝ) < 2 * Real.pi ^ 2 * σ) d 0) (hMσ 0)
+  exact heat_consistency_fixed hσ hs hσs d X h_indep hX hlaw tx tw T
+    (heatB_pos hσ hs hM d _) (fun z => heat_Y_bound hσ hs d _ _ z hMσ) hMσ hε
+
+/-- **Choice of the threshold in Bernstein's inequality.** For `B > 0`, `A ≥ 0`, `L > 0` and
+    `eps = 2 B L + 2 √(A L)`: `L ≤ eps² / (4 A + 2 B eps)`, so that
+    `exp(-eps²/(4A + 2B eps)) ≤ exp(-L)`. -/
+theorem bern_threshold {B A L : ℝ} (hB : 0 < B) (hA : 0 ≤ A) (hL : 0 < L) :
+    0 < 2 * B * L + 2 * Real.sqrt (A * L) ∧
+    Real.exp (-(2 * B * L + 2 * Real.sqrt (A * L)) ^ 2
+        / (4 * A + 2 * B * (2 * B * L + 2 * Real.sqrt (A * L)))) ≤ Real.exp (-L) := by
+  set r := Real.sqrt (A * L) with hr
+  have hr0 : 0 ≤ r := Real.sqrt_nonneg _
+  have hr2 : r ^ 2 = A * L := Real.sq_sqrt (mul_nonneg hA hL.le)
+  have hBL : 0 < B * L := mul_pos hB hL
+  have hε : 0 < 2 * B * L + 2 * r := by nlinarith
+  refine ⟨hε, ?_⟩
+  apply Real.exp_le_exp.mpr
+  have hden : 0 < 4 * A + 2 * B * (2 * B * L + 2 * r) := by nlinarith
+  rw [neg_div, neg_le_neg_iff, le_div_iff₀ hden]
+  nlinarith [mul_nonneg hBL.le hr0]
+
+/-- **Weighted consistency at a pair of sample points (estimate (ii) of the consistency lemma for
+    one pair and one index set, without the exceptional terms).** Independent uniform points on
+    the flat torus, indices `b, i` outside the finite index set `T`, `0 < σ ≤ s`, `p_σ ≤ Mσ`,
+    `L > 0`. With the threshold
+    `θ(x, w) = 2 B(x - w) L + 2 √(|T| Mσ V(x - w) L)`,
+    where `V` carries the factor `σ/s` and the weight `p_{6s}` and `B` is the bound from (P4),
+    `P(θ(X_b, X_i) ≤ |∑_{j ∈ T} Y(X_b, X_i, X_j)|) ≤ 2 e^{-L}`. -/
+theorem heat_consistency_pair {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {σ s : ℝ} (hσ : 0 < σ) (hs : 0 < s) (hσs : σ ≤ s) (d : ℕ)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (b i : ℕ) (T : Finset ℕ)
+    (hbT : b ∉ T) (hiT : i ∉ T) {Mσ L : ℝ}
+    (hMσ : ∀ u, heatTorus d (2 * Real.pi ^ 2 * σ) u ≤ Mσ) (hL : 0 < L) :
+    μ.real {ω | 2 * heatB d σ s Mσ (X b ω - X i ω) * L
+          + 2 * Real.sqrt (T.card * (Mσ * heatV d σ s (X b ω - X i ω)) * L)
+        ≤ |∑ j ∈ T, heatY d σ s (X b ω) (X i ω) (X j ω)|}
+      ≤ 2 * Real.exp (-L) := by
+  have hcσ : 0 < 2 * Real.pi ^ 2 * σ := by positivity
+  have hcs : 0 < 2 * Real.pi ^ 2 * s := by positivity
+  have hcτ : 0 < 2 * Real.pi ^ 2 * (σ + s) := by positivity
+  have hc6 : 0 < 2 * Real.pi ^ 2 * (6 * s) := by positivity
+  have hc2 : 0 < 2 * Real.pi ^ 2 * (s + 2 * σ) := by positivity
+  have hM : 0 < Mσ := lt_of_lt_of_le (heatTorus_pos hcσ d 0) (hMσ 0)
+  have hYc : Continuous fun p : FlatTorus d × FlatTorus d × FlatTorus d =>
+      heatY d σ s p.1 p.2.1 p.2.2 := by
+    unfold heatY
+    exact ((heatTorus_continuous hcσ d).comp (continuous_fst.sub (continuous_snd.comp continuous_snd))).mul
+      (((heatTorus_continuous hcs d).comp
+          ((continuous_snd.comp continuous_snd).sub (continuous_fst.comp continuous_snd))).sub
+        ((heatTorus_continuous hcτ d).comp (continuous_fst.sub (continuous_fst.comp continuous_snd))))
+  have hVc : Continuous fun u : FlatTorus d => heatV d σ s u := by
+    unfold heatV
+    exact continuous_const.mul (heatTorus_continuous hc6 d)
+  have hBc : Continuous fun u : FlatTorus d => heatB d σ s Mσ u := by
+    unfold heatB
+    exact ((continuous_const.mul (heatTorus_continuous hc2 d)).div_const _).add
+      (continuous_const.mul (heatTorus_continuous hcτ d))
+  have hsub : Continuous fun p : FlatTorus d × FlatTorus d => p.1 - p.2 :=
+    continuous_fst.sub continuous_snd
+  have hthr : Continuous fun p : FlatTorus d × FlatTorus d =>
+      2 * heatB d σ s Mσ (p.1 - p.2) * L
+        + 2 * Real.sqrt (T.card * (Mσ * heatV d σ s (p.1 - p.2)) * L) :=
+    ((continuous_const.mul (hBc.comp hsub)).mul continuous_const).add
+      (continuous_const.mul (Real.continuous_sqrt.comp
+        ((continuous_const.mul (continuous_const.mul (hVc.comp hsub))).mul continuous_const)))
+  refine cond_pair_bound (μ := μ) X h_indep hX b i T hbT hiT (heatY d σ s) hYc.measurable
+    (fun x w => 2 * heatB d σ s Mσ (x - w) * L
+      + 2 * Real.sqrt (T.card * (Mσ * heatV d σ s (x - w)) * L)) hthr.measurable
+    (by positivity) (fun x w => ?_)
+  have hA : 0 ≤ (T.card : ℝ) * (Mσ * heatV d σ s (x - w)) :=
+    mul_nonneg (Nat.cast_nonneg _) (mul_nonneg hM.le (heatV_nonneg hσ hs d _))
+  obtain ⟨hε, hexp⟩ := bern_threshold (heatB_pos hσ hs hM d (x - w)) hA hL
+  have h := heat_consistency_fixed_all hσ hs hσs d X h_indep hX hlaw x w T hMσ hε
+  refine h.trans ?_
+  exact mul_le_mul_of_nonneg_left hexp (by norm_num)
+
+/-! ### Weighted consistency for all pairs of sample points -/
+
+/-- **Weighted consistency simultaneously for all pairs of sample points.** Independent uniform
+    points on the flat torus, `0 < σ ≤ s`, `p_σ ≤ Mσ`, `L > 0`. With probability at least
+    `1 - 2 N² e^{-L}`, for all `b, i < N`, the sum of `Y(X_b, X_i, X_j)` over the other indices
+    `j < N`, `j ∉ {b, i}`, is smaller in absolute value than
+    `2 B(X_b - X_i) L + 2 √(N Mσ V(X_b - X_i) L)`. -/
+theorem heat_consistency_all_pairs {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {σ s : ℝ} (hσ : 0 < σ) (hs : 0 < s) (hσs : σ ≤ s) (d : ℕ)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (N : ℕ) {Mσ L : ℝ}
+    (hMσ : ∀ u, heatTorus d (2 * Real.pi ^ 2 * σ) u ≤ Mσ) (hL : 0 < L) :
+    μ.real {ω | ∃ b ∈ Finset.range N, ∃ i ∈ Finset.range N,
+        2 * heatB d σ s Mσ (X b ω - X i ω) * L
+          + 2 * Real.sqrt (N * (Mσ * heatV d σ s (X b ω - X i ω)) * L)
+        ≤ |∑ j ∈ ((Finset.range N).erase b).erase i, heatY d σ s (X b ω) (X i ω) (X j ω)|}
+      ≤ (N : ℝ) ^ 2 * (2 * Real.exp (-L)) := by
+  have hcσ : 0 < 2 * Real.pi ^ 2 * σ := by positivity
+  have hM : 0 < Mσ := lt_of_lt_of_le (heatTorus_pos hcσ d 0) (hMσ 0)
+  set E : ℕ × ℕ → Set Ω := fun p => {ω |
+      2 * heatB d σ s Mσ (X p.1 ω - X p.2 ω) * L
+        + 2 * Real.sqrt ((((Finset.range N).erase p.1).erase p.2).card
+            * (Mσ * heatV d σ s (X p.1 ω - X p.2 ω)) * L)
+      ≤ |∑ j ∈ ((Finset.range N).erase p.1).erase p.2,
+          heatY d σ s (X p.1 ω) (X p.2 ω) (X j ω)|} with hE
+  have hsub : {ω | ∃ b ∈ Finset.range N, ∃ i ∈ Finset.range N,
+        2 * heatB d σ s Mσ (X b ω - X i ω) * L
+          + 2 * Real.sqrt (N * (Mσ * heatV d σ s (X b ω - X i ω)) * L)
+        ≤ |∑ j ∈ ((Finset.range N).erase b).erase i, heatY d σ s (X b ω) (X i ω) (X j ω)|}
+      ⊆ ⋃ p ∈ Finset.range N ×ˢ Finset.range N, E p := by
+    rintro ω ⟨b, hb, i, hi, h⟩
+    simp only [Set.mem_iUnion, Finset.mem_product]
+    refine ⟨(b, i), ⟨hb, hi⟩, ?_⟩
+    simp only [hE, Set.mem_setOf_eq]
+    refine le_trans ?_ h
+    have hcard : ((((Finset.range N).erase b).erase i).card : ℝ) ≤ N := by
+      have h1 := Finset.card_erase_le (s := (Finset.range N).erase b) (a := i)
+      have h2 := Finset.card_erase_le (s := Finset.range N) (a := b)
+      rw [Finset.card_range] at h2
+      exact_mod_cast h1.trans h2
+    have hV := heatV_nonneg hσ hs d (X b ω - X i ω)
+    have hmono : ((((Finset.range N).erase b).erase i).card : ℝ)
+          * (Mσ * heatV d σ s (X b ω - X i ω)) * L
+        ≤ N * (Mσ * heatV d σ s (X b ω - X i ω)) * L :=
+      mul_le_mul_of_nonneg_right
+        (mul_le_mul_of_nonneg_right hcard (mul_nonneg hM.le hV)) hL.le
+    linarith [Real.sqrt_le_sqrt hmono]
+  have hone : ∀ p ∈ Finset.range N ×ˢ Finset.range N, μ.real (E p) ≤ 2 * Real.exp (-L) := by
+    intro p _
+    exact heat_consistency_pair hσ hs hσs d X h_indep hX hlaw p.1 p.2
+      (((Finset.range N).erase p.1).erase p.2)
+      (fun h => Finset.notMem_erase p.1 _ (Finset.mem_of_mem_erase h))
+      (Finset.notMem_erase p.2 _) hMσ hL
+  calc μ.real _ ≤ μ.real (⋃ p ∈ Finset.range N ×ˢ Finset.range N, E p) :=
+        measureReal_mono hsub (measure_ne_top μ _)
+    _ ≤ ∑ p ∈ Finset.range N ×ˢ Finset.range N, μ.real (E p) := measureReal_biUnion_finset_le _ _
+    _ ≤ ∑ _p ∈ Finset.range N ×ˢ Finset.range N, 2 * Real.exp (-L) := Finset.sum_le_sum hone
+    _ = (N : ℝ) ^ 2 * (2 * Real.exp (-L)) := by
+        rw [Finset.sum_const, Finset.card_product, Finset.card_range, nsmul_eq_mul]
+        push_cast; ring
+
+/-! ### Weighted consistency for all pairs and all numbers of steps -/
+
+/-- **Weighted consistency simultaneously for all pairs of sample points and all numbers of steps
+    `1 ≤ m ≤ K`.** Kernel time `σ`, times `s = m σ`. With probability at least
+    `1 - 2 K N² e^{-L}`, for all `1 ≤ m ≤ K` and all `b, i < N`, the sum of
+    `Y_m(X_b, X_i, X_j)` over `j < N`, `j ∉ {b, i}`, is smaller in absolute value than
+    `2 B_m(X_b - X_i) L + 2 √(N Mσ V_m(X_b - X_i) L)`. -/
+theorem heat_consistency_all_steps {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {σ : ℝ} (hσ : 0 < σ) (d : ℕ)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (N K : ℕ) {Mσ L : ℝ}
+    (hMσ : ∀ u, heatTorus d (2 * Real.pi ^ 2 * σ) u ≤ Mσ) (hL : 0 < L) :
+    μ.real {ω | ∃ m ∈ Finset.Icc 1 K, ∃ b ∈ Finset.range N, ∃ i ∈ Finset.range N,
+        2 * heatB d σ ((m : ℝ) * σ) Mσ (X b ω - X i ω) * L
+          + 2 * Real.sqrt (N * (Mσ * heatV d σ ((m : ℝ) * σ) (X b ω - X i ω)) * L)
+        ≤ |∑ j ∈ ((Finset.range N).erase b).erase i,
+            heatY d σ ((m : ℝ) * σ) (X b ω) (X i ω) (X j ω)|}
+      ≤ (K : ℝ) * ((N : ℝ) ^ 2 * (2 * Real.exp (-L))) := by
+  set E : ℕ → Set Ω := fun m => {ω | ∃ b ∈ Finset.range N, ∃ i ∈ Finset.range N,
+        2 * heatB d σ ((m : ℝ) * σ) Mσ (X b ω - X i ω) * L
+          + 2 * Real.sqrt (N * (Mσ * heatV d σ ((m : ℝ) * σ) (X b ω - X i ω)) * L)
+        ≤ |∑ j ∈ ((Finset.range N).erase b).erase i,
+            heatY d σ ((m : ℝ) * σ) (X b ω) (X i ω) (X j ω)|} with hE
+  have hsub : {ω | ∃ m ∈ Finset.Icc 1 K, ∃ b ∈ Finset.range N, ∃ i ∈ Finset.range N,
+        2 * heatB d σ ((m : ℝ) * σ) Mσ (X b ω - X i ω) * L
+          + 2 * Real.sqrt (N * (Mσ * heatV d σ ((m : ℝ) * σ) (X b ω - X i ω)) * L)
+        ≤ |∑ j ∈ ((Finset.range N).erase b).erase i,
+            heatY d σ ((m : ℝ) * σ) (X b ω) (X i ω) (X j ω)|}
+      ⊆ ⋃ m ∈ Finset.Icc 1 K, E m := by
+    rintro ω ⟨m, hm, h⟩
+    simp only [Set.mem_iUnion]
+    exact ⟨m, hm, h⟩
+  have hone : ∀ m ∈ Finset.Icc 1 K, μ.real (E m) ≤ (N : ℝ) ^ 2 * (2 * Real.exp (-L)) := by
+    intro m hm
+    have hm1 : (1 : ℝ) ≤ m := by exact_mod_cast (Finset.mem_Icc.mp hm).1
+    have hs : 0 < (m : ℝ) * σ := by positivity
+    have hσs : σ ≤ (m : ℝ) * σ := by nlinarith
+    exact heat_consistency_all_pairs hσ hs hσs d X h_indep hX hlaw N hMσ hL
+  calc μ.real _ ≤ μ.real (⋃ m ∈ Finset.Icc 1 K, E m) :=
+        measureReal_mono hsub (measure_ne_top μ _)
+    _ ≤ ∑ m ∈ Finset.Icc 1 K, μ.real (E m) := measureReal_biUnion_finset_le _ _
+    _ ≤ ∑ _m ∈ Finset.Icc 1 K, (N : ℝ) ^ 2 * (2 * Real.exp (-L)) := Finset.sum_le_sum hone
+    _ = (K : ℝ) * ((N : ℝ) ^ 2 * (2 * Real.exp (-L))) := by
+        rw [Finset.sum_const, Nat.card_Icc, nsmul_eq_mul]
+        simp
+
+/-! ### Moments of the summand and the Bernstein step for its absolute value -/
+
+/-- Continuity of the summand `Y` in its last variable. -/
+theorem heatY_continuous {σ s : ℝ} (hσ : 0 < σ) (hs : 0 < s) (d : ℕ) (x w : FlatTorus d) :
+    Continuous fun z : FlatTorus d => heatY d σ s x w z := by
+  unfold heatY
+  exact ((heatTorus_continuous (by positivity) d).comp (continuous_const.sub continuous_id)).mul
+    (((heatTorus_continuous (by positivity) d).comp (continuous_id.sub continuous_const)).sub
+      continuous_const)
+
+/-- **Second moment of the summand `Y` under the uniform law:**
+    `∫ Y(x, w, z)² dz ≤ Mσ V(x - w)`. -/
+theorem heatY_sq_integral_le {σ s : ℝ} (hσ : 0 < σ) (hs : 0 < s) (hσs : σ ≤ s) (d : ℕ)
+    (x w : FlatTorus d) {Mσ : ℝ} (hMσ : ∀ u, heatTorus d (2 * Real.pi ^ 2 * σ) u ≤ Mσ) :
+    ∫ z, heatY d σ s x w z ^ 2 ∂flatTorusMeasure d ≤ Mσ * heatV d σ s (x - w) := by
+  obtain ⟨tx, rfl⟩ := flatTorus_lift d x
+  obtain ⟨tw, rfl⟩ := flatTorus_lift d w
+  have hcσ : 0 < 2 * Real.pi ^ 2 * σ := by positivity
+  have hcs : 0 < 2 * Real.pi ^ 2 * s := by positivity
+  set X0 : FlatTorus d := fun i => ((tx i : ℝ) : UnitAddCircle) with hX0
+  set W0 : FlatTorus d := fun i => ((tw i : ℝ) : UnitAddCircle) with hW0
+  set c : ℝ := heatTorus d (2 * Real.pi ^ 2 * (σ + s)) (X0 - W0) with hc
+  have hK : Continuous fun y : FlatTorus d => heatTorus d (2 * Real.pi ^ 2 * σ) (X0 - y) :=
+    (heatTorus_continuous hcσ d).comp (continuous_const.sub continuous_id)
+  have hG : Continuous fun y : FlatTorus d => heatTorus d (2 * Real.pi ^ 2 * s) (y - W0) :=
+    (heatTorus_continuous hcs d).comp (continuous_id.sub continuous_const)
+  have hYc := heatY_continuous hσ hs d X0 W0
+  have hint : ∀ f : FlatTorus d → ℝ, Continuous f → Integrable f (flatTorusMeasure d) := fun f hf =>
+    hf.integrable_of_hasCompactSupport (HasCompactSupport.of_compactSpace _)
+  have hle : ∫ z, heatY d σ s X0 W0 z ^ 2 ∂flatTorusMeasure d
+      ≤ ∫ z, Mσ * (heatTorus d (2 * Real.pi ^ 2 * σ) (X0 - z)
+        * (heatTorus d (2 * Real.pi ^ 2 * s) (z - W0) - c) ^ 2) ∂flatTorusMeasure d := by
+    refine integral_mono (hint _ (hYc.pow 2))
+      ((hint _ (hK.mul ((hG.sub continuous_const).pow 2))).const_mul _) (fun z => ?_)
+    have h0 := heatTorus_nonneg hcσ d (X0 - z)
+    have h1 := hMσ (X0 - z)
+    have h2 : 0 ≤ (heatTorus d (2 * Real.pi ^ 2 * s) (z - W0) - c) ^ 2 := _root_.sq_nonneg _
+    show heatY d σ s X0 W0 z ^ 2
+        ≤ Mσ * (heatTorus d (2 * Real.pi ^ 2 * σ) (X0 - z)
+          * (heatTorus d (2 * Real.pi ^ 2 * s) (z - W0) - c) ^ 2)
+    unfold heatY
+    rw [mul_pow, _root_.sq (heatTorus d (2 * Real.pi ^ 2 * σ) (X0 - z))]
+    nlinarith [mul_nonneg h0 h2, mul_le_mul_of_nonneg_right h1 (mul_nonneg h0 h2)]
+  have hM0 : 0 ≤ Mσ := (heatTorus_nonneg hcσ d 0).trans (hMσ 0)
+  have hvar := torus_variance hσ hs hσs d tx tw
+  rw [torus_first_moment hσ hs d tx tw] at hvar
+  refine hle.trans ?_
+  rw [integral_const_mul, torus_centered_second hσ hs d tx tw]
+  unfold heatV
+  exact mul_le_mul_of_nonneg_left hvar hM0
+
+/-- **First absolute moment of `Y`:** `∫ |Y(x, w, z)| dz ≤ √(Mσ V(x - w))` (Cauchy–Schwarz). -/
+theorem heatY_abs_integral_le {σ s : ℝ} (hσ : 0 < σ) (hs : 0 < s) (hσs : σ ≤ s) (d : ℕ)
+    (x w : FlatTorus d) {Mσ : ℝ} (hMσ : ∀ u, heatTorus d (2 * Real.pi ^ 2 * σ) u ≤ Mσ) :
+    ∫ z, |heatY d σ s x w z| ∂flatTorusMeasure d ≤ Real.sqrt (Mσ * heatV d σ s (x - w)) := by
+  have hYc := heatY_continuous hσ hs d x w
+  have hint : ∀ f : FlatTorus d → ℝ, Continuous f → Integrable f (flatTorusMeasure d) := fun f hf =>
+    hf.integrable_of_hasCompactSupport (HasCompactSupport.of_compactSpace _)
+  set e : ℝ := ∫ z, |heatY d σ s x w z| ∂flatTorusMeasure d with he
+  have he0 : 0 ≤ e := integral_nonneg fun z => abs_nonneg _
+  have hsq : e ^ 2 ≤ ∫ z, heatY d σ s x w z ^ 2 ∂flatTorusMeasure d := by
+    have hnn : 0 ≤ ∫ z, (|heatY d σ s x w z| - e) ^ 2 ∂flatTorusMeasure d :=
+      integral_nonneg fun z => _root_.sq_nonneg _
+    have hexp : ∀ z, (|heatY d σ s x w z| - e) ^ 2
+        = heatY d σ s x w z ^ 2 - 2 * e * |heatY d σ s x w z| + e ^ 2 := fun z => by
+      rw [sub_sq, sq_abs]; ring
+    simp_rw [hexp] at hnn
+    have I1 : Integrable (fun z => heatY d σ s x w z ^ 2) (flatTorusMeasure d) := hint _ (hYc.pow 2)
+    have I2 : Integrable (fun z => 2 * e * |heatY d σ s x w z|) (flatTorusMeasure d) :=
+      (hint _ hYc.abs).const_mul _
+    have I12 : Integrable (fun z => heatY d σ s x w z ^ 2 - 2 * e * |heatY d σ s x w z|)
+        (flatTorusMeasure d) := I1.sub I2
+    rw [integral_add I12 (integrable_const _), integral_sub I1 I2, integral_const_mul,
+      integral_const] at hnn
+    simp only [measureReal_univ_eq_one, smul_eq_mul, one_mul] at hnn
+    nlinarith
+  have h2 := heatY_sq_integral_le hσ hs hσs d x w hMσ
+  calc e = Real.sqrt (e ^ 2) := (Real.sqrt_sq he0).symm
+    _ ≤ Real.sqrt (Mσ * heatV d σ s (x - w)) := Real.sqrt_le_sqrt (hsq.trans h2)
+
+/-- **First absolute moment of `Y`, sharp form:** `∫ |Y(x, w, z)| dz ≤ √(V(x - w))`, without the
+    factor `Mσ` (Cauchy–Schwarz with respect to the probability density `p_σ(x - ·)`). -/
+theorem heatY_abs_integral_sharp {σ s : ℝ} (hσ : 0 < σ) (hs : 0 < s) (hσs : σ ≤ s) (d : ℕ)
+    (x w : FlatTorus d) :
+    ∫ z, |heatY d σ s x w z| ∂flatTorusMeasure d ≤ Real.sqrt (heatV d σ s (x - w)) := by
+  haveI : (flatTorusMeasure d).IsNegInvariant :=
+    Measure.IsAddHaarMeasure.isNegInvariant_of_regular (flatTorusMeasure d)
+  obtain ⟨tx, rfl⟩ := flatTorus_lift d x
+  obtain ⟨tw, rfl⟩ := flatTorus_lift d w
+  have hcσ : 0 < 2 * Real.pi ^ 2 * σ := by positivity
+  have hcs : 0 < 2 * Real.pi ^ 2 * s := by positivity
+  set X0 : FlatTorus d := fun i => ((tx i : ℝ) : UnitAddCircle) with hX0
+  set W0 : FlatTorus d := fun i => ((tw i : ℝ) : UnitAddCircle) with hW0
+  set c : ℝ := heatTorus d (2 * Real.pi ^ 2 * (σ + s)) (X0 - W0) with hc
+  have hK : Continuous fun y : FlatTorus d => heatTorus d (2 * Real.pi ^ 2 * σ) (X0 - y) :=
+    (heatTorus_continuous hcσ d).comp (continuous_const.sub continuous_id)
+  have hG : Continuous fun y : FlatTorus d => heatTorus d (2 * Real.pi ^ 2 * s) (y - W0) :=
+    (heatTorus_continuous hcs d).comp (continuous_id.sub continuous_const)
+  have hYc := heatY_continuous hσ hs d X0 W0
+  have hint : ∀ f : FlatTorus d → ℝ, Continuous f → Integrable f (flatTorusMeasure d) := fun f hf =>
+    hf.integrable_of_hasCompactSupport (HasCompactSupport.of_compactSpace _)
+  obtain ⟨e, he⟩ : ∃ e : ℝ, e = ∫ z, |heatY d σ s X0 W0 z| ∂flatTorusMeasure d := ⟨_, rfl⟩
+  have he0 : 0 ≤ e := by rw [he]; exact integral_nonneg fun z => abs_nonneg _
+  have hYabs : ∀ z, |heatY d σ s X0 W0 z|
+      = heatTorus d (2 * Real.pi ^ 2 * σ) (X0 - z)
+        * |heatTorus d (2 * Real.pi ^ 2 * s) (z - W0) - c| := fun z => by
+    unfold heatY
+    rw [abs_mul, abs_of_nonneg (heatTorus_nonneg hcσ d _)]
+  have hnn : 0 ≤ ∫ z, heatTorus d (2 * Real.pi ^ 2 * σ) (X0 - z)
+      * (|heatTorus d (2 * Real.pi ^ 2 * s) (z - W0) - c| - e) ^ 2 ∂flatTorusMeasure d :=
+    integral_nonneg fun z => mul_nonneg (heatTorus_nonneg hcσ d _) (_root_.sq_nonneg _)
+  have hexp : ∀ z, heatTorus d (2 * Real.pi ^ 2 * σ) (X0 - z)
+        * (|heatTorus d (2 * Real.pi ^ 2 * s) (z - W0) - c| - e) ^ 2
+      = heatTorus d (2 * Real.pi ^ 2 * σ) (X0 - z)
+          * (heatTorus d (2 * Real.pi ^ 2 * s) (z - W0) - c) ^ 2
+        - 2 * e * |heatY d σ s X0 W0 z|
+        + e ^ 2 * heatTorus d (2 * Real.pi ^ 2 * σ) (X0 - z) := fun z => by
+    rw [hYabs z, sub_sq, sq_abs]; ring
+  simp_rw [hexp] at hnn
+  have I1 : Integrable (fun z => heatTorus d (2 * Real.pi ^ 2 * σ) (X0 - z)
+      * (heatTorus d (2 * Real.pi ^ 2 * s) (z - W0) - c) ^ 2) (flatTorusMeasure d) :=
+    hint _ (hK.mul ((hG.sub continuous_const).pow 2))
+  have I2 : Integrable (fun z => 2 * e * |heatY d σ s X0 W0 z|) (flatTorusMeasure d) :=
+    (hint _ hYc.abs).const_mul _
+  have I3 : Integrable (fun z => e ^ 2 * heatTorus d (2 * Real.pi ^ 2 * σ) (X0 - z))
+      (flatTorusMeasure d) := (hint _ hK).const_mul _
+  have hmass : ∫ z, heatTorus d (2 * Real.pi ^ 2 * σ) (X0 - z) ∂flatTorusMeasure d = 1 := by
+    rw [integral_sub_left_eq_self (heatTorus d (2 * Real.pi ^ 2 * σ)) (flatTorusMeasure d) X0,
+      heatTorus_mass hcσ d]
+  have I12 : Integrable (fun z => heatTorus d (2 * Real.pi ^ 2 * σ) (X0 - z)
+      * (heatTorus d (2 * Real.pi ^ 2 * s) (z - W0) - c) ^ 2 - 2 * e * |heatY d σ s X0 W0 z|)
+      (flatTorusMeasure d) := I1.sub I2
+  rw [integral_add I12 I3, integral_sub I1 I2, integral_const_mul, integral_const_mul,
+    hmass, torus_centered_second hσ hs d tx tw, ← he] at hnn
+  have hvar := torus_variance hσ hs hσs d tx tw
+  rw [torus_first_moment hσ hs d tx tw] at hvar
+  have hsq : e ^ 2 ≤ heatV d σ s (X0 - W0) := by
+    unfold heatV
+    nlinarith
+  rw [← he]
+  calc e = Real.sqrt (e ^ 2) := (Real.sqrt_sq he0).symm
+    _ ≤ Real.sqrt (heatV d σ s (X0 - W0)) := Real.sqrt_le_sqrt hsq
+
+/-- The summand `Y` is bounded by `B` at arbitrary points. -/
+theorem heatY_abs_le {σ s : ℝ} (hσ : 0 < σ) (hs : 0 < s) (d : ℕ) (x w z : FlatTorus d) {Mσ : ℝ}
+    (hMσ : ∀ u, heatTorus d (2 * Real.pi ^ 2 * σ) u ≤ Mσ) :
+    |heatY d σ s x w z| ≤ heatB d σ s Mσ (x - w) := by
+  have h := heat_Y_bound hσ hs d x w z hMσ
+  unfold heatY heatB
+  exact h
+
+/-- **Bernstein step for `|Y| - E|Y|` at fixed points.** With `e = ∫ |Y(x, w, z)| dz`,
+    `P(|∑_{j ∈ T} (|Y(x, w, X_j)| - e)| ≥ eps) ≤ 2 exp(-eps² / (4 |T| Mσ V + 2 B eps))`. -/
+theorem heat_abs_consistency_fixed_all {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {σ s : ℝ} (hσ : 0 < σ) (hs : 0 < s) (hσs : σ ≤ s) (d : ℕ)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (x w : FlatTorus d) (T : Finset ℕ)
+    {Mσ ε : ℝ} (hMσ : ∀ u, heatTorus d (2 * Real.pi ^ 2 * σ) u ≤ Mσ) (hε : 0 < ε) :
+    μ.real {ω | ε ≤ |∑ j ∈ T, (|heatY d σ s x w (X j ω)|
+        - ∫ z, |heatY d σ s x w z| ∂flatTorusMeasure d)|}
+      ≤ 2 * Real.exp (-ε ^ 2 / (4 * (T.card * (Mσ * heatV d σ s (x - w)))
+          + 2 * heatB d σ s Mσ (x - w) * ε)) := by
+  have hcσ : 0 < 2 * Real.pi ^ 2 * σ := by positivity
+  have hM : 0 < Mσ := lt_of_lt_of_le (heatTorus_pos hcσ d 0) (hMσ 0)
+  have hYc := heatY_continuous hσ hs d x w
+  have hint : ∀ f : FlatTorus d → ℝ, Continuous f → Integrable f (flatTorusMeasure d) := fun f hf =>
+    hf.integrable_of_hasCompactSupport (HasCompactSupport.of_compactSpace _)
+  set e : ℝ := ∫ z, |heatY d σ s x w z| ∂flatTorusMeasure d with he
+  have he0 : 0 ≤ e := integral_nonneg fun z => abs_nonneg _
+  have hB := heatB_pos hσ hs hM d (x - w)
+  have hYB : ∀ z, |heatY d σ s x w z| ≤ heatB d σ s Mσ (x - w) :=
+    fun z => heatY_abs_le hσ hs d x w z hMσ
+  have heB : e ≤ heatB d σ s Mσ (x - w) := by
+    have h := integral_mono (hint _ hYc.abs) (integrable_const (heatB d σ s Mσ (x - w))) hYB
+    simpa using h
+  have hfc : Continuous fun z : FlatTorus d => |heatY d σ s x w z| - e :=
+    hYc.abs.sub continuous_const
+  have htr : ∀ (j : ℕ) (f : FlatTorus d → ℝ), Continuous f →
+      ∫ ω, f (X j ω) ∂μ = ∫ z, f z ∂flatTorusMeasure d := fun j f hf => by
+    rw [← hlaw j, integral_map (hX j).aemeasurable hf.measurable.aestronglyMeasurable]
+  refine bernstein_two_sided_fn (μ := μ) X h_indep hX
+    (fun z => |heatY d σ s x w z| - e) hfc.measurable T hB (fun z => ?_)
+    (fun j _ => ?_) (fun j _ => ?_) hε
+  · rw [abs_le]
+    constructor <;> linarith [hYB z, abs_nonneg (heatY d σ s x w z)]
+  · rw [htr j _ hfc, integral_sub (hint _ hYc.abs) (integrable_const _), integral_const]
+    simp [he]
+  · rw [htr j (fun z => (|heatY d σ s x w z| - e) ^ 2) (hfc.pow 2)]
+    have hexp : ∀ z, (|heatY d σ s x w z| - e) ^ 2
+        = heatY d σ s x w z ^ 2 - 2 * e * |heatY d σ s x w z| + e ^ 2 := fun z => by
+      rw [sub_sq, sq_abs]; ring
+    simp_rw [hexp]
+    have I1 : Integrable (fun z => heatY d σ s x w z ^ 2) (flatTorusMeasure d) := hint _ (hYc.pow 2)
+    have I2 : Integrable (fun z => 2 * e * |heatY d σ s x w z|) (flatTorusMeasure d) :=
+      (hint _ hYc.abs).const_mul _
+    have I12 : Integrable (fun z => heatY d σ s x w z ^ 2 - 2 * e * |heatY d σ s x w z|)
+        (flatTorusMeasure d) := I1.sub I2
+    rw [integral_add I12 (integrable_const _), integral_sub I1 I2, integral_const_mul,
+      integral_const]
+    simp only [measureReal_univ_eq_one, smul_eq_mul, one_mul]
+    have h2 := heatY_sq_integral_le hσ hs hσs d x w hMσ
+    nlinarith [_root_.sq_nonneg e]
+
+/-! ### The centred absolute summand at a pair of sample points -/
+
+/-- Joint continuity of the summand `Y`. -/
+theorem heatY_joint_continuous {σ s : ℝ} (hσ : 0 < σ) (hs : 0 < s) (d : ℕ) :
+    Continuous fun p : FlatTorus d × FlatTorus d × FlatTorus d => heatY d σ s p.1 p.2.1 p.2.2 := by
+  unfold heatY
+  exact ((heatTorus_continuous (by positivity) d).comp
+      (continuous_fst.sub (continuous_snd.comp continuous_snd))).mul
+    (((heatTorus_continuous (by positivity) d).comp
+        ((continuous_snd.comp continuous_snd).sub (continuous_fst.comp continuous_snd))).sub
+      ((heatTorus_continuous (by positivity) d).comp
+        (continuous_fst.sub (continuous_fst.comp continuous_snd))))
+
+set_option maxHeartbeats 1600000 in
+/-- Continuity of the first absolute moment of `Y` in the two points. -/
+theorem heatY_absmean_continuous {σ s : ℝ} (hσ : 0 < σ) (hs : 0 < s) (d : ℕ) :
+    Continuous fun p : FlatTorus d × FlatTorus d =>
+      ∫ z, |heatY d σ s p.1 p.2 z| ∂flatTorusMeasure d := by
+  have hj := heatY_joint_continuous hσ hs d
+  have hu : Continuous (Function.uncurry fun (p : FlatTorus d × FlatTorus d) (z : FlatTorus d) =>
+      |heatY d σ s p.1 p.2 z|) := by
+    have hmap : Continuous fun q : (FlatTorus d × FlatTorus d) × FlatTorus d =>
+        ((q.1.1, (q.1.2, q.2)) : FlatTorus d × FlatTorus d × FlatTorus d) :=
+      (continuous_fst.comp continuous_fst).prodMk
+        ((continuous_snd.comp continuous_fst).prodMk continuous_snd)
+    exact (hj.comp hmap).abs
+  have h := continuous_parametric_integral_of_continuous (μ := flatTorusMeasure d) hu
+    (isCompact_univ (X := FlatTorus d))
+  simp only [Measure.restrict_univ] at h
+  exact h
+
+/-- The first absolute moment of the summand: `e(x, w) = ∫ |Y(x, w, z)| dz`. -/
+noncomputable def heatYmean (d : ℕ) (σ s : ℝ) (x w : FlatTorus d) : ℝ :=
+  ∫ z, |heatY d σ s x w z| ∂flatTorusMeasure d
+
+/-- Continuity of the mean in the two points. -/
+theorem heatYmean_continuous {σ s : ℝ} (hσ : 0 < σ) (hs : 0 < s) (d : ℕ) :
+    Continuous fun p : FlatTorus d × FlatTorus d => heatYmean d σ s p.1 p.2 :=
+  heatY_absmean_continuous hσ hs d
+
+/-- Unfolding of the mean (the definition is made irreducible below). -/
+theorem heatYmean_eq (d : ℕ) (σ s : ℝ) (x w : FlatTorus d) :
+    heatYmean d σ s x w = ∫ z, |heatY d σ s x w z| ∂flatTorusMeasure d := rfl
+
+attribute [irreducible] heatYmean
+
+/-- The centred absolute summand: `|Y(x, w, z)| - e(x, w)`. -/
+noncomputable def heatYc (d : ℕ) (σ s : ℝ) (x w z : FlatTorus d) : ℝ :=
+  |heatY d σ s x w z| - heatYmean d σ s x w
+
+/-- Joint continuity of the centred absolute summand. -/
+theorem heatYc_joint_continuous {σ s : ℝ} (hσ : 0 < σ) (hs : 0 < s) (d : ℕ) :
+    Continuous fun p : FlatTorus d × FlatTorus d × FlatTorus d => heatYc d σ s p.1 p.2.1 p.2.2 := by
+  have h1 : Continuous fun p : FlatTorus d × FlatTorus d × FlatTorus d =>
+      |heatY d σ s p.1 p.2.1 p.2.2| := (heatY_joint_continuous hσ hs d).abs
+  have hg : Continuous fun p : FlatTorus d × FlatTorus d × FlatTorus d =>
+      ((p.1, p.2.1) : FlatTorus d × FlatTorus d) :=
+    continuous_fst.prodMk (continuous_fst.comp continuous_snd)
+  have h2 : Continuous fun p : FlatTorus d × FlatTorus d × FlatTorus d =>
+      heatYmean d σ s p.1 p.2.1 := (heatYmean_continuous hσ hs d).comp hg
+  exact h1.sub h2
+
+/-- The threshold of the weighted consistency estimates. -/
+noncomputable def heatThr (d : ℕ) (σ s Mσ L A : ℝ) (u : FlatTorus d) : ℝ :=
+  2 * heatB d σ s Mσ u * L + 2 * Real.sqrt (A * (Mσ * heatV d σ s u) * L)
+
+/-- Continuity of the threshold in the two points. -/
+theorem heatThr_continuous {σ s : ℝ} (hσ : 0 < σ) (hs : 0 < s) (d : ℕ) (Mσ L A : ℝ) :
+    Continuous fun p : FlatTorus d × FlatTorus d => heatThr d σ s Mσ L A (p.1 - p.2) := by
+  have hVc : Continuous fun u : FlatTorus d => heatV d σ s u := by
+    unfold heatV
+    exact continuous_const.mul (heatTorus_continuous (by positivity) d)
+  have hBc : Continuous fun u : FlatTorus d => heatB d σ s Mσ u := by
+    unfold heatB
+    exact ((continuous_const.mul (heatTorus_continuous (by positivity) d)).div_const _).add
+      (continuous_const.mul (heatTorus_continuous (by positivity) d))
+  have hsub : Continuous fun p : FlatTorus d × FlatTorus d => p.1 - p.2 :=
+    continuous_fst.sub continuous_snd
+  unfold heatThr
+  exact ((continuous_const.mul (hBc.comp hsub)).mul continuous_const).add
+    (continuous_const.mul (Real.continuous_sqrt.comp
+      ((continuous_const.mul (continuous_const.mul (hVc.comp hsub))).mul continuous_const)))
+
+/-- The Bernstein step for the centred absolute summand at fixed points, with the threshold. -/
+theorem heatYc_fixed {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {σ s : ℝ} (hσ : 0 < σ) (hs : 0 < s) (hσs : σ ≤ s) (d : ℕ)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (x w : FlatTorus d) (T : Finset ℕ)
+    {Mσ L : ℝ} (hMσ : ∀ u, heatTorus d (2 * Real.pi ^ 2 * σ) u ≤ Mσ) (hL : 0 < L) :
+    μ.real {ω | heatThr d σ s Mσ L T.card (x - w) ≤ |∑ j ∈ T, heatYc d σ s x w (X j ω)|}
+      ≤ 2 * Real.exp (-L) := by
+  have hM : 0 < Mσ :=
+    lt_of_lt_of_le (heatTorus_pos (by positivity : (0 : ℝ) < 2 * Real.pi ^ 2 * σ) d 0) (hMσ 0)
+  have hA : 0 ≤ (T.card : ℝ) * (Mσ * heatV d σ s (x - w)) :=
+    mul_nonneg (Nat.cast_nonneg _) (mul_nonneg hM.le (heatV_nonneg hσ hs d _))
+  obtain ⟨hε, hexp⟩ := bern_threshold (heatB_pos hσ hs hM d (x - w)) hA hL
+  have h := heat_abs_consistency_fixed_all hσ hs hσs d X h_indep hX hlaw x w T hMσ hε
+  unfold heatThr heatYc
+  simp only [heatYmean_eq]
+  exact h.trans (mul_le_mul_of_nonneg_left hexp (by norm_num))
+
+/-- **Weighted bound for the absolute summand at a pair of sample points.** As
+    `heat_consistency_pair`, for the centred absolute summand `|Y| - E|Y|`. -/
+theorem heat_abs_consistency_pair {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {σ s : ℝ} (hσ : 0 < σ) (hs : 0 < s) (hσs : σ ≤ s) (d : ℕ)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (b i : ℕ) (T : Finset ℕ)
+    (hbT : b ∉ T) (hiT : i ∉ T) {Mσ L : ℝ}
+    (hMσ : ∀ u, heatTorus d (2 * Real.pi ^ 2 * σ) u ≤ Mσ) (hL : 0 < L) :
+    μ.real {ω | heatThr d σ s Mσ L T.card (X b ω - X i ω)
+        ≤ |∑ j ∈ T, heatYc d σ s (X b ω) (X i ω) (X j ω)|}
+      ≤ 2 * Real.exp (-L) :=
+  cond_pair_bound (μ := μ) X h_indep hX b i T hbT hiT (heatYc d σ s)
+    (heatYc_joint_continuous hσ hs d).measurable
+    (fun x w => heatThr d σ s Mσ L T.card (x - w))
+    (heatThr_continuous hσ hs d Mσ L T.card).measurable (by positivity)
+    (fun x w => heatYc_fixed hσ hs hσs d X h_indep hX hlaw x w T hMσ hL)
+
+/-! ### The centred absolute summand for all pairs and all numbers of steps -/
+
+/-- The threshold is monotone in the size parameter. -/
+theorem heatThr_mono {σ s Mσ L A A' : ℝ} (hσ : 0 < σ) (hs : 0 < s) (hM : 0 ≤ Mσ) (hL : 0 ≤ L)
+    (hAA : A ≤ A') (d : ℕ) (u : FlatTorus d) :
+    heatThr d σ s Mσ L A u ≤ heatThr d σ s Mσ L A' u := by
+  unfold heatThr
+  have hV := heatV_nonneg hσ hs d u
+  have h : A * (Mσ * heatV d σ s u) * L ≤ A' * (Mσ * heatV d σ s u) * L :=
+    mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_right hAA (mul_nonneg hM hV)) hL
+  linarith [Real.sqrt_le_sqrt h]
+
+/-- **The centred absolute summand, simultaneously for all pairs of sample points and all numbers
+    of steps `1 ≤ m ≤ K`.** With probability at least `1 - 2 K N² e^{-L}`, for all `1 ≤ m ≤ K` and
+    `b, i < N`, the sum of `|Y_m(X_b, X_i, X_j)| - E|Y_m|` over `j < N`, `j ∉ {b, i}`, is smaller in
+    absolute value than the threshold `2 B_m L + 2 √(N Mσ V_m L)` at `X_b - X_i`. -/
+theorem heat_abs_consistency_all_steps {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {σ : ℝ} (hσ : 0 < σ) (d : ℕ)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (N K : ℕ) {Mσ L : ℝ}
+    (hMσ : ∀ u, heatTorus d (2 * Real.pi ^ 2 * σ) u ≤ Mσ) (hL : 0 < L) :
+    μ.real {ω | ∃ m ∈ Finset.Icc 1 K, ∃ b ∈ Finset.range N, ∃ i ∈ Finset.range N,
+        heatThr d σ ((m : ℝ) * σ) Mσ L N (X b ω - X i ω)
+        ≤ |∑ j ∈ ((Finset.range N).erase b).erase i,
+            heatYc d σ ((m : ℝ) * σ) (X b ω) (X i ω) (X j ω)|}
+      ≤ (K : ℝ) * ((N : ℝ) ^ 2 * (2 * Real.exp (-L))) := by
+  have hcσ : 0 < 2 * Real.pi ^ 2 * σ := by positivity
+  have hM : 0 < Mσ := lt_of_lt_of_le (heatTorus_pos hcσ d 0) (hMσ 0)
+  set I : Finset (ℕ × ℕ × ℕ) := Finset.Icc 1 K ×ˢ (Finset.range N ×ˢ Finset.range N) with hI
+  set E : ℕ × ℕ × ℕ → Set Ω := fun q => {ω |
+      heatThr d σ ((q.1 : ℝ) * σ) Mσ L
+          ((((Finset.range N).erase q.2.1).erase q.2.2).card : ℝ) (X q.2.1 ω - X q.2.2 ω)
+        ≤ |∑ j ∈ ((Finset.range N).erase q.2.1).erase q.2.2,
+            heatYc d σ ((q.1 : ℝ) * σ) (X q.2.1 ω) (X q.2.2 ω) (X j ω)|} with hE
+  have hsub : {ω | ∃ m ∈ Finset.Icc 1 K, ∃ b ∈ Finset.range N, ∃ i ∈ Finset.range N,
+        heatThr d σ ((m : ℝ) * σ) Mσ L N (X b ω - X i ω)
+        ≤ |∑ j ∈ ((Finset.range N).erase b).erase i,
+            heatYc d σ ((m : ℝ) * σ) (X b ω) (X i ω) (X j ω)|}
+      ⊆ ⋃ q ∈ I, E q := by
+    rintro ω ⟨m, hm, b, hb, i, hi, h⟩
+    simp only [Set.mem_iUnion]
+    refine ⟨(m, b, i), by simp [hI, Finset.mem_product, hm, hb, hi], ?_⟩
+    simp only [hE, Set.mem_setOf_eq]
+    refine le_trans ?_ h
+    have hm1 : (1 : ℝ) ≤ m := by exact_mod_cast (Finset.mem_Icc.mp hm).1
+    have hcard : ((((Finset.range N).erase b).erase i).card : ℝ) ≤ N := by
+      have h1 := Finset.card_erase_le (s := (Finset.range N).erase b) (a := i)
+      have h2 := Finset.card_erase_le (s := Finset.range N) (a := b)
+      rw [Finset.card_range] at h2
+      exact_mod_cast h1.trans h2
+    exact heatThr_mono hσ (by positivity) hM.le hL.le hcard d _
+  have hone : ∀ q ∈ I, μ.real (E q) ≤ 2 * Real.exp (-L) := by
+    intro q hq
+    have hm := (Finset.mem_product.mp hq).1
+    have hm1 : (1 : ℝ) ≤ q.1 := by exact_mod_cast (Finset.mem_Icc.mp hm).1
+    have hs : 0 < (q.1 : ℝ) * σ := by positivity
+    have hσs : σ ≤ (q.1 : ℝ) * σ := by nlinarith
+    exact heat_abs_consistency_pair hσ hs hσs d X h_indep hX hlaw q.2.1 q.2.2
+      (((Finset.range N).erase q.2.1).erase q.2.2)
+      (fun h => Finset.notMem_erase q.2.1 _ (Finset.mem_of_mem_erase h))
+      (Finset.notMem_erase q.2.2 _) hMσ hL
+  calc μ.real _ ≤ μ.real (⋃ q ∈ I, E q) := measureReal_mono hsub (measure_ne_top μ _)
+    _ ≤ ∑ q ∈ I, μ.real (E q) := measureReal_biUnion_finset_le _ _
+    _ ≤ ∑ _q ∈ I, 2 * Real.exp (-L) := Finset.sum_le_sum hone
+    _ = (K : ℝ) * ((N : ℝ) ^ 2 * (2 * Real.exp (-L))) := by
+        rw [Finset.sum_const, hI, Finset.card_product, Finset.card_product, Nat.card_Icc,
+          Finset.card_range, nsmul_eq_mul]
+        push_cast
+        ring
+
+/-! ### Splitting of the defect and the exceptional terms (deterministic) -/
+
+/-- **Splitting of the one-step defect (the identity `h = (S₁ + S₂)/r` of the consistency lemma,
+    as an estimate).** Weights `Pt j ≥ 0`, normalisation factors `u j` with `|u j - 1| ≤ η`,
+    `r = ∑ Pt j u j > 0`. For the row `P j = Pt j u j / r` of the normalised walk and any numbers
+    `g j`, `c`:
+    `|∑ P j g j - c| ≤ (|∑ Pt j (g j - c)| + η ∑ Pt j |g j - c|) / r`. -/
+theorem defect_split {n : Type*} [Fintype n] (Pt u g : n → ℝ) (c η : ℝ)
+    (hPt : ∀ j, 0 ≤ Pt j) (hu : ∀ j, |u j - 1| ≤ η) (hr : 0 < ∑ l, Pt l * u l) :
+    |∑ j, Pt j * u j / (∑ l, Pt l * u l) * g j - c|
+      ≤ (|∑ j, Pt j * (g j - c)| + η * ∑ j, Pt j * |g j - c|) / (∑ l, Pt l * u l) := by
+  set r := ∑ l, Pt l * u l with hrdef
+  have e1 : ∑ j, Pt j * u j / r * g j - c = (∑ j, Pt j * u j * (g j - c)) / r := by
+    have hsum : ∑ j, Pt j * u j * (g j - c) = ∑ j, Pt j * u j * g j - c * r := by
+      rw [hrdef, Finset.mul_sum, ← Finset.sum_sub_distrib]
+      exact Finset.sum_congr rfl fun j _ => by ring
+    rw [hsum, sub_div, mul_div_cancel_right₀ _ hr.ne', Finset.sum_div]
+    congr 1
+    exact Finset.sum_congr rfl fun j _ => by ring
+  have e2 : ∑ j, Pt j * u j * (g j - c)
+      = ∑ j, Pt j * (g j - c) + ∑ j, Pt j * ((u j - 1) * (g j - c)) := by
+    rw [← Finset.sum_add_distrib]
+    exact Finset.sum_congr rfl fun j _ => by ring
+  have h2 : |∑ j, Pt j * ((u j - 1) * (g j - c))| ≤ η * ∑ j, Pt j * |g j - c| := by
+    rw [Finset.mul_sum]
+    refine (Finset.abs_sum_le_sum_abs _ _).trans (Finset.sum_le_sum fun j _ => ?_)
+    rw [abs_mul, abs_mul, abs_of_nonneg (hPt j)]
+    have := mul_le_mul_of_nonneg_right (hu j) (abs_nonneg (g j - c))
+    nlinarith [hPt j, mul_le_mul_of_nonneg_left this (hPt j)]
+  rw [e1, abs_div, abs_of_pos hr, e2]
+  exact div_le_div_of_nonneg_right ((abs_add_le _ _).trans (add_le_add le_rfl h2)) hr.le
+
+/-- Removing two indices from a sum costs at most the two terms. -/
+theorem abs_sum_le_erase2 (s : Finset ℕ) (y : ℕ → ℝ) (b i : ℕ) :
+    |∑ j ∈ s, y j| ≤ |∑ j ∈ (s.erase b).erase i, y j| + |y b| + |y i| := by
+  have h1 : |∑ j ∈ s, y j| ≤ |∑ j ∈ s.erase b, y j| + |y b| := by
+    by_cases hb : b ∈ s
+    · have e : ∑ j ∈ s, y j = ∑ j ∈ s.erase b, y j + y b := by
+        rw [Finset.sum_erase_eq_sub hb]; ring
+      rw [e]; exact abs_add_le _ _
+    · rw [Finset.erase_eq_of_notMem hb]; linarith [abs_nonneg (y b)]
+  have h2 : |∑ j ∈ s.erase b, y j| ≤ |∑ j ∈ (s.erase b).erase i, y j| + |y i| := by
+    by_cases hi : i ∈ s.erase b
+    · have e : ∑ j ∈ s.erase b, y j = ∑ j ∈ (s.erase b).erase i, y j + y i := by
+        rw [Finset.sum_erase_eq_sub hi]; ring
+      rw [e]; exact abs_add_le _ _
+    · rw [Finset.erase_eq_of_notMem hi]; linarith [abs_nonneg (y i)]
+  linarith
+
+/-- The sum of the absolute values against the centred sum without two indices: for `e ≥ 0`,
+    `∑_{j ∈ s} |y j| ≤ |∑_{j ∈ s ∖ {b, i}} (|y j| - e)| + |s| e + |y b| + |y i|`. -/
+theorem sum_abs_le_erase2 (s : Finset ℕ) (y : ℕ → ℝ) (b i : ℕ) {e : ℝ} (he : 0 ≤ e) :
+    ∑ j ∈ s, |y j| ≤ |∑ j ∈ (s.erase b).erase i, (|y j| - e)| + s.card * e + |y b| + |y i| := by
+  have h0 := abs_sum_le_erase2 s (fun j => |y j|) b i
+  simp only [abs_abs] at h0
+  have hnn : 0 ≤ ∑ j ∈ s, |y j| := Finset.sum_nonneg fun j _ => abs_nonneg _
+  rw [abs_of_nonneg hnn] at h0
+  have hnn2 : 0 ≤ ∑ j ∈ (s.erase b).erase i, |y j| := Finset.sum_nonneg fun j _ => abs_nonneg _
+  rw [abs_of_nonneg hnn2] at h0
+  have hsplit : ∑ j ∈ (s.erase b).erase i, |y j|
+      = ∑ j ∈ (s.erase b).erase i, (|y j| - e) + ((s.erase b).erase i).card * e := by
+    rw [Finset.sum_sub_distrib, Finset.sum_const, nsmul_eq_mul]; ring
+  have hcard : (((s.erase b).erase i).card : ℝ) ≤ s.card := by
+    exact_mod_cast (Finset.card_erase_le).trans Finset.card_erase_le
+  have h3 : (((s.erase b).erase i).card : ℝ) * e ≤ s.card * e :=
+    mul_le_mul_of_nonneg_right hcard he
+  linarith [le_abs_self (∑ j ∈ (s.erase b).erase i, (|y j| - e))]
+
+/-! ### The defect from the two Bernstein bounds (deterministic) -/
+
+/-- `defect_split` for sums over `Finset.range N`. -/
+theorem defect_split_range (N : ℕ) (Pt u g : ℕ → ℝ) (c η : ℝ)
+    (hPt : ∀ j, 0 ≤ Pt j) (hu : ∀ j, |u j - 1| ≤ η)
+    (hr : 0 < ∑ l ∈ Finset.range N, Pt l * u l) :
+    |∑ j ∈ Finset.range N, Pt j * u j / (∑ l ∈ Finset.range N, Pt l * u l) * g j - c|
+      ≤ (|∑ j ∈ Finset.range N, Pt j * (g j - c)|
+          + η * ∑ j ∈ Finset.range N, Pt j * |g j - c|)
+        / (∑ l ∈ Finset.range N, Pt l * u l) := by
+  have h := defect_split (n := Fin N) (fun j => Pt j) (fun j => u j) (fun j => g j) c η
+    (fun j => hPt j) (fun j => hu j)
+    (by rw [Fin.sum_univ_eq_sum_range (fun l => Pt l * u l) N]; exact hr)
+  simp only [Fin.sum_univ_eq_sum_range (fun l => Pt l * u l) N] at h
+  rw [Fin.sum_univ_eq_sum_range
+      (fun j => Pt j * u j / (∑ l ∈ Finset.range N, Pt l * u l) * g j) N,
+    Fin.sum_univ_eq_sum_range (fun j => Pt j * (g j - c)) N,
+    Fin.sum_univ_eq_sum_range (fun j => Pt j * |g j - c|) N] at h
+  exact h
+
+/-- **The defect from the two Bernstein bounds (deterministic assembly).** `N` points; weights
+    `Pt j ≥ 0`, normalisation factors with `|u j - 1| ≤ η`, `r₀ ≤ ∑ Pt j u j`; `y j = N Pt j (g j - c)`.
+    If the sum of `y j` and the centred sum of `|y j| - e` over `j < N`, `j ∉ {b, i}`, are at most
+    `thr` in absolute value, and `|y b|, |y i| ≤ B`, then
+    `|∑ P j g j - c| ≤ ((thr + 2B) + η (N e + thr + 2B)) / (N r₀)`. -/
+theorem defect_from_bounds (N : ℕ) (hN : 0 < N) (Pt u g y : ℕ → ℝ) (c η r₀ thr B e : ℝ)
+    (hPt : ∀ j, 0 ≤ Pt j) (hu : ∀ j, |u j - 1| ≤ η) (hη : 0 ≤ η) (hr₀ : 0 < r₀)
+    (hr : r₀ ≤ ∑ l ∈ Finset.range N, Pt l * u l)
+    (hy : ∀ j, y j = N * (Pt j * (g j - c))) (b i : ℕ) (he : 0 ≤ e)
+    (H1 : |∑ j ∈ ((Finset.range N).erase b).erase i, y j| ≤ thr)
+    (H2 : |∑ j ∈ ((Finset.range N).erase b).erase i, (|y j| - e)| ≤ thr)
+    (hBb : |y b| ≤ B) (hBi : |y i| ≤ B) :
+    |∑ j ∈ Finset.range N, Pt j * u j / (∑ l ∈ Finset.range N, Pt l * u l) * g j - c|
+      ≤ ((thr + 2 * B) + η * (N * e + thr + 2 * B)) / (N * r₀) := by
+  have hNpos : 0 < (N : ℝ) := by exact_mod_cast hN
+  have hrpos : 0 < ∑ l ∈ Finset.range N, Pt l * u l := lt_of_lt_of_le hr₀ hr
+  have h := defect_split_range N Pt u g c η hPt hu hrpos
+  have hS1 : |∑ j ∈ Finset.range N, Pt j * (g j - c)| ≤ (thr + 2 * B) / N := by
+    have e1 : ∑ j ∈ Finset.range N, Pt j * (g j - c) = (∑ j ∈ Finset.range N, y j) / N := by
+      rw [Finset.sum_div]
+      refine Finset.sum_congr rfl fun j _ => ?_
+      rw [hy j]; field_simp
+    rw [e1, abs_div, abs_of_pos hNpos]
+    apply div_le_div_of_nonneg_right _ hNpos.le
+    have := abs_sum_le_erase2 (Finset.range N) y b i
+    linarith
+  have hA : ∑ j ∈ Finset.range N, Pt j * |g j - c| ≤ (N * e + thr + 2 * B) / N := by
+    have e2 : ∑ j ∈ Finset.range N, Pt j * |g j - c| = (∑ j ∈ Finset.range N, |y j|) / N := by
+      rw [Finset.sum_div]
+      refine Finset.sum_congr rfl fun j _ => ?_
+      rw [hy j, abs_mul, abs_mul, abs_of_pos hNpos, abs_of_nonneg (hPt j)]; field_simp
+    rw [e2]
+    apply div_le_div_of_nonneg_right _ hNpos.le
+    have := sum_abs_le_erase2 (Finset.range N) y b i he
+    rw [Finset.card_range] at this
+    linarith
+  have hthr : 0 ≤ thr := (abs_nonneg _).trans H1
+  have hB0 : 0 ≤ B := (abs_nonneg _).trans hBb
+  have hnum : |∑ j ∈ Finset.range N, Pt j * (g j - c)|
+        + η * ∑ j ∈ Finset.range N, Pt j * |g j - c|
+      ≤ ((thr + 2 * B) + η * (N * e + thr + 2 * B)) / N := by
+    have h1 := mul_le_mul_of_nonneg_left hA hη
+    have e3 : ((thr + 2 * B) + η * (N * e + thr + 2 * B)) / N
+        = (thr + 2 * B) / N + η * ((N * e + thr + 2 * B) / N) := by ring
+    rw [e3]; linarith
+  have hnum0 : 0 ≤ ((thr + 2 * B) + η * (N * e + thr + 2 * B)) / N := by positivity
+  calc _ ≤ (|∑ j ∈ Finset.range N, Pt j * (g j - c)|
+          + η * ∑ j ∈ Finset.range N, Pt j * |g j - c|)
+        / (∑ l ∈ Finset.range N, Pt l * u l) := h
+    _ ≤ (((thr + 2 * B) + η * (N * e + thr + 2 * B)) / N)
+        / (∑ l ∈ Finset.range N, Pt l * u l) := div_le_div_of_nonneg_right hnum hrpos.le
+    _ ≤ (((thr + 2 * B) + η * (N * e + thr + 2 * B)) / N) / r₀ :=
+        div_le_div_of_nonneg_left hnum0 hr₀ hr
+    _ = _ := by rw [div_div]
+
+/-! ### The defect of the sampled walk on the good event -/
+
+/-- The estimated normalisation at the `j`-th point: `ρ_j = (1/N) ∑_{l<N} p_σ(x_j - x_l)`. -/
+noncomputable def heatRho (d : ℕ) (σ : ℝ) (N : ℕ) (x : ℕ → FlatTorus d) (j : ℕ) : ℝ :=
+  (∑ l ∈ Finset.range N, heatTorus d (2 * Real.pi ^ 2 * σ) (x j - x l)) / N
+
+/-- The one-step defect of the sampled walk: `h_m^{(i)}(b) = ∑_j P_{bj} p_m(x_j - x_i) - p_{m+1}(x_b - x_i)`,
+    with the row `P_{bj} = (p_σ(x_b - x_j)/N)(1/ρ_j) / ∑_l (p_σ(x_b - x_l)/N)(1/ρ_l)` of the walk. -/
+noncomputable def heatDefect (d : ℕ) (σ : ℝ) (N m : ℕ) (x : ℕ → FlatTorus d) (b i : ℕ) : ℝ :=
+  ∑ j ∈ Finset.range N,
+      (heatTorus d (2 * Real.pi ^ 2 * σ) (x b - x j) / N) * (1 / heatRho d σ N x j)
+        / (∑ l ∈ Finset.range N,
+            (heatTorus d (2 * Real.pi ^ 2 * σ) (x b - x l) / N) * (1 / heatRho d σ N x l))
+        * heatTorus d (2 * Real.pi ^ 2 * ((m : ℝ) * σ)) (x j - x i)
+    - heatTorus d (2 * Real.pi ^ 2 * (σ + (m : ℝ) * σ)) (x b - x i)
+
+/-- The bound for the defect on the good event, as a function of `u = x_b - x_i`. -/
+noncomputable def heatDefBound (d : ℕ) (σ : ℝ) (N m : ℕ) (Mσ L δ : ℝ) (u : FlatTorus d) : ℝ :=
+  ((heatThr d σ ((m : ℝ) * σ) Mσ L N u + 2 * heatB d σ ((m : ℝ) * σ) Mσ u)
+      + 2 * δ * (N * Real.sqrt (heatV d σ ((m : ℝ) * σ) u)
+          + heatThr d σ ((m : ℝ) * σ) Mσ L N u + 2 * heatB d σ ((m : ℝ) * σ) Mσ u))
+    / (N * (1 / 3))
+
+/-- Inverse of a number close to one. -/
+theorem inv_near_one {ρ δ : ℝ} (hδ0 : 0 ≤ δ) (hδ : δ ≤ 1 / 2) (hρ : |ρ - 1| ≤ δ) :
+    |1 / ρ - 1| ≤ 2 * δ ∧ 2 / 3 ≤ 1 / ρ := by
+  have h := abs_le.mp hρ
+  have hρpos : 0 < ρ := by linarith [h.1]
+  have e : 1 / ρ - 1 = (1 - ρ) / ρ := by field_simp
+  constructor
+  · rw [e, abs_div, abs_of_pos hρpos, div_le_iff₀ hρpos]
+    have : |1 - ρ| ≤ δ := by rw [abs_sub_comm]; exact hρ
+    nlinarith [h.1]
+  · rw [le_div_iff₀ hρpos]; nlinarith [h.2]
+
+/-- **The defect of the sampled walk on the good event (deterministic).** Points `x_0, …, x_{N-1}`
+    of the flat torus, `m ≥ 1`. If the estimated normalisations are within `δ ≤ 1/2` of one and the
+    two Bernstein bounds hold for the pair `(b, i)`, then
+    `|h_m^{(i)}(b)| ≤ heatDefBound(x_b - x_i)`. -/
+theorem heat_defect_det {σ : ℝ} (hσ : 0 < σ) (d N m : ℕ) (hN : 0 < N) (hm : 1 ≤ m)
+    (x : ℕ → FlatTorus d) (b i : ℕ) (hb : b ∈ Finset.range N) {Mσ L δ : ℝ}
+    (hMσ : ∀ u, heatTorus d (2 * Real.pi ^ 2 * σ) u ≤ Mσ) (hL : 0 < L)
+    (hδ0 : 0 ≤ δ) (hδ : δ ≤ 1 / 2) (hρ : ∀ j, |heatRho d σ N x j - 1| ≤ δ)
+    (H1 : |∑ j ∈ ((Finset.range N).erase b).erase i, heatY d σ ((m : ℝ) * σ) (x b) (x i) (x j)|
+      ≤ heatThr d σ ((m : ℝ) * σ) Mσ L N (x b - x i))
+    (H2 : |∑ j ∈ ((Finset.range N).erase b).erase i, heatYc d σ ((m : ℝ) * σ) (x b) (x i) (x j)|
+      ≤ heatThr d σ ((m : ℝ) * σ) Mσ L N (x b - x i)) :
+    |heatDefect d σ N m x b i| ≤ heatDefBound d σ N m Mσ L δ (x b - x i) := by
+  have hNpos : 0 < (N : ℝ) := by exact_mod_cast hN
+  have hm1 : (1 : ℝ) ≤ m := by exact_mod_cast hm
+  have hs : 0 < (m : ℝ) * σ := by positivity
+  have hσs : σ ≤ (m : ℝ) * σ := by nlinarith
+  have hcσ : 0 < 2 * Real.pi ^ 2 * σ := by positivity
+  have hM : 0 < Mσ := lt_of_lt_of_le (heatTorus_pos hcσ d 0) (hMσ 0)
+  have hinv := fun j => inv_near_one hδ0 hδ (hρ j)
+  have hPt : ∀ j, 0 ≤ heatTorus d (2 * Real.pi ^ 2 * σ) (x b - x j) / N :=
+    fun j => div_nonneg (heatTorus_nonneg hcσ d _) hNpos.le
+  -- lower bound for the row normalisation
+  have hr : (1 : ℝ) / 3 ≤ ∑ l ∈ Finset.range N,
+      (heatTorus d (2 * Real.pi ^ 2 * σ) (x b - x l) / N) * (1 / heatRho d σ N x l) := by
+    have h1 : ∑ l ∈ Finset.range N, (heatTorus d (2 * Real.pi ^ 2 * σ) (x b - x l) / N) * (2 / 3)
+        ≤ ∑ l ∈ Finset.range N,
+          (heatTorus d (2 * Real.pi ^ 2 * σ) (x b - x l) / N) * (1 / heatRho d σ N x l) :=
+      Finset.sum_le_sum fun l _ => mul_le_mul_of_nonneg_left (hinv l).2 (hPt l)
+    have h2 : ∑ l ∈ Finset.range N, (heatTorus d (2 * Real.pi ^ 2 * σ) (x b - x l) / N) * (2 / 3)
+        = heatRho d σ N x b * (2 / 3) := by
+      unfold heatRho
+      rw [← Finset.sum_mul, Finset.sum_div]
+    have h3 := abs_le.mp (hρ b)
+    nlinarith [h3.1]
+  have hB := fun z => heatY_abs_le hσ hs d (x b) (x i) z hMσ
+  have he := heatY_abs_integral_sharp hσ hs hσs d (x b) (x i)
+  have he0 : 0 ≤ heatYmean d σ ((m : ℝ) * σ) (x b) (x i) := by
+    rw [heatYmean_eq]; exact integral_nonneg fun z => abs_nonneg _
+  have H2' : |∑ j ∈ ((Finset.range N).erase b).erase i,
+      (|heatY d σ ((m : ℝ) * σ) (x b) (x i) (x j)| - heatYmean d σ ((m : ℝ) * σ) (x b) (x i))|
+      ≤ heatThr d σ ((m : ℝ) * σ) Mσ L N (x b - x i) := H2
+  have key := defect_from_bounds N hN
+    (fun j => heatTorus d (2 * Real.pi ^ 2 * σ) (x b - x j) / N)
+    (fun j => 1 / heatRho d σ N x j)
+    (fun j => heatTorus d (2 * Real.pi ^ 2 * ((m : ℝ) * σ)) (x j - x i))
+    (fun j => heatY d σ ((m : ℝ) * σ) (x b) (x i) (x j))
+    (heatTorus d (2 * Real.pi ^ 2 * (σ + (m : ℝ) * σ)) (x b - x i)) (2 * δ) (1 / 3)
+    (heatThr d σ ((m : ℝ) * σ) Mσ L N (x b - x i)) (heatB d σ ((m : ℝ) * σ) Mσ (x b - x i))
+    (heatYmean d σ ((m : ℝ) * σ) (x b) (x i))
+    hPt (fun j => (hinv j).1) (by positivity) (by norm_num) hr
+    (fun j => by unfold heatY; field_simp) b i he0 H1 H2' (hB _) (hB _)
+  have hthr0 : 0 ≤ heatThr d σ ((m : ℝ) * σ) Mσ L N (x b - x i) := (abs_nonneg _).trans H1
+  have hB0 : 0 ≤ heatB d σ ((m : ℝ) * σ) Mσ (x b - x i) :=
+    (heatB_pos hσ hs hM d _).le
+  rw [heatYmean_eq] at he0
+  unfold heatDefect heatDefBound
+  refine key.trans ?_
+  apply div_le_div_of_nonneg_right _ (by positivity)
+  have hmono : (N : ℝ) * heatYmean d σ ((m : ℝ) * σ) (x b) (x i)
+      ≤ N * Real.sqrt (heatV d σ ((m : ℝ) * σ) (x b - x i)) := by
+    rw [heatYmean_eq]; exact mul_le_mul_of_nonneg_left he hNpos.le
+  nlinarith [mul_le_mul_of_nonneg_left hmono (by positivity : (0 : ℝ) ≤ 2 * δ)]
+
+/-! ### The defect of the sampled walk with its probability -/
+
+/-- **The one-step defect of the sampled walk on the torus, with its probability (estimate (ii) of
+    the consistency lemma with explicit, time-dependent constants).** Independent uniform points
+    on the flat torus; kernel time `σ`, `p_σ ≤ Mσ`, `L > 0`, `N > 0`. HYPOTHESIS `hBn`: the
+    probability `pn` of the normalisation event (a conclusion of
+    `uniform_concentration_bernstein`), with `epsn ≤ N/2`. Then, except on an event of probability
+    at most `pn + 4 K N² e^{-L}`, for all `1 ≤ m ≤ K` and all `b, i < N`,
+    `|h_m^{(i)}(b)| ≤ heatDefBound(X_b - X_i)` with `δ = epsn/N`. -/
+theorem heat_defect_whp {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {σ : ℝ} (hσ : 0 < σ) (d : ℕ)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (N K : ℕ) (hN : 0 < N) {Mσ L epsn pn : ℝ}
+    (hMσ : ∀ u, heatTorus d (2 * Real.pi ^ 2 * σ) u ≤ Mσ) (hL : 0 < L)
+    (hepsn0 : 0 ≤ epsn) (hepsn : epsn ≤ N / 2)
+    (hBn : μ.real {ω | ∃ x : FlatTorus d,
+        epsn < |∑ j ∈ Finset.range N, heatTorus d (2 * Real.pi ^ 2 * σ) (x - X j ω) - N|} ≤ pn) :
+    μ.real {ω | ∃ m ∈ Finset.Icc 1 K, ∃ b ∈ Finset.range N, ∃ i ∈ Finset.range N,
+        heatDefBound d σ N m Mσ L (epsn / N) (X b ω - X i ω)
+          < |heatDefect d σ N m (fun j => X j ω) b i|}
+      ≤ pn + ((K : ℝ) * ((N : ℝ) ^ 2 * (2 * Real.exp (-L)))
+          + (K : ℝ) * ((N : ℝ) ^ 2 * (2 * Real.exp (-L)))) := by
+  have hNpos : 0 < (N : ℝ) := by exact_mod_cast hN
+  set Bn : Set Ω := {ω | ∃ x : FlatTorus d,
+      epsn < |∑ j ∈ Finset.range N, heatTorus d (2 * Real.pi ^ 2 * σ) (x - X j ω) - N|} with hBnd
+  set E1 : Set Ω := {ω | ∃ m ∈ Finset.Icc 1 K, ∃ b ∈ Finset.range N, ∃ i ∈ Finset.range N,
+      2 * heatB d σ ((m : ℝ) * σ) Mσ (X b ω - X i ω) * L
+        + 2 * Real.sqrt (N * (Mσ * heatV d σ ((m : ℝ) * σ) (X b ω - X i ω)) * L)
+      ≤ |∑ j ∈ ((Finset.range N).erase b).erase i,
+          heatY d σ ((m : ℝ) * σ) (X b ω) (X i ω) (X j ω)|} with hE1
+  set E2 : Set Ω := {ω | ∃ m ∈ Finset.Icc 1 K, ∃ b ∈ Finset.range N, ∃ i ∈ Finset.range N,
+      heatThr d σ ((m : ℝ) * σ) Mσ L N (X b ω - X i ω)
+      ≤ |∑ j ∈ ((Finset.range N).erase b).erase i,
+          heatYc d σ ((m : ℝ) * σ) (X b ω) (X i ω) (X j ω)|} with hE2
+  have hP1 : μ.real E1 ≤ (K : ℝ) * ((N : ℝ) ^ 2 * (2 * Real.exp (-L))) :=
+    heat_consistency_all_steps hσ d X h_indep hX hlaw N K hMσ hL
+  have hP2 : μ.real E2 ≤ (K : ℝ) * ((N : ℝ) ^ 2 * (2 * Real.exp (-L))) :=
+    heat_abs_consistency_all_steps hσ d X h_indep hX hlaw N K hMσ hL
+  have hsub : {ω | ∃ m ∈ Finset.Icc 1 K, ∃ b ∈ Finset.range N, ∃ i ∈ Finset.range N,
+        heatDefBound d σ N m Mσ L (epsn / N) (X b ω - X i ω)
+          < |heatDefect d σ N m (fun j => X j ω) b i|}
+      ⊆ Bn ∪ (E1 ∪ E2) := by
+    rintro ω ⟨m, hm, b, hb, i, hi, hbad⟩
+    by_contra hcon
+    simp only [Set.mem_union, not_or] at hcon
+    obtain ⟨hn, h1, h2⟩ := hcon
+    have hρ : ∀ j, |heatRho d σ N (fun j => X j ω) j - 1| ≤ epsn / N := by
+      intro j
+      have h : |∑ l ∈ Finset.range N, heatTorus d (2 * Real.pi ^ 2 * σ) (X j ω - X l ω) - N|
+          ≤ epsn := by
+        by_contra h; exact hn ⟨X j ω, not_le.mp h⟩
+      have e : heatRho d σ N (fun j => X j ω) j - 1
+          = (∑ l ∈ Finset.range N, heatTorus d (2 * Real.pi ^ 2 * σ) (X j ω - X l ω) - N) / N := by
+        unfold heatRho; field_simp
+      rw [e, abs_div, abs_of_pos hNpos]
+      exact div_le_div_of_nonneg_right h hNpos.le
+    have H1 : |∑ j ∈ ((Finset.range N).erase b).erase i,
+          heatY d σ ((m : ℝ) * σ) (X b ω) (X i ω) (X j ω)|
+        ≤ heatThr d σ ((m : ℝ) * σ) Mσ L N (X b ω - X i ω) := by
+      by_contra h
+      exact h1 ⟨m, hm, b, hb, i, hi, (not_le.mp h).le⟩
+    have H2 : |∑ j ∈ ((Finset.range N).erase b).erase i,
+          heatYc d σ ((m : ℝ) * σ) (X b ω) (X i ω) (X j ω)|
+        ≤ heatThr d σ ((m : ℝ) * σ) Mσ L N (X b ω - X i ω) := by
+      by_contra h
+      exact h2 ⟨m, hm, b, hb, i, hi, (not_le.mp h).le⟩
+    have hdet := heat_defect_det hσ d N m hN (Finset.mem_Icc.mp hm).1 (fun j => X j ω) b i hb hMσ hL
+      (div_nonneg hepsn0 hNpos.le) (by rw [div_le_iff₀ hNpos]; linarith) hρ H1 H2
+    exact absurd hbad (not_lt.mpr hdet)
+  calc μ.real _ ≤ μ.real (Bn ∪ (E1 ∪ E2)) := measureReal_mono hsub (measure_ne_top μ _)
+    _ ≤ μ.real Bn + μ.real (E1 ∪ E2) := measureReal_union_le _ _
+    _ ≤ μ.real Bn + (μ.real E1 + μ.real E2) := by
+        have := measureReal_union_le (μ := μ) E1 E2
+        linarith
+    _ ≤ _ := by linarith
+
+/-! ### Estimate (ii) of the consistency lemma for random samples -/
+
+/-- **The normalisation event on the torus, with its probability.** Independent uniform points,
+    kernel `p_σ ≤ M` with Lipschitz constant `Lip`, grid parameter `g > 0`:
+    `P(∃ x, |∑_{j<N} p_σ(x - X_j) - N| > eps + 2 N Lip / g) ≤ 2 g^d exp(-eps² / (4 N M + 2 M eps))`. -/
+theorem heat_normalisation_whp {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {σ : ℝ} (hσ : 0 < σ) (d : ℕ)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (N : ℕ) {g : ℕ} (hg : 0 < g) {M Lip ε : ℝ}
+    (hM : ∀ u, heatTorus d (2 * Real.pi ^ 2 * σ) u ≤ M)
+    (hLip : ∀ u u', |heatTorus d (2 * Real.pi ^ 2 * σ) u - heatTorus d (2 * Real.pi ^ 2 * σ) u'|
+      ≤ Lip * dist u u') (hLip0 : 0 ≤ Lip) (hε : 0 < ε) :
+    μ.real {ω | ∃ x : FlatTorus d, ε + 2 * (N * Lip) * (1 / g)
+        < |∑ j ∈ Finset.range N, heatTorus d (2 * Real.pi ^ 2 * σ) (x - X j ω) - N|}
+      ≤ (g : ℝ) ^ d * (2 * Real.exp (-ε ^ 2 / (4 * (N * M) + 2 * M * ε))) := by
+  haveI : (flatTorusMeasure d).IsNegInvariant :=
+    Measure.IsAddHaarMeasure.isNegInvariant_of_regular (flatTorusMeasure d)
+  have hcσ : 0 < 2 * Real.pi ^ 2 * σ := by positivity
+  have hM0 : 0 < M := lt_of_lt_of_le (heatTorus_pos hcσ d 0) (hM 0)
+  have hcont := heatTorus_continuous hcσ d
+  have h := uniform_concentration_bernstein (μ := μ) (T := FlatTorus d) X h_indep hX
+    (fun x y => heatTorus d (2 * Real.pi ^ 2 * σ) (x - y))
+    (fun x => hcont.measurable.comp (measurable_const.sub measurable_id)) hM0 hLip0
+    (fun x y => ⟨heatTorus_nonneg hcσ d _, hM _⟩)
+    (fun x x' y => by have := hLip (x - y) (x' - y); rwa [dist_sub_right] at this)
+    (fun _ => 1)
+    (fun x j => by
+      have h1 : ∫ ω, heatTorus d (2 * Real.pi ^ 2 * σ) (x - X j ω) ∂μ
+          = ∫ y, heatTorus d (2 * Real.pi ^ 2 * σ) (x - y) ∂(μ.map (X j)) :=
+        (integral_map (hX j).aemeasurable
+          ((hcont.measurable.comp (measurable_const.sub measurable_id)).aestronglyMeasurable)).symm
+      rw [h1, hlaw j, integral_sub_left_eq_self (heatTorus d (2 * Real.pi ^ 2 * σ))
+        (flatTorusMeasure d) x, heatTorus_mass hcσ d])
+    (qmax := 1) (fun _ => le_rfl)
+    (fun x x' => by simpa using mul_nonneg hLip0 dist_nonneg)
+    (torusNet d g) (torusNet_dense d hg) N hε
+  simp only [mul_one] at h
+  have hc : ((torusNet d g).card : ℝ) ≤ (g : ℝ) ^ d := by exact_mod_cast torusNet_card d g
+  exact h.trans (mul_le_mul_of_nonneg_right hc (by positivity))
+
+/-- **Estimate (ii) of the consistency lemma for random samples on the torus, with explicit
+    time-dependent constants and no hypothesis beyond those on the sample.** With
+    `M = (1 + √(π/c_σ))^d`, the Lipschitz constant `Lip` of the kernel and a grid parameter `g`:
+    except on an event of probability at most
+    `2 g^d exp(-eps²/(4NM + 2M eps)) + 4 K N² e^{-L}`, for all `1 ≤ m ≤ K` and `b, i < N`,
+    `|h_m^{(i)}(b)| ≤ heatDefBound(X_b - X_i)` with `δ = (eps + 2 N Lip / g)/N`. -/
+theorem heat_defect_sample {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {σ : ℝ} (hσ : 0 < σ) (d : ℕ)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (N K : ℕ) (hN : 0 < N) {g : ℕ} (hg : 0 < g)
+    {M Lip L ε : ℝ} (hMdef : M = (1 + Real.sqrt (Real.pi / (2 * Real.pi ^ 2 * σ))) ^ d)
+    (hLipdef : Lip = 2 * Real.pi * (2 / (2 * Real.pi ^ 2 * σ))
+      * (1 + Real.sqrt (2 * Real.pi / (2 * Real.pi ^ 2 * σ))) ^ d)
+    (hL : 0 < L) (hε : 0 < ε) (hsmall : ε + 2 * (N * Lip) * (1 / g) ≤ N / 2) :
+    μ.real {ω | ∃ m ∈ Finset.Icc 1 K, ∃ b ∈ Finset.range N, ∃ i ∈ Finset.range N,
+        heatDefBound d σ N m M L ((ε + 2 * (N * Lip) * (1 / g)) / N) (X b ω - X i ω)
+          < |heatDefect d σ N m (fun j => X j ω) b i|}
+      ≤ (g : ℝ) ^ d * (2 * Real.exp (-ε ^ 2 / (4 * (N * M) + 2 * M * ε)))
+        + ((K : ℝ) * ((N : ℝ) ^ 2 * (2 * Real.exp (-L)))
+          + (K : ℝ) * ((N : ℝ) ^ 2 * (2 * Real.exp (-L)))) := by
+  have hcσ : 0 < 2 * Real.pi ^ 2 * σ := by positivity
+  have hM : ∀ u, heatTorus d (2 * Real.pi ^ 2 * σ) u ≤ M := fun u => by
+    rw [hMdef]; exact heatTorus_le hcσ d u
+  have hLip : ∀ u u', |heatTorus d (2 * Real.pi ^ 2 * σ) u
+      - heatTorus d (2 * Real.pi ^ 2 * σ) u'| ≤ Lip * dist u u' := fun u u' => by
+    rw [hLipdef]; exact heatTorus_lipschitz hcσ d u u'
+  have hLip0 : 0 ≤ Lip := by rw [hLipdef]; positivity
+  have hBn := heat_normalisation_whp hσ d X h_indep hX hlaw N hg hM hLip hLip0 hε
+  exact heat_defect_whp hσ d X h_indep hX hlaw N K hN hM hL (by positivity) hsmall hBn
+
+/-! ### The defect in matrix form -/
+
+section WalkDefect
+open Matrix
+
+/-- **The defect in matrix form.** For points `x_0, …, x_{N-1}` with nonzero estimated
+    normalisations, the walk matrix `P` of the sampled graph applied to the kernel vector
+    `b' ↦ p_m(x_{b'} - x_i)`, minus `p_{m+1}(x_b - x_i)`, is the defect `heatDefect`. -/
+theorem walk_defect_eq (d : ℕ) (σ : ℝ) (N m : ℕ) (hN : 0 < N) (x : ℕ → FlatTorus d)
+    (hρ : ∀ j, heatRho d σ N x j ≠ 0) (b i : Fin N) :
+    ((walkMatrix (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (x a - x j))
+          (fun a : Fin N => heatRho d σ N x a))
+        *ᵥ (fun b' : Fin N => heatTorus d (2 * Real.pi ^ 2 * ((m : ℝ) * σ)) (x b' - x i))) b
+      - heatTorus d (2 * Real.pi ^ 2 * (σ + (m : ℝ) * σ)) (x b - x i)
+      = heatDefect d σ N m x b i := by
+  have hNpos : (0 : ℝ) < N := by exact_mod_cast hN
+  unfold heatDefect
+  congr 1
+  simp only [mulVec, dotProduct]
+  rw [← Fin.sum_univ_eq_sum_range
+    (fun j => heatTorus d (2 * Real.pi ^ 2 * σ) (x b - x j) / N * (1 / heatRho d σ N x j)
+      / (∑ l ∈ Finset.range N,
+          heatTorus d (2 * Real.pi ^ 2 * σ) (x b - x l) / N * (1 / heatRho d σ N x l))
+      * heatTorus d (2 * Real.pi ^ 2 * ((m : ℝ) * σ)) (x j - x i)) N]
+  refine Finset.sum_congr rfl fun j _ => ?_
+  rw [walkMatrix_apply' _ _ b j (hρ b)]
+  congr 1
+  have hsum : ∑ l ∈ Finset.range N,
+        heatTorus d (2 * Real.pi ^ 2 * σ) (x b - x l) / N * (1 / heatRho d σ N x l)
+      = (∑ l : Fin N, heatTorus d (2 * Real.pi ^ 2 * σ) (x b - x l) / heatRho d σ N x l) / N := by
+    rw [← Fin.sum_univ_eq_sum_range
+      (fun l => heatTorus d (2 * Real.pi ^ 2 * σ) (x b - x l) / N * (1 / heatRho d σ N x l)) N,
+      Finset.sum_div]
+    exact Finset.sum_congr rfl fun l _ => by ring
+  rw [hsum]
+  have hj := hρ j
+  field_simp
+
+end WalkDefect
+
+/-! ### The defect bound in the supremum -/
+
+/-- The uniform bound of the heat kernel of the torus at parameter `c`. -/
+noncomputable def heatM (d : ℕ) (c : ℝ) : ℝ := (1 + Real.sqrt (Real.pi / c)) ^ d
+
+/-- Nonnegativity of the uniform bound. -/
+theorem heatM_nonneg (d : ℕ) (c : ℝ) : 0 ≤ heatM d c := by unfold heatM; positivity
+
+/-- The kernel is at most its uniform bound. -/
+theorem heatTorus_le_heatM {c : ℝ} (hc : 0 < c) (d : ℕ) (u : FlatTorus d) :
+    heatTorus d c u ≤ heatM d c := heatTorus_le hc d u
+
+/-- Supremum version of the bound `B`. -/
+noncomputable def heatBsup (d : ℕ) (σ s Mσ : ℝ) : ℝ :=
+  (1 / (2 * Real.pi * σ) ^ (1 / 2 : ℝ) * (1 / (2 * Real.pi * s) ^ (1 / 2 : ℝ))
+        * (Real.sqrt (Real.pi / (1 / (4 * σ))) + 1)) ^ d
+      * heatM d (2 * Real.pi ^ 2 * (s + 2 * σ))
+      / (1 / (2 * Real.pi * (s + 2 * σ)) ^ (1 / 2 : ℝ)) ^ d
+    + Mσ * heatM d (2 * Real.pi ^ 2 * (σ + s))
+
+/-- Supremum version of the variance bound `V`. -/
+noncomputable def heatVsup (d : ℕ) (σ s : ℝ) : ℝ :=
+  (d : ℝ) * (σ / s * (4 / (Real.pi * s)) * ((1 + Real.sqrt (Real.pi / (1 / (12 * s))))
+        * (2 * Real.pi * (6 * s)) ^ (1 / 2 : ℝ)))
+    * ((1 + Real.sqrt (Real.pi / (2 * Real.pi ^ 2 * s))) ^ 1
+      * ((2 * Real.pi ^ 2 * (6 * s)) / (2 * Real.pi ^ 2 * (σ + s))) ^ (1 / 2 : ℝ)) ^ (d - 1)
+    * heatM d (2 * Real.pi ^ 2 * (6 * s))
+
+/-- `B(u)` is at most its supremum version. -/
+theorem heatB_le_sup {σ s Mσ : ℝ} (hσ : 0 < σ) (hs : 0 < s) (hM : 0 ≤ Mσ) (d : ℕ)
+    (u : FlatTorus d) : heatB d σ s Mσ u ≤ heatBsup d σ s Mσ := by
+  unfold heatB heatBsup
+  have hpi := Real.pi_pos
+  have h1 := heatTorus_le_heatM (by positivity : (0 : ℝ) < 2 * Real.pi ^ 2 * (s + 2 * σ)) d u
+  have h2 := heatTorus_le_heatM (by positivity : (0 : ℝ) < 2 * Real.pi ^ 2 * (σ + s)) d u
+  have hK : 0 ≤ (1 / (2 * Real.pi * σ) ^ (1 / 2 : ℝ) * (1 / (2 * Real.pi * s) ^ (1 / 2 : ℝ))
+        * (Real.sqrt (Real.pi / (1 / (4 * σ))) + 1)) ^ d := by positivity
+  have hpre : 0 < (1 / (2 * Real.pi * (s + 2 * σ)) ^ (1 / 2 : ℝ)) ^ d := by positivity
+  refine add_le_add ?_ (mul_le_mul_of_nonneg_left h2 hM)
+  exact div_le_div_of_nonneg_right (mul_le_mul_of_nonneg_left h1 hK) hpre.le
+
+/-- `V(u)` is at most its supremum version. -/
+theorem heatV_le_sup {σ s : ℝ} (hσ : 0 < σ) (hs : 0 < s) (d : ℕ) (u : FlatTorus d) :
+    heatV d σ s u ≤ heatVsup d σ s := by
+  unfold heatV heatVsup
+  have hpi := Real.pi_pos
+  have h1 := heatTorus_le_heatM (by positivity : (0 : ℝ) < 2 * Real.pi ^ 2 * (6 * s)) d u
+  refine mul_le_mul_of_nonneg_left h1 ?_
+  positivity
+
+/-- Nonnegativity of the supremum version of `V`. -/
+theorem heatVsup_nonneg {σ s : ℝ} (hσ : 0 < σ) (hs : 0 < s) (d : ℕ) : 0 ≤ heatVsup d σ s := by
+  unfold heatVsup
+  have hpi := Real.pi_pos
+  have := heatM_nonneg d (2 * Real.pi ^ 2 * (6 * s))
+  positivity
+
+/-- Supremum version of the threshold. -/
+noncomputable def heatThrSup (d : ℕ) (σ s Mσ L A : ℝ) : ℝ :=
+  2 * heatBsup d σ s Mσ * L + 2 * Real.sqrt (A * (Mσ * heatVsup d σ s) * L)
+
+/-- The threshold is at most its supremum version. -/
+theorem heatThr_le_sup {σ s Mσ L A : ℝ} (hσ : 0 < σ) (hs : 0 < s) (hM : 0 ≤ Mσ) (hL : 0 ≤ L)
+    (hA : 0 ≤ A) (d : ℕ) (u : FlatTorus d) :
+    heatThr d σ s Mσ L A u ≤ heatThrSup d σ s Mσ L A := by
+  unfold heatThr heatThrSup
+  have h1 := heatB_le_sup hσ hs hM d u
+  have h2 := heatV_le_sup hσ hs d u
+  have h3 : A * (Mσ * heatV d σ s u) * L ≤ A * (Mσ * heatVsup d σ s) * L :=
+    mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_left h2 hM) hA) hL
+  have h4 := Real.sqrt_le_sqrt h3
+  nlinarith [mul_le_mul_of_nonneg_right h1 hL]
+
+/-- Supremum version of the bound for the defect. -/
+noncomputable def heatDefSup (d : ℕ) (σ : ℝ) (N m : ℕ) (Mσ L δ : ℝ) : ℝ :=
+  ((heatThrSup d σ ((m : ℝ) * σ) Mσ L N + 2 * heatBsup d σ ((m : ℝ) * σ) Mσ)
+      + 2 * δ * (N * Real.sqrt (heatVsup d σ ((m : ℝ) * σ))
+          + heatThrSup d σ ((m : ℝ) * σ) Mσ L N + 2 * heatBsup d σ ((m : ℝ) * σ) Mσ))
+    / (N * (1 / 3))
+
+/-- **The defect bound in the supremum.** `heatDefBound(u) ≤ heatDefSup` for all `u`. -/
+theorem heatDefBound_le_sup {σ Mσ L δ : ℝ} (hσ : 0 < σ) (hM : 0 ≤ Mσ) (hL : 0 ≤ L) (hδ : 0 ≤ δ)
+    (d N m : ℕ) (hN : 0 < N) (hm : 1 ≤ m) (u : FlatTorus d) :
+    heatDefBound d σ N m Mσ L δ u ≤ heatDefSup d σ N m Mσ L δ := by
+  have hNpos : 0 < (N : ℝ) := by exact_mod_cast hN
+  have hm1 : (1 : ℝ) ≤ m := by exact_mod_cast hm
+  have hs : 0 < (m : ℝ) * σ := by positivity
+  unfold heatDefBound heatDefSup
+  have h1 := heatThr_le_sup hσ hs hM hL hNpos.le d u
+  have h2 := heatB_le_sup hσ hs hM d u
+  have h3 := heatV_le_sup hσ hs d u
+  have h4 : Real.sqrt (heatV d σ ((m : ℝ) * σ) u)
+      ≤ Real.sqrt (heatVsup d σ ((m : ℝ) * σ)) :=
+    Real.sqrt_le_sqrt h3
+  apply div_le_div_of_nonneg_right _ (by positivity)
+  have h5 : (N : ℝ) * Real.sqrt (heatV d σ ((m : ℝ) * σ) u)
+      ≤ N * Real.sqrt (heatVsup d σ ((m : ℝ) * σ)) :=
+    mul_le_mul_of_nonneg_left h4 hNpos.le
+  have h6 : 2 * δ * (N * Real.sqrt (heatV d σ ((m : ℝ) * σ) u)
+        + heatThr d σ ((m : ℝ) * σ) Mσ L N u + 2 * heatB d σ ((m : ℝ) * σ) Mσ u)
+      ≤ 2 * δ * (N * Real.sqrt (heatVsup d σ ((m : ℝ) * σ))
+        + heatThrSup d σ ((m : ℝ) * σ) Mσ L N + 2 * heatBsup d σ ((m : ℝ) * σ) Mσ) :=
+    mul_le_mul_of_nonneg_left (by linarith) (by positivity)
+  linarith
+
+/-! ### The defect bound as a linear function of three kernel quantities -/
+
+/-- Coefficient of `p_{s+2σ}` in the bound `B`. -/
+noncomputable def heatKB (d : ℕ) (σ s : ℝ) : ℝ :=
+  (1 / (2 * Real.pi * σ) ^ (1 / 2 : ℝ) * (1 / (2 * Real.pi * s) ^ (1 / 2 : ℝ))
+        * (Real.sqrt (Real.pi / (1 / (4 * σ))) + 1)) ^ d
+    / (1 / (2 * Real.pi * (s + 2 * σ)) ^ (1 / 2 : ℝ)) ^ d
+
+/-- Coefficient of `p_{6s}` in the variance bound `V`. -/
+noncomputable def heatCV (d : ℕ) (σ s : ℝ) : ℝ :=
+  (d : ℝ) * (σ / s * (4 / (Real.pi * s)) * ((1 + Real.sqrt (Real.pi / (1 / (12 * s))))
+        * (2 * Real.pi * (6 * s)) ^ (1 / 2 : ℝ)))
+    * ((1 + Real.sqrt (Real.pi / (2 * Real.pi ^ 2 * s))) ^ 1
+      * ((2 * Real.pi ^ 2 * (6 * s)) / (2 * Real.pi ^ 2 * (σ + s))) ^ (1 / 2 : ℝ)) ^ (d - 1)
+
+/-- Nonnegativity of the coefficient. -/
+theorem heatKB_nonneg {σ s : ℝ} (hσ : 0 < σ) (hs : 0 < s) (d : ℕ) : 0 ≤ heatKB d σ s := by
+  unfold heatKB
+  have hpi := Real.pi_pos
+  positivity
+
+/-- Nonnegativity of the coefficient. -/
+theorem heatCV_nonneg {σ s : ℝ} (hσ : 0 < σ) (hs : 0 < s) (d : ℕ) : 0 ≤ heatCV d σ s := by
+  unfold heatCV
+  have hpi := Real.pi_pos
+  positivity
+
+/-- `B` in terms of its coefficients. -/
+theorem heatB_eq (d : ℕ) (σ s Mσ : ℝ) (u : FlatTorus d) :
+    heatB d σ s Mσ u = heatKB d σ s * heatTorus d (2 * Real.pi ^ 2 * (s + 2 * σ)) u
+      + Mσ * heatTorus d (2 * Real.pi ^ 2 * (σ + s)) u := by
+  unfold heatB heatKB
+  ring
+
+/-- `V` in terms of its coefficient. -/
+theorem heatV_eq (d : ℕ) (σ s : ℝ) (u : FlatTorus d) :
+    heatV d σ s u = heatCV d σ s * heatTorus d (2 * Real.pi ^ 2 * (6 * s)) u := by
+  unfold heatV heatCV
+  ring
+
+/-- The defect bound as a function of three numbers `pa, pb, q` standing for `p_{s+2σ}(u)`,
+    `p_{σ+s}(u)` and `√(p_{6s}(u))`; it is linear in them with nonnegative coefficients. -/
+noncomputable def heatDefNum (d : ℕ) (σ : ℝ) (N m : ℕ) (Mσ L δ pa pb q : ℝ) : ℝ :=
+  (((2 * (heatKB d σ ((m : ℝ) * σ) * pa + Mσ * pb) * L
+        + 2 * (Real.sqrt (N * (Mσ * heatCV d σ ((m : ℝ) * σ)) * L) * q))
+      + 2 * (heatKB d σ ((m : ℝ) * σ) * pa + Mσ * pb))
+    + 2 * δ * (N * (Real.sqrt (heatCV d σ ((m : ℝ) * σ)) * q)
+        + (2 * (heatKB d σ ((m : ℝ) * σ) * pa + Mσ * pb) * L
+          + 2 * (Real.sqrt (N * (Mσ * heatCV d σ ((m : ℝ) * σ)) * L) * q))
+        + 2 * (heatKB d σ ((m : ℝ) * σ) * pa + Mσ * pb)))
+    / (N * (1 / 3))
+
+/-- Additivity. -/
+theorem heatDefNum_add (d : ℕ) (σ : ℝ) (N m : ℕ) (Mσ L δ pa pb q pa' pb' q' : ℝ) :
+    heatDefNum d σ N m Mσ L δ (pa + pa') (pb + pb') (q + q')
+      = heatDefNum d σ N m Mσ L δ pa pb q + heatDefNum d σ N m Mσ L δ pa' pb' q' := by
+  unfold heatDefNum
+  ring
+
+/-- Value at zero. -/
+theorem heatDefNum_zero (d : ℕ) (σ : ℝ) (N m : ℕ) (Mσ L δ : ℝ) :
+    heatDefNum d σ N m Mσ L δ 0 0 0 = 0 := by
+  unfold heatDefNum
+  simp
+
+/-- Nonnegativity for nonnegative arguments. -/
+theorem heatDefNum_nonneg {σ Mσ L δ pa pb q : ℝ} (hσ : 0 < σ) (hM : 0 ≤ Mσ) (hL : 0 ≤ L)
+    (hδ : 0 ≤ δ) (d N m : ℕ) (hm : 1 ≤ m) (ha : 0 ≤ pa) (hb : 0 ≤ pb) (hq : 0 ≤ q) :
+    0 ≤ heatDefNum d σ N m Mσ L δ pa pb q := by
+  have hm1 : (1 : ℝ) ≤ m := by exact_mod_cast hm
+  have hs : 0 < (m : ℝ) * σ := by positivity
+  have hK := heatKB_nonneg hσ hs d
+  unfold heatDefNum
+  positivity
+
+/-- Monotonicity in the three arguments. -/
+theorem heatDefNum_mono {σ Mσ L δ pa pb q pa' pb' q' : ℝ} (hσ : 0 < σ) (hM : 0 ≤ Mσ)
+    (hL : 0 ≤ L) (hδ : 0 ≤ δ) (d N m : ℕ) (hm : 1 ≤ m) (ha : pa ≤ pa') (hb : pb ≤ pb')
+    (hq : q ≤ q') :
+    heatDefNum d σ N m Mσ L δ pa pb q ≤ heatDefNum d σ N m Mσ L δ pa' pb' q' := by
+  have h := heatDefNum_add d σ N m Mσ L δ pa pb q (pa' - pa) (pb' - pb) (q' - q)
+  have e1 : pa + (pa' - pa) = pa' := by ring
+  have e2 : pb + (pb' - pb) = pb' := by ring
+  have e3 : q + (q' - q) = q' := by ring
+  rw [e1, e2, e3] at h
+  have := heatDefNum_nonneg hσ hM hL hδ d N m hm (sub_nonneg.mpr ha) (sub_nonneg.mpr hb)
+    (sub_nonneg.mpr hq)
+  linarith
+
+/-- Compatibility with finite sums. -/
+theorem heatDefNum_sum (d : ℕ) (σ : ℝ) (N m : ℕ) (Mσ L δ : ℝ) {ι : Type*} (S : Finset ι)
+    (pa pb q : ι → ℝ) :
+    ∑ b ∈ S, heatDefNum d σ N m Mσ L δ (pa b) (pb b) (q b)
+      = heatDefNum d σ N m Mσ L δ (∑ b ∈ S, pa b) (∑ b ∈ S, pb b) (∑ b ∈ S, q b) := by
+  classical
+  induction S using Finset.induction_on with
+  | empty => simp [heatDefNum_zero]
+  | insert a S ha ih =>
+    rw [Finset.sum_insert ha, Finset.sum_insert ha, Finset.sum_insert ha, Finset.sum_insert ha, ih,
+      ← heatDefNum_add]
+
+/-- The defect bound at a point is the numeric function at the three kernel quantities. -/
+theorem heatDefBound_eq_num {σ Mσ L : ℝ} (hσ : 0 < σ) (hM : 0 ≤ Mσ) (hL : 0 ≤ L) (d N m : ℕ)
+    (hm : 1 ≤ m) (δ : ℝ) (u : FlatTorus d) :
+    heatDefBound d σ N m Mσ L δ u
+      = heatDefNum d σ N m Mσ L δ
+          (heatTorus d (2 * Real.pi ^ 2 * ((m : ℝ) * σ + 2 * σ)) u)
+          (heatTorus d (2 * Real.pi ^ 2 * (σ + (m : ℝ) * σ)) u)
+          (Real.sqrt (heatTorus d (2 * Real.pi ^ 2 * (6 * ((m : ℝ) * σ))) u)) := by
+  have hm1 : (1 : ℝ) ≤ m := by exact_mod_cast hm
+  have hs : 0 < (m : ℝ) * σ := by positivity
+  have hC := heatCV_nonneg hσ hs d
+  have hp6 := heatTorus_nonneg (by positivity : (0 : ℝ) < 2 * Real.pi ^ 2 * (6 * ((m : ℝ) * σ))) d u
+  have e1 : Real.sqrt (N * (Mσ * (heatCV d σ ((m : ℝ) * σ)
+        * heatTorus d (2 * Real.pi ^ 2 * (6 * ((m : ℝ) * σ))) u)) * L)
+      = Real.sqrt (N * (Mσ * heatCV d σ ((m : ℝ) * σ)) * L)
+        * Real.sqrt (heatTorus d (2 * Real.pi ^ 2 * (6 * ((m : ℝ) * σ))) u) := by
+    rw [← Real.sqrt_mul (by positivity)]
+    congr 1; ring
+  have e2 : Real.sqrt (heatCV d σ ((m : ℝ) * σ)
+        * heatTorus d (2 * Real.pi ^ 2 * (6 * ((m : ℝ) * σ))) u)
+      = Real.sqrt (heatCV d σ ((m : ℝ) * σ))
+        * Real.sqrt (heatTorus d (2 * Real.pi ^ 2 * (6 * ((m : ℝ) * σ))) u) :=
+    Real.sqrt_mul hC _
+  unfold heatDefBound heatThr heatDefNum
+  rw [heatB_eq, heatV_eq, e1, e2]
+
+/-- Cauchy–Schwarz for a sum of square roots: `∑_{b ∈ S} √(a b) ≤ √(|S| ∑ a b)` for `a ≥ 0`. -/
+theorem sum_sqrt_le {ι : Type*} (S : Finset ι) (a : ι → ℝ) (ha : ∀ b, 0 ≤ a b) :
+    ∑ b ∈ S, Real.sqrt (a b) ≤ Real.sqrt (S.card * ∑ b ∈ S, a b) := by
+  have h := Finset.sum_mul_sq_le_sq_mul_sq S (fun _ => (1 : ℝ)) (fun b => Real.sqrt (a b))
+  simp only [one_mul, one_pow, Finset.sum_const, nsmul_eq_mul, mul_one] at h
+  have h2 : ∑ b ∈ S, Real.sqrt (a b) ^ 2 = ∑ b ∈ S, a b :=
+    Finset.sum_congr rfl fun b _ => Real.sq_sqrt (ha b)
+  rw [h2] at h
+  have hnn : 0 ≤ ∑ b ∈ S, Real.sqrt (a b) := Finset.sum_nonneg fun b _ => Real.sqrt_nonneg _
+  calc ∑ b ∈ S, Real.sqrt (a b) = Real.sqrt ((∑ b ∈ S, Real.sqrt (a b)) ^ 2) :=
+        (Real.sqrt_sq hnn).symm
+    _ ≤ Real.sqrt (S.card * ∑ b ∈ S, a b) := Real.sqrt_le_sqrt h
+
+/-- **The defect bound in the mean over the points (deterministic).** If the sums of the three
+    kernels over the points `x_b`, `b < N`, at `x_b - x_i` are at most `N (1 + δ_a)`, `N (1 + δ_b)`,
+    `N (1 + δ_c)` (estimate (iii) of the consistency lemma at the three times), then
+    `∑_{b<N} heatDefBound(x_b - x_i) ≤ heatDefNum(N(1+δ_a), N(1+δ_b), N √(1+δ_c))`. -/
+theorem heat_defect_mean_det {σ Mσ L δ δa δb δc : ℝ} (hσ : 0 < σ) (hM : 0 ≤ Mσ) (hL : 0 ≤ L)
+    (hδ : 0 ≤ δ) (d N m : ℕ) (hm : 1 ≤ m) (x : ℕ → FlatTorus d) (i : ℕ) (hδc : 0 ≤ δc)
+    (hA : ∑ b ∈ Finset.range N, heatTorus d (2 * Real.pi ^ 2 * ((m : ℝ) * σ + 2 * σ)) (x b - x i)
+      ≤ N * (1 + δa))
+    (hB : ∑ b ∈ Finset.range N, heatTorus d (2 * Real.pi ^ 2 * (σ + (m : ℝ) * σ)) (x b - x i)
+      ≤ N * (1 + δb))
+    (hC : ∑ b ∈ Finset.range N, heatTorus d (2 * Real.pi ^ 2 * (6 * ((m : ℝ) * σ))) (x b - x i)
+      ≤ N * (1 + δc)) :
+    ∑ b ∈ Finset.range N, heatDefBound d σ N m Mσ L δ (x b - x i)
+      ≤ heatDefNum d σ N m Mσ L δ (N * (1 + δa)) (N * (1 + δb)) (N * Real.sqrt (1 + δc)) := by
+  have hm1 : (1 : ℝ) ≤ m := by exact_mod_cast hm
+  have hc6 : (0 : ℝ) < 2 * Real.pi ^ 2 * (6 * ((m : ℝ) * σ)) := by positivity
+  simp_rw [heatDefBound_eq_num hσ hM hL d N m hm δ]
+  rw [heatDefNum_sum]
+  refine heatDefNum_mono hσ hM hL hδ d N m hm hA hB ?_
+  have h1 := sum_sqrt_le (Finset.range N)
+    (fun b => heatTorus d (2 * Real.pi ^ 2 * (6 * ((m : ℝ) * σ))) (x b - x i))
+    (fun b => heatTorus_nonneg hc6 d _)
+  rw [Finset.card_range] at h1
+  refine h1.trans ?_
+  have h2 : (N : ℝ) * ∑ b ∈ Finset.range N,
+        heatTorus d (2 * Real.pi ^ 2 * (6 * ((m : ℝ) * σ))) (x b - x i)
+      ≤ (N : ℝ) ^ 2 * (1 + δc) := by
+    have := mul_le_mul_of_nonneg_left hC (Nat.cast_nonneg N)
+    nlinarith
+  calc Real.sqrt ((N : ℝ) * ∑ b ∈ Finset.range N,
+          heatTorus d (2 * Real.pi ^ 2 * (6 * ((m : ℝ) * σ))) (x b - x i))
+      ≤ Real.sqrt ((N : ℝ) ^ 2 * (1 + δc)) := Real.sqrt_le_sqrt h2
+    _ = N * Real.sqrt (1 + δc) := by
+        rw [Real.sqrt_mul (by positivity), Real.sqrt_sq (Nat.cast_nonneg N)]
+
+/-- The factor in `√(p_c) ≤ heatQ · p_{2c}` (core of (P5)); it is of the order `c^{d/4}`. -/
+noncomputable def heatQ (d : ℕ) (c : ℝ) : ℝ :=
+  (Real.sqrt (1 / (c / Real.pi) ^ (1 / 2 : ℝ)) / (1 / (2 * c / Real.pi) ^ (1 / 2 : ℝ))) ^ d
+
+theorem heatQ_nonneg {c : ℝ} (hc : 0 < c) (d : ℕ) : 0 ≤ heatQ d c := by
+  unfold heatQ
+  have hpi := Real.pi_pos
+  positivity
+
+/-- Core of (P5) solved for the square root: `√(p_c(z)) ≤ heatQ(c) p_{2c}(z)`. -/
+theorem heatTorus_sqrt_le {c : ℝ} (hc : 0 < c) (d : ℕ) (z : FlatTorus d) :
+    Real.sqrt (heatTorus d c z) ≤ heatQ d c * heatTorus d (2 * c) z := by
+  have h := heatTorus_sqrt hc d z
+  have hpi := Real.pi_pos
+  have hA : 0 < (1 / (2 * c / Real.pi) ^ (1 / 2 : ℝ)) ^ d := by positivity
+  unfold heatQ
+  rw [div_pow, div_mul_eq_mul_div, le_div_iff₀ hA]
+  exact h
+
+/-- The bound for the mean of the defect at step `m`: the defect bound as a function of the means
+    of the three kernel quantities, where the mean of `√(p_{6s})` is bounded both by
+    Cauchy–Schwarz and through (P5) by the mean of `p_{12s}`. -/
+noncomputable def heatEtaBar (d : ℕ) (σ : ℝ) (N m : ℕ) (M L δ δ3 : ℝ) : ℝ :=
+  heatDefNum d σ N m M L δ (N * (1 + δ3)) (N * (1 + δ3))
+    (min (N * Real.sqrt (1 + δ3))
+      (heatQ d (2 * Real.pi ^ 2 * (6 * ((m : ℝ) * σ))) * (N * (1 + δ3)))) / N
+
+/-- **The defect bound in the mean over the points, with (P5).** As `heat_defect_mean_det`, with the
+    additional estimate (iii) at the time `12mσ`; the sum of the defect bounds is at most
+    `N · heatEtaBar`. -/
+theorem heat_defect_mean_det_min {σ Mσ L δ δ3 : ℝ} (hσ : 0 < σ) (hM : 0 ≤ Mσ) (hL : 0 ≤ L)
+    (hδ : 0 ≤ δ) (d N m : ℕ) (hN : 0 < N) (hm : 1 ≤ m) (x : ℕ → FlatTorus d) (i : ℕ)
+    (hδ3 : 0 ≤ δ3)
+    (hA : ∑ b ∈ Finset.range N, heatTorus d (2 * Real.pi ^ 2 * ((m : ℝ) * σ + 2 * σ)) (x b - x i)
+      ≤ N * (1 + δ3))
+    (hB : ∑ b ∈ Finset.range N, heatTorus d (2 * Real.pi ^ 2 * (σ + (m : ℝ) * σ)) (x b - x i)
+      ≤ N * (1 + δ3))
+    (hC : ∑ b ∈ Finset.range N, heatTorus d (2 * Real.pi ^ 2 * (6 * ((m : ℝ) * σ))) (x b - x i)
+      ≤ N * (1 + δ3))
+    (hC12 : ∑ b ∈ Finset.range N, heatTorus d (2 * Real.pi ^ 2 * (12 * ((m : ℝ) * σ))) (x b - x i)
+      ≤ N * (1 + δ3)) :
+    ∑ b ∈ Finset.range N, heatDefBound d σ N m Mσ L δ (x b - x i)
+      ≤ N * heatEtaBar d σ N m Mσ L δ δ3 := by
+  have hNpos : (0 : ℝ) < N := by exact_mod_cast hN
+  have hm1 : (1 : ℝ) ≤ m := by exact_mod_cast hm
+  have hc6 : (0 : ℝ) < 2 * Real.pi ^ 2 * (6 * ((m : ℝ) * σ)) := by positivity
+  unfold heatEtaBar
+  rw [mul_div_cancel₀ _ hNpos.ne']
+  simp_rw [heatDefBound_eq_num hσ hM hL d N m hm δ]
+  rw [heatDefNum_sum]
+  refine heatDefNum_mono hσ hM hL hδ d N m hm hA hB (le_min ?_ ?_)
+  · have h1 := sum_sqrt_le (Finset.range N)
+      (fun b => heatTorus d (2 * Real.pi ^ 2 * (6 * ((m : ℝ) * σ))) (x b - x i))
+      (fun b => heatTorus_nonneg hc6 d _)
+    rw [Finset.card_range] at h1
+    refine h1.trans ?_
+    have h2 : (N : ℝ) * ∑ b ∈ Finset.range N,
+          heatTorus d (2 * Real.pi ^ 2 * (6 * ((m : ℝ) * σ))) (x b - x i)
+        ≤ (N : ℝ) ^ 2 * (1 + δ3) := by
+      have := mul_le_mul_of_nonneg_left hC (Nat.cast_nonneg N)
+      nlinarith
+    calc Real.sqrt ((N : ℝ) * ∑ b ∈ Finset.range N,
+            heatTorus d (2 * Real.pi ^ 2 * (6 * ((m : ℝ) * σ))) (x b - x i))
+        ≤ Real.sqrt ((N : ℝ) ^ 2 * (1 + δ3)) := Real.sqrt_le_sqrt h2
+      _ = N * Real.sqrt (1 + δ3) := by
+          rw [Real.sqrt_mul (by positivity), Real.sqrt_sq (Nat.cast_nonneg N)]
+  · have e12 : 2 * (2 * Real.pi ^ 2 * (6 * ((m : ℝ) * σ)))
+        = 2 * Real.pi ^ 2 * (12 * ((m : ℝ) * σ)) := by ring
+    calc ∑ b ∈ Finset.range N,
+          Real.sqrt (heatTorus d (2 * Real.pi ^ 2 * (6 * ((m : ℝ) * σ))) (x b - x i))
+        ≤ ∑ b ∈ Finset.range N, heatQ d (2 * Real.pi ^ 2 * (6 * ((m : ℝ) * σ)))
+            * heatTorus d (2 * Real.pi ^ 2 * (12 * ((m : ℝ) * σ))) (x b - x i) :=
+          Finset.sum_le_sum fun b _ => by
+            have := heatTorus_sqrt_le hc6 d (x b - x i)
+            rwa [e12] at this
+      _ = heatQ d (2 * Real.pi ^ 2 * (6 * ((m : ℝ) * σ)))
+            * ∑ b ∈ Finset.range N,
+              heatTorus d (2 * Real.pi ^ 2 * (12 * ((m : ℝ) * σ))) (x b - x i) := by
+          rw [Finset.mul_sum]
+      _ ≤ _ := mul_le_mul_of_nonneg_left hC12 (heatQ_nonneg hc6 d)
+
+/-- **The last step of the walk (Step 2 of the kernel theorem), for the walk matrix itself.**
+    If the estimated normalisations `ρ_a = (∑_l K_{al})/N` satisfy `|ρ_a - 1| ≤ δ ≤ 1/8`, then
+    `|N P_{bi} - K_{bi}| ≤ 4 δ K_{bi}` for the walk matrix `P` of the kernel matrix `K ≥ 0`. -/
+theorem walk_last_step {n : Type} [Fintype n] [Nonempty n] (K : n → n → ℝ) (ρ : n → ℝ) {δ : ℝ}
+    (hK : ∀ a j, 0 ≤ K a j) (hsum : ∀ a, ∑ l, K a l = (Fintype.card n : ℝ) * ρ a)
+    (hδ0 : 0 ≤ δ) (hδ : δ ≤ 1 / 8) (hρ : ∀ a, |ρ a - 1| ≤ δ) (b i : n) :
+    |(Fintype.card n : ℝ) * walkMatrix K ρ b i - K b i| ≤ 4 * δ * K b i := by
+  have hN : 0 < (Fintype.card n : ℝ) := by exact_mod_cast Fintype.card_pos
+  have hρb := fun a => abs_le.mp (hρ a)
+  have hρpos : ∀ a, 0 < ρ a := fun a => by linarith [(hρb a).1]
+  obtain ⟨S, hSdef⟩ : ∃ S, S = ∑ l, K b l / ρ l := ⟨_, rfl⟩
+  have hS1 : (Fintype.card n : ℝ) * (1 - δ) ≤ S * (1 + δ) := by
+    calc (Fintype.card n : ℝ) * (1 - δ) ≤ (Fintype.card n : ℝ) * ρ b :=
+          mul_le_mul_of_nonneg_left (by linarith [(hρb b).1]) hN.le
+      _ = ∑ l, K b l := (hsum b).symm
+      _ ≤ ∑ l, K b l / ρ l * (1 + δ) := Finset.sum_le_sum fun l _ => by
+          rw [div_mul_eq_mul_div, le_div_iff₀ (hρpos l)]
+          exact mul_le_mul_of_nonneg_left (by linarith [(hρb l).2]) (hK b l)
+      _ = S * (1 + δ) := by rw [hSdef, Finset.sum_mul]
+  have hS2 : S * (1 - δ) ≤ (Fintype.card n : ℝ) * (1 + δ) := by
+    calc S * (1 - δ) = ∑ l, K b l / ρ l * (1 - δ) := by rw [hSdef, Finset.sum_mul]
+      _ ≤ ∑ l, K b l := Finset.sum_le_sum fun l _ => by
+          rw [div_mul_eq_mul_div, div_le_iff₀ (hρpos l)]
+          exact mul_le_mul_of_nonneg_left (by linarith [(hρb l).1]) (hK b l)
+      _ = (Fintype.card n : ℝ) * ρ b := hsum b
+      _ ≤ (Fintype.card n : ℝ) * (1 + δ) :=
+          mul_le_mul_of_nonneg_left (by linarith [(hρb b).2]) hN.le
+  have hSpos : 0 < S := by
+    have h1 : 0 < S * (1 + δ) := lt_of_lt_of_le (mul_pos hN (by linarith)) hS1
+    exact (mul_pos_iff_of_pos_right (by linarith)).mp h1
+  obtain ⟨u, hudef⟩ : ∃ u, u = 1 / ρ i := ⟨_, rfl⟩
+  have hu1 : 1 ≤ u * (1 + δ) := by
+    rw [hudef, one_div_mul_eq_div, le_div_iff₀ (hρpos i)]; linarith [(hρb i).2]
+  have hu2 : u * (1 - δ) ≤ 1 := by
+    rw [hudef, one_div_mul_eq_div, div_le_iff₀ (hρpos i)]; linarith [(hρb i).1]
+  have hP : (Fintype.card n : ℝ) * walkMatrix K ρ b i - K b i
+      = K b i * (((Fintype.card n : ℝ) * u - S) / S) := by
+    rw [walkMatrix_apply' K ρ b i (hρpos b).ne', ← hSdef, hudef]
+    have := hρpos i
+    field_simp
+  have hpos2 : 0 < (1 - δ) * (1 + δ) := mul_pos (by linarith) (by linarith)
+  -- upper bound: N u ≤ (1 + 4δ) S
+  have hup : (Fintype.card n : ℝ) * u ≤ (1 + 4 * δ) * S := by
+    refine le_of_mul_le_mul_right ?_ hpos2
+    have a1 : (Fintype.card n : ℝ) * u * ((1 - δ) * (1 + δ)) ≤ (Fintype.card n : ℝ) * (1 + δ) := by
+      have := mul_le_mul_of_nonneg_left hu2 (mul_nonneg hN.le (by linarith : (0 : ℝ) ≤ 1 + δ))
+      nlinarith
+    have a2 : (Fintype.card n : ℝ) * (1 + δ)
+        ≤ (1 + 4 * δ) * (1 - δ) * ((Fintype.card n : ℝ) * (1 - δ)) := by
+      have hpoly : 0 ≤ δ * (1 - 7 * δ + 4 * δ ^ 2) :=
+        mul_nonneg hδ0 (by nlinarith [_root_.sq_nonneg δ])
+      nlinarith [mul_nonneg hN.le hpoly]
+    have a3 : (1 + 4 * δ) * (1 - δ) * ((Fintype.card n : ℝ) * (1 - δ))
+        ≤ (1 + 4 * δ) * (1 - δ) * (S * (1 + δ)) :=
+      mul_le_mul_of_nonneg_left hS1 (mul_nonneg (by linarith) (by linarith))
+    calc (Fintype.card n : ℝ) * u * ((1 - δ) * (1 + δ)) ≤ (Fintype.card n : ℝ) * (1 + δ) := a1
+      _ ≤ _ := a2
+      _ ≤ _ := a3
+      _ = (1 + 4 * δ) * S * ((1 - δ) * (1 + δ)) := by ring
+  -- lower bound: (1 - 4δ) S ≤ N u
+  have hlow : (1 - 4 * δ) * S ≤ (Fintype.card n : ℝ) * u := by
+    refine le_of_mul_le_mul_right ?_ hpos2
+    have b1 : (1 - 4 * δ) * (1 + δ) * (S * (1 - δ))
+        ≤ (1 - 4 * δ) * (1 + δ) * ((Fintype.card n : ℝ) * (1 + δ)) :=
+      mul_le_mul_of_nonneg_left hS2 (mul_nonneg (by linarith) (by linarith))
+    have b2 : (1 - 4 * δ) * (1 + δ) * ((Fintype.card n : ℝ) * (1 + δ))
+        ≤ (Fintype.card n : ℝ) * (1 - δ) := by
+      have hpoly : 0 ≤ δ * (1 + 7 * δ + 4 * δ ^ 2) :=
+        mul_nonneg hδ0 (by nlinarith [_root_.sq_nonneg δ])
+      nlinarith [mul_nonneg hN.le hpoly]
+    have b3 : (Fintype.card n : ℝ) * (1 - δ)
+        ≤ (Fintype.card n : ℝ) * u * ((1 - δ) * (1 + δ)) := by
+      have := mul_le_mul_of_nonneg_left hu1 (mul_nonneg hN.le (by linarith : (0 : ℝ) ≤ 1 - δ))
+      nlinarith
+    calc (1 - 4 * δ) * S * ((1 - δ) * (1 + δ)) = (1 - 4 * δ) * (1 + δ) * (S * (1 - δ)) := by ring
+      _ ≤ _ := b1
+      _ ≤ _ := b2
+      _ ≤ _ := b3
+  rw [hP, abs_mul, abs_of_nonneg (hK b i), mul_comm (4 * δ)]
+  refine mul_le_mul_of_nonneg_left ?_ (hK b i)
+  rw [abs_div, abs_of_pos hSpos, div_le_iff₀ hSpos, abs_le]
+  constructor <;> linarith
+
+/-- The heat kernel after `k` steps of size `σ` (zero for `k = 0`, a convention). -/
+noncomputable def heatP (d : ℕ) (σ : ℝ) (k : ℕ) (u : FlatTorus d) : ℝ :=
+  if k = 0 then 0 else heatTorus d (2 * Real.pi ^ 2 * ((k : ℝ) * σ)) u
+
+/-- The uniform bound of the heat kernel after `k` steps (zero for `k = 0`). -/
+noncomputable def heatMu (d : ℕ) (σ : ℝ) (k : ℕ) : ℝ :=
+  if k = 0 then 0 else heatM d (2 * Real.pi ^ 2 * ((k : ℝ) * σ))
+
+theorem heatP_of_ne (d : ℕ) (σ : ℝ) {k : ℕ} (hk : k ≠ 0) (u : FlatTorus d) :
+    heatP d σ k u = heatTorus d (2 * Real.pi ^ 2 * ((k : ℝ) * σ)) u := by
+  simp [heatP, hk]
+
+theorem heatP_succ (d : ℕ) (σ : ℝ) (m : ℕ) (u : FlatTorus d) :
+    heatP d σ (m + 1) u = heatTorus d (2 * Real.pi ^ 2 * (σ + (m : ℝ) * σ)) u := by
+  rw [heatP_of_ne d σ (Nat.succ_ne_zero m)]
+  congr 2
+  push_cast
+  ring
+
+theorem heatP_one (d : ℕ) (σ : ℝ) (u : FlatTorus d) :
+    heatP d σ 1 u = heatTorus d (2 * Real.pi ^ 2 * σ) u := by
+  rw [heatP_of_ne d σ one_ne_zero]
+  simp
+
+theorem heatMu_nonneg (d : ℕ) (σ : ℝ) (k : ℕ) : 0 ≤ heatMu d σ k := by
+  unfold heatMu
+  split_ifs
+  · exact le_rfl
+  · exact heatM_nonneg d _
+
+theorem heatP_nonneg {σ : ℝ} (hσ : 0 < σ) (d k : ℕ) (u : FlatTorus d) : 0 ≤ heatP d σ k u := by
+  unfold heatP
+  split_ifs with hk
+  · exact le_rfl
+  · have hk' : (0 : ℝ) < k := by exact_mod_cast Nat.pos_of_ne_zero hk
+    exact heatTorus_nonneg (by positivity) d u
+
+theorem heatP_le_mu {σ : ℝ} (hσ : 0 < σ) (d k : ℕ) (u : FlatTorus d) :
+    heatP d σ k u ≤ heatMu d σ k := by
+  unfold heatP heatMu
+  split_ifs with hk
+  · exact le_rfl
+  · have hk' : (0 : ℝ) < k := by exact_mod_cast Nat.pos_of_ne_zero hk
+    exact heatTorus_le_heatM (by positivity) d u
+
+section KernelMin
+open Matrix
+
+/-- Step 3 of the proof of Theorem "kernel" with an arbitrary bound `t m` for each transported
+    defect `P^{j-m} h_m`. -/
+theorem lax_kernel_bound_terms {n : Type} [Fintype n] [DecidableEq n] (P : Matrix n n ℝ)
+    (g : ℕ → n → ℝ) (t : ℕ → ℝ) (hs : ℝ) (j : ℕ)
+    (hterm : ∀ m < j, ∀ a, |((P ^ (j - m)) *ᵥ (P *ᵥ g (m + 1) - g (m + 2))) a| ≤ t m)
+    (hsup : ∀ b, |(P *ᵥ g (j + 1) - g (j + 2)) b| ≤ hs) (a : n) :
+    |((P ^ (j + 1)) *ᵥ g 1 - g (j + 2)) a| ≤ ∑ m ∈ Finset.range j, t m + hs := by
+  rw [lax_telescope P g (j + 1), Finset.sum_apply, Finset.sum_range_succ]
+  have hlast : |((P ^ (j + 1 - 1 - j)) *ᵥ (P *ᵥ g (j + 1) - g (j + 2))) a| ≤ hs := by
+    have e : j + 1 - 1 - j = 0 := by omega
+    rw [e, pow_zero, one_mulVec]; exact hsup a
+  have hterm' : ∀ m ∈ Finset.range j,
+      |((P ^ (j + 1 - 1 - m)) *ᵥ (P *ᵥ g (m + 1) - g (m + 2))) a| ≤ t m := by
+    intro m hm
+    have hm' : m < j := Finset.mem_range.mp hm
+    have e : j + 1 - 1 - m = j - m := by omega
+    rw [e]
+    exact hterm m hm' a
+  calc |∑ m ∈ Finset.range j, ((P ^ (j + 1 - 1 - m)) *ᵥ (P *ᵥ g (m + 1) - g (m + 2))) a
+          + ((P ^ (j + 1 - 1 - j)) *ᵥ (P *ᵥ g (j + 1) - g (j + 2))) a|
+      ≤ |∑ m ∈ Finset.range j, ((P ^ (j + 1 - 1 - m)) *ᵥ (P *ᵥ g (m + 1) - g (m + 2))) a|
+          + |((P ^ (j + 1 - 1 - j)) *ᵥ (P *ᵥ g (j + 1) - g (j + 2))) a| := abs_add_le _ _
+    _ ≤ ∑ m ∈ Finset.range j, t m + hs :=
+        add_le_add ((Finset.abs_sum_le_sum_abs _ _).trans (Finset.sum_le_sum hterm')) hlast
+
+/-- The recursion `eq:kernel-rec` with an arbitrary bound for each transported defect. -/
+theorem kernel_recursion_terms {n : Type} [Fintype n] [DecidableEq n] (P : Matrix n n ℝ)
+    (h0 : ∀ i j, 0 ≤ P i j) (g : ℕ → n → ℝ) (c : n → ℝ) {theta : ℝ} (hth : 0 ≤ theta)
+    (hc : ∀ b, |c b - g 1 b| ≤ theta * g 1 b) (t : ℕ → ℝ) (hs : ℝ) (j : ℕ)
+    (hterm : ∀ m < j, ∀ a, |((P ^ (j - m)) *ᵥ (P *ᵥ g (m + 1) - g (m + 2))) a| ≤ t m)
+    (hsup : ∀ b, |(P *ᵥ g (j + 1) - g (j + 2)) b| ≤ hs) (a : n) :
+    |((P ^ (j + 1)) *ᵥ c) a - g (j + 2) a|
+      ≤ theta * g (j + 2) a + (1 + theta) * (∑ m ∈ Finset.range j, t m + hs) := by
+  have h1 := last_step (P ^ (j + 1)) (pow_entries_nonneg P h0 (j + 1)) c (g 1) hc a
+  have h2 := lax_kernel_bound_terms P g t hs j hterm hsup a
+  have h2' : |((P ^ (j + 1)) *ᵥ g 1) a - g (j + 2) a| ≤ ∑ m ∈ Finset.range j, t m + hs := by
+    simpa using h2
+  have h3 : ((P ^ (j + 1)) *ᵥ g 1) a ≤ g (j + 2) a + (∑ m ∈ Finset.range j, t m + hs) := by
+    linarith [(abs_le.mp h2').2]
+  have h4 := mul_le_mul_of_nonneg_left h3 hth
+  rw [abs_le] at h1 h2' ⊢
+  constructor <;> nlinarith [h1.1, h1.2, h2'.1, h2'.2]
+
+/-- **Theorem "kernel" for matrices with the two bounds of Step 3.** As `kernel_theorem_matrix`,
+    for a row-stochastic `P`, but each transported defect `P^{j-m} h_m` is bounded by the smaller of
+    `2 mu_{j-m} etabar_{m+1}` (largest entry of the power times the mean of the defect) and
+    `etasup_{m+1}` (supremum of the defect; the powers are row-stochastic). This is the form used in
+    Step 4 of the proof in the paper, where the first bound is taken for `m ≤ k/2` and the second
+    for `m > k/2`. -/
+theorem kernel_theorem_matrix_min {n : Type} [Fintype n] [DecidableEq n] [Nonempty n]
+    (P : Matrix n n ℝ) (h0 : ∀ i j, 0 ≤ P i j) (hrow : ∀ i, ∑ j, P i j = 1)
+    (p : ℕ → n → n → ℝ) (mu etabar etasup W : ℕ → ℝ)
+    {d : ℝ} (K : ℕ) (hd0 : 0 ≤ d) (hd1 : 4 * d ≤ 1)
+    (hmu : ∀ k, 0 ≤ mu k) (hp0 : ∀ k a i, 0 ≤ p k a i) (hpmu : ∀ k a i, p k a i ≤ mu k)
+    (hlast : ∀ b i, |(Fintype.card n : ℝ) * P b i - p 1 b i| ≤ 4 * d * p 1 b i)
+    (hbar : ∀ m i, 1 ≤ m → m < K → ∑ b, |(P *ᵥ (fun b' => p m b' i)) b - p (m + 1) b i|
+        ≤ (Fintype.card n : ℝ) * etabar m)
+    (hsup : ∀ m i b, 1 ≤ m → m < K →
+      |(P *ᵥ (fun b' => p m b' i)) b - p (m + 1) b i| ≤ etasup m)
+    (hsum : ∀ j, j + 1 < K → ∑ m ∈ Finset.range j,
+        min (2 * mu (j - m) * etabar (m + 1)) (etasup (m + 1))
+          + etasup (j + 1) ≤ W (j + 1) * mu (j + 2))
+    (hW : ∀ j, j + 1 < K → 0 ≤ W (j + 1) ∧ 4 * d + (1 + 4 * d) * W (j + 1) ≤ 1) :
+    (∀ l, 1 ≤ l → l ≤ K → kernelDist P p l ≤ mu l)
+      ∧ (∀ j, j + 1 < K →
+          kernelDist P p (j + 2) ≤ (4 * d + (1 + 4 * d) * W (j + 1)) * mu (j + 2)) := by
+  have hN : 0 < (Fintype.card n : ℝ) := by exact_mod_cast Fintype.card_pos
+  have step : ∀ j, j + 1 < K → (∀ l, 1 ≤ l → l ≤ j + 1 → kernelDist P p l ≤ mu l) →
+      kernelDist P p (j + 2) ≤ (4 * d + (1 + 4 * d) * W (j + 1)) * mu (j + 2) := by
+    intro j hj ih
+    rw [kernelDist_le_iff]
+    intro a i
+    have hent : ∀ m < j, ∀ a b, |(P ^ (j - m)) a b| ≤ 2 * mu (j - m) / (Fintype.card n : ℝ) := by
+      intro m hm a b
+      rw [abs_of_nonneg (pow_entries_nonneg P h0 _ a b), le_div_iff₀ hN]
+      have h1 := (kernelDist_le_iff P p (j - m) (mu (j - m))).mp (ih (j - m) (by omega) (by omega)) a b
+      have h2 := hpmu (j - m) a b
+      have h3 := (abs_le.mp h1).2
+      linarith
+    have hw : ∀ m < j, 0 ≤ 2 * mu (j - m) / (Fintype.card n : ℝ) := fun m _ =>
+      div_nonneg (mul_nonneg (by norm_num) (hmu _)) hN.le
+    have key := kernel_recursion_terms P h0 (fun m b => p m b i)
+      (fun b => (Fintype.card n : ℝ) * P b i) (theta := 4 * d) (by linarith)
+      (fun b => hlast b i)
+      (fun m => min (2 * mu (j - m) * etabar (m + 1)) (etasup (m + 1))) (etasup (j + 1)) j
+      (fun m hm a => by
+        refine le_min ?_ ?_
+        · have hb1 : ∑ b, |(P *ᵥ (fun b => p (m + 1) b i) - fun b => p (m + 2) b i) b|
+              ≤ (Fintype.card n : ℝ) * etabar (m + 1) := by
+            simpa using hbar (m + 1) i (by omega) (by omega)
+          have h1 := (weighted_mulVec_le (P ^ (j - m))
+            (P *ᵥ (fun b => p (m + 1) b i) - fun b => p (m + 2) b i) (hent m hm) a).trans
+            (mul_le_mul_of_nonneg_left hb1 (hw m hm))
+          have e : 2 * mu (j - m) / (Fintype.card n : ℝ) * ((Fintype.card n : ℝ) * etabar (m + 1))
+              = 2 * mu (j - m) * etabar (m + 1) := by field_simp
+          rw [e] at h1
+          exact h1
+        · exact sup_pow_mulVec_le P h0 hrow (j - m)
+            (P *ᵥ (fun b => p (m + 1) b i) - fun b => p (m + 2) b i)
+            (fun b => by simpa using hsup (m + 1) i b (by omega) (by omega)) a)
+      (fun b => by simpa using hsup (j + 1) i b (by omega) hj) a
+    have e : ((P ^ (j + 1)) *ᵥ fun b => (Fintype.card n : ℝ) * P b i) a
+        = (Fintype.card n : ℝ) * (P ^ (j + 2)) a i := by
+      have hpow : (P ^ (j + 2)) a i = ∑ b, (P ^ (j + 1)) a b * P b i := by
+        rw [show j + 2 = (j + 1) + 1 from rfl, pow_succ, Matrix.mul_apply]
+      rw [hpow, Finset.mul_sum]
+      simp only [mulVec, dotProduct]
+      exact Finset.sum_congr rfl (fun b _ => by ring)
+    rw [e] at key
+    have hs := hsum j hj
+    have hWj := hW j hj
+    have hpm := hpmu (j + 2) a i
+    have hp0' := hp0 (j + 2) a i
+    have hm2 := hmu (j + 2)
+    calc |(Fintype.card n : ℝ) * (P ^ (j + 2)) a i - p (j + 2) a i|
+        ≤ 4 * d * p (j + 2) a i + (1 + 4 * d) * (∑ m ∈ Finset.range j,
+            min (2 * mu (j - m) * etabar (m + 1)) (etasup (m + 1)) + etasup (j + 1)) := key
+      _ ≤ 4 * d * mu (j + 2) + (1 + 4 * d) * (W (j + 1) * mu (j + 2)) := by
+          have h1 : 4 * d * p (j + 2) a i ≤ 4 * d * mu (j + 2) :=
+            mul_le_mul_of_nonneg_left hpm (by linarith)
+          have h2 := mul_le_mul_of_nonneg_left hs (show (0 : ℝ) ≤ 1 + 4 * d by linarith)
+          linarith
+      _ = (4 * d + (1 + 4 * d) * W (j + 1)) * mu (j + 2) := by ring
+  have base : kernelDist P p 1 ≤ mu 1 := by
+    rw [kernelDist_le_iff]
+    intro a i
+    have h1 := hlast a i
+    rw [pow_one]
+    have h2 : 4 * d * p 1 a i ≤ 1 * mu 1 :=
+      mul_le_mul hd1 (hpmu 1 a i) (hp0 1 a i) (by norm_num)
+    have h3 := abs_le.mp h1
+    rw [abs_le]
+    constructor <;> linarith [hp0 1 a i, hpmu 1 a i]
+  have all : ∀ k, ∀ l, 1 ≤ l → l ≤ k → l ≤ K → kernelDist P p l ≤ mu l := by
+    intro k
+    induction k with
+    | zero => intro l h1 h2; omega
+    | succ k ih =>
+      intro l hl1 hlk hlK
+      by_cases hle : l ≤ k
+      · exact ih l hl1 hle hlK
+      · have hl : l = k + 1 := by omega
+        subst hl
+        rcases Nat.eq_zero_or_pos k with hk | hk
+        · subst hk; exact base
+        · obtain ⟨j, rfl⟩ : ∃ j, k = j + 1 := ⟨k - 1, by omega⟩
+          have hj : j + 1 < K := by omega
+          have hstep := step j hj (fun l h1 h2 => ih l h1 h2 (by omega))
+          have hWj := hW j hj
+          have hm2 := hmu (j + 2)
+          calc kernelDist P p (j + 1 + 1) ≤ (4 * d + (1 + 4 * d) * W (j + 1)) * mu (j + 2) := hstep
+            _ ≤ 1 * mu (j + 2) := mul_le_mul_of_nonneg_right hWj.2 hm2
+            _ = mu (j + 1 + 1) := by ring_nf
+  exact ⟨fun l h1 hK => all l l h1 le_rfl hK,
+    fun j hj => step j hj (fun l h1 h2 => all l l h1 le_rfl (by omega))⟩
+
+/-- The rows of the walk matrix sum to one when the row normalisation does not vanish. -/
+theorem walkMatrix_row_sum {n : Type} [Fintype n] (K : n → n → ℝ) (qv : n → ℝ) (b : n)
+    (hS : ∑ l, K b l / (qv b * qv l) ≠ 0) : ∑ j, walkMatrix K qv b j = 1 := by
+  simp only [walkMatrix, Matrix.of_apply]
+  rw [← Finset.sum_div]
+  exact div_self hS
+
+end KernelMin
+
+open Matrix in
+/-- **Theorem "kernel" for the sampled walk on the torus, deterministic part, sharp form.**
+    Points `x_0, …, x_{N-1}` on the flat torus, walk matrix `P` of the kernel `p_σ` with the
+    estimated normalisation. HYPOTHESES on the points (each holds with high probability for a
+    random sample): the normalisation `|ρ_j - 1| ≤ δ ≤ 1/8`; estimate (ii) of the consistency lemma,
+    `|h_m^{(i)}(b)| ≤ heatDefBound(x_b - x_i)` for `1 ≤ m < K`; estimate (iii) at the three times
+    `mσ + 2σ`, `σ + mσ`, `6mσ` with error `δ₃`. HYPOTHESES on numbers: the summation `hsum`, in which each
+    transported defect is bounded by the smaller of the mean bound and the supremum bound (Step 3
+    of the proof in the paper), and `4δ + (1 + 4δ) W ≤ 1`. CONCLUSION: `D_l ≤ mu_l` for `1 ≤ l ≤ K` and
+    `D_{j+2} ≤ (4δ + (1 + 4δ) W_{j+1}) mu_{j+2}`, where `D_k = max |N P^k(a,i) - p_{kσ}(x_a - x_i)|`. -/
+theorem heat_kernel_sharp_det {σ M L δ δ3 : ℝ} (hσ : 0 < σ) (d N K : ℕ) (hN : 0 < N)
+    (x : ℕ → FlatTorus d) (hM : 0 ≤ M) (hL : 0 ≤ L) (hδ0 : 0 ≤ δ) (hδ : δ ≤ 1 / 8) (hδ3 : 0 ≤ δ3)
+    (hρ : ∀ j, |heatRho d σ N x j - 1| ≤ δ)
+    (hdef : ∀ m, 1 ≤ m → m < K → ∀ b, b < N → ∀ i, i < N →
+      |heatDefect d σ N m x b i| ≤ heatDefBound d σ N m M L δ (x b - x i))
+    (hA : ∀ m, 1 ≤ m → m < K → ∀ i, i < N →
+      ∑ b ∈ Finset.range N, heatTorus d (2 * Real.pi ^ 2 * ((m : ℝ) * σ + 2 * σ)) (x b - x i)
+        ≤ N * (1 + δ3))
+    (hB : ∀ m, 1 ≤ m → m < K → ∀ i, i < N →
+      ∑ b ∈ Finset.range N, heatTorus d (2 * Real.pi ^ 2 * (σ + (m : ℝ) * σ)) (x b - x i)
+        ≤ N * (1 + δ3))
+    (hC : ∀ m, 1 ≤ m → m < K → ∀ i, i < N →
+      ∑ b ∈ Finset.range N, heatTorus d (2 * Real.pi ^ 2 * (6 * ((m : ℝ) * σ))) (x b - x i)
+        ≤ N * (1 + δ3))
+    (hC12 : ∀ m, 1 ≤ m → m < K → ∀ i, i < N →
+      ∑ b ∈ Finset.range N, heatTorus d (2 * Real.pi ^ 2 * (12 * ((m : ℝ) * σ))) (x b - x i)
+        ≤ N * (1 + δ3))
+    (W : ℕ → ℝ)
+    (hsum : ∀ j, j + 1 < K → ∑ m ∈ Finset.range j,
+        min (2 * heatMu d σ (j - m)
+          * heatEtaBar d σ N (m + 1) M L δ δ3) (heatDefSup d σ N (m + 1) M L δ)
+          + heatDefSup d σ N (j + 1) M L δ ≤ W (j + 1) * heatMu d σ (j + 2))
+    (hW : ∀ j, j + 1 < K → 0 ≤ W (j + 1) ∧ 4 * δ + (1 + 4 * δ) * W (j + 1) ≤ 1) :
+    haveI : Nonempty (Fin N) := ⟨⟨0, hN⟩⟩
+    (∀ l, 1 ≤ l → l ≤ K →
+        kernelDist (walkMatrix (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (x a - x j))
+            (fun a : Fin N => heatRho d σ N x a))
+          (fun k (a i : Fin N) => heatP d σ k (x a - x i)) l ≤ heatMu d σ l)
+      ∧ (∀ j, j + 1 < K →
+        kernelDist (walkMatrix (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (x a - x j))
+            (fun a : Fin N => heatRho d σ N x a))
+          (fun k (a i : Fin N) => heatP d σ k (x a - x i)) (j + 2)
+          ≤ (4 * δ + (1 + 4 * δ) * W (j + 1)) * heatMu d σ (j + 2)) := by
+  haveI : Nonempty (Fin N) := ⟨⟨0, hN⟩⟩
+  have hNpos : (0 : ℝ) < N := by exact_mod_cast hN
+  have hcσ : 0 < 2 * Real.pi ^ 2 * σ := by positivity
+  have hρb := fun j => abs_le.mp (hρ j)
+  have hρpos : ∀ j, 0 < heatRho d σ N x j := fun j => by linarith [(hρb j).1]
+  have hK0 : ∀ a j : Fin N, 0 ≤ heatTorus d (2 * Real.pi ^ 2 * σ) (x a - x j) :=
+    fun a j => heatTorus_nonneg hcσ d _
+  have hcard : (Fintype.card (Fin N) : ℝ) = N := by simp
+  -- the one-step defect in matrix form
+  have hterm : ∀ m, 1 ≤ m → ∀ (i b : Fin N),
+      ((walkMatrix (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (x a - x j))
+            (fun a : Fin N => heatRho d σ N x a))
+          *ᵥ (fun b' : Fin N => heatP d σ m (x b' - x i))) b - heatP d σ (m + 1) (x b - x i)
+        = heatDefect d σ N m x b i := by
+    intro m hm i b
+    have e1 : (fun b' : Fin N => heatP d σ m (x b' - x i))
+        = fun b' : Fin N => heatTorus d (2 * Real.pi ^ 2 * ((m : ℝ) * σ)) (x b' - x i) :=
+      funext fun b' => heatP_of_ne d σ (by omega) _
+    rw [e1, heatP_succ]
+    exact walk_defect_eq d σ N m hN x (fun j => (hρpos j).ne') b i
+  have h := kernel_theorem_matrix_min
+    (walkMatrix (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (x a - x j))
+      (fun a : Fin N => heatRho d σ N x a))
+    (fun a j => by
+      rw [walkMatrix_apply' _ _ a j (hρpos a).ne']
+      exact div_nonneg (div_nonneg (hK0 a j) (hρpos j).le)
+        (Finset.sum_nonneg fun l _ => div_nonneg (hK0 a l) (hρpos l).le))
+    (fun a => walkMatrix_row_sum _ _ a (ne_of_gt (Finset.sum_pos'
+      (fun l _ => div_nonneg (hK0 a l) (mul_pos (hρpos a) (hρpos l)).le)
+      ⟨a, Finset.mem_univ a, div_pos (by rw [sub_self]; exact heatTorus_pos hcσ d 0)
+        (mul_pos (hρpos a) (hρpos a))⟩)))
+    (fun k (a i : Fin N) => heatP d σ k (x a - x i)) (heatMu d σ)
+    (fun m => heatEtaBar d σ N m M L δ δ3)
+    (fun m => heatDefSup d σ N m M L δ) W K hδ0 (by linarith)
+    (heatMu_nonneg d σ) (fun k a i => heatP_nonneg hσ d k _) (fun k a i => heatP_le_mu hσ d k _)
+    (fun b i => by
+      have h1 := walk_last_step (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (x a - x j))
+        (fun a : Fin N => heatRho d σ N x a) hK0
+        (fun a => by
+          rw [hcard]
+          unfold heatRho
+          rw [mul_div_cancel₀ _ hNpos.ne']
+          exact Fin.sum_univ_eq_sum_range
+            (fun l => heatTorus d (2 * Real.pi ^ 2 * σ) (x a - x l)) N)
+        hδ0 hδ (fun a => hρ a) b i
+      simpa only [heatP_one] using h1)
+    (fun m i hm hmK => by
+      simp only [hterm m hm i]
+      rw [hcard]
+      calc ∑ b : Fin N, |heatDefect d σ N m x b i|
+          ≤ ∑ b : Fin N, heatDefBound d σ N m M L δ (x b - x i) :=
+            Finset.sum_le_sum fun b _ => hdef m hm hmK b b.2 i i.2
+        _ = ∑ b ∈ Finset.range N, heatDefBound d σ N m M L δ (x b - x i) :=
+            Fin.sum_univ_eq_sum_range (fun b => heatDefBound d σ N m M L δ (x b - x i)) N
+        _ ≤ _ := heat_defect_mean_det_min hσ hM hL (by linarith) d N m hN hm x i hδ3
+            (hA m hm hmK i i.2) (hB m hm hmK i i.2) (hC m hm hmK i i.2) (hC12 m hm hmK i i.2))
+    (fun m i b hm hmK => by
+      rw [hterm m hm i b]
+      exact (hdef m hm hmK b b.2 i i.2).trans
+        (heatDefBound_le_sup hσ hM hL (by linarith) d N m hN hm _))
+    (fun j hj => hsum j hj)
+    hW
+  exact h
+
+/-- The conclusion of the kernel theorem for the sampled walk, entry by entry: for `1 ≤ l ≤ K`,
+    `|N P^l(a,i) - p_{lσ}(x_a - x_i)| ≤ mu_l`, and for `j + 1 < K`,
+    `|N P^{j+2}(a,i) - p_{(j+2)σ}(x_a - x_i)| ≤ (4δ + (1 + 4δ) W_{j+1}) mu_{j+2}`. -/
+def heatKernelSharp (d : ℕ) (σ δ : ℝ) (N K : ℕ) (W : ℕ → ℝ) (x : ℕ → FlatTorus d) : Prop :=
+  (∀ l, 1 ≤ l → l ≤ K → ∀ a i : Fin N,
+      |(N : ℝ) * ((walkMatrix (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (x a - x j))
+            (fun a : Fin N => heatRho d σ N x a)) ^ l) a i - heatP d σ l (x a - x i)|
+        ≤ heatMu d σ l)
+    ∧ (∀ j, j + 1 < K → ∀ a i : Fin N,
+      |(N : ℝ) * ((walkMatrix (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (x a - x j))
+            (fun a : Fin N => heatRho d σ N x a)) ^ (j + 2)) a i - heatP d σ (j + 2) (x a - x i)|
+        ≤ (4 * δ + (1 + 4 * δ) * W (j + 1)) * heatMu d σ (j + 2))
+
+/-- The sharp deterministic kernel theorem, entry by entry. -/
+theorem heat_kernel_sharp_entries {σ M L δ δ3 : ℝ} (hσ : 0 < σ) (d N K : ℕ) (hN : 0 < N)
+    (x : ℕ → FlatTorus d) (hM : 0 ≤ M) (hL : 0 ≤ L) (hδ0 : 0 ≤ δ) (hδ : δ ≤ 1 / 8) (hδ3 : 0 ≤ δ3)
+    (hρ : ∀ j, |heatRho d σ N x j - 1| ≤ δ)
+    (hdef : ∀ m, 1 ≤ m → m < K → ∀ b, b < N → ∀ i, i < N →
+      |heatDefect d σ N m x b i| ≤ heatDefBound d σ N m M L δ (x b - x i))
+    (hA : ∀ m, 1 ≤ m → m < K → ∀ i, i < N →
+      ∑ b ∈ Finset.range N, heatTorus d (2 * Real.pi ^ 2 * ((m : ℝ) * σ + 2 * σ)) (x b - x i)
+        ≤ N * (1 + δ3))
+    (hB : ∀ m, 1 ≤ m → m < K → ∀ i, i < N →
+      ∑ b ∈ Finset.range N, heatTorus d (2 * Real.pi ^ 2 * (σ + (m : ℝ) * σ)) (x b - x i)
+        ≤ N * (1 + δ3))
+    (hC : ∀ m, 1 ≤ m → m < K → ∀ i, i < N →
+      ∑ b ∈ Finset.range N, heatTorus d (2 * Real.pi ^ 2 * (6 * ((m : ℝ) * σ))) (x b - x i)
+        ≤ N * (1 + δ3))
+    (hC12 : ∀ m, 1 ≤ m → m < K → ∀ i, i < N →
+      ∑ b ∈ Finset.range N, heatTorus d (2 * Real.pi ^ 2 * (12 * ((m : ℝ) * σ))) (x b - x i)
+        ≤ N * (1 + δ3))
+    (W : ℕ → ℝ)
+    (hsum : ∀ j, j + 1 < K → ∑ m ∈ Finset.range j,
+        min (2 * heatMu d σ (j - m)
+          * heatEtaBar d σ N (m + 1) M L δ δ3) (heatDefSup d σ N (m + 1) M L δ)
+          + heatDefSup d σ N (j + 1) M L δ ≤ W (j + 1) * heatMu d σ (j + 2))
+    (hW : ∀ j, j + 1 < K → 0 ≤ W (j + 1) ∧ 4 * δ + (1 + 4 * δ) * W (j + 1) ≤ 1) :
+    heatKernelSharp d σ δ N K W x := by
+  haveI : Nonempty (Fin N) := ⟨⟨0, hN⟩⟩
+  obtain ⟨h1, h2⟩ := heat_kernel_sharp_det hσ d N K hN x hM hL hδ0 hδ hδ3 hρ hdef hA hB hC hC12 W hsum hW
+  constructor
+  · intro l hl hlK a i
+    have := (kernelDist_le_iff _ _ l _).mp (h1 l hl hlK) a i
+    simpa using this
+  · intro j hj a i
+    have := (kernelDist_le_iff _ _ (j + 2) _).mp (h2 j hj) a i
+    simpa using this
+
+/-- From the normalisation event at time `τ` to estimate (iii): the sum of the kernel over the
+    points, seen from a sample point. -/
+theorem norm_event_sum {d N : ℕ} {τ epsn : ℝ} (hN : 0 < N) (x : ℕ → FlatTorus d)
+    (h : ∀ y : FlatTorus d,
+      |∑ j ∈ Finset.range N, heatTorus d (2 * Real.pi ^ 2 * τ) (y - x j) - N| ≤ epsn) (i : ℕ) :
+    ∑ b ∈ Finset.range N, heatTorus d (2 * Real.pi ^ 2 * τ) (x b - x i) ≤ N * (1 + epsn / N) := by
+  have hNpos : (0 : ℝ) < N := by exact_mod_cast hN
+  have h1 := (abs_le.mp (h (x i))).2
+  have e : ∑ b ∈ Finset.range N, heatTorus d (2 * Real.pi ^ 2 * τ) (x b - x i)
+      = ∑ b ∈ Finset.range N, heatTorus d (2 * Real.pi ^ 2 * τ) (x i - x b) :=
+    Finset.sum_congr rfl fun b _ => by rw [← heatTorus_even, neg_sub]
+  have e2 : (N : ℝ) * (1 + epsn / N) = N + epsn := by field_simp
+  rw [e, e2]
+  linarith
+
+/-- **Theorem "kernel" for a random sample on the torus, sharp form with time-dependent
+    constants.** Independent uniform points. HYPOTHESIS `hBn`: the normalisation event at every time
+    `τ ≥ σ` has probability at most `pn` (the conclusion of `heat_normalisation_whp`). HYPOTHESES on
+    numbers: `hsum`, `hW`. Then the conclusion `heatKernelSharp` of the kernel theorem fails with
+    probability at most `(2 + 4K) pn + 4 K N² e^{-L}`. -/
+theorem heat_kernel_sharp_whp {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {σ : ℝ} (hσ : 0 < σ) (d : ℕ)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (N K : ℕ) (hN : 0 < N) {M L epsn pn : ℝ}
+    (hMσ : ∀ u, heatTorus d (2 * Real.pi ^ 2 * σ) u ≤ M) (hL : 0 < L)
+    (hepsn0 : 0 ≤ epsn) (hepsn : epsn ≤ N / 8)
+    (hBn : ∀ τ, σ ≤ τ → μ.real {ω | ∃ x : FlatTorus d,
+        epsn < |∑ j ∈ Finset.range N, heatTorus d (2 * Real.pi ^ 2 * τ) (x - X j ω) - N|} ≤ pn)
+    (W : ℕ → ℝ)
+    (hsum : ∀ j, j + 1 < K → ∑ m ∈ Finset.range j,
+        min (2 * heatMu d σ (j - m)
+          * heatEtaBar d σ N (m + 1) M L (epsn / N) (epsn / N)) (heatDefSup d σ N (m + 1) M L (epsn / N))
+          + heatDefSup d σ N (j + 1) M L (epsn / N) ≤ W (j + 1) * heatMu d σ (j + 2))
+    (hW : ∀ j, j + 1 < K →
+      0 ≤ W (j + 1) ∧ 4 * (epsn / N) + (1 + 4 * (epsn / N)) * W (j + 1) ≤ 1) :
+    μ.real {ω | ¬ heatKernelSharp d σ (epsn / N) N K W (fun j => X j ω)}
+      ≤ pn + (pn + ((K : ℝ) * ((N : ℝ) ^ 2 * (2 * Real.exp (-L)))
+          + (K : ℝ) * ((N : ℝ) ^ 2 * (2 * Real.exp (-L))))) + (K : ℝ) * (4 * pn) := by
+  have hNpos : 0 < (N : ℝ) := by exact_mod_cast hN
+  have hcσ : 0 < 2 * Real.pi ^ 2 * σ := by positivity
+  have hM0 : 0 ≤ M := (heatTorus_nonneg hcσ d 0).trans (hMσ 0)
+  obtain ⟨Bn, hBnd⟩ : ∃ Bn : ℝ → Set Ω, Bn = fun τ => {ω | ∃ x : FlatTorus d,
+      epsn < |∑ j ∈ Finset.range N, heatTorus d (2 * Real.pi ^ 2 * τ) (x - X j ω) - N|} := ⟨_, rfl⟩
+  have hBnP : ∀ τ, σ ≤ τ → μ.real (Bn τ) ≤ pn := fun τ hτ => by rw [hBnd]; exact hBn τ hτ
+  have hBnc : ∀ τ ω, ω ∉ Bn τ → ∀ y : FlatTorus d,
+      |∑ j ∈ Finset.range N, heatTorus d (2 * Real.pi ^ 2 * τ) (y - X j ω) - N| ≤ epsn := by
+    intro τ ω hω y
+    by_contra h
+    rw [hBnd] at hω
+    exact hω ⟨y, not_le.mp h⟩
+  obtain ⟨D, hDd⟩ : ∃ D : Set Ω, D = {ω | ∃ m ∈ Finset.Icc 1 K, ∃ b ∈ Finset.range N,
+      ∃ i ∈ Finset.range N, heatDefBound d σ N m M L (epsn / N) (X b ω - X i ω)
+          < |heatDefect d σ N m (fun j => X j ω) b i|} := ⟨_, rfl⟩
+  have hDP : μ.real D ≤ pn + ((K : ℝ) * ((N : ℝ) ^ 2 * (2 * Real.exp (-L)))
+          + (K : ℝ) * ((N : ℝ) ^ 2 * (2 * Real.exp (-L)))) := by
+    rw [hDd]
+    exact heat_defect_whp hσ d X h_indep hX hlaw N K hN hMσ hL hepsn0 (by linarith) (hBn σ le_rfl)
+  obtain ⟨A, hAd⟩ : ∃ A : ℕ → Set Ω, A = fun m : ℕ =>
+      Bn ((m : ℝ) * σ + 2 * σ) ∪ (Bn (σ + (m : ℝ) * σ)
+        ∪ (Bn (6 * ((m : ℝ) * σ)) ∪ Bn (12 * ((m : ℝ) * σ)))) := ⟨_, rfl⟩
+  have hAP : ∀ m ∈ Finset.Icc 1 K, μ.real (A m) ≤ 4 * pn := by
+    intro m hm
+    have hm1 : (1 : ℝ) ≤ m := by exact_mod_cast (Finset.mem_Icc.mp hm).1
+    have t1 : σ ≤ (m : ℝ) * σ + 2 * σ := by nlinarith
+    have t2 : σ ≤ σ + (m : ℝ) * σ := by nlinarith
+    have t3 : σ ≤ 6 * ((m : ℝ) * σ) := by nlinarith
+    have t4 : σ ≤ 12 * ((m : ℝ) * σ) := by nlinarith
+    rw [hAd]
+    have u1 := measureReal_union_le (μ := μ) (Bn ((m : ℝ) * σ + 2 * σ))
+      (Bn (σ + (m : ℝ) * σ) ∪ (Bn (6 * ((m : ℝ) * σ)) ∪ Bn (12 * ((m : ℝ) * σ))))
+    have u2 := measureReal_union_le (μ := μ) (Bn (σ + (m : ℝ) * σ))
+      (Bn (6 * ((m : ℝ) * σ)) ∪ Bn (12 * ((m : ℝ) * σ)))
+    have u3 := measureReal_union_le (μ := μ) (Bn (6 * ((m : ℝ) * σ))) (Bn (12 * ((m : ℝ) * σ)))
+    linarith [hBnP _ t1, hBnP _ t2, hBnP _ t3, hBnP _ t4]
+  have hUP : μ.real (⋃ m ∈ Finset.Icc 1 K, A m) ≤ (K : ℝ) * (4 * pn) := by
+    calc μ.real (⋃ m ∈ Finset.Icc 1 K, A m) ≤ ∑ m ∈ Finset.Icc 1 K, μ.real (A m) :=
+          measureReal_biUnion_finset_le _ _
+      _ ≤ ∑ _m ∈ Finset.Icc 1 K, 4 * pn := Finset.sum_le_sum hAP
+      _ = (K : ℝ) * (4 * pn) := by simp
+  have hsub : {ω | ¬ heatKernelSharp d σ (epsn / N) N K W (fun j => X j ω)}
+      ⊆ Bn σ ∪ D ∪ ⋃ m ∈ Finset.Icc 1 K, A m := by
+    intro ω hbad
+    by_contra hcon
+    simp only [Set.mem_union, Set.mem_iUnion, not_or, not_exists] at hcon
+    obtain ⟨⟨hn, hD⟩, hAm⟩ := hcon
+    apply hbad
+    have hδ0 : 0 ≤ epsn / N := div_nonneg hepsn0 hNpos.le
+    have hδ8 : epsn / N ≤ 1 / 8 := by rw [div_le_iff₀ hNpos]; linarith
+    have hρ : ∀ j, |heatRho d σ N (fun j => X j ω) j - 1| ≤ epsn / N := by
+      intro j
+      have h := hBnc σ ω hn (X j ω)
+      have e : heatRho d σ N (fun j => X j ω) j - 1
+          = (∑ l ∈ Finset.range N, heatTorus d (2 * Real.pi ^ 2 * σ) (X j ω - X l ω) - N) / N := by
+        unfold heatRho; field_simp
+      rw [e, abs_div, abs_of_pos hNpos]
+      exact div_le_div_of_nonneg_right h hNpos.le
+    have hmem : ∀ m, 1 ≤ m → m < K → m ∈ Finset.Icc 1 K := fun m h1 h2 =>
+      Finset.mem_Icc.mpr ⟨h1, h2.le⟩
+    refine heat_kernel_sharp_entries hσ d N K hN (fun j => X j ω) hM0 hL.le hδ0 hδ8 hδ0 hρ
+      ?_ ?_ ?_ ?_ ?_ W hsum hW
+    · intro m hm hmK b hb i hi
+      by_contra h
+      rw [hDd] at hD
+      exact hD ⟨m, hmem m hm hmK, b, Finset.mem_range.mpr hb, i, Finset.mem_range.mpr hi,
+        not_le.mp h⟩
+    · intro m hm hmK i _
+      have hA' := hAm m (hmem m hm hmK)
+      rw [hAd] at hA'
+      simp only [Set.mem_union, not_or] at hA'
+      exact norm_event_sum hN (fun j => X j ω) (hBnc _ ω hA'.1) i
+    · intro m hm hmK i _
+      have hA' := hAm m (hmem m hm hmK)
+      rw [hAd] at hA'
+      simp only [Set.mem_union, not_or] at hA'
+      exact norm_event_sum hN (fun j => X j ω) (hBnc _ ω hA'.2.1) i
+    · intro m hm hmK i _
+      have hA' := hAm m (hmem m hm hmK)
+      rw [hAd] at hA'
+      simp only [Set.mem_union, not_or] at hA'
+      exact norm_event_sum hN (fun j => X j ω) (hBnc _ ω hA'.2.2.1) i
+    · intro m hm hmK i _
+      have hA' := hAm m (hmem m hm hmK)
+      rw [hAd] at hA'
+      simp only [Set.mem_union, not_or] at hA'
+      exact norm_event_sum hN (fun j => X j ω) (hBnc _ ω hA'.2.2.2) i
+  calc μ.real _ ≤ μ.real (Bn σ ∪ D ∪ ⋃ m ∈ Finset.Icc 1 K, A m) :=
+        measureReal_mono hsub (measure_ne_top μ _)
+    _ ≤ μ.real (Bn σ ∪ D) + μ.real (⋃ m ∈ Finset.Icc 1 K, A m) := measureReal_union_le _ _
+    _ ≤ (μ.real (Bn σ) + μ.real D) + μ.real (⋃ m ∈ Finset.Icc 1 K, A m) :=
+        add_le_add (measureReal_union_le _ _) le_rfl
+    _ ≤ _ := by linarith [hBnP σ le_rfl]
+
+/-- The uniform bound and the Lipschitz constant of the heat kernel decrease in the time. -/
+theorem heat_consts_anti {c c' : ℝ} (hc : 0 < c) (hcc : c ≤ c') (d : ℕ) :
+    (1 + Real.sqrt (Real.pi / c')) ^ d ≤ (1 + Real.sqrt (Real.pi / c)) ^ d
+      ∧ 2 * Real.pi * (2 / c') * (1 + Real.sqrt (2 * Real.pi / c')) ^ d
+        ≤ 2 * Real.pi * (2 / c) * (1 + Real.sqrt (2 * Real.pi / c)) ^ d := by
+  have hpi := Real.pi_pos
+  have h1 : Real.pi / c' ≤ Real.pi / c := div_le_div_of_nonneg_left hpi.le hc hcc
+  have h2 : 2 * Real.pi / c' ≤ 2 * Real.pi / c := div_le_div_of_nonneg_left (by positivity) hc hcc
+  have h3 : 2 / c' ≤ 2 / c := div_le_div_of_nonneg_left (by norm_num) hc hcc
+  have hc' : 0 < c' := lt_of_lt_of_le hc hcc
+  constructor
+  · exact pow_le_pow_left₀ (by positivity) (by linarith [Real.sqrt_le_sqrt h1]) d
+  · have h4 : (1 + Real.sqrt (2 * Real.pi / c')) ^ d ≤ (1 + Real.sqrt (2 * Real.pi / c)) ^ d :=
+      pow_le_pow_left₀ (by positivity) (by linarith [Real.sqrt_le_sqrt h2]) d
+    exact mul_le_mul (mul_le_mul_of_nonneg_left h3 (by positivity)) h4 (by positivity)
+      (by positivity)
+
+/-- **Theorem "kernel" for a random sample on the torus, sharp form with time-dependent
+    constants, without hypothesis on events.** Independent uniform points on the flat torus,
+    `M = (1 + √(π/c_σ))^d`, `Lip` the Lipschitz constant of `p_σ`, grid parameter `g`,
+    `δ = (eps + 2 N Lip / g)/N ≤ 1/8`. HYPOTHESES on numbers only: the summation `hsum` and
+    `4δ + (1 + 4δ) W ≤ 1`. The conclusion `heatKernelSharp` fails with probability at most
+    `(2 + 4K) · 2 g^d exp(-eps²/(4NM + 2M eps)) + 4 K N² e^{-L}`. -/
+theorem heat_kernel_sharp_sample {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {σ : ℝ} (hσ : 0 < σ) (d : ℕ)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (N K : ℕ) (hN : 0 < N) {g : ℕ} (hg : 0 < g)
+    {M Lip L ε : ℝ} (hMdef : M = (1 + Real.sqrt (Real.pi / (2 * Real.pi ^ 2 * σ))) ^ d)
+    (hLipdef : Lip = 2 * Real.pi * (2 / (2 * Real.pi ^ 2 * σ))
+      * (1 + Real.sqrt (2 * Real.pi / (2 * Real.pi ^ 2 * σ))) ^ d)
+    (hL : 0 < L) (hε : 0 < ε) (hsmall : ε + 2 * (N * Lip) * (1 / g) ≤ N / 8)
+    (W : ℕ → ℝ)
+    (hsum : ∀ j, j + 1 < K → ∑ m ∈ Finset.range j,
+        min (2 * heatMu d σ (j - m)
+          * heatEtaBar d σ N (m + 1) M L ((ε + 2 * (N * Lip) * (1 / g)) / N) ((ε + 2 * (N * Lip) * (1 / g)) / N))
+          (heatDefSup d σ N (m + 1) M L ((ε + 2 * (N * Lip) * (1 / g)) / N))
+          + heatDefSup d σ N (j + 1) M L ((ε + 2 * (N * Lip) * (1 / g)) / N)
+        ≤ W (j + 1) * heatMu d σ (j + 2))
+    (hW : ∀ j, j + 1 < K → 0 ≤ W (j + 1)
+      ∧ 4 * ((ε + 2 * (N * Lip) * (1 / g)) / N)
+        + (1 + 4 * ((ε + 2 * (N * Lip) * (1 / g)) / N)) * W (j + 1) ≤ 1) :
+    μ.real {ω | ¬ heatKernelSharp d σ ((ε + 2 * (N * Lip) * (1 / g)) / N) N K W (fun j => X j ω)}
+      ≤ (g : ℝ) ^ d * (2 * Real.exp (-ε ^ 2 / (4 * (N * M) + 2 * M * ε)))
+        + ((g : ℝ) ^ d * (2 * Real.exp (-ε ^ 2 / (4 * (N * M) + 2 * M * ε)))
+          + ((K : ℝ) * ((N : ℝ) ^ 2 * (2 * Real.exp (-L)))
+            + (K : ℝ) * ((N : ℝ) ^ 2 * (2 * Real.exp (-L)))))
+        + (K : ℝ) * (4 * ((g : ℝ) ^ d * (2 * Real.exp (-ε ^ 2 / (4 * (N * M) + 2 * M * ε))))) := by
+  have hcσ : 0 < 2 * Real.pi ^ 2 * σ := by positivity
+  have hLip0 : 0 ≤ Lip := by rw [hLipdef]; positivity
+  have hNpos : (0 : ℝ) < N := by exact_mod_cast hN
+  have hgpos : (0 : ℝ) < g := by exact_mod_cast hg
+  have hconst : ∀ τ, σ ≤ τ →
+      (∀ u, heatTorus d (2 * Real.pi ^ 2 * τ) u ≤ M)
+      ∧ (∀ u u', |heatTorus d (2 * Real.pi ^ 2 * τ) u - heatTorus d (2 * Real.pi ^ 2 * τ) u'|
+          ≤ Lip * dist u u') := by
+    intro τ hτ
+    have hcτ : 0 < 2 * Real.pi ^ 2 * τ := by have := lt_of_lt_of_le hσ hτ; positivity
+    have hcc : 2 * Real.pi ^ 2 * σ ≤ 2 * Real.pi ^ 2 * τ :=
+      mul_le_mul_of_nonneg_left hτ (by positivity)
+    obtain ⟨a1, a2⟩ := heat_consts_anti hcσ hcc d
+    constructor
+    · intro u; rw [hMdef]; exact (heatTorus_le hcτ d u).trans a1
+    · intro u u'; rw [hLipdef]
+      exact (heatTorus_lipschitz hcτ d u u').trans (mul_le_mul_of_nonneg_right a2 dist_nonneg)
+  have hepsn0 : 0 ≤ ε + 2 * (N * Lip) * (1 / g) := by positivity
+  exact heat_kernel_sharp_whp hσ d X h_indep hX hlaw N K hN (hconst σ le_rfl).1 hL hepsn0 hsmall
+    (fun τ hτ => heat_normalisation_whp (lt_of_lt_of_le hσ hτ) d X h_indep hX hlaw N hg
+      (hconst τ hτ).1 (hconst τ hτ).2 hLip0 hε) W hsum hW
+
+section EigSharp
+open Matrix
+
+/-- As `eig_sample_det`, but with a bound `hkern` for the entries of `N P^{k+1} - p_{k+1}` as the
+    hypothesis (in place of the consistency hypotheses from which `eig_sample_det` derives one). -/
+theorem eig_sample_det_kern {n F : Type} [Fintype n] [Fintype F] [DecidableEq n] [DecidableEq F]
+    [Nonempty n]
+    (pk : ℕ → n → n → ℝ) (mu : ℕ → ℝ) (P : Matrix n n ℝ)
+    (hp0 : ∀ m b i, 0 ≤ pk m b i) (hpmu : ∀ m b i, pk m b i ≤ mu m)
+    (k : ℕ)
+    (S : Matrix n n ℝ) (hS : S.IsHermitian) (hnn : ∀ j, 0 ≤ hS.eigenvalues₀ j)
+    (hle1 : ∀ j, hS.eigenvalues₀ j ≤ 1)
+    (r : n → ℝ) (hr : ∀ i, 0 < r i) (hSP : ∀ i l, S i l = r i * P i l / r l)
+    {θ : ℝ} (hθ0 : 0 ≤ θ) (hθ : ∀ i l, |r i / r l - 1| ≤ θ)
+    (v : Matrix n F ℝ) (a : F → ℝ) (ha : ∀ f, 0 ≤ a f) {eta s t Dk eps α : ℝ}
+    (heta : 0 ≤ eta) (hs0 : 0 ≤ s) (hs : ∀ f, Real.sqrt (a f) ≤ s)
+    (hG : ∀ f g, |∑ i, v i f * v i g - (if f = g then 1 else 0)| ≤ eta)
+    (hQ : ((Matrix.of fun i f => Real.sqrt (a f) * v i f) *
+        (Matrix.of fun i f => Real.sqrt (a f) * v i f)ᵀ).IsHermitian)
+    (h1 : (fromBlocks ((Matrix.of fun i f => Real.sqrt (a f) * v i f) *
+        (Matrix.of fun i f => Real.sqrt (a f) * v i f)ᵀ) 0 0 (0 : Matrix F F ℝ)).IsHermitian)
+    (hD : (fromBlocks (0 : Matrix n n ℝ) 0 0 (diagonal a)).IsHermitian)
+    (htail : ∀ i l, |pk (k + 1) i l - (Fintype.card n : ℝ) *
+        ((Matrix.of fun i f => Real.sqrt (a f) * v i f) *
+          (Matrix.of fun i f => Real.sqrt (a f) * v i f)ᵀ) i l| ≤ t)
+    (hkern : ∀ a' i, |(Fintype.card n : ℝ) * (P ^ (k + 1)) a' i - pk (k + 1) a' i| ≤ Dk)
+    (heps : θ * (mu (k + 1) + Dk) + Dk + t ≤ eps)
+    (j : Fin (Fintype.card n)) (hj : j.val < Fintype.card (n ⊕ F))
+    (hα0 : 0 ≤ α) (hα1 : α ≤ 1) (hDj : hD.eigenvalues₀ ⟨j.val, hj⟩ = α ^ (k + 1))
+    (h3 : 2 * (eps + eta * s * ∑ g, Real.sqrt (a g)) ≤ α ^ (k + 1)) :
+    |hS.eigenvalues₀ j ^ (k + 1) - α ^ (k + 1)| ≤ eps + eta * s * ∑ g, Real.sqrt (a g)
+      ∧ ((k + 1 : ℕ) : ℝ) * (α ^ (k + 1) * |hS.eigenvalues₀ j - α|)
+          ≤ 2 * (eps + eta * s * ∑ g, Real.sqrt (a g)) := by
+  have hNpos : 0 < (Fintype.card n : ℝ) := by exact_mod_cast Fintype.card_pos
+  have hrow : ∀ i, ∑ l, |(S ^ (k + 1)) i l - ((Matrix.of fun i f => Real.sqrt (a f) * v i f) *
+        (Matrix.of fun i f => Real.sqrt (a f) * v i f)ᵀ) i l| ≤ eps := by
+    intro i
+    refine (row_sums_from_kernel (S ^ (k + 1)) (P ^ (k + 1)) _ (Matrix.of fun i l => pk (k + 1) i l)
+      (fun i l => r i / r l) hNpos rfl hθ0 (fun i l => ?_) hθ (fun i l => hkern i l)
+      (fun i l => ?_) (fun i l => htail i l) i).trans heps
+    · rw [conj_pow_entry S P r hr hSP (k + 1) i l]; ring
+    · show |pk (k + 1) i l| ≤ mu (k + 1)
+      rw [abs_of_nonneg (hp0 _ _ _)]; exact hpmu _ _ _
+  exact eigtorus_from_gram S hS hnn hle1 k v a ha heta hs0 hs hG hQ h1 hD hrow j hj hα0 hα1 hDj h3
+
+/-- **Eigenvalues of the sampled graph on the torus from a bound for the kernel of the walk.** As
+    `heatTorus_eig_det`, with the hypothesis `hkern`: `|N P^{k+1}(a,i) - p_{(k+1)c}(x_a - x_i)| ≤ Dk`
+    for all entries; this is where the sharp form of the kernel theorem enters. -/
+theorem heatTorus_eig_det_kern {c : ℝ} (hc : 0 < c) (d N : ℕ) [NeZero N] (x : Fin N → FlatTorus d)
+    (k : ℕ) (H : Finset (Fin d → ℤ)) (hH0 : ∀ n ∈ H, n ≠ 0) (hH2 : ∀ m ∈ H, ∀ n ∈ H, m + n ≠ 0)
+    {R delta eta t Dk eps α : ℝ}
+    (hR : ∀ n : Fin d → ℤ, n ≠ 0 → n ∉ H → -n ∉ H → R ≤ ∑ i, ((n i : ℤ) : ℝ) ^ 2)
+    (hd0 : 0 ≤ delta) (hd : delta ≤ 1 / 8) (heta : 0 ≤ eta)
+    (hnorm : ∀ b, |(∑ l, heatTorus d c (x b - x l)) / N - 1| ≤ delta)
+    (hgram : ∀ f g : modeSet d H, |∑ i, torusMode d f.1 (x i) * torusMode d g.1 (x i)
+        - N * (if f = g then (1 : ℝ) else 0)| ≤ N * eta)
+    (ht : Real.exp (-((k + 1 : ℕ) * c) * R / 2)
+        * (1 + Real.sqrt (2 * Real.pi / ((k + 1 : ℕ) * c))) ^ d ≤ t)
+    (hkern : ∀ a i : Fin N, |(N : ℝ) * ((walkMatrix (fun i j : Fin N => heatTorus d c (x i - x j))
+        (fun i => (∑ l, heatTorus d c (x i - x l)) / N)) ^ (k + 1)) a i
+      - heatTorus d ((k + 1 : ℕ) * c) (x a - x i)| ≤ Dk)
+    (heps : 3 * delta * ((1 + Real.sqrt (Real.pi / ((k + 1 : ℕ) * c))) ^ d + Dk) + Dk + t ≤ eps)
+    (hS : (symGraph (fun i j : Fin N => heatTorus d c (x i - x j))
+      (fun i => (∑ l, heatTorus d c (x i - x l)) / N)).IsHermitian)
+    (j : Fin (Fintype.card (Fin N))) (hα0 : 0 < α) (hα1 : α ≤ 1)
+    (hc1 : (Finset.univ.filter fun f : modeSet d H =>
+        α ^ (k + 1) < modeCoeff d ((k + 1 : ℕ) * c) f.1).card ≤ j.val)
+    (hc2 : j.val < (Finset.univ.filter fun f : modeSet d H =>
+        α ^ (k + 1) ≤ modeCoeff d ((k + 1 : ℕ) * c) f.1).card)
+    (h3 : 2 * (eps + eta * 1 * ∑ g : modeSet d H,
+        Real.sqrt (modeCoeff d ((k + 1 : ℕ) * c) g.1)) ≤ α ^ (k + 1)) :
+    |hS.eigenvalues₀ j ^ (k + 1) - α ^ (k + 1)|
+        ≤ eps + eta * 1 * ∑ g : modeSet d H, Real.sqrt (modeCoeff d ((k + 1 : ℕ) * c) g.1)
+      ∧ ((k + 1 : ℕ) : ℝ) * (α ^ (k + 1) * |hS.eigenvalues₀ j - α|)
+          ≤ 2 * (eps + eta * 1 * ∑ g : modeSet d H,
+              Real.sqrt (modeCoeff d ((k + 1 : ℕ) * c) g.1)) := by
+  classical
+  have hNpos : 0 < (N : ℝ) := by exact_mod_cast Nat.pos_of_ne_zero (NeZero.ne N)
+  have hcard : (Fintype.card (Fin N) : ℝ) = N := by simp
+  set K : Fin N → Fin N → ℝ := fun i j => heatTorus d c (x i - x j) with hKdef
+  set rho : Fin N → ℝ := fun i => (∑ l, heatTorus d c (x i - x l)) / N with hrhodef
+  set pk : ℕ → Fin N → Fin N → ℝ := fun m b i =>
+    if m = 0 then 0 else heatTorus d ((m : ℕ) * c) (x b - x i) with hpkdef
+  set mu : ℕ → ℝ := fun m => if m = 0 then 0 else (1 + Real.sqrt (Real.pi / ((m : ℕ) * c))) ^ d
+    with hmudef
+  have hmc : ∀ m : ℕ, m ≠ 0 → 0 < (m : ℝ) * c := fun m hm =>
+    mul_pos (by exact_mod_cast Nat.pos_of_ne_zero hm) hc
+  have hpk1 : ∀ b i, pk 1 b i = K b i := fun b i => by simp [hpkdef, hKdef]
+  have hK0 : ∀ i j, 0 ≤ K i j := fun i j => heatTorus_nonneg hc d _
+  have hKsym : ∀ i j, K i j = K j i := fun i j => by
+    simp only [hKdef]; rw [← heatTorus_even, neg_sub]
+  have hrho1 : ∀ b, |rho b - 1| ≤ delta := hnorm
+  have hrhopos : ∀ b, 0 < rho b := fun b => by
+    have := abs_le.mp (hrho1 b); linarith [this.1]
+  have hrhoeq : ∀ b, (Fintype.card (Fin N) : ℝ) * rho b = ∑ l, K b l := fun b => by
+    rw [hcard]; simp only [hrhodef, hKdef]; field_simp
+  have hDb := fun i => graph_degree_bounds K hK0 rho hd0 hd hrhoeq hrho1 i
+  have hDpos : ∀ i, 0 < ∑ l, K i l / (rho i * rho l) := fun i =>
+    lt_of_lt_of_le (div_pos (by rw [hcard]; exact hNpos) (by linarith)) (hDb i).1
+  -- kernel-matrix factor
+  set a : modeSet d H → ℝ := fun f => modeCoeff d ((k + 1 : ℕ) * c) f.1 with hadef
+  set v : Matrix (Fin N) (modeSet d H) ℝ :=
+    Matrix.of fun i f => torusMode d f.1 (x i) / Real.sqrt N with hvdef
+  have ha : ∀ f, 0 ≤ a f := fun f => modeCoeff_nonneg d _ f.1
+  have hsqN : Real.sqrt N * Real.sqrt N = N := Real.mul_self_sqrt hNpos.le
+  have hsqpos : 0 < Real.sqrt N := Real.sqrt_pos.mpr hNpos
+  have hs : ∀ f, Real.sqrt (a f) ≤ 1 := fun f => by
+    rw [show (1 : ℝ) = Real.sqrt 1 from Real.sqrt_one.symm]
+    apply Real.sqrt_le_sqrt
+    rcases f with ⟨_ | ⟨n, b⟩, hf⟩
+    · simp [hadef, modeCoeff]
+    · simp only [hadef, modeCoeff]
+      apply Real.exp_le_one_iff.mpr
+      have h1 : 0 ≤ ∑ i, ((n i : ℤ) : ℝ) ^ 2 := Finset.sum_nonneg fun i _ => _root_.sq_nonneg _
+      have := (hmc (k + 1) (Nat.succ_ne_zero k)).le
+      nlinarith
+  have hG : ∀ f g, |∑ i, v i f * v i g - (if f = g then 1 else 0)| ≤ eta := by
+    intro f g
+    have e : ∑ i, v i f * v i g - (if f = g then (1 : ℝ) else 0)
+        = (∑ i, torusMode d f.1 (x i) * torusMode d g.1 (x i)
+            - N * (if f = g then (1 : ℝ) else 0)) / N := by
+      simp only [hvdef, of_apply]
+      rw [sub_div, Finset.sum_div, mul_div_cancel_left₀ _ hNpos.ne']
+      congr 1
+      refine Finset.sum_congr rfl fun i _ => ?_
+      rw [div_mul_div_comm, hsqN]
+    rw [e, abs_div, abs_of_pos hNpos, div_le_iff₀ hNpos]
+    linarith [hgram f g]
+  have hQ := gram_hermitian (Matrix.of fun i f => Real.sqrt (a f) * v i f)
+  have h1 := pad_hermitian₁ (F := modeSet d H) _ hQ
+  have hD := pad_hermitian₂ (n := Fin N) a
+  have htail : ∀ i l, |pk (k + 1) i l - (Fintype.card (Fin N) : ℝ) *
+      ((Matrix.of fun i f => Real.sqrt (a f) * v i f) *
+        (Matrix.of fun i f => Real.sqrt (a f) * v i f)ᵀ) i l| ≤ t := by
+    intro i l
+    rw [finite_rank_kernel_entry v a ha i l, hcard]
+    have e : (N : ℝ) * ∑ f, a f * v i f * v l f
+        = 1 + ∑ n ∈ H, 2 * Real.exp (-((k + 1 : ℕ) * c) * ∑ i, ((n i : ℤ) : ℝ) ^ 2)
+            * (torusChar d n (x i - x l)).re := by
+      rw [← modeSet_kernel d ((k + 1 : ℕ) * c) H (x i) (x l),
+        ← Finset.sum_coe_sort (modeSet d H), Finset.mul_sum]
+      refine Finset.sum_congr rfl fun f _ => ?_
+      simp only [hvdef, hadef, of_apply]
+      field_simp
+      rw [Real.sq_sqrt hNpos.le]; ring
+    rw [e]
+    have hp : pk (k + 1) i l = heatTorus d ((k + 1 : ℕ) * c) (x i - x l) := by
+      simp [hpkdef]
+    rw [hp]
+    exact (heatTorus_truncation_half (hmc (k + 1) (Nat.succ_ne_zero k)) d H hH0 hH2 hR _).trans ht
+  have hj : j.val < Fintype.card (Fin N ⊕ modeSet d H) := by
+    rw [Fintype.card_sum]; exact lt_of_lt_of_le j.2 (Nat.le_add_right _ _)
+  have hDj : hD.eigenvalues₀ ⟨j.val, hj⟩ = α ^ (k + 1) :=
+    diag_pad_eigenvalue a hD (pow_pos hα0 _) ⟨j.val, hj⟩ hc1 hc2
+  refine eig_sample_det_kern pk mu (walkMatrix K rho)
+    (fun m b i => ?_) (fun m b i => ?_) k
+    (symGraph K rho) hS (symGraph_eig_nonneg K rho (fun y => heatTorus_quadform_nonneg hc d x y) hS)
+    (symGraph_eig_le_one K rho hKsym hK0 hrhopos hDpos hS)
+    (fun i => Real.sqrt (∑ l, K i l / (rho i * rho l))) (fun i => Real.sqrt_pos.mpr (hDpos i))
+    (symGraph_conj K rho hDpos) (θ := 3 * delta) (by linarith)
+    (fun i l => sqrt_ratio_bound (by rw [hcard]; exact hNpos) hd0 hd (hDb i) (hDb l))
+    v a ha (Dk := Dk) (eps := eps) (t := t) heta zero_le_one hs hG hQ h1 hD htail ?_ ?_
+    j hj hα0.le hα1 hDj h3
+  · simp only [hpkdef]; split_ifs with h
+    · exact le_rfl
+    · exact heatTorus_nonneg (hmc m h) d _
+  · simp only [hpkdef, hmudef]; split_ifs with h
+    · exact le_rfl
+    · exact heatTorus_le (hmc m h) d _
+  · intro a' i
+    have := hkern a' i
+    simp only [hpkdef, hcard, Nat.succ_ne_zero, if_false]
+    exact this
+  · simpa [hmudef] using heps
+
+/-- The conclusion of the sharp kernel theorem in the form used by the eigenvalue theorem: a bound
+    for the entries of `N P^{k+1} - p_{(k+1)c}` with `k = j + 1`, `c = 2π²σ`. -/
+theorem heatKernelSharp_kern {d N K : ℕ} {σ δ : ℝ} {W : ℕ → ℝ} (hN : 0 < N) (x : ℕ → FlatTorus d)
+    (h : heatKernelSharp d σ δ N K W x) (j : ℕ) (hj : j + 1 < K) (a i : Fin N) :
+    |(N : ℝ) * ((walkMatrix (fun i j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (x i - x j))
+        (fun i : Fin N => (∑ l : Fin N, heatTorus d (2 * Real.pi ^ 2 * σ) (x i - x l)) / N))
+          ^ (j + 1 + 1)) a i
+      - heatTorus d ((j + 1 + 1 : ℕ) * (2 * Real.pi ^ 2 * σ)) (x a - x i)|
+      ≤ (4 * δ + (1 + 4 * δ) * W (j + 1)) * heatMu d σ (j + 2) := by
+  have h2 := h.2 j hj a i
+  have e1 : (fun a : Fin N => heatRho d σ N x a)
+      = fun i : Fin N => (∑ l : Fin N, heatTorus d (2 * Real.pi ^ 2 * σ) (x i - x l)) / N := by
+    funext a
+    unfold heatRho
+    rw [Fin.sum_univ_eq_sum_range (fun l => heatTorus d (2 * Real.pi ^ 2 * σ) (x a - x l)) N]
+  have e2 : heatP d σ (j + 2) (x a - x i)
+      = heatTorus d ((j + 1 + 1 : ℕ) * (2 * Real.pi ^ 2 * σ)) (x a - x i) := by
+    rw [heatP_of_ne d σ (by omega)]
+    congr 1
+    push_cast
+    ring
+  rw [e1, e2] at h2
+  exact h2
+
+/-- **Eigenvalues of the sampled graph on the torus from the sharp kernel theorem, with
+    probability.** `c = 2π²σ`, `k = j' + 1` with `j' + 1 < K`, `δ = epsn/N`. The conclusion of
+    `heatTorus_eig_det_kern` with `Dk = (4δ + (1 + 4δ) W_{j'+1}) mu_{j'+2}` fails only on the union of
+    three events: normalisation (`hBn`), failure of the sharp kernel theorem (`hKS`), Gram matrix of
+    the sampled modes (`hBg`). HYPOTHESES: the probabilities of these events; they are the
+    conclusions of `heat_normalisation_whp`, `heat_kernel_sharp_sample`, `flatTorus_gram_whp`. -/
+theorem heat_eig_sharp_whp {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω} [IsFiniteMeasure μ]
+    {σ : ℝ} (hσ : 0 < σ) (d N K : ℕ) [NeZero N] (X : ℕ → Ω → FlatTorus d)
+    (j' : ℕ) (hj' : j' + 1 < K) (W : ℕ → ℝ)
+    (H : Finset (Fin d → ℤ)) (hH0 : ∀ n ∈ H, n ≠ 0) (hH2 : ∀ m ∈ H, ∀ n ∈ H, m + n ≠ 0)
+    {R eta t eps α epsn pn pks pg : ℝ}
+    (hR : ∀ n : Fin d → ℤ, n ≠ 0 → n ∉ H → -n ∉ H → R ≤ ∑ i, ((n i : ℤ) : ℝ) ^ 2)
+    (hepsn0 : 0 ≤ epsn) (hepsn : epsn ≤ N / 8) (heta : 0 ≤ eta)
+    (hBn : μ.real {ω | ∃ x : FlatTorus d,
+        epsn < |∑ j ∈ Finset.range N, heatTorus d (2 * Real.pi ^ 2 * σ) (x - X j ω) - N|} ≤ pn)
+    (hKS : μ.real {ω | ¬ heatKernelSharp d σ (epsn / N) N K W (fun j => X j ω)} ≤ pks)
+    (hBg : μ.real {ω | ∃ f g : modeSet d H, N * eta ≤ |∑ j ∈ Finset.range N,
+        torusMode d f.1 (X j ω) * torusMode d g.1 (X j ω)
+        - N * (if f = g then (1 : ℝ) else 0)|} ≤ pg)
+    (ht : Real.exp (-((j' + 1 + 1 : ℕ) * (2 * Real.pi ^ 2 * σ)) * R / 2)
+        * (1 + Real.sqrt (2 * Real.pi / ((j' + 1 + 1 : ℕ) * (2 * Real.pi ^ 2 * σ)))) ^ d ≤ t)
+    (heps : 3 * (epsn / N)
+          * ((1 + Real.sqrt (Real.pi / ((j' + 1 + 1 : ℕ) * (2 * Real.pi ^ 2 * σ)))) ^ d
+            + (4 * (epsn / N) + (1 + 4 * (epsn / N)) * W (j' + 1)) * heatMu d σ (j' + 2))
+        + (4 * (epsn / N) + (1 + 4 * (epsn / N)) * W (j' + 1)) * heatMu d σ (j' + 2) + t ≤ eps)
+    (j : Fin (Fintype.card (Fin N))) (hα0 : 0 < α) (hα1 : α ≤ 1)
+    (hc1 : (Finset.univ.filter fun f : modeSet d H =>
+        α ^ (j' + 1 + 1) < modeCoeff d ((j' + 1 + 1 : ℕ) * (2 * Real.pi ^ 2 * σ)) f.1).card ≤ j.val)
+    (hc2 : j.val < (Finset.univ.filter fun f : modeSet d H =>
+        α ^ (j' + 1 + 1) ≤ modeCoeff d ((j' + 1 + 1 : ℕ) * (2 * Real.pi ^ 2 * σ)) f.1).card)
+    (h3 : 2 * (eps + eta * 1 * ∑ g : modeSet d H,
+        Real.sqrt (modeCoeff d ((j' + 1 + 1 : ℕ) * (2 * Real.pi ^ 2 * σ)) g.1)) ≤ α ^ (j' + 1 + 1)) :
+    μ.real {ω | ¬ ∀ hS : (symGraph
+          (fun i j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X j ω))
+          (fun i : Fin N =>
+            (∑ l : Fin N, heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X l ω)) / N)).IsHermitian,
+        |hS.eigenvalues₀ j ^ (j' + 1 + 1) - α ^ (j' + 1 + 1)|
+            ≤ eps + eta * 1 * ∑ g : modeSet d H,
+                Real.sqrt (modeCoeff d ((j' + 1 + 1 : ℕ) * (2 * Real.pi ^ 2 * σ)) g.1)
+          ∧ ((j' + 1 + 1 : ℕ) : ℝ) * (α ^ (j' + 1 + 1) * |hS.eigenvalues₀ j - α|)
+              ≤ 2 * (eps + eta * 1 * ∑ g : modeSet d H,
+                  Real.sqrt (modeCoeff d ((j' + 1 + 1 : ℕ) * (2 * Real.pi ^ 2 * σ)) g.1))}
+      ≤ pn + pks + pg := by
+  have hN : 0 < N := Nat.pos_of_ne_zero (NeZero.ne N)
+  have hNpos : 0 < (N : ℝ) := by exact_mod_cast hN
+  have hc : 0 < 2 * Real.pi ^ 2 * σ := by positivity
+  obtain ⟨Bn, hBnd⟩ : ∃ Bn : Set Ω, Bn = {ω | ∃ x : FlatTorus d,
+      epsn < |∑ j ∈ Finset.range N, heatTorus d (2 * Real.pi ^ 2 * σ) (x - X j ω) - N|} := ⟨_, rfl⟩
+  obtain ⟨Bk, hBkd⟩ : ∃ Bk : Set Ω,
+      Bk = {ω | ¬ heatKernelSharp d σ (epsn / N) N K W (fun j => X j ω)} := ⟨_, rfl⟩
+  obtain ⟨Bg, hBgd⟩ : ∃ Bg : Set Ω, Bg = {ω | ∃ f g : modeSet d H, N * eta ≤ |∑ j ∈ Finset.range N,
+      torusMode d f.1 (X j ω) * torusMode d g.1 (X j ω)
+      - N * (if f = g then (1 : ℝ) else 0)|} := ⟨_, rfl⟩
+  have hsub : {ω | ¬ ∀ hS : (symGraph
+          (fun i j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X j ω))
+          (fun i : Fin N =>
+            (∑ l : Fin N, heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X l ω)) / N)).IsHermitian,
+        |hS.eigenvalues₀ j ^ (j' + 1 + 1) - α ^ (j' + 1 + 1)|
+            ≤ eps + eta * 1 * ∑ g : modeSet d H,
+                Real.sqrt (modeCoeff d ((j' + 1 + 1 : ℕ) * (2 * Real.pi ^ 2 * σ)) g.1)
+          ∧ ((j' + 1 + 1 : ℕ) : ℝ) * (α ^ (j' + 1 + 1) * |hS.eigenvalues₀ j - α|)
+              ≤ 2 * (eps + eta * 1 * ∑ g : modeSet d H,
+                  Real.sqrt (modeCoeff d ((j' + 1 + 1 : ℕ) * (2 * Real.pi ^ 2 * σ)) g.1))}
+      ⊆ (Bn ∪ Bk) ∪ Bg := by
+    intro ω hω
+    by_contra hcon
+    simp only [Set.mem_union, not_or] at hcon
+    obtain ⟨⟨hn, hk⟩, hg⟩ := hcon
+    rw [hBnd] at hn
+    rw [hBkd] at hk
+    rw [hBgd] at hg
+    have hks : heatKernelSharp d σ (epsn / N) N K W (fun j => X j ω) := not_not.mp hk
+    apply hω
+    intro hS
+    refine heatTorus_eig_det_kern hc d N (fun i => X i ω) (j' + 1) H hH0 hH2 hR
+      (div_nonneg hepsn0 hNpos.le) (by rw [div_le_iff₀ hNpos]; linarith) heta
+      (fun b => ?_) (fun f g => ?_) ht
+      (fun a i => heatKernelSharp_kern hN (fun j => X j ω) hks j' hj' a i) heps hS j hα0 hα1
+      hc1 hc2 h3
+    · have h : |∑ j ∈ Finset.range N, heatTorus d (2 * Real.pi ^ 2 * σ) (X b ω - X j ω) - N|
+          ≤ epsn := by
+        by_contra h; exact hn ⟨X b ω, not_le.mp h⟩
+      rw [← Fin.sum_univ_eq_sum_range
+        (fun j => heatTorus d (2 * Real.pi ^ 2 * σ) (X b ω - X j ω)) N] at h
+      have e : (∑ l : Fin N, heatTorus d (2 * Real.pi ^ 2 * σ) (X b ω - X l ω)) / N - 1
+          = (∑ l : Fin N, heatTorus d (2 * Real.pi ^ 2 * σ) (X b ω - X l ω) - N) / N := by
+        field_simp
+      rw [e, abs_div, abs_of_pos hNpos]
+      exact div_le_div_of_nonneg_right h hNpos.le
+    · have h : |∑ j ∈ Finset.range N, torusMode d f.1 (X j ω) * torusMode d g.1 (X j ω)
+          - N * (if f = g then (1 : ℝ) else 0)| < N * eta := by
+        by_contra h; exact hg ⟨f, g, not_lt.mp h⟩
+      rw [← Fin.sum_univ_eq_sum_range
+        (fun j => torusMode d f.1 (X j ω) * torusMode d g.1 (X j ω)) N] at h
+      exact h.le
+  have hBn' : μ.real Bn ≤ pn := by rw [hBnd]; exact hBn
+  have hKS' : μ.real Bk ≤ pks := by rw [hBkd]; exact hKS
+  have hBg' : μ.real Bg ≤ pg := by rw [hBgd]; exact hBg
+  calc μ.real _ ≤ μ.real ((Bn ∪ Bk) ∪ Bg) := measureReal_mono hsub
+    _ ≤ μ.real (Bn ∪ Bk) + μ.real Bg := measureReal_union_le _ _
+    _ ≤ (μ.real Bn + μ.real Bk) + μ.real Bg := add_le_add (measureReal_union_le _ _) le_rfl
+    _ ≤ pn + pks + pg := by linarith
+
+/-- **Eigenvalues of the sampled graph on the torus from the sharp kernel recursion, for random
+    samples.** Independent uniform points on the flat torus, kernel time `σ`, `c = 2π²σ`,
+    `k = j' + 1 < K` steps, `δ = (ε + 2 N Lip / g)/N ≤ 1/8`. No hypothesis on events. HYPOTHESES on
+    numbers: `hsum`, `hW` (the summation of the kernel recursion), `ht` (tail of the Fourier
+    series), `heps`, `h3` (size of the error against `α^{k+1}`), and the two counts `hc1`, `hc2`
+    that place `α^{k+1}` among the coefficients of the modes. CONCLUSION: parts (i) and (ii) of
+    Theorem "eigenvalues on the torus" for the `j`-th eigenvalue of `S` fail with probability at
+    most `(3 + 4K) · 2 g^d exp(-ε²/(4NM + 2Mε)) + 4 K N² e^{-L} + 2 |F|² exp(-(Nη/2)²/(2N))`. -/
+theorem heat_eig_sharp_sample {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {σ : ℝ} (hσ : 0 < σ) (d N K : ℕ) [NeZero N]
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d)
+    (j' : ℕ) (hj' : j' + 1 < K) (W : ℕ → ℝ)
+    (H : Finset (Fin d → ℤ)) (hH0 : ∀ n ∈ H, n ≠ 0) (hH2 : ∀ m ∈ H, ∀ n ∈ H, m + n ≠ 0)
+    {g : ℕ} (hg : 0 < g) {M Lip L ε δ R eta t eps α : ℝ}
+    (hMdef : M = (1 + Real.sqrt (Real.pi / (2 * Real.pi ^ 2 * σ))) ^ d)
+    (hLipdef : Lip = 2 * Real.pi * (2 / (2 * Real.pi ^ 2 * σ))
+      * (1 + Real.sqrt (2 * Real.pi / (2 * Real.pi ^ 2 * σ))) ^ d)
+    (hL : 0 < L) (hε : 0 < ε) (hsmall : ε + 2 * (N * Lip) * (1 / g) ≤ N / 8)
+    (hδ : δ = (ε + 2 * (N * Lip) * (1 / g)) / N)
+    (hR : ∀ n : Fin d → ℤ, n ≠ 0 → n ∉ H → -n ∉ H → R ≤ ∑ i, ((n i : ℤ) : ℝ) ^ 2)
+    (heta : 0 ≤ eta)
+    (hsum : ∀ j, j + 1 < K → ∑ m ∈ Finset.range j,
+        min (2 * heatMu d σ (j - m)
+          * heatEtaBar d σ N (m + 1) M L δ δ) (heatDefSup d σ N (m + 1) M L δ)
+          + heatDefSup d σ N (j + 1) M L δ ≤ W (j + 1) * heatMu d σ (j + 2))
+    (hW : ∀ j, j + 1 < K → 0 ≤ W (j + 1) ∧ 4 * δ + (1 + 4 * δ) * W (j + 1) ≤ 1)
+    (ht : Real.exp (-((j' + 1 + 1 : ℕ) * (2 * Real.pi ^ 2 * σ)) * R / 2)
+        * (1 + Real.sqrt (2 * Real.pi / ((j' + 1 + 1 : ℕ) * (2 * Real.pi ^ 2 * σ)))) ^ d ≤ t)
+    (heps : 3 * δ
+          * ((1 + Real.sqrt (Real.pi / ((j' + 1 + 1 : ℕ) * (2 * Real.pi ^ 2 * σ)))) ^ d
+            + (4 * δ + (1 + 4 * δ) * W (j' + 1)) * heatMu d σ (j' + 2))
+        + (4 * δ + (1 + 4 * δ) * W (j' + 1)) * heatMu d σ (j' + 2) + t ≤ eps)
+    (j : Fin (Fintype.card (Fin N))) (hα0 : 0 < α) (hα1 : α ≤ 1)
+    (hc1 : (Finset.univ.filter fun f : modeSet d H =>
+        α ^ (j' + 1 + 1) < modeCoeff d ((j' + 1 + 1 : ℕ) * (2 * Real.pi ^ 2 * σ)) f.1).card ≤ j.val)
+    (hc2 : j.val < (Finset.univ.filter fun f : modeSet d H =>
+        α ^ (j' + 1 + 1) ≤ modeCoeff d ((j' + 1 + 1 : ℕ) * (2 * Real.pi ^ 2 * σ)) f.1).card)
+    (h3 : 2 * (eps + eta * 1 * ∑ g : modeSet d H,
+        Real.sqrt (modeCoeff d ((j' + 1 + 1 : ℕ) * (2 * Real.pi ^ 2 * σ)) g.1)) ≤ α ^ (j' + 1 + 1)) :
+    μ.real {ω | ¬ ∀ hS : (symGraph
+          (fun i j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X j ω))
+          (fun i : Fin N =>
+            (∑ l : Fin N, heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X l ω)) / N)).IsHermitian,
+        |hS.eigenvalues₀ j ^ (j' + 1 + 1) - α ^ (j' + 1 + 1)|
+            ≤ eps + eta * 1 * ∑ g : modeSet d H,
+                Real.sqrt (modeCoeff d ((j' + 1 + 1 : ℕ) * (2 * Real.pi ^ 2 * σ)) g.1)
+          ∧ ((j' + 1 + 1 : ℕ) : ℝ) * (α ^ (j' + 1 + 1) * |hS.eigenvalues₀ j - α|)
+              ≤ 2 * (eps + eta * 1 * ∑ g : modeSet d H,
+                  Real.sqrt (modeCoeff d ((j' + 1 + 1 : ℕ) * (2 * Real.pi ^ 2 * σ)) g.1))}
+      ≤ (g : ℝ) ^ d * (2 * Real.exp (-ε ^ 2 / (4 * (N * M) + 2 * M * ε)))
+        + ((g : ℝ) ^ d * (2 * Real.exp (-ε ^ 2 / (4 * (N * M) + 2 * M * ε)))
+          + ((g : ℝ) ^ d * (2 * Real.exp (-ε ^ 2 / (4 * (N * M) + 2 * M * ε)))
+            + ((K : ℝ) * ((N : ℝ) ^ 2 * (2 * Real.exp (-L)))
+              + (K : ℝ) * ((N : ℝ) ^ 2 * (2 * Real.exp (-L)))))
+          + (K : ℝ) * (4 * ((g : ℝ) ^ d * (2 * Real.exp (-ε ^ 2 / (4 * (N * M) + 2 * M * ε))))))
+        + (Fintype.card (modeSet d H) : ℝ) ^ 2
+            * (2 * Real.exp (-(N * eta / 2) ^ 2 / (2 * N))) := by
+  subst hδ
+  have hN : 0 < N := Nat.pos_of_ne_zero (NeZero.ne N)
+  have hcσ : 0 < 2 * Real.pi ^ 2 * σ := by positivity
+  have hM : ∀ u, heatTorus d (2 * Real.pi ^ 2 * σ) u ≤ M := fun u => by
+    rw [hMdef]; exact heatTorus_le hcσ d u
+  have hLip : ∀ u u', |heatTorus d (2 * Real.pi ^ 2 * σ) u
+      - heatTorus d (2 * Real.pi ^ 2 * σ) u'| ≤ Lip * dist u u' := fun u u' => by
+    rw [hLipdef]; exact heatTorus_lipschitz hcσ d u u'
+  have hLip0 : 0 ≤ Lip := by rw [hLipdef]; positivity
+  have hepsn0 : 0 ≤ ε + 2 * (N * Lip) * (1 / g) := by positivity
+  have hBn := heat_normalisation_whp hσ d X h_indep hX hlaw N hg hM hLip hLip0 hε
+  have hKS := heat_kernel_sharp_sample hσ d X h_indep hX hlaw N K hN hg hMdef hLipdef hL hε hsmall
+    W hsum hW
+  have hBg := flatTorus_gram_whp (μ := μ) d X h_indep hX hlaw (modeSet d H)
+    (fun n b h => hH0 n ((mem_modeSet d H n b).mp h))
+    (fun n b n' b' h h' => hH2 n ((mem_modeSet d H n b).mp h) n' ((mem_modeSet d H n' b').mp h'))
+    N (ε := N * eta) (mul_nonneg (Nat.cast_nonneg N) heta)
+  exact heat_eig_sharp_whp hσ d N K X j' hj' W H hH0 hH2 hR hepsn0 hsmall heta hBn hKS hBg ht heps
+    j hα0 hα1 hc1 hc2 h3
+
+end EigSharp
+
+/-- Closed bound for the coefficient `heatKB` for `σ ≤ s`, `σ ≤ 1`:
+    `heatKB ≤ ((2πσ)^{-1/2} (√(4π) + 1) √3)^d`. -/
+theorem heatKB_le {σ s : ℝ} (hσ : 0 < σ) (hσs : σ ≤ s) (hσ1 : σ ≤ 1) (d : ℕ) :
+    heatKB d σ s
+      ≤ (1 / Real.sqrt (2 * Real.pi * σ) * ((Real.sqrt (4 * Real.pi) + 1) * Real.sqrt 3)) ^ d := by
+  have hs : 0 < s := lt_of_lt_of_le hσ hσs
+  have hpi := Real.pi_pos
+  unfold heatKB
+  simp only [← Real.sqrt_eq_rpow]
+  rw [← div_pow]
+  refine pow_le_pow_left₀ (by positivity) ?_ d
+  have hC : Real.sqrt (Real.pi / (1 / (4 * σ))) ≤ Real.sqrt (4 * Real.pi) := by
+    apply Real.sqrt_le_sqrt
+    have e : Real.pi / (1 / (4 * σ)) = 4 * Real.pi * σ := by field_simp
+    rw [e]
+    nlinarith
+  have hsa : 0 < Real.sqrt (2 * Real.pi * s) := Real.sqrt_pos.mpr (by positivity)
+  have hsb : 0 < Real.sqrt (2 * Real.pi * (s + 2 * σ)) := Real.sqrt_pos.mpr (by positivity)
+  have hBD : 1 / Real.sqrt (2 * Real.pi * s) / (1 / Real.sqrt (2 * Real.pi * (s + 2 * σ)))
+      ≤ Real.sqrt 3 := by
+    have e : 1 / Real.sqrt (2 * Real.pi * s) / (1 / Real.sqrt (2 * Real.pi * (s + 2 * σ)))
+        = Real.sqrt (2 * Real.pi * (s + 2 * σ) / (2 * Real.pi * s)) := by
+      rw [Real.sqrt_div (by positivity)]
+      field_simp
+    rw [e]
+    apply Real.sqrt_le_sqrt
+    rw [div_le_iff₀ (by positivity)]
+    nlinarith
+  have hA : 0 ≤ 1 / Real.sqrt (2 * Real.pi * σ) := by positivity
+  calc 1 / Real.sqrt (2 * Real.pi * σ) * (1 / Real.sqrt (2 * Real.pi * s))
+          * (Real.sqrt (Real.pi / (1 / (4 * σ))) + 1) / (1 / Real.sqrt (2 * Real.pi * (s + 2 * σ)))
+      = 1 / Real.sqrt (2 * Real.pi * σ) * ((Real.sqrt (Real.pi / (1 / (4 * σ))) + 1)
+          * (1 / Real.sqrt (2 * Real.pi * s) / (1 / Real.sqrt (2 * Real.pi * (s + 2 * σ))))) := by
+        ring
+    _ ≤ 1 / Real.sqrt (2 * Real.pi * σ) * ((Real.sqrt (4 * Real.pi) + 1) * Real.sqrt 3) :=
+        mul_le_mul_of_nonneg_left
+          (mul_le_mul (by linarith) hBD (by positivity) (by positivity)) hA
+
+/-- The constant in the closed bound for `heatCV`. -/
+noncomputable def cvConst : ℝ :=
+  4 / Real.pi * (1 + Real.sqrt (12 * Real.pi)) * Real.sqrt (12 * Real.pi) * Real.sqrt (2 * Real.pi)
+
+theorem cvConst_nonneg : 0 ≤ cvConst := by
+  unfold cvConst
+  have := Real.pi_pos
+  positivity
+
+/-- Closed bound for the coefficient `heatCV` for `σ ≤ s ≤ 1`, with `Y = √(π/(2π²s)) = (2πs)^{-1/2}`:
+    `heatCV ≤ d (σ/s) c₁ Y ((1 + Y) √6)^{d-1}`. -/
+theorem heatCV_le {σ s : ℝ} (hσ : 0 < σ) (hσs : σ ≤ s) (hs1 : s ≤ 1) (d : ℕ) :
+    heatCV d σ s
+      ≤ (d : ℝ) * (σ / s * (cvConst * Real.sqrt (Real.pi / (2 * Real.pi ^ 2 * s))))
+        * ((1 + Real.sqrt (Real.pi / (2 * Real.pi ^ 2 * s))) * Real.sqrt 6) ^ (d - 1) := by
+  have hs : 0 < s := lt_of_lt_of_le hσ hσs
+  have hpi := Real.pi_pos
+  unfold heatCV
+  simp only [← Real.sqrt_eq_rpow, pow_one]
+  have e12 : Real.pi / (1 / (12 * s)) = 12 * Real.pi * s := by field_simp
+  have e12' : 2 * Real.pi * (6 * s) = 12 * Real.pi * s := by ring
+  rw [e12, e12']
+  have hT : Real.sqrt (12 * Real.pi * s) = Real.sqrt (12 * Real.pi) * Real.sqrt s :=
+    Real.sqrt_mul (by positivity) s
+  have hT1 : Real.sqrt (12 * Real.pi * s) ≤ Real.sqrt (12 * Real.pi) :=
+    Real.sqrt_le_sqrt (by nlinarith)
+  have hss : Real.sqrt s * Real.sqrt s = s := Real.mul_self_sqrt hs.le
+  have hsp : 0 < Real.sqrt s := Real.sqrt_pos.mpr hs
+  have hY : Real.sqrt (Real.pi / (2 * Real.pi ^ 2 * s)) = 1 / (Real.sqrt (2 * Real.pi) * Real.sqrt s) := by
+    have e : Real.pi / (2 * Real.pi ^ 2 * s) = 1 / (2 * Real.pi * s) := by field_simp
+    rw [e, Real.sqrt_div (by norm_num), Real.sqrt_one, Real.sqrt_mul (by positivity)]
+  have h2pi : 0 < Real.sqrt (2 * Real.pi) := Real.sqrt_pos.mpr (by positivity)
+  have h2pisq : Real.sqrt (2 * Real.pi) * Real.sqrt (2 * Real.pi) = 2 * Real.pi :=
+    Real.mul_self_sqrt (by positivity)
+  -- the scalar factor
+  have hfac : 4 / (Real.pi * s) * ((1 + Real.sqrt (12 * Real.pi * s)) * Real.sqrt (12 * Real.pi * s))
+      ≤ cvConst * Real.sqrt (Real.pi / (2 * Real.pi ^ 2 * s)) := by
+    have h1 : 4 / (Real.pi * s) * ((1 + Real.sqrt (12 * Real.pi * s)) * Real.sqrt (12 * Real.pi * s))
+        ≤ 4 / (Real.pi * s) * ((1 + Real.sqrt (12 * Real.pi))
+            * (Real.sqrt (12 * Real.pi) * Real.sqrt s)) := by
+      refine mul_le_mul_of_nonneg_left ?_ (by positivity)
+      rw [← hT]
+      exact mul_le_mul_of_nonneg_right (by linarith) (Real.sqrt_nonneg _)
+    have h2 : 4 / (Real.pi * s) * ((1 + Real.sqrt (12 * Real.pi))
+            * (Real.sqrt (12 * Real.pi) * Real.sqrt s))
+        = cvConst * Real.sqrt (Real.pi / (2 * Real.pi ^ 2 * s)) := by
+      rw [hY]
+      unfold cvConst
+      have hs' : s = Real.sqrt s * Real.sqrt s := hss.symm
+      field_simp
+      nlinarith [hss, h2pisq]
+    linarith
+  -- the last factor
+  have hlast : (1 + Real.sqrt (Real.pi / (2 * Real.pi ^ 2 * s)))
+        * Real.sqrt (2 * Real.pi ^ 2 * (6 * s) / (2 * Real.pi ^ 2 * (σ + s)))
+      ≤ (1 + Real.sqrt (Real.pi / (2 * Real.pi ^ 2 * s))) * Real.sqrt 6 := by
+    refine mul_le_mul_of_nonneg_left (Real.sqrt_le_sqrt ?_) (by positivity)
+    rw [div_le_iff₀ (by positivity)]
+    nlinarith [sq_nonneg Real.pi, mul_pos hpi hpi]
+  have hpow := pow_le_pow_left₀ (by positivity) hlast (d - 1)
+  have hσs0 : 0 ≤ σ / s := by positivity
+  calc (d : ℝ) * (σ / s * (4 / (Real.pi * s))
+          * ((1 + Real.sqrt (12 * Real.pi * s)) * Real.sqrt (12 * Real.pi * s)))
+        * ((1 + Real.sqrt (Real.pi / (2 * Real.pi ^ 2 * s)))
+          * Real.sqrt (2 * Real.pi ^ 2 * (6 * s) / (2 * Real.pi ^ 2 * (σ + s)))) ^ (d - 1)
+      = (d : ℝ) * (σ / s * (4 / (Real.pi * s)
+          * ((1 + Real.sqrt (12 * Real.pi * s)) * Real.sqrt (12 * Real.pi * s))))
+        * ((1 + Real.sqrt (Real.pi / (2 * Real.pi ^ 2 * s)))
+          * Real.sqrt (2 * Real.pi ^ 2 * (6 * s) / (2 * Real.pi ^ 2 * (σ + s)))) ^ (d - 1) := by
+        ring
+    _ ≤ (d : ℝ) * (σ / s * (cvConst * Real.sqrt (Real.pi / (2 * Real.pi ^ 2 * s))))
+        * ((1 + Real.sqrt (Real.pi / (2 * Real.pi ^ 2 * s))) * Real.sqrt 6) ^ (d - 1) := by
+        refine mul_le_mul ?_ hpow (by positivity) ?_
+        · exact mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_left hfac hσs0)
+            (Nat.cast_nonneg d)
+        · have := cvConst_nonneg
+          positivity
+
+/-- `heatCV ≤ d c₁ √6^{d-1} (σ/s) · heatM(2π²s)` for `σ ≤ s ≤ 1`. -/
+theorem heatCV_le_mu {σ s : ℝ} (hσ : 0 < σ) (hσs : σ ≤ s) (hs1 : s ≤ 1) (d : ℕ) :
+    heatCV d σ s
+      ≤ (d : ℝ) * cvConst * Real.sqrt 6 ^ (d - 1) * (σ / s) * heatM d (2 * Real.pi ^ 2 * s) := by
+  have hs : 0 < s := lt_of_lt_of_le hσ hσs
+  have h := heatCV_le hσ hσs hs1 d
+  have hc := cvConst_nonneg
+  obtain ⟨Y, hY⟩ : ∃ Y, Y = Real.sqrt (Real.pi / (2 * Real.pi ^ 2 * s)) := ⟨_, rfl⟩
+  have hY0 : 0 ≤ Y := by rw [hY]; exact Real.sqrt_nonneg _
+  unfold heatM
+  rw [← hY] at h ⊢
+  rcases Nat.eq_zero_or_pos d with hd | hd
+  · subst hd
+    simp only [Nat.cast_zero, zero_mul] at h ⊢
+    exact h
+  · obtain ⟨n, rfl⟩ : ∃ n, d = n + 1 := ⟨d - 1, by omega⟩
+    simp only [Nat.add_sub_cancel] at h ⊢
+    refine h.trans ?_
+    have hσs0 : 0 ≤ σ / s := by positivity
+    have h6 : 0 ≤ Real.sqrt 6 ^ n := by positivity
+    have key : Y * ((1 + Y) * Real.sqrt 6) ^ n ≤ Real.sqrt 6 ^ n * (1 + Y) ^ (n + 1) := by
+      rw [mul_pow, pow_succ]
+      have h1 : Y * ((1 + Y) ^ n * Real.sqrt 6 ^ n) ≤ (1 + Y) * ((1 + Y) ^ n * Real.sqrt 6 ^ n) :=
+        mul_le_mul_of_nonneg_right (by linarith) (by positivity)
+      nlinarith
+    calc ((n + 1 : ℕ) : ℝ) * (σ / s * (cvConst * Y)) * ((1 + Y) * Real.sqrt 6) ^ n
+        = ((n + 1 : ℕ) : ℝ) * cvConst * (σ / s) * (Y * ((1 + Y) * Real.sqrt 6) ^ n) := by ring
+      _ ≤ ((n + 1 : ℕ) : ℝ) * cvConst * (σ / s) * (Real.sqrt 6 ^ n * (1 + Y) ^ (n + 1)) :=
+          mul_le_mul_of_nonneg_left key (by positivity)
+      _ = _ := by ring
+
+/-- The square of the base of `heatQ` at `c = 2π²·6s`, in terms of `w = √(2πs)`. -/
+theorem heatQ_base_sq {s : ℝ} (hs : 0 < s) :
+    (Real.sqrt (1 / Real.sqrt (2 * Real.pi ^ 2 * (6 * s) / Real.pi))
+        / (1 / Real.sqrt (2 * (2 * Real.pi ^ 2 * (6 * s)) / Real.pi))) ^ 2
+      = 2 * Real.sqrt 6 * Real.sqrt (2 * Real.pi * s) := by
+  have hpi := Real.pi_pos
+  obtain ⟨w, hw⟩ : ∃ w, w = Real.sqrt (2 * Real.pi * s) := ⟨_, rfl⟩
+  have hw0 : 0 < w := by rw [hw]; exact Real.sqrt_pos.mpr (by positivity)
+  have hww : w * w = 2 * Real.pi * s := by rw [hw]; exact Real.mul_self_sqrt (by positivity)
+  have e1 : 2 * Real.pi ^ 2 * (6 * s) / Real.pi = 6 * (w * w) := by rw [hww]; field_simp
+  have e2 : 2 * (2 * Real.pi ^ 2 * (6 * s)) / Real.pi = 12 * (w * w) := by
+    rw [hww]; field_simp; ring
+  have h6 : Real.sqrt 6 * Real.sqrt 6 = 6 := Real.mul_self_sqrt (by norm_num)
+  have h6p : 0 < Real.sqrt 6 := Real.sqrt_pos.mpr (by norm_num)
+  have s1 : Real.sqrt (6 * (w * w)) = Real.sqrt 6 * w := by
+    rw [Real.sqrt_mul (by norm_num), Real.sqrt_mul_self hw0.le]
+  rw [e1, e2, ← hw, div_pow, Real.sq_sqrt (by positivity), s1, div_pow, one_pow,
+    Real.sq_sqrt (by positivity)]
+  field_simp
+  nlinarith [h6]
+
+/-- `heatCV · heatQ² ≤ d c₁ 2√6 (12 (1 + √(2π)))^{d-1} (σ/s)` for `σ ≤ s ≤ 1`: the factor `s^{-d/2}`
+    of the variance bound is cancelled by `heatQ² ∼ s^{d/2}` (this is where (P5) enters). -/
+theorem heatCV_heatQ {σ s : ℝ} (hσ : 0 < σ) (hσs : σ ≤ s) (hs1 : s ≤ 1) (d : ℕ) :
+    heatCV d σ s * heatQ d (2 * Real.pi ^ 2 * (6 * s)) ^ 2
+      ≤ (d : ℝ) * cvConst * (2 * Real.sqrt 6)
+          * (12 * (1 + Real.sqrt (2 * Real.pi))) ^ (d - 1) * (σ / s) := by
+  have hs : 0 < s := lt_of_lt_of_le hσ hσs
+  have hpi := Real.pi_pos
+  have h := heatCV_le hσ hσs hs1 d
+  have hc := cvConst_nonneg
+  obtain ⟨w, hw⟩ : ∃ w, w = Real.sqrt (2 * Real.pi * s) := ⟨_, rfl⟩
+  have hw0 : 0 < w := by rw [hw]; exact Real.sqrt_pos.mpr (by positivity)
+  have hw1 : w ≤ Real.sqrt (2 * Real.pi) := by
+    rw [hw]; exact Real.sqrt_le_sqrt (by nlinarith)
+  have hY : Real.sqrt (Real.pi / (2 * Real.pi ^ 2 * s)) = 1 / w := by
+    have e : Real.pi / (2 * Real.pi ^ 2 * s) = 1 / (2 * Real.pi * s) := by field_simp
+    rw [e, Real.sqrt_div (by norm_num), Real.sqrt_one, hw]
+  have hQ : heatQ d (2 * Real.pi ^ 2 * (6 * s)) ^ 2 = (2 * Real.sqrt 6 * w) ^ d := by
+    unfold heatQ
+    simp only [← Real.sqrt_eq_rpow]
+    rw [← pow_mul, mul_comm d 2, pow_mul, heatQ_base_sq hs, ← hw]
+  have h6 : Real.sqrt 6 * Real.sqrt 6 = 6 := Real.mul_self_sqrt (by norm_num)
+  have h6p : 0 < Real.sqrt 6 := Real.sqrt_pos.mpr (by norm_num)
+  rw [hY] at h
+  rw [hQ]
+  rcases Nat.eq_zero_or_pos d with hd | hd
+  · subst hd
+    simp only [Nat.cast_zero, zero_mul, pow_zero, mul_one] at h ⊢
+    exact h
+  · obtain ⟨n, rfl⟩ : ∃ n, d = n + 1 := ⟨d - 1, by omega⟩
+    simp only [Nat.add_sub_cancel] at h ⊢
+    have hσs0 : 0 ≤ σ / s := by positivity
+    have hstep : ((1 + 1 / w) * Real.sqrt 6) * (2 * Real.sqrt 6 * w)
+        ≤ 12 * (1 + Real.sqrt (2 * Real.pi)) := by
+      have e : ((1 + 1 / w) * Real.sqrt 6) * (2 * Real.sqrt 6 * w)
+          = 2 * (Real.sqrt 6 * Real.sqrt 6) * (w + 1) := by field_simp
+      rw [e, h6]; linarith
+    have hpow := pow_le_pow_left₀ (by positivity) hstep n
+    have e2 : (1 / w) * (2 * Real.sqrt 6 * w) = 2 * Real.sqrt 6 := by field_simp
+    calc heatCV (n + 1) σ s * (2 * Real.sqrt 6 * w) ^ (n + 1)
+        ≤ (((n + 1 : ℕ) : ℝ) * (σ / s * (cvConst * (1 / w)))
+            * ((1 + 1 / w) * Real.sqrt 6) ^ n) * (2 * Real.sqrt 6 * w) ^ (n + 1) :=
+          mul_le_mul_of_nonneg_right h (by positivity)
+      _ = ((n + 1 : ℕ) : ℝ) * cvConst * (σ / s) * ((1 / w) * (2 * Real.sqrt 6 * w))
+            * (((1 + 1 / w) * Real.sqrt 6) * (2 * Real.sqrt 6 * w)) ^ n := by
+          rw [mul_pow (((1 + 1 / w) * Real.sqrt 6)) (2 * Real.sqrt 6 * w) n, pow_succ]; ring
+      _ ≤ ((n + 1 : ℕ) : ℝ) * cvConst * (σ / s) * (2 * Real.sqrt 6)
+            * (12 * (1 + Real.sqrt (2 * Real.pi))) ^ n := by
+          rw [e2]
+          exact mul_le_mul_of_nonneg_left hpow (by positivity)
+      _ = _ := by ring
+
+/-- Algebraic core of the closed bounds for the defect: the defect expression is monotone in the
+    three quantities `X` (bound `B`), `T` (Bernstein square-root term) and `Z` (first moment). -/
+theorem defect_closed_core {N L δ S X T Z Xb Zb : ℝ} (hN : 0 < N) (hL : 0 ≤ L) (hδ : 0 ≤ δ)
+    (hX : X ≤ Xb) (hT : T ≤ S * Zb) (hZ : Z ≤ Zb) :
+    ((2 * X * L + 2 * T) + 2 * X + 2 * δ * (N * Z + (2 * X * L + 2 * T) + 2 * X)) / (N * (1 / 3))
+      ≤ 3 / N * ((1 + 2 * δ) * ((2 * L + 2) * Xb + 2 * S * Zb) + 2 * δ * N * Zb) := by
+  rw [div_le_iff₀ (by positivity)]
+  have e : 3 / N * ((1 + 2 * δ) * ((2 * L + 2) * Xb + 2 * S * Zb) + 2 * δ * N * Zb) * (N * (1 / 3))
+      = (1 + 2 * δ) * ((2 * L + 2) * Xb + 2 * S * Zb) + 2 * δ * N * Zb := by field_simp
+  rw [e]
+  have h1 : (2 * L + 2) * X ≤ (2 * L + 2) * Xb := mul_le_mul_of_nonneg_left hX (by linarith)
+  have h3 : N * Z ≤ N * Zb := mul_le_mul_of_nonneg_left hZ hN.le
+  have h4 : (1 + 2 * δ) * ((2 * L + 2) * X + 2 * T)
+      ≤ (1 + 2 * δ) * ((2 * L + 2) * Xb + 2 * S * Zb) :=
+    mul_le_mul_of_nonneg_left (by linarith) (by linarith)
+  have h5 : 2 * δ * (N * Z) ≤ 2 * δ * (N * Zb) := mul_le_mul_of_nonneg_left h3 (by linarith)
+  nlinarith
+
+theorem heatBsup_eq (d : ℕ) (σ s M : ℝ) :
+    heatBsup d σ s M = heatKB d σ s * heatM d (2 * Real.pi ^ 2 * (s + 2 * σ))
+      + M * heatM d (2 * Real.pi ^ 2 * (σ + s)) := by
+  unfold heatBsup heatKB
+  ring
+
+theorem heatVsup_eq (d : ℕ) (σ s : ℝ) :
+    heatVsup d σ s = heatCV d σ s * heatM d (2 * Real.pi ^ 2 * (6 * s)) := by
+  unfold heatVsup heatCV
+  ring
+
+/-- The uniform bound of the heat kernel decreases in the time. -/
+theorem heatM_anti {c c' : ℝ} (hc : 0 < c) (h : c ≤ c') (d : ℕ) : heatM d c' ≤ heatM d c := by
+  unfold heatM
+  exact (heat_consts_anti hc h d).1
+
+/-- **Closed bound for the mean of the defect bound:** `heatEtaBar ≤ a/√m`. HYPOTHESES: closed
+    bounds for the coefficients (`hKB`, `hcq`, supplied by `heatKB_le`, `heatCV_heatQ`) and
+    `(2L + 2)(kb + M) √m ≤ θ N` (the range of `m`). -/
+theorem heatEtaBar_le {σ M L δ kb θ r : ℝ} (hσ : 0 < σ) (hM : 0 ≤ M) (hL : 0 ≤ L) (hδ : 0 ≤ δ)
+    (d N m : ℕ) (hN : 0 < N) (hm : 1 ≤ m) (hkb : 0 ≤ kb) (hr : 0 ≤ r)
+    (hKB : heatKB d σ ((m : ℝ) * σ) ≤ kb)
+    (hcq : heatCV d σ ((m : ℝ) * σ) * heatQ d (2 * Real.pi ^ 2 * (6 * ((m : ℝ) * σ))) ^ 2
+      ≤ r ^ 2 / m)
+    (hθ : (2 * L + 2) * (kb + M) * Real.sqrt m ≤ θ * N) :
+    heatEtaBar d σ N m M L δ δ
+      ≤ 3 * (1 + δ) * ((1 + 2 * δ) * (θ + 2 * (Real.sqrt (N * M * L) / N) * r) + 2 * δ * r)
+        / Real.sqrt m := by
+  have hNpos : (0 : ℝ) < N := by exact_mod_cast hN
+  have hm1 : (1 : ℝ) ≤ m := by exact_mod_cast hm
+  have hmpos : (0 : ℝ) < m := by linarith
+  have hs : 0 < (m : ℝ) * σ := by positivity
+  have hsm : 0 < Real.sqrt m := Real.sqrt_pos.mpr hmpos
+  have hc6 : (0 : ℝ) < 2 * Real.pi ^ 2 * (6 * ((m : ℝ) * σ)) := by positivity
+  have hCV := heatCV_nonneg hσ hs d
+  have hQ := heatQ_nonneg hc6 d
+  have hKB0 := heatKB_nonneg hσ hs d
+  obtain ⟨q, hq⟩ : ∃ q, q = min ((N : ℝ) * Real.sqrt (1 + δ))
+      (heatQ d (2 * Real.pi ^ 2 * (6 * ((m : ℝ) * σ))) * (N * (1 + δ))) := ⟨_, rfl⟩
+  have hq0 : 0 ≤ q := by rw [hq]; exact le_min (by positivity) (by positivity)
+  have hqle : q ≤ heatQ d (2 * Real.pi ^ 2 * (6 * ((m : ℝ) * σ))) * (N * (1 + δ)) := by
+    rw [hq]; exact min_le_right _ _
+  -- √CV · heatQ ≤ r/√m
+  have hsq : Real.sqrt (heatCV d σ ((m : ℝ) * σ))
+      * heatQ d (2 * Real.pi ^ 2 * (6 * ((m : ℝ) * σ))) ≤ r / Real.sqrt m := by
+    have e1 : Real.sqrt (heatCV d σ ((m : ℝ) * σ))
+        * heatQ d (2 * Real.pi ^ 2 * (6 * ((m : ℝ) * σ)))
+        = Real.sqrt (heatCV d σ ((m : ℝ) * σ)
+          * heatQ d (2 * Real.pi ^ 2 * (6 * ((m : ℝ) * σ))) ^ 2) := by
+      rw [Real.sqrt_mul hCV, Real.sqrt_sq hQ]
+    rw [e1]
+    calc Real.sqrt (heatCV d σ ((m : ℝ) * σ)
+          * heatQ d (2 * Real.pi ^ 2 * (6 * ((m : ℝ) * σ))) ^ 2)
+        ≤ Real.sqrt (r ^ 2 / m) := Real.sqrt_le_sqrt hcq
+      _ = r / Real.sqrt m := by rw [Real.sqrt_div (by positivity), Real.sqrt_sq hr]
+  have hZ : Real.sqrt (heatCV d σ ((m : ℝ) * σ)) * q ≤ r / Real.sqrt m * (N * (1 + δ)) := by
+    calc Real.sqrt (heatCV d σ ((m : ℝ) * σ)) * q
+        ≤ Real.sqrt (heatCV d σ ((m : ℝ) * σ))
+          * (heatQ d (2 * Real.pi ^ 2 * (6 * ((m : ℝ) * σ))) * (N * (1 + δ))) :=
+          mul_le_mul_of_nonneg_left hqle (Real.sqrt_nonneg _)
+      _ = Real.sqrt (heatCV d σ ((m : ℝ) * σ))
+          * heatQ d (2 * Real.pi ^ 2 * (6 * ((m : ℝ) * σ))) * (N * (1 + δ)) := by ring
+      _ ≤ r / Real.sqrt m * (N * (1 + δ)) := mul_le_mul_of_nonneg_right hsq (by positivity)
+  have hT : Real.sqrt (N * (M * heatCV d σ ((m : ℝ) * σ)) * L) * q
+      ≤ Real.sqrt (N * M * L) * (r / Real.sqrt m * (N * (1 + δ))) := by
+    have e : Real.sqrt (N * (M * heatCV d σ ((m : ℝ) * σ)) * L)
+        = Real.sqrt (N * M * L) * Real.sqrt (heatCV d σ ((m : ℝ) * σ)) := by
+      rw [← Real.sqrt_mul (by positivity)]
+      congr 1; ring
+    rw [e, mul_assoc]
+    exact mul_le_mul_of_nonneg_left hZ (Real.sqrt_nonneg _)
+  have hX : heatKB d σ ((m : ℝ) * σ) * (N * (1 + δ)) + M * (N * (1 + δ))
+      ≤ (kb + M) * (N * (1 + δ)) := by
+    have := mul_le_mul_of_nonneg_right hKB (by positivity : (0 : ℝ) ≤ N * (1 + δ))
+    linarith
+  have hcore := defect_closed_core (S := Real.sqrt (N * M * L)) hNpos hL hδ hX hT hZ
+  have hnum : heatDefNum d σ N m M L δ (N * (1 + δ)) (N * (1 + δ)) q
+      ≤ 3 / N * ((1 + 2 * δ) * ((2 * L + 2) * ((kb + M) * (N * (1 + δ)))
+          + 2 * Real.sqrt (N * M * L) * (r / Real.sqrt m * (N * (1 + δ))))
+        + 2 * δ * N * (r / Real.sqrt m * (N * (1 + δ)))) := by
+    refine le_trans (le_of_eq ?_) hcore
+    unfold heatDefNum
+    ring
+  have hu : (2 * L + 2) * (kb + M) / N ≤ θ / Real.sqrt m := by
+    rw [div_le_div_iff₀ hNpos hsm]; exact hθ
+  unfold heatEtaBar
+  rw [← hq]
+  calc heatDefNum d σ N m M L δ (N * (1 + δ)) (N * (1 + δ)) q / N
+      ≤ 3 / N * ((1 + 2 * δ) * ((2 * L + 2) * ((kb + M) * (N * (1 + δ)))
+          + 2 * Real.sqrt (N * M * L) * (r / Real.sqrt m * (N * (1 + δ))))
+        + 2 * δ * N * (r / Real.sqrt m * (N * (1 + δ)))) / N :=
+        div_le_div_of_nonneg_right hnum hNpos.le
+    _ = 3 * (1 + δ) * ((1 + 2 * δ) * ((2 * L + 2) * (kb + M) / N
+          + 2 * (Real.sqrt (N * M * L) / N) * (r / Real.sqrt m)) + 2 * δ * (r / Real.sqrt m)) := by
+        field_simp
+    _ ≤ 3 * (1 + δ) * ((1 + 2 * δ) * (θ / Real.sqrt m
+          + 2 * (Real.sqrt (N * M * L) / N) * (r / Real.sqrt m)) + 2 * δ * (r / Real.sqrt m)) := by
+        refine mul_le_mul_of_nonneg_left ?_ (by positivity)
+        have := mul_le_mul_of_nonneg_left hu (by linarith : (0 : ℝ) ≤ 1 + 2 * δ)
+        linarith
+    _ = _ := by field_simp
+
+/-- **Closed bound for the supremum of the defect bound:** `heatDefSup ≤ b · mu_m/√m`. HYPOTHESES:
+    closed bounds for the coefficients (`hKB`, `hcv`, supplied by `heatKB_le`, `heatCV_le_mu`) and
+    `(2L + 2)(kb + M) √m ≤ θ N`. -/
+theorem heatDefSup_le {σ M L δ kb θ c2 : ℝ} (hσ : 0 < σ) (hM : 0 ≤ M) (hL : 0 ≤ L) (hδ : 0 ≤ δ)
+    (d N m : ℕ) (hN : 0 < N) (hm : 1 ≤ m) (hkb : 0 ≤ kb) (hc2 : 0 ≤ c2)
+    (hKB : heatKB d σ ((m : ℝ) * σ) ≤ kb)
+    (hcv : heatCV d σ ((m : ℝ) * σ) ≤ c2 / m * heatM d (2 * Real.pi ^ 2 * ((m : ℝ) * σ)))
+    (hθ : (2 * L + 2) * (kb + M) * Real.sqrt m ≤ θ * N) :
+    heatDefSup d σ N m M L δ
+      ≤ 3 * ((1 + 2 * δ) * (θ + 2 * (Real.sqrt (N * M * L) / N) * Real.sqrt c2)
+          + 2 * δ * Real.sqrt c2) * heatMu d σ m / Real.sqrt m := by
+  have hNpos : (0 : ℝ) < N := by exact_mod_cast hN
+  have hm1 : (1 : ℝ) ≤ m := by exact_mod_cast hm
+  have hmpos : (0 : ℝ) < m := by linarith
+  have hs : 0 < (m : ℝ) * σ := by positivity
+  have hsm : 0 < Real.sqrt m := Real.sqrt_pos.mpr hmpos
+  have hcs : (0 : ℝ) < 2 * Real.pi ^ 2 * ((m : ℝ) * σ) := by positivity
+  have hCV := heatCV_nonneg hσ hs d
+  have hKB0 := heatKB_nonneg hσ hs d
+  obtain ⟨μ, hμ⟩ : ∃ μ, μ = heatM d (2 * Real.pi ^ 2 * ((m : ℝ) * σ)) := ⟨_, rfl⟩
+  have hμ0 : 0 ≤ μ := by rw [hμ]; exact heatM_nonneg d _
+  have hmu : heatMu d σ m = μ := by
+    unfold heatMu; rw [if_neg (by omega), hμ]
+  have a1 : heatM d (2 * Real.pi ^ 2 * ((m : ℝ) * σ + 2 * σ)) ≤ μ := by
+    rw [hμ]; exact heatM_anti hcs (by nlinarith [sq_nonneg Real.pi, Real.pi_pos]) d
+  have a2 : heatM d (2 * Real.pi ^ 2 * (σ + (m : ℝ) * σ)) ≤ μ := by
+    rw [hμ]; exact heatM_anti hcs (by nlinarith [sq_nonneg Real.pi, Real.pi_pos]) d
+  have a3 : heatM d (2 * Real.pi ^ 2 * (6 * ((m : ℝ) * σ))) ≤ μ := by
+    rw [hμ]; exact heatM_anti hcs (by nlinarith [sq_nonneg Real.pi, Real.pi_pos]) d
+  rw [← hμ] at hcv
+  have hX : heatBsup d σ ((m : ℝ) * σ) M ≤ (kb + M) * μ := by
+    rw [heatBsup_eq]
+    have h1 : heatKB d σ ((m : ℝ) * σ) * heatM d (2 * Real.pi ^ 2 * ((m : ℝ) * σ + 2 * σ))
+        ≤ kb * μ := mul_le_mul hKB a1 (heatM_nonneg d _) hkb
+    have h2 := mul_le_mul_of_nonneg_left a2 hM
+    linarith
+  have hV : heatVsup d σ ((m : ℝ) * σ) ≤ c2 / m * μ * μ := by
+    rw [heatVsup_eq]
+    exact mul_le_mul hcv a3 (heatM_nonneg d _) (by positivity)
+  have hV0 : 0 ≤ heatVsup d σ ((m : ℝ) * σ) := heatVsup_nonneg hσ hs d
+  have hZ : Real.sqrt (heatVsup d σ ((m : ℝ) * σ)) ≤ Real.sqrt c2 / Real.sqrt m * μ := by
+    calc Real.sqrt (heatVsup d σ ((m : ℝ) * σ)) ≤ Real.sqrt (c2 / m * μ * μ) :=
+          Real.sqrt_le_sqrt hV
+      _ = Real.sqrt c2 / Real.sqrt m * μ := by
+          rw [mul_assoc, Real.sqrt_mul (by positivity), Real.sqrt_mul_self hμ0,
+            Real.sqrt_div hc2]
+  have hT : Real.sqrt (N * (M * heatVsup d σ ((m : ℝ) * σ)) * L)
+      ≤ Real.sqrt (N * M * L) * (Real.sqrt c2 / Real.sqrt m * μ) := by
+    have e : Real.sqrt (N * (M * heatVsup d σ ((m : ℝ) * σ)) * L)
+        = Real.sqrt (N * M * L) * Real.sqrt (heatVsup d σ ((m : ℝ) * σ)) := by
+      rw [← Real.sqrt_mul (by positivity)]
+      congr 1; ring
+    rw [e]
+    exact mul_le_mul_of_nonneg_left hZ (Real.sqrt_nonneg _)
+  have hcore := defect_closed_core (S := Real.sqrt (N * M * L)) hNpos hL hδ hX hT hZ
+  have hu : (2 * L + 2) * (kb + M) / N ≤ θ / Real.sqrt m := by
+    rw [div_le_div_iff₀ hNpos hsm]; exact hθ
+  rw [hmu]
+  calc heatDefSup d σ N m M L δ
+      ≤ 3 / N * ((1 + 2 * δ) * ((2 * L + 2) * ((kb + M) * μ)
+          + 2 * Real.sqrt (N * M * L) * (Real.sqrt c2 / Real.sqrt m * μ))
+        + 2 * δ * N * (Real.sqrt c2 / Real.sqrt m * μ)) := by
+        refine le_trans (le_of_eq ?_) hcore
+        unfold heatDefSup heatThrSup
+        ring
+    _ = 3 * ((1 + 2 * δ) * ((2 * L + 2) * (kb + M) / N
+          + 2 * (Real.sqrt (N * M * L) / N) * (Real.sqrt c2 / Real.sqrt m))
+        + 2 * δ * (Real.sqrt c2 / Real.sqrt m)) * μ := by field_simp
+    _ ≤ 3 * ((1 + 2 * δ) * (θ / Real.sqrt m
+          + 2 * (Real.sqrt (N * M * L) / N) * (Real.sqrt c2 / Real.sqrt m))
+        + 2 * δ * (Real.sqrt c2 / Real.sqrt m)) * μ := by
+        refine mul_le_mul_of_nonneg_right ?_ hμ0
+        have := mul_le_mul_of_nonneg_left hu (by linarith : (0 : ℝ) ≤ 1 + 2 * δ)
+        linarith
+    _ = _ := by field_simp
+
+
+/-- **The summation of Step 4 of the kernel theorem, in abstract form.** If `mu_l ≤ c₀ mu_k` whenever
+    `k ≤ 4l`, the mean bound satisfies `etabar_m ≤ a/√m` and the supremum bound
+    `etasup_m ≤ b mu_m/√m` for `1 ≤ m < K`, then for `j + 1 < K`
+    `∑_{m<j} min(2 mu_{j-m} etabar_{m+1}, etasup_{m+1}) + etasup_{j+1}
+      ≤ 2 c₀ max(2a, b) √(j+1) · mu_{j+2}`. -/
+theorem kernel_sum_bound (mu etabar etasup : ℕ → ℝ) {a b c0 : ℝ} (ha : 0 ≤ a) (hb : 0 ≤ b)
+    (hc0 : 0 ≤ c0) (K : ℕ) (hmu : ∀ k, 0 ≤ mu k)
+    (hdoub : ∀ l k, 1 ≤ l → 1 ≤ k → k ≤ 4 * l → mu l ≤ c0 * mu k)
+    (hbar : ∀ m, 1 ≤ m → m < K → etabar m ≤ a / Real.sqrt m)
+    (hsup : ∀ m, 1 ≤ m → m < K → etasup m ≤ b * mu m / Real.sqrt m)
+    (j : ℕ) (hj : j + 1 < K) :
+    ∑ m ∈ Finset.range j, min (2 * mu (j - m) * etabar (m + 1)) (etasup (m + 1)) + etasup (j + 1)
+      ≤ 2 * c0 * max (2 * a) b * Real.sqrt ((j : ℝ) + 1) * mu (j + 2) := by
+  have hmax0 : 0 ≤ max (2 * a) b := le_max_of_le_right hb
+  have hC0 : 0 ≤ c0 * max (2 * a) b * mu (j + 2) := mul_nonneg (mul_nonneg hc0 hmax0) (hmu _)
+  have hsq : ∀ m : ℕ, 0 < Real.sqrt ((m : ℝ) + 1) := fun m => Real.sqrt_pos.mpr (by positivity)
+  have hcast : ∀ m : ℕ, Real.sqrt ((m + 1 : ℕ) : ℝ) = Real.sqrt ((m : ℝ) + 1) := fun m => by
+    push_cast; rfl
+  -- the supremum bound in terms of mu (j+2)
+  have hsupj : ∀ m, m < j + 1 → j + 2 ≤ 4 * (m + 1) →
+      etasup (m + 1) ≤ c0 * max (2 * a) b * mu (j + 2) * (1 / Real.sqrt ((m : ℝ) + 1)) := by
+    intro m hm h4
+    have h1 := hsup (m + 1) (by omega) (by omega)
+    rw [hcast] at h1
+    have h2 := hdoub (m + 1) (j + 2) (by omega) (by omega) h4
+    have h3 : b * mu (m + 1) ≤ max (2 * a) b * (c0 * mu (j + 2)) :=
+      mul_le_mul (le_max_right _ _) h2 (hmu _) hmax0
+    calc etasup (m + 1) ≤ b * mu (m + 1) / Real.sqrt ((m : ℝ) + 1) := h1
+      _ ≤ max (2 * a) b * (c0 * mu (j + 2)) / Real.sqrt ((m : ℝ) + 1) :=
+          div_le_div_of_nonneg_right h3 (hsq m).le
+      _ = _ := by ring
+  have hterm : ∀ m ∈ Finset.range j,
+      min (2 * mu (j - m) * etabar (m + 1)) (etasup (m + 1))
+        ≤ c0 * max (2 * a) b * mu (j + 2) * (1 / Real.sqrt ((m : ℝ) + 1)) := by
+    intro m hm
+    have hmj : m < j := Finset.mem_range.mp hm
+    by_cases hcase : 2 * (m + 1) ≤ j + 1
+    · refine (min_le_left _ _).trans ?_
+      have h1 := hbar (m + 1) (by omega) (by omega)
+      rw [hcast] at h1
+      have h2 := hdoub (j - m) (j + 2) (by omega) (by omega) (by omega)
+      have h3 : 2 * mu (j - m) * etabar (m + 1)
+          ≤ 2 * mu (j - m) * (a / Real.sqrt ((m : ℝ) + 1)) :=
+        mul_le_mul_of_nonneg_left h1 (mul_nonneg (by norm_num) (hmu _))
+      have h4 : 2 * mu (j - m) * (a / Real.sqrt ((m : ℝ) + 1))
+          ≤ 2 * (c0 * mu (j + 2)) * (a / Real.sqrt ((m : ℝ) + 1)) :=
+        mul_le_mul_of_nonneg_right (by linarith) (div_nonneg ha (hsq m).le)
+      have h5 : 2 * (c0 * mu (j + 2)) * (a / Real.sqrt ((m : ℝ) + 1))
+          = c0 * (2 * a) * mu (j + 2) * (1 / Real.sqrt ((m : ℝ) + 1)) := by ring
+      have h6 : c0 * (2 * a) * mu (j + 2) * (1 / Real.sqrt ((m : ℝ) + 1))
+          ≤ c0 * max (2 * a) b * mu (j + 2) * (1 / Real.sqrt ((m : ℝ) + 1)) := by
+        refine mul_le_mul_of_nonneg_right ?_ (by positivity)
+        exact mul_le_mul_of_nonneg_right
+          (mul_le_mul_of_nonneg_left (le_max_left _ _) hc0) (hmu _)
+      linarith
+    · exact (min_le_right _ _).trans (hsupj m (by omega) (by omega))
+  have hlast := hsupj j (by omega) (by omega)
+  have hs := sum_inv_sqrt_le (j + 1)
+  rw [Finset.sum_range_succ] at hs
+  have hs' : ∑ m ∈ Finset.range j, 1 / Real.sqrt ((m : ℝ) + 1) + 1 / Real.sqrt ((j : ℝ) + 1)
+      ≤ 2 * Real.sqrt ((j : ℝ) + 1) := by
+    have e : ((j + 1 : ℕ) : ℝ) = (j : ℝ) + 1 := by push_cast; rfl
+    rw [e] at hs
+    exact hs
+  calc ∑ m ∈ Finset.range j, min (2 * mu (j - m) * etabar (m + 1)) (etasup (m + 1))
+        + etasup (j + 1)
+      ≤ ∑ m ∈ Finset.range j, c0 * max (2 * a) b * mu (j + 2) * (1 / Real.sqrt ((m : ℝ) + 1))
+        + c0 * max (2 * a) b * mu (j + 2) * (1 / Real.sqrt ((j : ℝ) + 1)) :=
+        add_le_add (Finset.sum_le_sum hterm) hlast
+    _ = c0 * max (2 * a) b * mu (j + 2)
+          * (∑ m ∈ Finset.range j, 1 / Real.sqrt ((m : ℝ) + 1) + 1 / Real.sqrt ((j : ℝ) + 1)) := by
+        rw [mul_add, Finset.mul_sum]
+    _ ≤ c0 * max (2 * a) b * mu (j + 2) * (2 * Real.sqrt ((j : ℝ) + 1)) :=
+        mul_le_mul_of_nonneg_left hs' hC0
+    _ = _ := by ring
+
+/-- Doubling of the uniform bound of the heat kernel: `mu_l ≤ 2^d mu_k` for `1 ≤ l`, `1 ≤ k ≤ 4l`. -/
+theorem heatMu_doubling {σ : ℝ} (hσ : 0 < σ) (d : ℕ) {l k : ℕ} (hl : 1 ≤ l) (hk : 1 ≤ k)
+    (hkl : k ≤ 4 * l) : heatMu d σ l ≤ 2 ^ d * heatMu d σ k := by
+  have hl0 : l ≠ 0 := by omega
+  have hk0 : k ≠ 0 := by omega
+  have hpi := Real.pi_pos
+  have hlr : (1 : ℝ) ≤ l := by exact_mod_cast hl
+  have hkr : (1 : ℝ) ≤ k := by exact_mod_cast hk
+  have hklr : (k : ℝ) ≤ 4 * l := by exact_mod_cast hkl
+  unfold heatMu heatM
+  rw [if_neg hl0, if_neg hk0, ← mul_pow]
+  refine pow_le_pow_left₀ (by positivity) ?_ d
+  have e : ∀ n : ℝ, 0 < n → Real.pi / (2 * Real.pi ^ 2 * (n * σ)) = 1 / (2 * Real.pi * σ) / n :=
+    fun n hn => by field_simp
+  have hA : 0 < 1 / (2 * Real.pi * σ) := by positivity
+  have h1 : Real.pi / (2 * Real.pi ^ 2 * ((l : ℝ) * σ))
+      ≤ 4 * (Real.pi / (2 * Real.pi ^ 2 * ((k : ℝ) * σ))) := by
+    rw [e l (by linarith), e k (by linarith)]
+    have h := div_le_div_of_nonneg_left hA.le (by positivity : (0 : ℝ) < k / 4)
+      (by linarith : (k : ℝ) / 4 ≤ l)
+    have e2 : 1 / (2 * Real.pi * σ) / ((k : ℝ) / 4) = 4 * (1 / (2 * Real.pi * σ) / k) := by
+      field_simp
+    linarith
+  have h2 : Real.sqrt (Real.pi / (2 * Real.pi ^ 2 * ((l : ℝ) * σ)))
+      ≤ 2 * Real.sqrt (Real.pi / (2 * Real.pi ^ 2 * ((k : ℝ) * σ))) := by
+    calc Real.sqrt (Real.pi / (2 * Real.pi ^ 2 * ((l : ℝ) * σ)))
+        ≤ Real.sqrt (4 * (Real.pi / (2 * Real.pi ^ 2 * ((k : ℝ) * σ)))) := Real.sqrt_le_sqrt h1
+      _ = 2 * Real.sqrt (Real.pi / (2 * Real.pi ^ 2 * ((k : ℝ) * σ))) := by
+          rw [Real.sqrt_mul (by norm_num), show (4 : ℝ) = 2 ^ 2 by norm_num,
+            Real.sqrt_sq (by norm_num)]
+  nlinarith [Real.sqrt_nonneg (Real.pi / (2 * Real.pi ^ 2 * ((k : ℝ) * σ)))]
+
+
+/-- The closed bound `kb` for `heatKB`. -/
+noncomputable def heatKbar (d : ℕ) (σ : ℝ) : ℝ :=
+  (1 / Real.sqrt (2 * Real.pi * σ) * ((Real.sqrt (4 * Real.pi) + 1) * Real.sqrt 3)) ^ d
+
+/-- The constant `a` of the mean bound `heatEtaBar ≤ a/√m`. -/
+noncomputable def heatRateA (d N : ℕ) (M L δ θ : ℝ) : ℝ :=
+  3 * (1 + δ) * ((1 + 2 * δ) * (θ + 2 * (Real.sqrt (N * M * L) / N)
+      * Real.sqrt ((d : ℝ) * cvConst * (2 * Real.sqrt 6)
+          * (12 * (1 + Real.sqrt (2 * Real.pi))) ^ (d - 1)))
+    + 2 * δ * Real.sqrt ((d : ℝ) * cvConst * (2 * Real.sqrt 6)
+          * (12 * (1 + Real.sqrt (2 * Real.pi))) ^ (d - 1)))
+
+/-- The constant `b` of the supremum bound `heatDefSup ≤ b mu_m/√m`. -/
+noncomputable def heatRateB (d N : ℕ) (M L δ θ : ℝ) : ℝ :=
+  3 * ((1 + 2 * δ) * (θ + 2 * (Real.sqrt (N * M * L) / N)
+      * Real.sqrt ((d : ℝ) * cvConst * Real.sqrt 6 ^ (d - 1)))
+    + 2 * δ * Real.sqrt ((d : ℝ) * cvConst * Real.sqrt 6 ^ (d - 1)))
+
+/-- The numbers `W_k = 2 · 2^d · max(2a, b) · √k` of the kernel theorem in closed form. -/
+noncomputable def heatW (d N : ℕ) (M L δ θ : ℝ) (k : ℕ) : ℝ :=
+  2 * 2 ^ d * max (2 * heatRateA d N M L δ θ) (heatRateB d N M L δ θ) * Real.sqrt k
+
+theorem heatRateA_nonneg {M L δ θ : ℝ} (hM : 0 ≤ M) (hL : 0 ≤ L) (hδ : 0 ≤ δ) (hθ : 0 ≤ θ)
+    (d N : ℕ) : 0 ≤ heatRateA d N M L δ θ := by
+  unfold heatRateA
+  have := cvConst_nonneg
+  positivity
+
+theorem heatRateB_nonneg {M L δ θ : ℝ} (hM : 0 ≤ M) (hL : 0 ≤ L) (hδ : 0 ≤ δ) (hθ : 0 ≤ θ)
+    (d N : ℕ) : 0 ≤ heatRateB d N M L δ θ := by
+  unfold heatRateB
+  have := cvConst_nonneg
+  positivity
+
+/-- **The summation hypothesis of the sharp kernel theorem, proved in closed form.** For kernel time
+    `σ ≤ 1`, `K σ ≤ 1` and `(2L + 2)(kb + M) √K ≤ θ N`, the hypothesis `hsum` of
+    `heat_kernel_sharp_sample` holds with `W_k = heatW k = 2 · 2^d · max(2a, b) · √k`. -/
+theorem heat_hsum_closed {σ M L δ θ : ℝ} (hσ : 0 < σ) (hσ1 : σ ≤ 1) (hM : 0 ≤ M) (hL : 0 ≤ L)
+    (hδ : 0 ≤ δ) (hθ0 : 0 ≤ θ) (d N K : ℕ) (hN : 0 < N) (hKσ : (K : ℝ) * σ ≤ 1)
+    (hθ : (2 * L + 2) * (heatKbar d σ + M) * Real.sqrt K ≤ θ * N) (j : ℕ) (hj : j + 1 < K) :
+    ∑ m ∈ Finset.range j, min (2 * heatMu d σ (j - m) * heatEtaBar d σ N (m + 1) M L δ δ)
+        (heatDefSup d σ N (m + 1) M L δ) + heatDefSup d σ N (j + 1) M L δ
+      ≤ heatW d N M L δ θ (j + 1) * heatMu d σ (j + 2) := by
+  have hc := cvConst_nonneg
+  have hkb0 : 0 ≤ heatKbar d σ := by unfold heatKbar; positivity
+  have hrange : ∀ m : ℕ, 1 ≤ m → m < K →
+      σ ≤ (m : ℝ) * σ ∧ (m : ℝ) * σ ≤ 1
+        ∧ (2 * L + 2) * (heatKbar d σ + M) * Real.sqrt m ≤ θ * N := by
+    intro m hm hmK
+    have hm1 : (1 : ℝ) ≤ m := by exact_mod_cast hm
+    have hmK' : (m : ℝ) ≤ K := by exact_mod_cast hmK.le
+    refine ⟨by nlinarith, by nlinarith, ?_⟩
+    have h1 : Real.sqrt m ≤ Real.sqrt K := Real.sqrt_le_sqrt hmK'
+    have h2 : 0 ≤ (2 * L + 2) * (heatKbar d σ + M) := by positivity
+    nlinarith [mul_le_mul_of_nonneg_left h1 h2]
+  have hbar : ∀ m, 1 ≤ m → m < K →
+      heatEtaBar d σ N m M L δ δ ≤ heatRateA d N M L δ θ / Real.sqrt m := by
+    intro m hm hmK
+    obtain ⟨r1, r2, r3⟩ := hrange m hm hmK
+    have hmpos : (0 : ℝ) < m := by exact_mod_cast (by omega : 0 < m)
+    have hrc : 0 ≤ (d : ℝ) * cvConst * (2 * Real.sqrt 6)
+        * (12 * (1 + Real.sqrt (2 * Real.pi))) ^ (d - 1) := by positivity
+    have hcq := heatCV_heatQ hσ r1 r2 d
+    have e : σ / ((m : ℝ) * σ) = 1 / m := by field_simp
+    rw [e] at hcq
+    unfold heatRateA
+    refine heatEtaBar_le hσ hM hL hδ d N m hN hm hkb0 (Real.sqrt_nonneg _)
+      (by unfold heatKbar; exact heatKB_le hσ r1 hσ1 d) ?_ r3
+    rw [Real.sq_sqrt hrc]
+    calc _ ≤ _ := hcq
+      _ = _ := by ring
+  have hsup : ∀ m, 1 ≤ m → m < K →
+      heatDefSup d σ N m M L δ ≤ heatRateB d N M L δ θ * heatMu d σ m / Real.sqrt m := by
+    intro m hm hmK
+    obtain ⟨r1, r2, r3⟩ := hrange m hm hmK
+    have hmpos : (0 : ℝ) < m := by exact_mod_cast (by omega : 0 < m)
+    have hc2 : 0 ≤ (d : ℝ) * cvConst * Real.sqrt 6 ^ (d - 1) := by positivity
+    have hcv := heatCV_le_mu hσ r1 r2 d
+    have e : σ / ((m : ℝ) * σ) = 1 / m := by field_simp
+    rw [e] at hcv
+    unfold heatRateB
+    refine heatDefSup_le hσ hM hL hδ d N m hN hm hkb0 hc2
+      (by unfold heatKbar; exact heatKB_le hσ r1 hσ1 d) ?_ r3
+    calc _ ≤ _ := hcv
+      _ = _ := by ring
+  have h := kernel_sum_bound (heatMu d σ) (fun m => heatEtaBar d σ N m M L δ δ)
+    (fun m => heatDefSup d σ N m M L δ) (heatRateA_nonneg hM hL hδ hθ0 d N)
+    (heatRateB_nonneg hM hL hδ hθ0 d N) (c0 := 2 ^ d) (by positivity) K (heatMu_nonneg d σ)
+    (fun l k hl hk hkl => heatMu_doubling hσ d hl hk hkl) hbar hsup j hj
+  unfold heatW
+  have e : ((j + 1 : ℕ) : ℝ) = (j : ℝ) + 1 := by push_cast; rfl
+  rw [e]
+  exact h
+
+/-- The numbers `W_k` are nonnegative and increase with `k`. -/
+theorem heatW_mono {M L δ θ : ℝ} (hM : 0 ≤ M) (hL : 0 ≤ L) (hδ : 0 ≤ δ) (hθ : 0 ≤ θ) (d N : ℕ)
+    {k k' : ℕ} (hk : k ≤ k') :
+    0 ≤ heatW d N M L δ θ k ∧ heatW d N M L δ θ k ≤ heatW d N M L δ θ k' := by
+  have ha := heatRateA_nonneg hM hL hδ hθ d N
+  have hb := heatRateB_nonneg hM hL hδ hθ d N
+  have hmax : 0 ≤ max (2 * heatRateA d N M L δ θ) (heatRateB d N M L δ θ) :=
+    le_max_of_le_right hb
+  unfold heatW
+  refine ⟨by positivity, ?_⟩
+  exact mul_le_mul_of_nonneg_left (Real.sqrt_le_sqrt (by exact_mod_cast hk)) (by positivity)
+
+/-- **Theorem "kernel" for a random sample on the torus with the rate `√k`.** Independent uniform
+    points on the flat torus, kernel time `σ ≤ 1`, `K σ ≤ 1`, `δ = (ε + 2 N Lip/g)/N ≤ 1/8`. No
+    hypothesis on events and no summation hypothesis. HYPOTHESES on numbers:
+    `(2L + 2)(kb + M) √K ≤ θ N` and `4δ + (1 + 4δ) W_K ≤ 1` with `W_k = 2·2^d·max(2a, b)·√k`.
+    CONCLUSION: except on an event of probability at most
+    `(2 + 4K) · 2 g^d exp(-ε²/(4NM + 2Mε)) + 4 K N² e^{-L}`, for all `1 ≤ l ≤ K` and all entries
+    `|N P^l(a,i) - p_{lσ}(x_a - x_i)| ≤ mu_l`, and for `j + 1 < K`
+    `|N P^{j+2}(a,i) - p_{(j+2)σ}(x_a - x_i)| ≤ (4δ + (1 + 4δ) W_{j+1}) mu_{j+2}`. -/
+theorem heat_kernel_rate_sample {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {σ : ℝ} (hσ : 0 < σ) (hσ1 : σ ≤ 1) (d : ℕ)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (N K : ℕ) (hN : 0 < N) {g : ℕ} (hg : 0 < g)
+    {M Lip L ε δ θ : ℝ} (hMdef : M = (1 + Real.sqrt (Real.pi / (2 * Real.pi ^ 2 * σ))) ^ d)
+    (hLipdef : Lip = 2 * Real.pi * (2 / (2 * Real.pi ^ 2 * σ))
+      * (1 + Real.sqrt (2 * Real.pi / (2 * Real.pi ^ 2 * σ))) ^ d)
+    (hL : 0 < L) (hε : 0 < ε) (hsmall : ε + 2 * (N * Lip) * (1 / g) ≤ N / 8)
+    (hδ : δ = (ε + 2 * (N * Lip) * (1 / g)) / N)
+    (hKσ : (K : ℝ) * σ ≤ 1) (hθ0 : 0 ≤ θ)
+    (hθ : (2 * L + 2) * (heatKbar d σ + M) * Real.sqrt K ≤ θ * N)
+    (hWK : 4 * δ + (1 + 4 * δ) * heatW d N M L δ θ K ≤ 1) :
+    μ.real {ω | ¬ heatKernelSharp d σ δ N K (heatW d N M L δ θ) (fun j => X j ω)}
+      ≤ (g : ℝ) ^ d * (2 * Real.exp (-ε ^ 2 / (4 * (N * M) + 2 * M * ε)))
+        + ((g : ℝ) ^ d * (2 * Real.exp (-ε ^ 2 / (4 * (N * M) + 2 * M * ε)))
+          + ((K : ℝ) * ((N : ℝ) ^ 2 * (2 * Real.exp (-L)))
+            + (K : ℝ) * ((N : ℝ) ^ 2 * (2 * Real.exp (-L)))))
+        + (K : ℝ) * (4 * ((g : ℝ) ^ d * (2 * Real.exp (-ε ^ 2 / (4 * (N * M) + 2 * M * ε))))) := by
+  have hNpos : (0 : ℝ) < N := by exact_mod_cast hN
+  have hM0 : 0 ≤ M := by rw [hMdef]; positivity
+  have hLip0 : 0 ≤ Lip := by rw [hLipdef]; positivity
+  have hδ0 : 0 ≤ δ := by rw [hδ]; positivity
+  have hsum := fun j hj => heat_hsum_closed hσ hσ1 hM0 hL.le hδ0 hθ0 d N K hN hKσ hθ j hj
+  have hW : ∀ j, j + 1 < K → 0 ≤ heatW d N M L δ θ (j + 1)
+      ∧ 4 * δ + (1 + 4 * δ) * heatW d N M L δ θ (j + 1) ≤ 1 := by
+    intro j hj
+    obtain ⟨w0, w1⟩ := heatW_mono hM0 hL.le hδ0 hθ0 d N (by omega : j + 1 ≤ K)
+    refine ⟨w0, ?_⟩
+    have := mul_le_mul_of_nonneg_left w1 (by linarith : (0 : ℝ) ≤ 1 + 4 * δ)
+    linarith
+  subst hδ
+  exact heat_kernel_sharp_sample hσ d X h_indep hX hlaw N K hN hg hMdef hLipdef hL hε hsmall
+    (heatW d N M L ((ε + 2 * (N * Lip) * (1 / g)) / N) θ) hsum hW
+
+section EigRate
+open Matrix
+
+/-- **Eigenvalues of the sampled graph on the torus with the rate `√k` of the kernel theorem.** As
+    `heat_eig_sharp_sample`, with the numbers `W_k = heatW k` in closed form: no summation hypothesis.
+    HYPOTHESES on numbers: `σ ≤ 1`, `K σ ≤ 1`, `(2L + 2)(kb + M) √K ≤ θ N`,
+    `4δ + (1 + 4δ) W_K ≤ 1`, the tail `ht`, the size conditions `heps`, `h3`, and the two counts
+    `hc1`, `hc2`. -/
+theorem heat_eig_rate_sample {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {σ : ℝ} (hσ : 0 < σ) (hσ1 : σ ≤ 1) (d N K : ℕ) [NeZero N]
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d)
+    (j' : ℕ) (hj' : j' + 1 < K)
+    (H : Finset (Fin d → ℤ)) (hH0 : ∀ n ∈ H, n ≠ 0) (hH2 : ∀ m ∈ H, ∀ n ∈ H, m + n ≠ 0)
+    {g : ℕ} (hg : 0 < g) {M Lip L ε δ θ R eta t eps α : ℝ}
+    (hMdef : M = (1 + Real.sqrt (Real.pi / (2 * Real.pi ^ 2 * σ))) ^ d)
+    (hLipdef : Lip = 2 * Real.pi * (2 / (2 * Real.pi ^ 2 * σ))
+      * (1 + Real.sqrt (2 * Real.pi / (2 * Real.pi ^ 2 * σ))) ^ d)
+    (hL : 0 < L) (hε : 0 < ε) (hsmall : ε + 2 * (N * Lip) * (1 / g) ≤ N / 8)
+    (hδ : δ = (ε + 2 * (N * Lip) * (1 / g)) / N)
+    (hR : ∀ n : Fin d → ℤ, n ≠ 0 → n ∉ H → -n ∉ H → R ≤ ∑ i, ((n i : ℤ) : ℝ) ^ 2)
+    (heta : 0 ≤ eta)
+    (hKσ : (K : ℝ) * σ ≤ 1) (hθ0 : 0 ≤ θ)
+    (hθ : (2 * L + 2) * (heatKbar d σ + M) * Real.sqrt K ≤ θ * N)
+    (hWK : 4 * δ + (1 + 4 * δ) * heatW d N M L δ θ K ≤ 1)
+    (ht : Real.exp (-((j' + 1 + 1 : ℕ) * (2 * Real.pi ^ 2 * σ)) * R / 2)
+        * (1 + Real.sqrt (2 * Real.pi / ((j' + 1 + 1 : ℕ) * (2 * Real.pi ^ 2 * σ)))) ^ d ≤ t)
+    (heps : 3 * δ
+          * ((1 + Real.sqrt (Real.pi / ((j' + 1 + 1 : ℕ) * (2 * Real.pi ^ 2 * σ)))) ^ d
+            + (4 * δ + (1 + 4 * δ) * heatW d N M L δ θ (j' + 1)) * heatMu d σ (j' + 2))
+        + (4 * δ + (1 + 4 * δ) * heatW d N M L δ θ (j' + 1)) * heatMu d σ (j' + 2) + t ≤ eps)
+    (j : Fin (Fintype.card (Fin N))) (hα0 : 0 < α) (hα1 : α ≤ 1)
+    (hc1 : (Finset.univ.filter fun f : modeSet d H =>
+        α ^ (j' + 1 + 1) < modeCoeff d ((j' + 1 + 1 : ℕ) * (2 * Real.pi ^ 2 * σ)) f.1).card ≤ j.val)
+    (hc2 : j.val < (Finset.univ.filter fun f : modeSet d H =>
+        α ^ (j' + 1 + 1) ≤ modeCoeff d ((j' + 1 + 1 : ℕ) * (2 * Real.pi ^ 2 * σ)) f.1).card)
+    (h3 : 2 * (eps + eta * 1 * ∑ g : modeSet d H,
+        Real.sqrt (modeCoeff d ((j' + 1 + 1 : ℕ) * (2 * Real.pi ^ 2 * σ)) g.1)) ≤ α ^ (j' + 1 + 1)) :
+    μ.real {ω | ¬ ∀ hS : (symGraph
+          (fun i j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X j ω))
+          (fun i : Fin N =>
+            (∑ l : Fin N, heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X l ω)) / N)).IsHermitian,
+        |hS.eigenvalues₀ j ^ (j' + 1 + 1) - α ^ (j' + 1 + 1)|
+            ≤ eps + eta * 1 * ∑ g : modeSet d H,
+                Real.sqrt (modeCoeff d ((j' + 1 + 1 : ℕ) * (2 * Real.pi ^ 2 * σ)) g.1)
+          ∧ ((j' + 1 + 1 : ℕ) : ℝ) * (α ^ (j' + 1 + 1) * |hS.eigenvalues₀ j - α|)
+              ≤ 2 * (eps + eta * 1 * ∑ g : modeSet d H,
+                  Real.sqrt (modeCoeff d ((j' + 1 + 1 : ℕ) * (2 * Real.pi ^ 2 * σ)) g.1))}
+      ≤ (g : ℝ) ^ d * (2 * Real.exp (-ε ^ 2 / (4 * (N * M) + 2 * M * ε)))
+        + ((g : ℝ) ^ d * (2 * Real.exp (-ε ^ 2 / (4 * (N * M) + 2 * M * ε)))
+          + ((g : ℝ) ^ d * (2 * Real.exp (-ε ^ 2 / (4 * (N * M) + 2 * M * ε)))
+            + ((K : ℝ) * ((N : ℝ) ^ 2 * (2 * Real.exp (-L)))
+              + (K : ℝ) * ((N : ℝ) ^ 2 * (2 * Real.exp (-L)))))
+          + (K : ℝ) * (4 * ((g : ℝ) ^ d * (2 * Real.exp (-ε ^ 2 / (4 * (N * M) + 2 * M * ε))))))
+        + (Fintype.card (modeSet d H) : ℝ) ^ 2
+            * (2 * Real.exp (-(N * eta / 2) ^ 2 / (2 * N))) := by
+  have hN : 0 < N := Nat.pos_of_ne_zero (NeZero.ne N)
+  have hM0 : 0 ≤ M := by rw [hMdef]; positivity
+  have hLip0 : 0 ≤ Lip := by rw [hLipdef]; positivity
+  have hδ0 : 0 ≤ δ := by rw [hδ]; positivity
+  have hsum := fun j hj => heat_hsum_closed hσ hσ1 hM0 hL.le hδ0 hθ0 d N K hN hKσ hθ j hj
+  have hW : ∀ j, j + 1 < K → 0 ≤ heatW d N M L δ θ (j + 1)
+      ∧ 4 * δ + (1 + 4 * δ) * heatW d N M L δ θ (j + 1) ≤ 1 := by
+    intro j hj
+    obtain ⟨w0, w1⟩ := heatW_mono hM0 hL.le hδ0 hθ0 d N (by omega : j + 1 ≤ K)
+    refine ⟨w0, ?_⟩
+    have := mul_le_mul_of_nonneg_left w1 (by linarith : (0 : ℝ) ≤ 1 + 4 * δ)
+    linarith
+  exact heat_eig_sharp_sample hσ d N K X h_indep hX hlaw j' hj' (heatW d N M L δ θ) H hH0 hH2 hg
+    hMdef hLipdef hL hε hsmall hδ hR heta hsum hW ht heps j hα0 hα1 hc1 hc2 h3
+
+end EigRate
+
+/-- **Theorem "kernel" with the rate `√k` and failure probability `2/N³`.** As
+    `heat_kernel_rate_sample`, with the level `L = log(4 K N⁵)` and a tolerance `ε` large enough
+    that `log((2 + 4K) · 2 g^d · N³) · (4NM + 2Mε) ≤ ε²`: the conclusion fails with probability at
+    most `2/N³`. -/
+theorem heat_kernel_rate_prob {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {σ : ℝ} (hσ : 0 < σ) (hσ1 : σ ≤ 1) (d : ℕ)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (N K : ℕ) (hN : 0 < N) (hK : 0 < K)
+    {g : ℕ} (hg : 0 < g)
+    {M Lip L ε δ θ : ℝ} (hMdef : M = (1 + Real.sqrt (Real.pi / (2 * Real.pi ^ 2 * σ))) ^ d)
+    (hLipdef : Lip = 2 * Real.pi * (2 / (2 * Real.pi ^ 2 * σ))
+      * (1 + Real.sqrt (2 * Real.pi / (2 * Real.pi ^ 2 * σ))) ^ d)
+    (hLdef : L = Real.log (4 * K * (N : ℝ) ^ 5)) (hε : 0 < ε)
+    (hT : Real.log ((2 + 4 * K) * (2 * (g : ℝ) ^ d) * (N : ℝ) ^ 3) * (4 * (N * M) + 2 * M * ε)
+      ≤ ε ^ 2)
+    (hsmall : ε + 2 * (N * Lip) * (1 / g) ≤ N / 8)
+    (hδ : δ = (ε + 2 * (N * Lip) * (1 / g)) / N)
+    (hKσ : (K : ℝ) * σ ≤ 1) (hθ0 : 0 ≤ θ)
+    (hθ : (2 * L + 2) * (heatKbar d σ + M) * Real.sqrt K ≤ θ * N)
+    (hWK : 4 * δ + (1 + 4 * δ) * heatW d N M L δ θ K ≤ 1) :
+    μ.real {ω | ¬ heatKernelSharp d σ δ N K (heatW d N M L δ θ) (fun j => X j ω)}
+      ≤ 2 / (N : ℝ) ^ 3 := by
+  have hNpos : (0 : ℝ) < N := by exact_mod_cast hN
+  have hN1 : (1 : ℝ) ≤ N := by exact_mod_cast hN
+  have hKpos : (0 : ℝ) < K := by exact_mod_cast hK
+  have hK1 : (1 : ℝ) ≤ K := by exact_mod_cast hK
+  have hgpos : (0 : ℝ) < g := by exact_mod_cast hg
+  have hMpos : 0 < M := by rw [hMdef]; positivity
+  have hN5 : (1 : ℝ) ≤ (N : ℝ) ^ 5 := one_le_pow₀ hN1
+  have hLarg : (1 : ℝ) < 4 * K * (N : ℝ) ^ 5 := by nlinarith
+  have hL : 0 < L := by rw [hLdef]; exact Real.log_pos hLarg
+  have h := heat_kernel_rate_sample hσ hσ1 d X h_indep hX hlaw N K hN hg hMdef hLipdef hL hε hsmall
+    hδ hKσ hθ0 hθ hWK
+  refine h.trans ?_
+  obtain ⟨A, hA⟩ : ∃ A : ℝ, A = (2 + 4 * K) * (2 * (g : ℝ) ^ d) * (N : ℝ) ^ 3 := ⟨_, rfl⟩
+  have hApos : 0 < A := by rw [hA]; positivity
+  have hD : 0 < 4 * (N * M) + 2 * M * ε := by positivity
+  rw [← hA] at hT
+  have he1 : Real.exp (-ε ^ 2 / (4 * (N * M) + 2 * M * ε)) ≤ 1 / A := by
+    have h1 : -ε ^ 2 / (4 * (N * M) + 2 * M * ε) ≤ -Real.log A := by
+      rw [neg_div, neg_le_neg_iff, le_div_iff₀ hD]; exact hT
+    calc Real.exp (-ε ^ 2 / (4 * (N * M) + 2 * M * ε)) ≤ Real.exp (-Real.log A) :=
+          Real.exp_le_exp.mpr h1
+      _ = 1 / A := by rw [Real.exp_neg, Real.exp_log hApos, one_div]
+  have he2 : Real.exp (-L) = 1 / (4 * K * (N : ℝ) ^ 5) := by
+    rw [hLdef, Real.exp_neg, Real.exp_log (by positivity), one_div]
+  have hp : (2 + 4 * (K : ℝ)) * ((g : ℝ) ^ d * (2 * Real.exp (-ε ^ 2 / (4 * (N * M) + 2 * M * ε))))
+      ≤ 1 / (N : ℝ) ^ 3 := by
+    calc (2 + 4 * (K : ℝ)) * ((g : ℝ) ^ d * (2 * Real.exp (-ε ^ 2 / (4 * (N * M) + 2 * M * ε))))
+        ≤ (2 + 4 * (K : ℝ)) * ((g : ℝ) ^ d * (2 * (1 / A))) := by
+          refine mul_le_mul_of_nonneg_left ?_ (by positivity)
+          exact mul_le_mul_of_nonneg_left (by linarith) (by positivity)
+      _ = 1 / (N : ℝ) ^ 3 := by rw [hA]; field_simp
+  have hq : (K : ℝ) * ((N : ℝ) ^ 2 * (2 * Real.exp (-L))) = 1 / (2 * (N : ℝ) ^ 3) := by
+    rw [he2]; field_simp; ring
+  have e3 : 2 / (N : ℝ) ^ 3 = 1 / (N : ℝ) ^ 3 + (1 / (2 * (N : ℝ) ^ 3) + 1 / (2 * (N : ℝ) ^ 3)) := by
+    field_simp; ring
+  rw [hq, e3]
+  linarith
+
+/-- The number of elements of a subtype of a finset that satisfy a predicate on the value. -/
+theorem card_filter_subtype {α : Type*} [DecidableEq α] (s : Finset α) (p : α → Prop)
+    [DecidablePred p] :
+    (Finset.univ.filter fun f : s => p f.1).card = (s.filter p).card := by
+  rw [← Finset.card_map ⟨Subtype.val, Subtype.val_injective⟩]
+  congr 1
+  ext a
+  simp only [Finset.mem_map, Finset.mem_filter, Finset.mem_univ, true_and,
+    Function.Embedding.coeFn_mk]
+  constructor
+  · rintro ⟨f, hf, rfl⟩; exact ⟨f.2, hf⟩
+  · rintro ⟨ha, hp⟩; exact ⟨⟨a, ha⟩, hp, rfl⟩
+
+/-- **The counts for the first shell of modes.** `H` a set of frequencies with `|n|² ≥ r > 0` for all
+    `n ∈ H`, `E` the frequencies of `H` with `|n|² = r`, `c > 0`. Then exactly one coefficient of the
+    modes exceeds `e^{-cr}` (the constant), and at least `2|E| + 1` coefficients are at least
+    `e^{-cr}`. -/
+theorem mode_counts_shell (d : ℕ) {c r : ℝ} (hc : 0 < c) (hr : 0 < r) (H : Finset (Fin d → ℤ))
+    (hall : ∀ n ∈ H, r ≤ ∑ i, ((n i : ℤ) : ℝ) ^ 2) :
+    (Finset.univ.filter fun f : modeSet d H => Real.exp (-c * r) < modeCoeff d c f.1).card ≤ 1
+      ∧ 2 * (H.filter fun n => ∑ i, ((n i : ℤ) : ℝ) ^ 2 = r).card + 1
+        ≤ (Finset.univ.filter fun f : modeSet d H => Real.exp (-c * r) ≤ modeCoeff d c f.1).card := by
+  classical
+  rw [card_filter_subtype (modeSet d H) (fun f => Real.exp (-c * r) < modeCoeff d c f),
+    card_filter_subtype (modeSet d H) (fun f => Real.exp (-c * r) ≤ modeCoeff d c f)]
+  constructor
+  · have hsub : (modeSet d H).filter (fun f => Real.exp (-c * r) < modeCoeff d c f) ⊆ {none} := by
+      intro f hf
+      rw [Finset.mem_filter] at hf
+      rcases f with _ | ⟨n, b⟩
+      · simp
+      · exfalso
+        have hn : n ∈ H := (mem_modeSet d H n b).mp hf.1
+        have h1 := hall n hn
+        have h2 : modeCoeff d c (some (n, b)) ≤ Real.exp (-c * r) := by
+          simp only [modeCoeff]
+          apply Real.exp_le_exp.mpr
+          nlinarith
+        exact absurd hf.2 (not_lt.mpr h2)
+    exact (Finset.card_le_card hsub).trans (by simp)
+  · obtain ⟨E, hE⟩ : ∃ E : Finset (Fin d → ℤ),
+        E = H.filter fun n => ∑ i, ((n i : ℤ) : ℝ) ^ 2 = r := ⟨_, rfl⟩
+    rw [← hE]
+    have hEH : ∀ n ∈ E, n ∈ H ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 = r := fun n hn => by
+      rw [hE, Finset.mem_filter] at hn; exact hn
+    have inj : ∀ b : Bool, Function.Injective fun n : Fin d → ℤ =>
+        (some (n, b) : Option ((Fin d → ℤ) × Bool)) := fun b n n' h => by
+      simpa using h
+    have hsub : insert none ((E.image fun n => some (n, false)) ∪ (E.image fun n => some (n, true)))
+        ⊆ (modeSet d H).filter (fun f => Real.exp (-c * r) ≤ modeCoeff d c f) := by
+      intro f hf
+      rw [Finset.mem_filter]
+      rcases f with _ | ⟨n, b⟩
+      · refine ⟨by unfold modeSet; simp, ?_⟩
+        simp only [modeCoeff]
+        exact Real.exp_le_one_iff.mpr (by nlinarith)
+      · have hn : n ∈ E := by
+          simp only [Finset.mem_insert, Finset.mem_union, Finset.mem_image, Option.some.injEq,
+            Prod.mk.injEq, reduceCtorEq, false_or] at hf
+          rcases hf with ⟨m, hm, rfl, -⟩ | ⟨m, hm, rfl, -⟩ <;> exact hm
+        refine ⟨(mem_modeSet d H n b).mpr (hEH n hn).1, ?_⟩
+        simp only [modeCoeff]
+        rw [(hEH n hn).2]
+    have hdisj : Disjoint (E.image fun n => (some (n, false) : Option ((Fin d → ℤ) × Bool)))
+        (E.image fun n => some (n, true)) := by
+      rw [Finset.disjoint_left]
+      intro f hf hf'
+      simp only [Finset.mem_image] at hf hf'
+      obtain ⟨m, -, rfl⟩ := hf
+      obtain ⟨m', -, h⟩ := hf'
+      simp at h
+    have hnone : (none : Option ((Fin d → ℤ) × Bool))
+        ∉ (E.image fun n => some (n, false)) ∪ (E.image fun n => some (n, true)) := by
+      simp
+    have hcard : (insert none ((E.image fun n => (some (n, false) : Option ((Fin d → ℤ) × Bool)))
+        ∪ (E.image fun n => some (n, true)))).card = 2 * E.card + 1 := by
+      rw [Finset.card_insert_of_notMem hnone, Finset.card_union_of_disjoint hdisj,
+        Finset.card_image_of_injective _ (inj false), Finset.card_image_of_injective _ (inj true)]
+      ring
+    rw [← hcard]
+    exact Finset.card_le_card hsub
+
+section EigShell
+open Matrix
+
+/-- **The first shell of eigenvalues of the sampled graph on the torus, with the rate `√k`.** As
+    `heat_eig_rate_sample` with `α = e^{-cr}`, `c = 2π²σ`, where `r > 0` is a lower bound for `|n|²`
+    on `H` and `E` is the set of frequencies of `H` with `|n|² = r`: for `1 ≤ j ≤ 2|E|` the two
+    counts are proved (`mode_counts_shell`), so no hypothesis on the position of `α^{k+1}` among the
+    coefficients remains. -/
+theorem heat_eig_rate_shell {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {σ : ℝ} (hσ : 0 < σ) (hσ1 : σ ≤ 1) (d N K : ℕ) [NeZero N]
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d)
+    (j' : ℕ) (hj' : j' + 1 < K)
+    (H : Finset (Fin d → ℤ)) (hH0 : ∀ n ∈ H, n ≠ 0) (hH2 : ∀ m ∈ H, ∀ n ∈ H, m + n ≠ 0)
+    {g : ℕ} (hg : 0 < g) {M Lip L ε δ θ R eta t eps r : ℝ}
+    (hMdef : M = (1 + Real.sqrt (Real.pi / (2 * Real.pi ^ 2 * σ))) ^ d)
+    (hLipdef : Lip = 2 * Real.pi * (2 / (2 * Real.pi ^ 2 * σ))
+      * (1 + Real.sqrt (2 * Real.pi / (2 * Real.pi ^ 2 * σ))) ^ d)
+    (hL : 0 < L) (hε : 0 < ε) (hsmall : ε + 2 * (N * Lip) * (1 / g) ≤ N / 8)
+    (hδ : δ = (ε + 2 * (N * Lip) * (1 / g)) / N)
+    (hR : ∀ n : Fin d → ℤ, n ≠ 0 → n ∉ H → -n ∉ H → R ≤ ∑ i, ((n i : ℤ) : ℝ) ^ 2)
+    (heta : 0 ≤ eta)
+    (hKσ : (K : ℝ) * σ ≤ 1) (hθ0 : 0 ≤ θ)
+    (hθ : (2 * L + 2) * (heatKbar d σ + M) * Real.sqrt K ≤ θ * N)
+    (hWK : 4 * δ + (1 + 4 * δ) * heatW d N M L δ θ K ≤ 1)
+    (ht : Real.exp (-((j' + 1 + 1 : ℕ) * (2 * Real.pi ^ 2 * σ)) * R / 2)
+        * (1 + Real.sqrt (2 * Real.pi / ((j' + 1 + 1 : ℕ) * (2 * Real.pi ^ 2 * σ)))) ^ d ≤ t)
+    (heps : 3 * δ
+          * ((1 + Real.sqrt (Real.pi / ((j' + 1 + 1 : ℕ) * (2 * Real.pi ^ 2 * σ)))) ^ d
+            + (4 * δ + (1 + 4 * δ) * heatW d N M L δ θ (j' + 1)) * heatMu d σ (j' + 2))
+        + (4 * δ + (1 + 4 * δ) * heatW d N M L δ θ (j' + 1)) * heatMu d σ (j' + 2) + t ≤ eps)
+    (j : Fin (Fintype.card (Fin N))) (hr : 0 < r)
+    (hall : ∀ n ∈ H, r ≤ ∑ i, ((n i : ℤ) : ℝ) ^ 2)
+    (hj1 : 1 ≤ j.val)
+    (hj2 : j.val ≤ 2 * (H.filter fun n => ∑ i, ((n i : ℤ) : ℝ) ^ 2 = r).card)
+    (h3 : 2 * (eps + eta * 1 * ∑ g : modeSet d H,
+        Real.sqrt (modeCoeff d ((j' + 1 + 1 : ℕ) * (2 * Real.pi ^ 2 * σ)) g.1)) ≤ Real.exp (-(2 * Real.pi ^ 2 * σ) * r) ^ (j' + 1 + 1)) :
+    μ.real {ω | ¬ ∀ hS : (symGraph
+          (fun i j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X j ω))
+          (fun i : Fin N =>
+            (∑ l : Fin N, heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X l ω)) / N)).IsHermitian,
+        |hS.eigenvalues₀ j ^ (j' + 1 + 1) - Real.exp (-(2 * Real.pi ^ 2 * σ) * r) ^ (j' + 1 + 1)|
+            ≤ eps + eta * 1 * ∑ g : modeSet d H,
+                Real.sqrt (modeCoeff d ((j' + 1 + 1 : ℕ) * (2 * Real.pi ^ 2 * σ)) g.1)
+          ∧ ((j' + 1 + 1 : ℕ) : ℝ) * (Real.exp (-(2 * Real.pi ^ 2 * σ) * r) ^ (j' + 1 + 1) * |hS.eigenvalues₀ j - Real.exp (-(2 * Real.pi ^ 2 * σ) * r)|)
+              ≤ 2 * (eps + eta * 1 * ∑ g : modeSet d H,
+                  Real.sqrt (modeCoeff d ((j' + 1 + 1 : ℕ) * (2 * Real.pi ^ 2 * σ)) g.1))}
+      ≤ (g : ℝ) ^ d * (2 * Real.exp (-ε ^ 2 / (4 * (N * M) + 2 * M * ε)))
+        + ((g : ℝ) ^ d * (2 * Real.exp (-ε ^ 2 / (4 * (N * M) + 2 * M * ε)))
+          + ((g : ℝ) ^ d * (2 * Real.exp (-ε ^ 2 / (4 * (N * M) + 2 * M * ε)))
+            + ((K : ℝ) * ((N : ℝ) ^ 2 * (2 * Real.exp (-L)))
+              + (K : ℝ) * ((N : ℝ) ^ 2 * (2 * Real.exp (-L)))))
+          + (K : ℝ) * (4 * ((g : ℝ) ^ d * (2 * Real.exp (-ε ^ 2 / (4 * (N * M) + 2 * M * ε))))))
+        + (Fintype.card (modeSet d H) : ℝ) ^ 2
+            * (2 * Real.exp (-(N * eta / 2) ^ 2 / (2 * N))) := by
+  have hc : 0 < 2 * Real.pi ^ 2 * σ := by positivity
+  have hc' : 0 < ((j' + 1 + 1 : ℕ) : ℝ) * (2 * Real.pi ^ 2 * σ) := by positivity
+  have hpow : Real.exp (-(2 * Real.pi ^ 2 * σ) * r) ^ (j' + 1 + 1)
+      = Real.exp (-(((j' + 1 + 1 : ℕ) : ℝ) * (2 * Real.pi ^ 2 * σ)) * r) := by
+    rw [← Real.exp_nat_mul]; congr 1; ring
+  obtain ⟨c1, c2⟩ := mode_counts_shell d hc' hr H hall
+  refine heat_eig_rate_sample hσ hσ1 d N K X h_indep hX hlaw j' hj' H hH0 hH2 hg hMdef hLipdef hL hε
+    hsmall hδ hR heta hKσ hθ0 hθ hWK ht heps j (Real.exp_pos _)
+    (Real.exp_le_one_iff.mpr (by nlinarith [mul_pos hc hr])) ?_ ?_ h3
+  · rw [hpow]; exact c1.trans hj1
+  · rw [hpow]; exact lt_of_lt_of_le (by omega) c2
+
+end EigShell
+
+/-- The conclusion of the kernel theorem is monotone in the normalisation error and in the
+    numbers `W`. -/
+theorem heatKernelSharp_mono {d N K : ℕ} {σ δ δ' : ℝ} {W W' : ℕ → ℝ} (x : ℕ → FlatTorus d)
+    (h : heatKernelSharp d σ δ N K W x) (hδ0 : 0 ≤ δ) (hδ : δ ≤ δ')
+    (hW : ∀ j, 0 ≤ W j ∧ W j ≤ W' j) : heatKernelSharp d σ δ' N K W' x := by
+  refine ⟨h.1, fun j hj a i => (h.2 j hj a i).trans ?_⟩
+  refine mul_le_mul_of_nonneg_right ?_ (heatMu_nonneg d σ _)
+  have h1 := (hW (j + 1)).1
+  have h2 := (hW (j + 1)).2
+  have h3 : (1 + 4 * δ) * W (j + 1) ≤ (1 + 4 * δ') * W' (j + 1) :=
+    mul_le_mul (by linarith) h2 h1 (by linarith)
+  linarith
+
+/-- The numbers `W_k` increase with the normalisation error `δ`. -/
+theorem heatW_mono_delta {M L δ δ' θ : ℝ} (hM : 0 ≤ M) (hL : 0 ≤ L) (hδ0 : 0 ≤ δ) (hδ : δ ≤ δ')
+    (hθ : 0 ≤ θ) (d N k : ℕ) : heatW d N M L δ θ k ≤ heatW d N M L δ' θ k := by
+  have hc := cvConst_nonneg
+  have hδ'0 : 0 ≤ δ' := hδ0.trans hδ
+  obtain ⟨S, hS⟩ : ∃ S : ℝ, S = Real.sqrt (N * M * L) / N := ⟨_, rfl⟩
+  have hS0 : 0 ≤ S := by rw [hS]; positivity
+  have key : ∀ r : ℝ, 0 ≤ r →
+      (1 + 2 * δ) * (θ + 2 * S * r) + 2 * δ * r ≤ (1 + 2 * δ') * (θ + 2 * S * r) + 2 * δ' * r := by
+    intro r hr
+    have h1 : 0 ≤ θ + 2 * S * r := by positivity
+    nlinarith [mul_le_mul_of_nonneg_right hδ h1, mul_le_mul_of_nonneg_right hδ hr]
+  have key0 : ∀ r : ℝ, 0 ≤ r → 0 ≤ (1 + 2 * δ) * (θ + 2 * S * r) + 2 * δ * r := by
+    intro r hr; positivity
+  have hA : heatRateA d N M L δ θ ≤ heatRateA d N M L δ' θ := by
+    unfold heatRateA
+    rw [← hS]
+    have hr : 0 ≤ Real.sqrt ((d : ℝ) * cvConst * (2 * Real.sqrt 6)
+        * (12 * (1 + Real.sqrt (2 * Real.pi))) ^ (d - 1)) := Real.sqrt_nonneg _
+    have h1 := key _ hr
+    have h0 := key0 _ hr
+    have h2 : 3 * (1 + δ) ≤ 3 * (1 + δ') := by linarith
+    exact mul_le_mul h2 h1 h0 (by linarith)
+  have hB : heatRateB d N M L δ θ ≤ heatRateB d N M L δ' θ := by
+    unfold heatRateB
+    rw [← hS]
+    have hr : 0 ≤ Real.sqrt ((d : ℝ) * cvConst * Real.sqrt 6 ^ (d - 1)) := Real.sqrt_nonneg _
+    have h1 := key _ hr
+    linarith
+  unfold heatW
+  refine mul_le_mul_of_nonneg_right ?_ (Real.sqrt_nonneg _)
+  refine mul_le_mul_of_nonneg_left (max_le_max (by linarith) hB) (by positivity)
+
+/-- **Theorem "kernel" with the rate `√k`, all parameters explicit.** Independent uniform points on
+    the flat torus, kernel time `σ ≤ 1`, `K σ ≤ 1`, grid parameter `g`. With
+    `T = log((2 + 4K) · 2 g^d · N³)`, `L = log(4 K N⁵)`, `δ = 6 √(N M T)/N` and
+    `θ = (2L + 2)(kb + M) √K / N`, under the three inequalities
+    `2 N Lip/g ≤ 3 √(N M T)`, `6 √(N M T) ≤ N/8` and `4δ + (1 + 4δ) W_K ≤ 1`, the conclusion of
+    the kernel theorem with `W_k = 2·2^d·max(2a, b)·√k` fails with probability at most `2/N³`. -/
+theorem heat_kernel_rate_explicit {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {σ : ℝ} (hσ : 0 < σ) (hσ1 : σ ≤ 1) (d : ℕ)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (N K : ℕ) (hN : 0 < N) (hK : 0 < K)
+    {g : ℕ} (hg : 0 < g)
+    {M Lip L T δ θ : ℝ} (hMdef : M = (1 + Real.sqrt (Real.pi / (2 * Real.pi ^ 2 * σ))) ^ d)
+    (hLipdef : Lip = 2 * Real.pi * (2 / (2 * Real.pi ^ 2 * σ))
+      * (1 + Real.sqrt (2 * Real.pi / (2 * Real.pi ^ 2 * σ))) ^ d)
+    (hLdef : L = Real.log (4 * K * (N : ℝ) ^ 5))
+    (hTdef : T = Real.log ((2 + 4 * K) * (2 * (g : ℝ) ^ d) * (N : ℝ) ^ 3))
+    (hδdef : δ = 6 * Real.sqrt (N * M * T) / N)
+    (hθdef : θ = (2 * L + 2) * (heatKbar d σ + M) * Real.sqrt K / N)
+    (hgc : 2 * (N * Lip) * (1 / g) ≤ 3 * Real.sqrt (N * M * T))
+    (hsm : 6 * Real.sqrt (N * M * T) ≤ N / 8)
+    (hKσ : (K : ℝ) * σ ≤ 1)
+    (hWK : 4 * δ + (1 + 4 * δ) * heatW d N M L δ θ K ≤ 1) :
+    μ.real {ω | ¬ heatKernelSharp d σ δ N K (heatW d N M L δ θ) (fun j => X j ω)}
+      ≤ 2 / (N : ℝ) ^ 3 := by
+  have hNpos : (0 : ℝ) < N := by exact_mod_cast hN
+  have hN1 : (1 : ℝ) ≤ N := by exact_mod_cast hN
+  have hK1 : (1 : ℝ) ≤ K := by exact_mod_cast hK
+  have hg1 : (1 : ℝ) ≤ g := by exact_mod_cast hg
+  have hMpos : 0 < M := by rw [hMdef]; positivity
+  have hLip0 : 0 ≤ Lip := by rw [hLipdef]; positivity
+  have hkb0 : 0 ≤ heatKbar d σ := by unfold heatKbar; positivity
+  have hLarg : (1 : ℝ) < 4 * K * (N : ℝ) ^ 5 := by nlinarith [one_le_pow₀ hN1 (n := 5)]
+  have hL : 0 < L := by rw [hLdef]; exact Real.log_pos hLarg
+  have hTarg : (1 : ℝ) < (2 + 4 * K) * (2 * (g : ℝ) ^ d) * (N : ℝ) ^ 3 := by
+    have h1 : (1 : ℝ) ≤ (g : ℝ) ^ d := one_le_pow₀ hg1
+    have h2 : (1 : ℝ) ≤ (N : ℝ) ^ 3 := one_le_pow₀ hN1
+    have h3 : (6 : ℝ) ≤ 2 + 4 * K := by linarith
+    have h4 : (2 : ℝ) ≤ 2 * (g : ℝ) ^ d := by linarith
+    have h5 : (12 : ℝ) ≤ (2 + 4 * K) * (2 * (g : ℝ) ^ d) := by nlinarith
+    nlinarith
+  have hT : 0 < T := by rw [hTdef]; exact Real.log_pos hTarg
+  obtain ⟨ε, hεdef⟩ : ∃ ε : ℝ, ε = 3 * Real.sqrt (N * M * T) := ⟨_, rfl⟩
+  have hsq : 0 < Real.sqrt (N * M * T) := Real.sqrt_pos.mpr (by positivity)
+  have hε : 0 < ε := by rw [hεdef]; positivity
+  have hε2 : ε ^ 2 = 9 * (N * M * T) := by
+    rw [hεdef, mul_pow, Real.sq_sqrt (by positivity)]; norm_num
+  have hεN : ε ≤ N / 16 := by rw [hεdef]; linarith
+  have hTcond : Real.log ((2 + 4 * K) * (2 * (g : ℝ) ^ d) * (N : ℝ) ^ 3)
+      * (4 * (N * M) + 2 * M * ε) ≤ ε ^ 2 := by
+    rw [← hTdef, hε2]
+    have h1 : 2 * M * ε * T ≤ 5 * (N * M * T) := by
+      have : ε ≤ 5 * N / 2 := by linarith
+      have hMT : 0 ≤ M * T := by positivity
+      nlinarith [mul_le_mul_of_nonneg_left this hMT]
+    nlinarith
+  have hsmall : ε + 2 * (N * Lip) * (1 / g) ≤ N / 8 := by rw [hεdef]; linarith
+  obtain ⟨δ0, hδ0def⟩ : ∃ δ0 : ℝ, δ0 = (ε + 2 * (N * Lip) * (1 / g)) / N := ⟨_, rfl⟩
+  have hδ00 : 0 ≤ δ0 := by rw [hδ0def]; positivity
+  have hδ0le : δ0 ≤ δ := by
+    rw [hδ0def, hδdef]
+    apply div_le_div_of_nonneg_right _ hNpos.le
+    rw [hεdef]; linarith
+  have hδpos : 0 ≤ δ := hδ00.trans hδ0le
+  have hθ0 : 0 ≤ θ := by rw [hθdef]; positivity
+  have hθ : (2 * L + 2) * (heatKbar d σ + M) * Real.sqrt K ≤ θ * N := by
+    rw [hθdef, div_mul_cancel₀ _ hNpos.ne']
+  have hWmono := fun k => heatW_mono_delta hMpos.le hL.le hδ00 hδ0le hθ0 d N k
+  have hWK0 : 4 * δ0 + (1 + 4 * δ0) * heatW d N M L δ0 θ K ≤ 1 := by
+    have w0 := (heatW_mono hMpos.le hL.le hδ00 hθ0 d N (le_refl K)).1
+    have h3 : (1 + 4 * δ0) * heatW d N M L δ0 θ K ≤ (1 + 4 * δ) * heatW d N M L δ θ K :=
+      mul_le_mul (by linarith) (hWmono K) w0 (by linarith)
+    linarith
+  have h := heat_kernel_rate_prob hσ hσ1 d X h_indep hX hlaw N K hN hK hg hMdef hLipdef hLdef hε
+    hTcond hsmall hδ0def hKσ hθ0 hθ hWK0
+  refine le_trans (measureReal_mono ?_ (measure_ne_top μ _)) h
+  intro ω hω hgood
+  exact hω (heatKernelSharp_mono (fun j => X j ω) hgood hδ00 hδ0le
+    (fun j => ⟨(heatW_mono hMpos.le hL.le hδ00 hθ0 d N (le_refl j)).1, hWmono j⟩))
+
+section EigShells
+open Matrix
+
+/-- **The counts for an arbitrary shell of modes.** `H` a set of frequencies, `c, r > 0`. At most
+    `1 + 2 #{n ∈ H : |n|² < r}` coefficients of the modes exceed `e^{-cr}`, and at least
+    `2 #{n ∈ H : |n|² ≤ r} + 1` coefficients are at least `e^{-cr}`. -/
+theorem mode_counts_general (d : ℕ) {c r : ℝ} (hc : 0 < c) (hr : 0 < r) (H : Finset (Fin d → ℤ)) :
+    (Finset.univ.filter fun f : modeSet d H => Real.exp (-c * r) < modeCoeff d c f.1).card
+        ≤ 1 + 2 * (H.filter fun n => ∑ i, ((n i : ℤ) : ℝ) ^ 2 < r).card
+      ∧ 2 * (H.filter fun n => ∑ i, ((n i : ℤ) : ℝ) ^ 2 ≤ r).card + 1
+        ≤ (Finset.univ.filter fun f : modeSet d H => Real.exp (-c * r) ≤ modeCoeff d c f.1).card := by
+  classical
+  rw [card_filter_subtype (modeSet d H) (fun f => Real.exp (-c * r) < modeCoeff d c f),
+    card_filter_subtype (modeSet d H) (fun f => Real.exp (-c * r) ≤ modeCoeff d c f)]
+  have inj : ∀ b : Bool, Function.Injective fun n : Fin d → ℤ =>
+      (some (n, b) : Option ((Fin d → ℤ) × Bool)) := fun b n n' h => by
+    simpa using h
+  constructor
+  · obtain ⟨A, hA⟩ : ∃ A : Finset (Fin d → ℤ),
+        A = H.filter fun n => ∑ i, ((n i : ℤ) : ℝ) ^ 2 < r := ⟨_, rfl⟩
+    rw [← hA]
+    have hsub : (modeSet d H).filter (fun f => Real.exp (-c * r) < modeCoeff d c f)
+        ⊆ insert none ((A.image fun n => some (n, false)) ∪ (A.image fun n => some (n, true))) := by
+      intro f hf
+      rw [Finset.mem_filter] at hf
+      rcases f with _ | ⟨n, b⟩
+      · simp
+      · have hn : n ∈ H := (mem_modeSet d H n b).mp hf.1
+        have h2 := hf.2
+        simp only [modeCoeff] at h2
+        have h3 := Real.exp_lt_exp.mp h2
+        have hnA : n ∈ A := by
+          rw [hA, Finset.mem_filter]; exact ⟨hn, by nlinarith⟩
+        simp only [Finset.mem_insert, Finset.mem_union, Finset.mem_image, Option.some.injEq,
+          Prod.mk.injEq, reduceCtorEq, false_or]
+        cases b
+        · exact Or.inl ⟨n, hnA, rfl, rfl⟩
+        · exact Or.inr ⟨n, hnA, rfl, rfl⟩
+    refine (Finset.card_le_card hsub).trans ?_
+    refine (Finset.card_insert_le _ _).trans ?_
+    have h1 := Finset.card_union_le (A.image fun n => (some (n, false) : Option ((Fin d → ℤ) × Bool)))
+      (A.image fun n => some (n, true))
+    have h2 := Finset.card_image_le (s := A)
+      (f := fun n => (some (n, false) : Option ((Fin d → ℤ) × Bool)))
+    have h3 := Finset.card_image_le (s := A)
+      (f := fun n => (some (n, true) : Option ((Fin d → ℤ) × Bool)))
+    omega
+  · obtain ⟨E, hE⟩ : ∃ E : Finset (Fin d → ℤ),
+        E = H.filter fun n => ∑ i, ((n i : ℤ) : ℝ) ^ 2 ≤ r := ⟨_, rfl⟩
+    rw [← hE]
+    have hEH : ∀ n ∈ E, n ∈ H ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 ≤ r := fun n hn => by
+      rw [hE, Finset.mem_filter] at hn; exact hn
+    have hsub : insert none ((E.image fun n => some (n, false)) ∪ (E.image fun n => some (n, true)))
+        ⊆ (modeSet d H).filter (fun f => Real.exp (-c * r) ≤ modeCoeff d c f) := by
+      intro f hf
+      rw [Finset.mem_filter]
+      rcases f with _ | ⟨n, b⟩
+      · refine ⟨by unfold modeSet; simp, ?_⟩
+        simp only [modeCoeff]
+        exact Real.exp_le_one_iff.mpr (by nlinarith)
+      · have hn : n ∈ E := by
+          simp only [Finset.mem_insert, Finset.mem_union, Finset.mem_image, Option.some.injEq,
+            Prod.mk.injEq, reduceCtorEq, false_or] at hf
+          rcases hf with ⟨m, hm, rfl, -⟩ | ⟨m, hm, rfl, -⟩ <;> exact hm
+        refine ⟨(mem_modeSet d H n b).mpr (hEH n hn).1, ?_⟩
+        simp only [modeCoeff]
+        apply Real.exp_le_exp.mpr
+        nlinarith [(hEH n hn).2]
+    have hdisj : Disjoint (E.image fun n => (some (n, false) : Option ((Fin d → ℤ) × Bool)))
+        (E.image fun n => some (n, true)) := by
+      rw [Finset.disjoint_left]
+      intro f hf hf'
+      simp only [Finset.mem_image] at hf hf'
+      obtain ⟨m, -, rfl⟩ := hf
+      obtain ⟨m', -, h⟩ := hf'
+      simp at h
+    have hnone : (none : Option ((Fin d → ℤ) × Bool))
+        ∉ (E.image fun n => some (n, false)) ∪ (E.image fun n => some (n, true)) := by
+      simp
+    have hcard : (insert none ((E.image fun n => (some (n, false) : Option ((Fin d → ℤ) × Bool)))
+        ∪ (E.image fun n => some (n, true)))).card = 2 * E.card + 1 := by
+      rw [Finset.card_insert_of_notMem hnone, Finset.card_union_of_disjoint hdisj,
+        Finset.card_image_of_injective _ (inj false), Finset.card_image_of_injective _ (inj true)]
+      ring
+    rw [← hcard]
+    exact Finset.card_le_card hsub
+
+/-- From the bound for `s - α` to the eigenvalue of the graph Laplacian `(1 - s)/τ`. -/
+theorem eig_lambda_form {s α E τ : ℝ} {n : ℕ} (hn : 0 < n) (hτ : 0 < τ) (hα : 0 < α)
+    (h : (n : ℝ) * (α ^ n * |s - α|) ≤ E) :
+    |(1 - s) / τ - (1 - α) / τ| ≤ E / ((n : ℝ) * α ^ n * τ) := by
+  have hnpos : (0 : ℝ) < n := by exact_mod_cast hn
+  have hαn : 0 < α ^ n := pow_pos hα n
+  have e : (1 - s) / τ - (1 - α) / τ = -(s - α) / τ := by ring
+  rw [e, abs_div, abs_neg, abs_of_pos hτ, div_le_div_iff₀ hτ (by positivity)]
+  nlinarith [abs_nonneg (s - α), mul_le_mul_of_nonneg_right h hτ.le]
+
+/-- **Every shell of eigenvalues of the sampled graph on the torus below the cut-off of `H`, with
+    the rate `√k`.** As `heat_eig_rate_shell`, for an arbitrary `r > 0`: the statement holds for the
+    indices `1 + 2 #{n ∈ H : |n|² < r} ≤ j ≤ 2 #{n ∈ H : |n|² ≤ r}`, that is, for the eigenvalues that
+    correspond to the shell `|n|² = r` counted with multiplicity (each frequency of the half-set `H`
+    twice), with `α = e^{-2π²σ r}`. -/
+theorem heat_eig_rate_shells {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {σ : ℝ} (hσ : 0 < σ) (hσ1 : σ ≤ 1) (d N K : ℕ) [NeZero N]
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d)
+    (j' : ℕ) (hj' : j' + 1 < K)
+    (H : Finset (Fin d → ℤ)) (hH0 : ∀ n ∈ H, n ≠ 0) (hH2 : ∀ m ∈ H, ∀ n ∈ H, m + n ≠ 0)
+    {g : ℕ} (hg : 0 < g) {M Lip L ε δ θ R eta t eps r : ℝ}
+    (hMdef : M = (1 + Real.sqrt (Real.pi / (2 * Real.pi ^ 2 * σ))) ^ d)
+    (hLipdef : Lip = 2 * Real.pi * (2 / (2 * Real.pi ^ 2 * σ))
+      * (1 + Real.sqrt (2 * Real.pi / (2 * Real.pi ^ 2 * σ))) ^ d)
+    (hL : 0 < L) (hε : 0 < ε) (hsmall : ε + 2 * (N * Lip) * (1 / g) ≤ N / 8)
+    (hδ : δ = (ε + 2 * (N * Lip) * (1 / g)) / N)
+    (hR : ∀ n : Fin d → ℤ, n ≠ 0 → n ∉ H → -n ∉ H → R ≤ ∑ i, ((n i : ℤ) : ℝ) ^ 2)
+    (heta : 0 ≤ eta)
+    (hKσ : (K : ℝ) * σ ≤ 1) (hθ0 : 0 ≤ θ)
+    (hθ : (2 * L + 2) * (heatKbar d σ + M) * Real.sqrt K ≤ θ * N)
+    (hWK : 4 * δ + (1 + 4 * δ) * heatW d N M L δ θ K ≤ 1)
+    (ht : Real.exp (-((j' + 1 + 1 : ℕ) * (2 * Real.pi ^ 2 * σ)) * R / 2)
+        * (1 + Real.sqrt (2 * Real.pi / ((j' + 1 + 1 : ℕ) * (2 * Real.pi ^ 2 * σ)))) ^ d ≤ t)
+    (heps : 3 * δ
+          * ((1 + Real.sqrt (Real.pi / ((j' + 1 + 1 : ℕ) * (2 * Real.pi ^ 2 * σ)))) ^ d
+            + (4 * δ + (1 + 4 * δ) * heatW d N M L δ θ (j' + 1)) * heatMu d σ (j' + 2))
+        + (4 * δ + (1 + 4 * δ) * heatW d N M L δ θ (j' + 1)) * heatMu d σ (j' + 2) + t ≤ eps)
+    (j : Fin (Fintype.card (Fin N))) (hr : 0 < r)
+    (hj1 : 1 + 2 * (H.filter fun n => ∑ i, ((n i : ℤ) : ℝ) ^ 2 < r).card ≤ j.val)
+    (hj2 : j.val ≤ 2 * (H.filter fun n => ∑ i, ((n i : ℤ) : ℝ) ^ 2 ≤ r).card)
+    (h3 : 2 * (eps + eta * 1 * ∑ g : modeSet d H,
+        Real.sqrt (modeCoeff d ((j' + 1 + 1 : ℕ) * (2 * Real.pi ^ 2 * σ)) g.1)) ≤ Real.exp (-(2 * Real.pi ^ 2 * σ) * r) ^ (j' + 1 + 1)) :
+    μ.real {ω | ¬ ∀ hS : (symGraph
+          (fun i j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X j ω))
+          (fun i : Fin N =>
+            (∑ l : Fin N, heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X l ω)) / N)).IsHermitian,
+        |hS.eigenvalues₀ j ^ (j' + 1 + 1) - Real.exp (-(2 * Real.pi ^ 2 * σ) * r) ^ (j' + 1 + 1)|
+            ≤ eps + eta * 1 * ∑ g : modeSet d H,
+                Real.sqrt (modeCoeff d ((j' + 1 + 1 : ℕ) * (2 * Real.pi ^ 2 * σ)) g.1)
+          ∧ ((j' + 1 + 1 : ℕ) : ℝ) * (Real.exp (-(2 * Real.pi ^ 2 * σ) * r) ^ (j' + 1 + 1) * |hS.eigenvalues₀ j - Real.exp (-(2 * Real.pi ^ 2 * σ) * r)|)
+              ≤ 2 * (eps + eta * 1 * ∑ g : modeSet d H,
+                  Real.sqrt (modeCoeff d ((j' + 1 + 1 : ℕ) * (2 * Real.pi ^ 2 * σ)) g.1))}
+      ≤ (g : ℝ) ^ d * (2 * Real.exp (-ε ^ 2 / (4 * (N * M) + 2 * M * ε)))
+        + ((g : ℝ) ^ d * (2 * Real.exp (-ε ^ 2 / (4 * (N * M) + 2 * M * ε)))
+          + ((g : ℝ) ^ d * (2 * Real.exp (-ε ^ 2 / (4 * (N * M) + 2 * M * ε)))
+            + ((K : ℝ) * ((N : ℝ) ^ 2 * (2 * Real.exp (-L)))
+              + (K : ℝ) * ((N : ℝ) ^ 2 * (2 * Real.exp (-L)))))
+          + (K : ℝ) * (4 * ((g : ℝ) ^ d * (2 * Real.exp (-ε ^ 2 / (4 * (N * M) + 2 * M * ε))))))
+        + (Fintype.card (modeSet d H) : ℝ) ^ 2
+            * (2 * Real.exp (-(N * eta / 2) ^ 2 / (2 * N))) := by
+  have hc : 0 < 2 * Real.pi ^ 2 * σ := by positivity
+  have hc' : 0 < ((j' + 1 + 1 : ℕ) : ℝ) * (2 * Real.pi ^ 2 * σ) := by positivity
+  have hpow : Real.exp (-(2 * Real.pi ^ 2 * σ) * r) ^ (j' + 1 + 1)
+      = Real.exp (-(((j' + 1 + 1 : ℕ) : ℝ) * (2 * Real.pi ^ 2 * σ)) * r) := by
+    rw [← Real.exp_nat_mul]; congr 1; ring
+  obtain ⟨c1, c2⟩ := mode_counts_general d hc' hr H
+  refine heat_eig_rate_sample hσ hσ1 d N K X h_indep hX hlaw j' hj' H hH0 hH2 hg hMdef hLipdef hL hε
+    hsmall hδ hR heta hKσ hθ0 hθ hWK ht heps j (Real.exp_pos _)
+    (Real.exp_le_one_iff.mpr (by nlinarith [mul_pos hc hr])) ?_ ?_ h3
+  · rw [hpow]; exact c1.trans hj1
+  · rw [hpow]; exact lt_of_lt_of_le (by omega) c2
+
+end EigShells
+
+section RatePaper
+open Matrix
+
+/-- Constant in `heatKbar ≤ rateCK · M`. -/
+noncomputable def rateCK (d : ℕ) : ℝ := ((Real.sqrt (4 * Real.pi) + 1) * Real.sqrt 3) ^ d
+
+/-- The constant `r` of the mean bound. -/
+noncomputable def rateRA (d : ℕ) : ℝ :=
+  Real.sqrt ((d : ℝ) * cvConst * (2 * Real.sqrt 6) * (12 * (1 + Real.sqrt (2 * Real.pi))) ^ (d - 1))
+
+/-- The constant `r'` of the supremum bound. -/
+noncomputable def rateRB (d : ℕ) : ℝ := Real.sqrt ((d : ℝ) * cvConst * Real.sqrt 6 ^ (d - 1))
+
+/-- The constant of the kernel theorem in the form `D_k ≤ C δ' √k mu_k`. -/
+noncomputable def rateCfin (d : ℕ) : ℝ :=
+  48 * Real.sqrt ((d : ℝ) + 5)
+    + 3 * 2 ^ d * max
+        (2 * (3 * (9 / 8) * ((5 / 4) * (16 * (rateCK d + 1) + 2 * Real.sqrt 7 * rateRA d)
+          + 12 * Real.sqrt ((d : ℝ) + 5) * rateRA d)))
+        (3 * ((5 / 4) * (16 * (rateCK d + 1) + 2 * Real.sqrt 7 * rateRB d)
+          + 12 * Real.sqrt ((d : ℝ) + 5) * rateRB d))
+
+theorem heatKbar_le_M {σ : ℝ} (hσ : 0 < σ) (d : ℕ) :
+    heatKbar d σ ≤ rateCK d * (1 + Real.sqrt (Real.pi / (2 * Real.pi ^ 2 * σ))) ^ d := by
+  have hpi := Real.pi_pos
+  have e : Real.sqrt (Real.pi / (2 * Real.pi ^ 2 * σ)) = 1 / Real.sqrt (2 * Real.pi * σ) := by
+    have e1 : Real.pi / (2 * Real.pi ^ 2 * σ) = 1 / (2 * Real.pi * σ) := by field_simp
+    rw [e1, Real.sqrt_div (by norm_num), Real.sqrt_one]
+  unfold heatKbar rateCK
+  rw [e, mul_pow, mul_comm]
+  refine mul_le_mul_of_nonneg_left ?_ (by positivity)
+  exact pow_le_pow_left₀ (by positivity) (by linarith) d
+
+/-- Bounds for the two rate constants in terms of `δ'`. -/
+theorem rate_ab_bound {δ θ S r δp θ1 Aa : ℝ} (hδ0 : 0 ≤ δ) (hδ8 : δ ≤ 1 / 8)
+    (hδ : δ ≤ 6 * Aa * δp) (hθ0 : 0 ≤ θ) (hθ : θ ≤ θ1 * δp) (hS0 : 0 ≤ S)
+    (hS : S ≤ Real.sqrt 7 * δp) (hr : 0 ≤ r) (hδp : 0 ≤ δp) (hθ1 : 0 ≤ θ1) (hAa : 0 ≤ Aa) :
+    3 * (1 + δ) * ((1 + 2 * δ) * (θ + 2 * S * r) + 2 * δ * r)
+        ≤ 3 * (9 / 8) * ((5 / 4) * (θ1 + 2 * Real.sqrt 7 * r) + 12 * Aa * r) * δp
+      ∧ 3 * ((1 + 2 * δ) * (θ + 2 * S * r) + 2 * δ * r)
+        ≤ 3 * ((5 / 4) * (θ1 + 2 * Real.sqrt 7 * r) + 12 * Aa * r) * δp := by
+  have h7 : 0 ≤ Real.sqrt 7 := Real.sqrt_nonneg _
+  have hU : θ + 2 * S * r ≤ (θ1 + 2 * Real.sqrt 7 * r) * δp := by
+    have := mul_le_mul_of_nonneg_right hS hr
+    nlinarith
+  have hU0 : 0 ≤ θ + 2 * S * r := by positivity
+  have h1 : (1 + 2 * δ) * (θ + 2 * S * r) ≤ 5 / 4 * ((θ1 + 2 * Real.sqrt 7 * r) * δp) :=
+    mul_le_mul (by linarith) hU hU0 (by norm_num)
+  have h2 : 2 * δ * r ≤ 12 * Aa * r * δp := by
+    have := mul_le_mul_of_nonneg_right hδ hr
+    nlinarith
+  have hX : (1 + 2 * δ) * (θ + 2 * S * r) + 2 * δ * r
+      ≤ ((5 / 4) * (θ1 + 2 * Real.sqrt 7 * r) + 12 * Aa * r) * δp := by nlinarith
+  have hX0 : 0 ≤ (1 + 2 * δ) * (θ + 2 * S * r) + 2 * δ * r := by positivity
+  constructor
+  · have := mul_le_mul (by linarith : 1 + δ ≤ 9 / 8) hX hX0 (by norm_num)
+    nlinarith
+  · nlinarith
+
+set_option maxHeartbeats 1600000 in
+/-- **Theorem "kernel" in the form `D_k ≤ C δ' √k mu_k`.** Independent uniform points on the flat
+    torus, `σ ≤ 1` the variance of the Gaussian kernel, `K σ ≤ 1`, `1 ≤ K ≤ N`, `N ≥ 12`,
+    `δ' = √(M log N / N)`. HYPOTHESES on numbers: `2 Lip ≤ 3 √(N M log N)` and the smallness
+    condition `C δ' √K ≤ 1` with the explicit constant `C = rateCfin d` depending only on `d`. Then,
+    except on an event of probability at most `2/N³`, for all `2 ≤ k ≤ K` and all entries
+    `|N P^k(a,i) - p_{kσ}(x_a - x_i)| ≤ C δ' √k mu_k`. -/
+theorem heat_kernel_rate_paper {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {σ : ℝ} (hσ : 0 < σ) (hσ1 : σ ≤ 1) (d : ℕ)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (N K : ℕ) (hN12 : 12 ≤ N) (hK : 0 < K)
+    (hKN : K ≤ N)
+    {M Lip δp : ℝ} (hMdef : M = (1 + Real.sqrt (Real.pi / (2 * Real.pi ^ 2 * σ))) ^ d)
+    (hLipdef : Lip = 2 * Real.pi * (2 / (2 * Real.pi ^ 2 * σ))
+      * (1 + Real.sqrt (2 * Real.pi / (2 * Real.pi ^ 2 * σ))) ^ d)
+    (hδp : δp = Real.sqrt (M * Real.log N / N))
+    (hLipc : 2 * Lip ≤ 3 * Real.sqrt (N * M * Real.log N))
+    (hKσ : (K : ℝ) * σ ≤ 1)
+    (hsmall : rateCfin d * δp * Real.sqrt K ≤ 1) :
+    μ.real {ω | ¬ ∀ k, 2 ≤ k → k ≤ K → ∀ a i : Fin N,
+        |(N : ℝ) * ((walkMatrix
+              (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X a ω - X j ω))
+              (fun a : Fin N => heatRho d σ N (fun j => X j ω) a)) ^ k) a i
+            - heatP d σ k (X a ω - X i ω)|
+          ≤ rateCfin d * δp * Real.sqrt k * heatMu d σ k}
+      ≤ 2 / (N : ℝ) ^ 3 := by
+  have hN : 0 < N := by omega
+  have hNr : (12 : ℝ) ≤ N := by exact_mod_cast hN12
+  have hNpos : (0 : ℝ) < N := by linarith
+  have hK1 : (1 : ℝ) ≤ K := by exact_mod_cast hK
+  have hKr : (K : ℝ) ≤ N := by exact_mod_cast hKN
+  have hpi := Real.pi_pos
+  have hMpos : 0 < M := by rw [hMdef]; positivity
+  have hLip0 : 0 ≤ Lip := by rw [hLipdef]; positivity
+  have hc := cvConst_nonneg
+  -- logarithms
+  obtain ⟨lg, hlg⟩ : ∃ lg : ℝ, lg = Real.log N := ⟨_, rfl⟩
+  have hlg1 : 1 ≤ lg := by
+    rw [hlg, Real.le_log_iff_exp_le hNpos]
+    have h1 : (1 / 2 : ℝ) ≤ Real.exp (-(1 / 2)) := by
+      have := Real.add_one_le_exp (-(1 / 2) : ℝ); linarith
+    have h2 : Real.exp (1 / 2) * Real.exp (-(1 / 2)) = 1 := by rw [← Real.exp_add]; norm_num
+    have h3 : Real.exp (1 / 2) ≤ 2 := by nlinarith [Real.exp_pos (1 / 2 : ℝ)]
+    have h4 : Real.exp 1 = Real.exp (1 / 2) * Real.exp (1 / 2) := by
+      rw [← Real.exp_add]; norm_num
+    nlinarith [Real.exp_pos (1 / 2 : ℝ)]
+  rw [← hlg] at hδp hLipc
+  obtain ⟨T, hT⟩ : ∃ T : ℝ, T = Real.log ((2 + 4 * K) * (2 * ((N : ℕ) : ℝ) ^ d) * (N : ℝ) ^ 3) :=
+    ⟨_, rfl⟩
+  obtain ⟨L, hL⟩ : ∃ L : ℝ, L = Real.log (4 * K * (N : ℝ) ^ 5) := ⟨_, rfl⟩
+  have hNd : (1 : ℝ) ≤ (N : ℝ) ^ d := one_le_pow₀ (by linarith)
+  have hN3 : (1 : ℝ) ≤ (N : ℝ) ^ 3 := one_le_pow₀ (by linarith)
+  have hargpos : 0 < (2 + 4 * (K : ℝ)) * (2 * (N : ℝ) ^ d) * (N : ℝ) ^ 3 := by positivity
+  have hTle : T ≤ ((d : ℝ) + 5) * lg := by
+    have h1 : (2 + 4 * (K : ℝ)) * 2 ≤ (N : ℝ) ^ 2 := by nlinarith
+    have h2 : (2 + 4 * (K : ℝ)) * (2 * (N : ℝ) ^ d) * (N : ℝ) ^ 3 ≤ (N : ℝ) ^ (d + 5) := by
+      calc (2 + 4 * (K : ℝ)) * (2 * (N : ℝ) ^ d) * (N : ℝ) ^ 3
+          = ((2 + 4 * (K : ℝ)) * 2) * ((N : ℝ) ^ d * (N : ℝ) ^ 3) := by ring
+        _ ≤ (N : ℝ) ^ 2 * ((N : ℝ) ^ d * (N : ℝ) ^ 3) :=
+            mul_le_mul_of_nonneg_right h1 (by positivity)
+        _ = (N : ℝ) ^ (d + 5) := by ring
+    rw [hT, hlg]
+    calc Real.log ((2 + 4 * (K : ℝ)) * (2 * ((N : ℕ) : ℝ) ^ d) * (N : ℝ) ^ 3)
+        ≤ Real.log ((N : ℝ) ^ (d + 5)) := Real.log_le_log hargpos h2
+      _ = ((d : ℝ) + 5) * Real.log N := by rw [Real.log_pow]; push_cast; ring
+  have hTge : lg ≤ T := by
+    rw [hT, hlg]
+    refine Real.log_le_log hNpos ?_
+    have h6 : (6 : ℝ) ≤ 2 + 4 * K := by linarith
+    have h2 : (2 : ℝ) ≤ 2 * (N : ℝ) ^ d := by linarith
+    have h3 : (N : ℝ) ≤ (N : ℝ) ^ 3 := by nlinarith [sq_nonneg ((N : ℝ) - 1), sq_nonneg (N : ℝ)]
+    have h12 : (12 : ℝ) ≤ (2 + 4 * K) * (2 * (N : ℝ) ^ d) := by nlinarith
+    have h13 := mul_le_mul_of_nonneg_right h12 (by positivity : (0 : ℝ) ≤ (N : ℝ) ^ 3)
+    linarith
+  have hLle : L ≤ 7 * lg := by
+    have h1 : 4 * (K : ℝ) ≤ (N : ℝ) ^ 2 := by nlinarith
+    have h2 : 4 * (K : ℝ) * (N : ℝ) ^ 5 ≤ (N : ℝ) ^ 7 := by
+      calc 4 * (K : ℝ) * (N : ℝ) ^ 5 ≤ (N : ℝ) ^ 2 * (N : ℝ) ^ 5 :=
+            mul_le_mul_of_nonneg_right h1 (by positivity)
+        _ = (N : ℝ) ^ 7 := by ring
+    rw [hL, hlg]
+    calc Real.log (4 * (K : ℝ) * (N : ℝ) ^ 5) ≤ Real.log ((N : ℝ) ^ 7) :=
+          Real.log_le_log (by positivity) h2
+      _ = 7 * Real.log N := by rw [Real.log_pow]; push_cast; ring
+  have hLpos : 0 < L := by
+    rw [hL]; apply Real.log_pos
+    have : (1 : ℝ) ≤ (N : ℝ) ^ 5 := one_le_pow₀ (by linarith)
+    nlinarith
+  have hTpos : 0 < T := by linarith
+  -- δ' and the square roots
+  obtain ⟨Q, hQ⟩ : ∃ Q : ℝ, Q = Real.sqrt (N * M * lg) := ⟨_, rfl⟩
+  have hδp0 : 0 ≤ δp := by rw [hδp]; exact Real.sqrt_nonneg _
+  have hQeq : Q = δp * N := by
+    have hsq : (δp * N) ^ 2 = N * M * lg := by
+      rw [mul_pow, hδp, Real.sq_sqrt (by positivity)]; field_simp
+    rw [hQ, ← hsq, Real.sqrt_sq (by positivity)]
+  obtain ⟨Aa, hAa⟩ : ∃ Aa : ℝ, Aa = Real.sqrt ((d : ℝ) + 5) := ⟨_, rfl⟩
+  have hAa0 : 0 ≤ Aa := by rw [hAa]; exact Real.sqrt_nonneg _
+  have hAa1 : 1 ≤ Aa := by
+    rw [hAa, show (1 : ℝ) = Real.sqrt 1 from Real.sqrt_one.symm]
+    exact Real.sqrt_le_sqrt (by linarith [Nat.cast_nonneg (α := ℝ) d])
+  have hsqT : Real.sqrt (N * M * T) ≤ Aa * Q := by
+    rw [hAa, hQ, ← Real.sqrt_mul (by positivity)]
+    apply Real.sqrt_le_sqrt
+    have := mul_le_mul_of_nonneg_left hTle (by positivity : (0 : ℝ) ≤ N * M)
+    exact this.trans (le_of_eq (by ring))
+  have hsqTge : Q ≤ Real.sqrt (N * M * T) := by
+    rw [hQ]; exact Real.sqrt_le_sqrt (mul_le_mul_of_nonneg_left hTge (by positivity))
+  -- the constant
+  obtain ⟨Cf, hCf⟩ : ∃ Cf : ℝ, Cf = rateCfin d := ⟨_, rfl⟩
+  obtain ⟨mx, hmx⟩ : ∃ mx : ℝ, mx = max
+      (2 * (3 * (9 / 8) * ((5 / 4) * (16 * (rateCK d + 1) + 2 * Real.sqrt 7 * rateRA d)
+        + 12 * Aa * rateRA d)))
+      (3 * ((5 / 4) * (16 * (rateCK d + 1) + 2 * Real.sqrt 7 * rateRB d)
+        + 12 * Aa * rateRB d)) := ⟨_, rfl⟩
+  have hCK0 : 0 ≤ rateCK d := by unfold rateCK; positivity
+  have hRA0 : 0 ≤ rateRA d := Real.sqrt_nonneg _
+  have hRB0 : 0 ≤ rateRB d := Real.sqrt_nonneg _
+  have hmx0 : 0 ≤ mx := by rw [hmx]; exact le_max_of_le_right (by positivity)
+  have hCfeq : Cf = 48 * Aa + 3 * 2 ^ d * mx := by rw [hCf, hmx, hAa]; unfold rateCfin; rfl
+  rw [← hCf] at hsmall
+  have hsK1 : 1 ≤ Real.sqrt K := by
+    rw [show (1 : ℝ) = Real.sqrt 1 from Real.sqrt_one.symm]; exact Real.sqrt_le_sqrt hK1
+  have hCf48 : 48 * Aa ≤ Cf := by
+    rw [hCfeq]
+    have : 0 ≤ 3 * 2 ^ d * mx := by positivity
+    linarith
+  have hCf0 : 0 ≤ Cf := by linarith
+  have h48 : 48 * Aa * δp ≤ 1 := by
+    have h1 : 48 * Aa * δp ≤ Cf * δp := mul_le_mul_of_nonneg_right hCf48 hδp0
+    have h2 : Cf * δp ≤ Cf * δp * Real.sqrt K :=
+      le_mul_of_one_le_right (mul_nonneg hCf0 hδp0) hsK1
+    linarith
+  have hδK : δp * Real.sqrt K ≤ 1 := by
+    have h1 : 1 * (δp * Real.sqrt K) ≤ Cf * (δp * Real.sqrt K) :=
+      mul_le_mul_of_nonneg_right (by linarith) (by positivity)
+    have e : Cf * (δp * Real.sqrt K) = Cf * δp * Real.sqrt K := by ring
+    linarith
+  -- the parameters of the explicit theorem
+  obtain ⟨δ, hδ⟩ : ∃ δ : ℝ, δ = 6 * Real.sqrt (N * M * T) / N := ⟨_, rfl⟩
+  obtain ⟨θ, hθ⟩ : ∃ θ : ℝ, θ = (2 * L + 2) * (heatKbar d σ + M) * Real.sqrt K / N := ⟨_, rfl⟩
+  have hkb0 : 0 ≤ heatKbar d σ := by unfold heatKbar; positivity
+  have hδ0 : 0 ≤ δ := by rw [hδ]; positivity
+  have hδle : δ ≤ 6 * Aa * δp := by
+    rw [hδ, div_le_iff₀ hNpos]
+    calc 6 * Real.sqrt (N * M * T) ≤ 6 * (Aa * Q) := by linarith
+      _ = 6 * Aa * δp * N := by rw [hQeq]; ring
+  have hδ8 : δ ≤ 1 / 8 := by linarith
+  have hsm : 6 * Real.sqrt (N * M * T) ≤ N / 8 := by
+    have : 6 * Real.sqrt (N * M * T) = δ * N := by rw [hδ]; field_simp
+    rw [this]
+    have := mul_le_mul_of_nonneg_right hδ8 hNpos.le
+    linarith
+  have hgc : 2 * (N * Lip) * (1 / ((N : ℕ) : ℝ)) ≤ 3 * Real.sqrt (N * M * T) := by
+    have e : 2 * ((N : ℝ) * Lip) * (1 / (N : ℝ)) = 2 * Lip := by field_simp
+    rw [e]
+    calc 2 * Lip ≤ 3 * Q := by rw [hQ]; exact hLipc
+      _ ≤ 3 * Real.sqrt (N * M * T) := by linarith
+  have hθ0 : 0 ≤ θ := by rw [hθ]; positivity
+  have hθle : θ ≤ 16 * (rateCK d + 1) * δp := by
+    have hkb := heatKbar_le_M hσ d
+    rw [← hMdef] at hkb
+    have h1 : 2 * L + 2 ≤ 16 * lg := by linarith
+    have h2 : heatKbar d σ + M ≤ (rateCK d + 1) * M := by linarith
+    have h3 : (2 * L + 2) * (heatKbar d σ + M) ≤ 16 * lg * ((rateCK d + 1) * M) :=
+      mul_le_mul h1 h2 (by positivity) (by positivity)
+    have hδp2 : δp ^ 2 = M * lg / N := by rw [hδp, Real.sq_sqrt (by positivity)]
+    rw [hθ, div_le_iff₀ hNpos]
+    calc (2 * L + 2) * (heatKbar d σ + M) * Real.sqrt K
+        ≤ 16 * lg * ((rateCK d + 1) * M) * Real.sqrt K :=
+          mul_le_mul_of_nonneg_right h3 (Real.sqrt_nonneg _)
+      _ = 16 * (rateCK d + 1) * (δp ^ 2 * N) * Real.sqrt K := by rw [hδp2]; field_simp
+      _ = 16 * (rateCK d + 1) * δp * N * (δp * Real.sqrt K) := by ring
+      _ ≤ 16 * (rateCK d + 1) * δp * N * 1 :=
+          mul_le_mul_of_nonneg_left hδK (by positivity)
+      _ = 16 * (rateCK d + 1) * δp * N := by ring
+  obtain ⟨S, hS⟩ : ∃ S : ℝ, S = Real.sqrt (N * M * L) / N := ⟨_, rfl⟩
+  have hS0 : 0 ≤ S := by rw [hS]; positivity
+  have hSle : S ≤ Real.sqrt 7 * δp := by
+    rw [hS, div_le_iff₀ hNpos]
+    calc Real.sqrt (N * M * L) ≤ Real.sqrt (7 * (N * M * lg)) := by
+          apply Real.sqrt_le_sqrt
+          have := mul_le_mul_of_nonneg_left hLle (by positivity : (0 : ℝ) ≤ N * M)
+          exact this.trans (le_of_eq (by ring))
+      _ = Real.sqrt 7 * Q := by rw [hQ, Real.sqrt_mul (by norm_num)]
+      _ = Real.sqrt 7 * δp * N := by rw [hQeq]; ring
+  have habA := (rate_ab_bound hδ0 hδ8 hδle hθ0 hθle hS0 hSle hRA0 hδp0
+    (by positivity : (0 : ℝ) ≤ 16 * (rateCK d + 1)) hAa0).1
+  have habB := (rate_ab_bound hδ0 hδ8 hδle hθ0 hθle hS0 hSle hRB0 hδp0
+    (by positivity : (0 : ℝ) ≤ 16 * (rateCK d + 1)) hAa0).2
+  have hA : heatRateA d N M L δ θ
+      ≤ 3 * (9 / 8) * ((5 / 4) * (16 * (rateCK d + 1) + 2 * Real.sqrt 7 * rateRA d)
+        + 12 * Aa * rateRA d) * δp := by
+    unfold heatRateA; rw [← hS]; exact habA
+  have hB : heatRateB d N M L δ θ
+      ≤ 3 * ((5 / 4) * (16 * (rateCK d + 1) + 2 * Real.sqrt 7 * rateRB d)
+        + 12 * Aa * rateRB d) * δp := by
+    unfold heatRateB; rw [← hS]; exact habB
+  have hmaxle : max (2 * heatRateA d N M L δ θ) (heatRateB d N M L δ θ) ≤ mx * δp := by
+    rw [hmx, max_mul_of_nonneg _ _ hδp0]
+    exact max_le_max (by linarith) hB
+  have hWle : ∀ k : ℕ, heatW d N M L δ θ k ≤ 2 * 2 ^ d * (mx * δp) * Real.sqrt k := by
+    intro k
+    unfold heatW
+    exact mul_le_mul_of_nonneg_right
+      (mul_le_mul_of_nonneg_left hmaxle (by positivity)) (Real.sqrt_nonneg _)
+  have hW0 : ∀ k : ℕ, 0 ≤ heatW d N M L δ θ k := fun k =>
+    (heatW_mono hMpos.le hLpos.le hδ0 hθ0 d N (le_refl k)).1
+  have hrel : ∀ k : ℕ, 1 ≤ k →
+      4 * δ + (1 + 4 * δ) * heatW d N M L δ θ k ≤ Cf * δp * Real.sqrt k := by
+    intro k hk
+    have hk1 : 1 ≤ Real.sqrt k := by
+      rw [show (1 : ℝ) = Real.sqrt 1 from Real.sqrt_one.symm]
+      exact Real.sqrt_le_sqrt (by exact_mod_cast hk)
+    have h1 : (1 + 4 * δ) * heatW d N M L δ θ k
+        ≤ 3 / 2 * (2 * 2 ^ d * (mx * δp) * Real.sqrt k) :=
+      mul_le_mul (by linarith) (hWle k) (hW0 k) (by norm_num)
+    have h2 : 4 * δ ≤ 24 * Aa * δp * Real.sqrt k := by
+      have : 24 * Aa * δp ≤ 24 * Aa * δp * Real.sqrt k :=
+        le_mul_of_one_le_right (by positivity) hk1
+      linarith
+    rw [hCfeq]
+    have h3 : 0 ≤ 24 * Aa * δp * Real.sqrt k := by positivity
+    have e : (48 * Aa + 3 * 2 ^ d * mx) * δp * Real.sqrt k
+        = 2 * (24 * Aa * δp * Real.sqrt k) + 3 / 2 * (2 * 2 ^ d * (mx * δp) * Real.sqrt k) := by
+      ring
+    rw [e]
+    linarith
+  have hWK : 4 * δ + (1 + 4 * δ) * heatW d N M L δ θ K ≤ 1 := (hrel K hK).trans hsmall
+  have h := heat_kernel_rate_explicit hσ hσ1 d X h_indep hX hlaw N K hN hK hN hMdef hLipdef hL hT
+    hδ hθ hgc hsm hKσ hWK
+  refine le_trans (measureReal_mono ?_ (measure_ne_top μ _)) h
+  intro ω hω hgood
+  apply hω
+  intro k hk2 hkK a i
+  obtain ⟨j, rfl⟩ : ∃ j, k = j + 2 := ⟨k - 2, by omega⟩
+  have h1 := hgood.2 j (by omega) a i
+  refine h1.trans ?_
+  refine mul_le_mul_of_nonneg_right ?_ (heatMu_nonneg d σ _)
+  refine (hrel (j + 1) (by omega)).trans ?_
+  rw [hCf]
+  refine mul_le_mul_of_nonneg_left (Real.sqrt_le_sqrt ?_) (by rw [← hCf]; exact mul_nonneg hCf0 hδp0)
+  push_cast; linarith
+
+end RatePaper
+
+section EigUniform
+open Matrix
+
+/-- The error of the eigenvalue statement at step `k`: `3δ(M_k + D) + D + t_k`, with the uniform
+    bound `M_k` of the kernel after `k` steps, the kernel error `D` and the tail `t_k` of the Fourier
+    series beyond `|n|² ≥ R`. -/
+noncomputable def heatEigErr (d : ℕ) (σ : ℝ) (k : ℕ) (δ D R : ℝ) : ℝ :=
+  3 * δ * ((1 + Real.sqrt (Real.pi / ((k : ℕ) * (2 * Real.pi ^ 2 * σ)))) ^ d + D) + D
+    + Real.exp (-((k : ℕ) * (2 * Real.pi ^ 2 * σ)) * R / 2)
+      * (1 + Real.sqrt (2 * Real.pi / ((k : ℕ) * (2 * Real.pi ^ 2 * σ)))) ^ d
+
+/-- **Eigenvalues of the sampled graph on the torus, uniformly in the step and in the index
+    (deterministic statement on the good event).** Points `x_0, …, x_{N-1}`; HYPOTHESES on the
+    points: normalisation within `δ ≤ 1/8`, Gram matrix of the sampled modes of `H` within `N η`,
+    and a bound `Dk k` for the entries of `N P^k - p_{kσ}` for `2 ≤ k ≤ K`. Then for every such `k`,
+    every `r > 0` and every index `j` of the shell `|n|² = r`
+    (`1 + 2 #{n ∈ H : |n|² < r} ≤ j ≤ 2 #{n ∈ H : |n|² ≤ r}`), with `α = e^{-2π²σ r}`: if
+    `2 (err_k + η Σ_g √a_g) ≤ α^k`, then `|s_j^k - α^k| ≤ err_k + η Σ_g √a_g` and
+    `k α^k |s_j - α| ≤ 2 (err_k + η Σ_g √a_g)`. -/
+theorem heat_eig_uniform_det {σ δ η R : ℝ} (hσ : 0 < σ) (d N K : ℕ) [NeZero N]
+    (x : ℕ → FlatTorus d) (H : Finset (Fin d → ℤ)) (hH0 : ∀ n ∈ H, n ≠ 0)
+    (hH2 : ∀ m ∈ H, ∀ n ∈ H, m + n ≠ 0)
+    (hR : ∀ n : Fin d → ℤ, n ≠ 0 → n ∉ H → -n ∉ H → R ≤ ∑ i, ((n i : ℤ) : ℝ) ^ 2)
+    (hδ0 : 0 ≤ δ) (hδ8 : δ ≤ 1 / 8) (hη0 : 0 ≤ η)
+    (hnorm : ∀ j, |heatRho d σ N x j - 1| ≤ δ)
+    (hgram : ∀ f g : modeSet d H, |∑ i : Fin N, torusMode d f.1 (x i) * torusMode d g.1 (x i)
+        - N * (if f = g then (1 : ℝ) else 0)| ≤ N * η)
+    (Dk : ℕ → ℝ)
+    (hkern : ∀ k, 2 ≤ k → k ≤ K → ∀ a i : Fin N,
+      |(N : ℝ) * ((walkMatrix (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (x a - x j))
+            (fun a : Fin N => heatRho d σ N x a)) ^ k) a i - heatP d σ k (x a - x i)| ≤ Dk k)
+    (k : ℕ) (hk2 : 2 ≤ k) (hkK : k ≤ K) {r : ℝ} (hr : 0 < r)
+    (hS : (symGraph (fun i j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (x i - x j))
+      (fun i : Fin N => (∑ l : Fin N, heatTorus d (2 * Real.pi ^ 2 * σ) (x i - x l)) / N)).IsHermitian)
+    (j : Fin (Fintype.card (Fin N)))
+    (hj1 : 1 + 2 * (H.filter fun n => ∑ i, ((n i : ℤ) : ℝ) ^ 2 < r).card ≤ j.val)
+    (hj2 : j.val ≤ 2 * (H.filter fun n => ∑ i, ((n i : ℤ) : ℝ) ^ 2 ≤ r).card)
+    (h3 : 2 * (heatEigErr d σ k δ (Dk k) R + η * 1 * ∑ g : modeSet d H,
+        Real.sqrt (modeCoeff d ((k : ℕ) * (2 * Real.pi ^ 2 * σ)) g.1))
+      ≤ Real.exp (-(2 * Real.pi ^ 2 * σ) * r) ^ k) :
+    |hS.eigenvalues₀ j ^ k - Real.exp (-(2 * Real.pi ^ 2 * σ) * r) ^ k|
+        ≤ heatEigErr d σ k δ (Dk k) R + η * 1 * ∑ g : modeSet d H,
+            Real.sqrt (modeCoeff d ((k : ℕ) * (2 * Real.pi ^ 2 * σ)) g.1)
+      ∧ (k : ℝ) * (Real.exp (-(2 * Real.pi ^ 2 * σ) * r) ^ k
+            * |hS.eigenvalues₀ j - Real.exp (-(2 * Real.pi ^ 2 * σ) * r)|)
+          ≤ 2 * (heatEigErr d σ k δ (Dk k) R + η * 1 * ∑ g : modeSet d H,
+              Real.sqrt (modeCoeff d ((k : ℕ) * (2 * Real.pi ^ 2 * σ)) g.1)) := by
+  obtain ⟨k0, rfl⟩ : ∃ k0, k = k0 + 1 := ⟨k - 1, by omega⟩
+  have hc : 0 < 2 * Real.pi ^ 2 * σ := by positivity
+  have hc' : 0 < ((k0 + 1 : ℕ) : ℝ) * (2 * Real.pi ^ 2 * σ) := by positivity
+  have hpow : Real.exp (-(2 * Real.pi ^ 2 * σ) * r) ^ (k0 + 1)
+      = Real.exp (-(((k0 + 1 : ℕ) : ℝ) * (2 * Real.pi ^ 2 * σ)) * r) := by
+    rw [← Real.exp_nat_mul]; congr 1; ring
+  obtain ⟨c1, c2⟩ := mode_counts_general d hc' hr H
+  have e1 : (fun a : Fin N => heatRho d σ N x a)
+      = fun i : Fin N => (∑ l : Fin N, heatTorus d (2 * Real.pi ^ 2 * σ) (x i - x l)) / N := by
+    funext a
+    unfold heatRho
+    rw [Fin.sum_univ_eq_sum_range (fun l => heatTorus d (2 * Real.pi ^ 2 * σ) (x a - x l)) N]
+  have hnorm' : ∀ b : Fin N,
+      |(∑ l : Fin N, heatTorus d (2 * Real.pi ^ 2 * σ) (x b - x l)) / N - 1| ≤ δ := by
+    intro b
+    have h := hnorm b
+    have e := congrFun e1 b
+    simp only at e
+    rw [e] at h
+    exact h
+  have hkern' : ∀ a i : Fin N,
+      |(N : ℝ) * ((walkMatrix (fun i j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (x i - x j))
+          (fun i : Fin N => (∑ l : Fin N, heatTorus d (2 * Real.pi ^ 2 * σ) (x i - x l)) / N))
+            ^ (k0 + 1)) a i
+        - heatTorus d ((k0 + 1 : ℕ) * (2 * Real.pi ^ 2 * σ)) (x a - x i)| ≤ Dk (k0 + 1) := by
+    intro a i
+    have h := hkern (k0 + 1) hk2 hkK a i
+    have e2 : heatP d σ (k0 + 1) (x a - x i)
+        = heatTorus d ((k0 + 1 : ℕ) * (2 * Real.pi ^ 2 * σ)) (x a - x i) := by
+      rw [heatP_of_ne d σ (by omega)]
+      congr 1
+      ring
+    rw [e1, e2] at h
+    exact h
+  refine heatTorus_eig_det_kern hc d N (fun i : Fin N => x i) k0 H hH0 hH2 hR hδ0 hδ8 hη0
+    hnorm' hgram le_rfl hkern' (by unfold heatEigErr; exact le_rfl) hS j (Real.exp_pos _)
+    (Real.exp_le_one_iff.mpr (by nlinarith [mul_pos hc hr])) ?_ ?_ h3
+  · rw [hpow]; exact c1.trans hj1
+  · rw [hpow]; exact lt_of_lt_of_le (by omega) c2
+
+set_option maxHeartbeats 1600000 in
+/-- **Eigenvalues of the sampled graph on the torus, uniformly in the step and in the index, for
+    random samples.** In the situation of `heat_kernel_rate_paper` (kernel error
+    `D_k = C δ' √k mu_k`), with a normalisation tolerance `ε`, grid parameter `g`,
+    `δ = (ε + 2 N Lip/g)/N ≤ 1/8`, a set `H` of frequencies with cut-off `R` and a Gram tolerance `η`:
+    except on an event of probability at most
+    `2/N³ + 2 g^d exp(-ε²/(4NM + 2Mε)) + 2 |F|² exp(-(Nη/2)²/(2N))`, simultaneously for all
+    `2 ≤ k ≤ K`, all `r > 0` and all indices `j` of the shell `|n|² = r`: if
+    `2 (err_k + η Σ_g √a_g) ≤ α^k` with `α = e^{-2π²σ r}`, then
+    `|s_j^k - α^k| ≤ err_k + η Σ_g √a_g` and `k α^k |s_j - α| ≤ 2 (err_k + η Σ_g √a_g)`. -/
+theorem heat_eig_uniform_sample {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {σ : ℝ} (hσ : 0 < σ) (hσ1 : σ ≤ 1) (d N K : ℕ) [NeZero N]
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (hN12 : 12 ≤ N) (hK : 0 < K) (hKN : K ≤ N)
+    (H : Finset (Fin d → ℤ)) (hH0 : ∀ n ∈ H, n ≠ 0) (hH2 : ∀ m ∈ H, ∀ n ∈ H, m + n ≠ 0)
+    {g : ℕ} (hg : 0 < g)
+    {M Lip δp ε δ η R : ℝ} (hMdef : M = (1 + Real.sqrt (Real.pi / (2 * Real.pi ^ 2 * σ))) ^ d)
+    (hLipdef : Lip = 2 * Real.pi * (2 / (2 * Real.pi ^ 2 * σ))
+      * (1 + Real.sqrt (2 * Real.pi / (2 * Real.pi ^ 2 * σ))) ^ d)
+    (hδp : δp = Real.sqrt (M * Real.log N / N))
+    (hLipc : 2 * Lip ≤ 3 * Real.sqrt (N * M * Real.log N))
+    (hKσ : (K : ℝ) * σ ≤ 1)
+    (hsmall : rateCfin d * δp * Real.sqrt K ≤ 1)
+    (hε : 0 < ε) (hδdef : δ = (ε + 2 * (N * Lip) * (1 / g)) / N) (hδ8 : δ ≤ 1 / 8) (hη0 : 0 ≤ η)
+    (hR : ∀ n : Fin d → ℤ, n ≠ 0 → n ∉ H → -n ∉ H → R ≤ ∑ i, ((n i : ℤ) : ℝ) ^ 2) :
+    μ.real {ω | ¬ ∀ k, 2 ≤ k → k ≤ K → ∀ r : ℝ, 0 < r →
+        ∀ (hS : (symGraph
+            (fun i j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X j ω))
+            (fun i : Fin N =>
+              (∑ l : Fin N, heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X l ω)) / N)).IsHermitian)
+          (j : Fin (Fintype.card (Fin N))),
+          1 + 2 * (H.filter fun n => ∑ i, ((n i : ℤ) : ℝ) ^ 2 < r).card ≤ j.val →
+          j.val ≤ 2 * (H.filter fun n => ∑ i, ((n i : ℤ) : ℝ) ^ 2 ≤ r).card →
+          2 * (heatEigErr d σ k δ (rateCfin d * δp * Real.sqrt k * heatMu d σ k) R
+              + η * 1 * ∑ g : modeSet d H,
+                Real.sqrt (modeCoeff d ((k : ℕ) * (2 * Real.pi ^ 2 * σ)) g.1))
+            ≤ Real.exp (-(2 * Real.pi ^ 2 * σ) * r) ^ k →
+          |hS.eigenvalues₀ j ^ k - Real.exp (-(2 * Real.pi ^ 2 * σ) * r) ^ k|
+              ≤ heatEigErr d σ k δ (rateCfin d * δp * Real.sqrt k * heatMu d σ k) R
+                + η * 1 * ∑ g : modeSet d H,
+                  Real.sqrt (modeCoeff d ((k : ℕ) * (2 * Real.pi ^ 2 * σ)) g.1)
+            ∧ (k : ℝ) * (Real.exp (-(2 * Real.pi ^ 2 * σ) * r) ^ k
+                  * |hS.eigenvalues₀ j - Real.exp (-(2 * Real.pi ^ 2 * σ) * r)|)
+                ≤ 2 * (heatEigErr d σ k δ (rateCfin d * δp * Real.sqrt k * heatMu d σ k) R
+                  + η * 1 * ∑ g : modeSet d H,
+                    Real.sqrt (modeCoeff d ((k : ℕ) * (2 * Real.pi ^ 2 * σ)) g.1))}
+      ≤ 2 / (N : ℝ) ^ 3 + (g : ℝ) ^ d * (2 * Real.exp (-ε ^ 2 / (4 * (N * M) + 2 * M * ε)))
+        + (Fintype.card (modeSet d H) : ℝ) ^ 2 * (2 * Real.exp (-(N * η / 2) ^ 2 / (2 * N))) := by
+  have hN : 0 < N := by omega
+  have hNpos : (0 : ℝ) < N := by exact_mod_cast hN
+  have hcσ : 0 < 2 * Real.pi ^ 2 * σ := by positivity
+  have hM : ∀ u, heatTorus d (2 * Real.pi ^ 2 * σ) u ≤ M := fun u => by
+    rw [hMdef]; exact heatTorus_le hcσ d u
+  have hLip : ∀ u u', |heatTorus d (2 * Real.pi ^ 2 * σ) u
+      - heatTorus d (2 * Real.pi ^ 2 * σ) u'| ≤ Lip * dist u u' := fun u u' => by
+    rw [hLipdef]; exact heatTorus_lipschitz hcσ d u u'
+  have hLip0 : 0 ≤ Lip := by rw [hLipdef]; positivity
+  have hδ0 : 0 ≤ δ := by rw [hδdef]; positivity
+  obtain ⟨Bk, hBkd⟩ : ∃ Bk : Set Ω, Bk = {ω | ¬ ∀ k, 2 ≤ k → k ≤ K → ∀ a i : Fin N,
+      |(N : ℝ) * ((walkMatrix
+            (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X a ω - X j ω))
+            (fun a : Fin N => heatRho d σ N (fun j => X j ω) a)) ^ k) a i
+          - heatP d σ k (X a ω - X i ω)|
+        ≤ rateCfin d * δp * Real.sqrt k * heatMu d σ k} := ⟨_, rfl⟩
+  have hBk : μ.real Bk ≤ 2 / (N : ℝ) ^ 3 := by
+    rw [hBkd]
+    exact heat_kernel_rate_paper hσ hσ1 d X h_indep hX hlaw N K hN12 hK hKN hMdef hLipdef hδp hLipc
+      hKσ hsmall
+  obtain ⟨Bn, hBnd⟩ : ∃ Bn : Set Ω, Bn = {ω | ∃ x : FlatTorus d, ε + 2 * (N * Lip) * (1 / g)
+      < |∑ j ∈ Finset.range N, heatTorus d (2 * Real.pi ^ 2 * σ) (x - X j ω) - N|} := ⟨_, rfl⟩
+  have hBn : μ.real Bn ≤ (g : ℝ) ^ d * (2 * Real.exp (-ε ^ 2 / (4 * (N * M) + 2 * M * ε))) := by
+    rw [hBnd]
+    exact heat_normalisation_whp hσ d X h_indep hX hlaw N hg hM hLip hLip0 hε
+  obtain ⟨Bg, hBgd⟩ : ∃ Bg : Set Ω, Bg = {ω | ∃ f g : modeSet d H, N * η ≤ |∑ j ∈ Finset.range N,
+      torusMode d f.1 (X j ω) * torusMode d g.1 (X j ω)
+      - N * (if f = g then (1 : ℝ) else 0)|} := ⟨_, rfl⟩
+  have hBg : μ.real Bg
+      ≤ (Fintype.card (modeSet d H) : ℝ) ^ 2 * (2 * Real.exp (-(N * η / 2) ^ 2 / (2 * N))) := by
+    rw [hBgd]
+    exact flatTorus_gram_whp (μ := μ) d X h_indep hX hlaw (modeSet d H)
+      (fun n b h => hH0 n ((mem_modeSet d H n b).mp h))
+      (fun n b n' b' h h' => hH2 n ((mem_modeSet d H n b).mp h) n' ((mem_modeSet d H n' b').mp h'))
+      N (ε := N * η) (mul_nonneg (Nat.cast_nonneg N) hη0)
+  refine le_trans (measureReal_mono (s₂ := (Bk ∪ Bn) ∪ Bg) ?_ (measure_ne_top μ _)) ?_
+  · intro ω hω
+    by_contra hcon
+    simp only [Set.mem_union, not_or] at hcon
+    obtain ⟨⟨hk, hn⟩, hgm⟩ := hcon
+    rw [hBkd] at hk
+    rw [hBnd] at hn
+    rw [hBgd] at hgm
+    have hkern := not_not.mp hk
+    apply hω
+    intro k hk2 hkK r hr hS j hj1 hj2 h3
+    refine heat_eig_uniform_det hσ d N K (fun j => X j ω) H hH0 hH2 hR hδ0 hδ8 hη0 ?_ ?_
+      (fun k => rateCfin d * δp * Real.sqrt k * heatMu d σ k) hkern k hk2 hkK hr hS j hj1 hj2 h3
+    · intro b
+      have h : |∑ l ∈ Finset.range N, heatTorus d (2 * Real.pi ^ 2 * σ) (X b ω - X l ω) - N|
+          ≤ ε + 2 * (N * Lip) * (1 / g) := by
+        by_contra h; exact hn ⟨X b ω, not_le.mp h⟩
+      have e : heatRho d σ N (fun j => X j ω) b - 1
+          = (∑ l ∈ Finset.range N, heatTorus d (2 * Real.pi ^ 2 * σ) (X b ω - X l ω) - N) / N := by
+        unfold heatRho; field_simp
+      rw [e, abs_div, abs_of_pos hNpos, hδdef]
+      exact div_le_div_of_nonneg_right h hNpos.le
+    · intro f g'
+      have h : |∑ j ∈ Finset.range N, torusMode d f.1 (X j ω) * torusMode d g'.1 (X j ω)
+          - N * (if f = g' then (1 : ℝ) else 0)| < N * η := by
+        by_contra h; exact hgm ⟨f, g', not_lt.mp h⟩
+      rw [← Fin.sum_univ_eq_sum_range
+        (fun j => torusMode d f.1 (X j ω) * torusMode d g'.1 (X j ω)) N] at h
+      exact h.le
+  · calc μ.real ((Bk ∪ Bn) ∪ Bg) ≤ μ.real (Bk ∪ Bn) + μ.real Bg := measureReal_union_le _ _
+      _ ≤ (μ.real Bk + μ.real Bn) + μ.real Bg := add_le_add (measureReal_union_le _ _) le_rfl
+      _ ≤ _ := by linarith
+
+end EigUniform
+
+section EigLambda
+open Matrix
+
+/-- The sum of the square roots of the coefficients of the modes:
+    `∑_g √a_g = 1 + 2 ∑_{n ∈ H} e^{-c|n|²/2} ≤ 1 + 2 (1 + √(2π/c))^d`. -/
+theorem mode_sqrt_sum_le (d : ℕ) {c : ℝ} (hc : 0 < c) (H : Finset (Fin d → ℤ)) :
+    ∑ g : modeSet d H, Real.sqrt (modeCoeff d c g.1)
+      ≤ 1 + 2 * (1 + Real.sqrt (Real.pi / (c / 2))) ^ d := by
+  classical
+  rw [Finset.sum_coe_sort (modeSet d H) (fun g => Real.sqrt (modeCoeff d c g))]
+  have hsq : ∀ q : ℝ, Real.sqrt (Real.exp (-c * q)) = Real.exp (-(c / 2) * q) := fun q => by
+    rw [Real.sqrt_eq_iff_mul_self_eq (Real.exp_pos _).le (Real.exp_pos _).le, ← Real.exp_add]
+    congr 1; ring
+  have hnone : (none : Option ((Fin d → ℤ) × Bool))
+      ∉ (H.image fun n => some (n, false)) ∪ (H.image fun n => some (n, true)) := by
+    simp
+  have hdisj : Disjoint (H.image fun n => (some (n, false) : Option ((Fin d → ℤ) × Bool)))
+      (H.image fun n => some (n, true)) := by
+    rw [Finset.disjoint_left]
+    intro f hf hf'
+    simp only [Finset.mem_image] at hf hf'
+    obtain ⟨m, -, rfl⟩ := hf
+    obtain ⟨m', -, h⟩ := hf'
+    simp at h
+  have inj : ∀ b : Bool, Function.Injective fun n : Fin d → ℤ =>
+      (some (n, b) : Option ((Fin d → ℤ) × Bool)) := fun b n n' h => by
+    simpa using h
+  unfold modeSet
+  rw [Finset.sum_insert hnone, Finset.sum_union hdisj,
+    Finset.sum_image (fun a _ b _ h => inj false h), Finset.sum_image (fun a _ b _ h => inj true h)]
+  simp only [modeCoeff, Real.sqrt_one, hsq]
+  have h := gauss_finset_sum_le (by positivity : (0 : ℝ) < c / 2) d H
+  linarith
+
+/-- From the bound for the `k`-th power to the eigenvalue of the graph Laplacian, when
+    `α^k ≥ e^{-1}`: `|(1 - s)/τ - (1 - α)/τ| ≤ 2 e E / (k τ)`. -/
+theorem lambda_from_power {s α E τ : ℝ} {k : ℕ} (hk : 0 < k) (hτ : 0 < τ)
+    (hαk : Real.exp (-1) ≤ α ^ k) (h : (k : ℝ) * (α ^ k * |s - α|) ≤ 2 * E) :
+    |(1 - s) / τ - (1 - α) / τ| ≤ 2 * Real.exp 1 * E / (k * τ) := by
+  have hkpos : (0 : ℝ) < k := by exact_mod_cast hk
+  have he : Real.exp (-1) * Real.exp 1 = 1 := by rw [← Real.exp_add]; norm_num
+  have habs := abs_nonneg (s - α)
+  have h1 : (k : ℝ) * (Real.exp (-1) * |s - α|) ≤ 2 * E :=
+    le_trans (mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_right hαk habs) hkpos.le) h
+  have h2 : (k : ℝ) * |s - α| ≤ 2 * Real.exp 1 * E := by
+    have := mul_le_mul_of_nonneg_right h1 (Real.exp_pos 1).le
+    have e : (k : ℝ) * (Real.exp (-1) * |s - α|) * Real.exp 1
+        = (k : ℝ) * |s - α| * (Real.exp (-1) * Real.exp 1) := by ring
+    rw [e, he] at this
+    linarith
+  have e : (1 - s) / τ - (1 - α) / τ = -(s - α) / τ := by ring
+  rw [e, abs_div, abs_neg, abs_of_pos hτ, div_le_div_iff₀ hτ (by positivity)]
+  have := mul_le_mul_of_nonneg_right h2 hτ.le
+  nlinarith
+
+set_option maxHeartbeats 1600000 in
+/-- **Eigenvalues of the graph Laplacian of the sampled graph on the torus (form of part (ii) of
+    Theorem "eigenvalues on the torus", with explicit error).** In the situation of
+    `heat_eig_uniform_sample`, with `τ = σ/2` (the `σ` of the paper) and `λ = 4π² r`, so that
+    `e^{-2π²σ r} = e^{-τλ}`: except on the same event, simultaneously for all `2 ≤ k ≤ K`, all
+    `r > 0` with `k · 2π²σ · r ≤ 1` and all indices `j` of the shell `|n|² = r`: if
+    `2 E_k ≤ e^{-1}`, then `|(1 - s_j)/τ - (1 - e^{-τλ})/τ| ≤ 2 e E_k/(k τ)`, where
+    `E_k = err_k + η (1 + 2 (1 + √(2π/(k c)))^d)`. -/
+theorem heat_eig_lambda_sample {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {σ : ℝ} (hσ : 0 < σ) (hσ1 : σ ≤ 1) (d N K : ℕ) [NeZero N]
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (hN12 : 12 ≤ N) (hK : 0 < K) (hKN : K ≤ N)
+    (H : Finset (Fin d → ℤ)) (hH0 : ∀ n ∈ H, n ≠ 0) (hH2 : ∀ m ∈ H, ∀ n ∈ H, m + n ≠ 0)
+    {g : ℕ} (hg : 0 < g)
+    {M Lip δp ε δ η R : ℝ} (hMdef : M = (1 + Real.sqrt (Real.pi / (2 * Real.pi ^ 2 * σ))) ^ d)
+    (hLipdef : Lip = 2 * Real.pi * (2 / (2 * Real.pi ^ 2 * σ))
+      * (1 + Real.sqrt (2 * Real.pi / (2 * Real.pi ^ 2 * σ))) ^ d)
+    (hδp : δp = Real.sqrt (M * Real.log N / N))
+    (hLipc : 2 * Lip ≤ 3 * Real.sqrt (N * M * Real.log N))
+    (hKσ : (K : ℝ) * σ ≤ 1)
+    (hsmall : rateCfin d * δp * Real.sqrt K ≤ 1)
+    (hε : 0 < ε) (hδdef : δ = (ε + 2 * (N * Lip) * (1 / g)) / N) (hδ8 : δ ≤ 1 / 8) (hη0 : 0 ≤ η)
+    (hR : ∀ n : Fin d → ℤ, n ≠ 0 → n ∉ H → -n ∉ H → R ≤ ∑ i, ((n i : ℤ) : ℝ) ^ 2) :
+    μ.real {ω | ¬ ∀ k, 2 ≤ k → k ≤ K → ∀ r : ℝ, 0 < r → (k : ℝ) * (2 * Real.pi ^ 2 * σ) * r ≤ 1 →
+        ∀ (hS : (symGraph
+            (fun i j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X j ω))
+            (fun i : Fin N =>
+              (∑ l : Fin N, heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X l ω)) / N)).IsHermitian)
+          (j : Fin (Fintype.card (Fin N))),
+          1 + 2 * (H.filter fun n => ∑ i, ((n i : ℤ) : ℝ) ^ 2 < r).card ≤ j.val →
+          j.val ≤ 2 * (H.filter fun n => ∑ i, ((n i : ℤ) : ℝ) ^ 2 ≤ r).card →
+          2 * (heatEigErr d σ k δ (rateCfin d * δp * Real.sqrt k * heatMu d σ k) R
+              + η * (1 + 2 * (1 + Real.sqrt (Real.pi / ((k : ℕ) * (2 * Real.pi ^ 2 * σ) / 2))) ^ d))
+            ≤ Real.exp (-1) →
+          |(1 - hS.eigenvalues₀ j) / (σ / 2)
+              - (1 - Real.exp (-(2 * Real.pi ^ 2 * σ) * r)) / (σ / 2)|
+            ≤ 2 * Real.exp 1
+              * (heatEigErr d σ k δ (rateCfin d * δp * Real.sqrt k * heatMu d σ k) R
+                + η * (1 + 2 * (1 + Real.sqrt (Real.pi / ((k : ℕ) * (2 * Real.pi ^ 2 * σ) / 2))) ^ d))
+              / (k * (σ / 2))}
+      ≤ 2 / (N : ℝ) ^ 3 + (g : ℝ) ^ d * (2 * Real.exp (-ε ^ 2 / (4 * (N * M) + 2 * M * ε)))
+        + (Fintype.card (modeSet d H) : ℝ) ^ 2 * (2 * Real.exp (-(N * η / 2) ^ 2 / (2 * N))) := by
+  have h := heat_eig_uniform_sample hσ hσ1 d N K X h_indep hX hlaw hN12 hK hKN H hH0 hH2 hg hMdef
+    hLipdef hδp hLipc hKσ hsmall hε hδdef hδ8 hη0 hR
+  refine le_trans (measureReal_mono ?_ (measure_ne_top μ _)) h
+  intro ω hω huni
+  apply hω
+  intro k hk2 hkK r hr hkr hS j hj1 hj2 hsize
+  have hc : 0 < 2 * Real.pi ^ 2 * σ := by positivity
+  have hkpos : (0 : ℝ) < k := by exact_mod_cast (by omega : 0 < k)
+  have hkc : 0 < ((k : ℕ) : ℝ) * (2 * Real.pi ^ 2 * σ) := by positivity
+  have hpow : Real.exp (-(2 * Real.pi ^ 2 * σ) * r) ^ k
+      = Real.exp (-(((k : ℕ) : ℝ) * (2 * Real.pi ^ 2 * σ) * r)) := by
+    rw [← Real.exp_nat_mul]; congr 1; ring
+  have hαk : Real.exp (-1) ≤ Real.exp (-(2 * Real.pi ^ 2 * σ) * r) ^ k := by
+    rw [hpow]; exact Real.exp_le_exp.mpr (by linarith)
+  have hS1 := mode_sqrt_sum_le d hkc H
+  have hηS : η * 1 * ∑ g : modeSet d H,
+        Real.sqrt (modeCoeff d ((k : ℕ) * (2 * Real.pi ^ 2 * σ)) g.1)
+      ≤ η * (1 + 2 * (1 + Real.sqrt (Real.pi / ((k : ℕ) * (2 * Real.pi ^ 2 * σ) / 2))) ^ d) := by
+    rw [mul_one]; exact mul_le_mul_of_nonneg_left hS1 hη0
+  have h3 : 2 * (heatEigErr d σ k δ (rateCfin d * δp * Real.sqrt k * heatMu d σ k) R
+        + η * 1 * ∑ g : modeSet d H,
+          Real.sqrt (modeCoeff d ((k : ℕ) * (2 * Real.pi ^ 2 * σ)) g.1))
+      ≤ Real.exp (-(2 * Real.pi ^ 2 * σ) * r) ^ k := by linarith
+  obtain ⟨-, h2⟩ := huni k hk2 hkK r hr hS j hj1 hj2 h3
+  refine lambda_from_power (by omega) (by positivity) hαk (h2.trans ?_)
+  linarith
+
+end EigLambda
+
+section EigClosed
+open Matrix
+
+theorem rateCfin_nonneg (d : ℕ) : 0 ≤ rateCfin d := by
+  have hc := cvConst_nonneg
+  have hCK0 : 0 ≤ rateCK d := by unfold rateCK; positivity
+  have hRB0 : 0 ≤ rateRB d := Real.sqrt_nonneg _
+  have hmax : 0 ≤ max
+      (2 * (3 * (9 / 8) * ((5 / 4) * (16 * (rateCK d + 1) + 2 * Real.sqrt 7 * rateRA d)
+        + 12 * Real.sqrt ((d : ℝ) + 5) * rateRA d)))
+      (3 * ((5 / 4) * (16 * (rateCK d + 1) + 2 * Real.sqrt 7 * rateRB d)
+        + 12 * Real.sqrt ((d : ℝ) + 5) * rateRB d)) :=
+    le_max_of_le_right (by positivity)
+  unfold rateCfin
+  positivity
+
+/-- **The error of the eigenvalue statement in terms of `δ'`.** If `δ ≤ c₁ δ'`, `η ≤ c₂ δ'`, the
+    tail satisfies `t_k ≤ c₃ δ' mu_k` and `C δ' √k ≤ 1`, then
+    `E_k ≤ (6c₁ + C + c₃ + c₂ (1 + 2·2^d)) δ' √k mu_k`. -/
+theorem eig_err_closed {σ δ η R δp c1 c2 c3 Cf : ℝ} (hσ : 0 < σ) (d k : ℕ) (hk : 1 ≤ k)
+    (hδ0 : 0 ≤ δ) (hδ : δ ≤ c1 * δp) (hη0 : 0 ≤ η) (hη : η ≤ c2 * δp) (hδp0 : 0 ≤ δp)
+    (hc1 : 0 ≤ c1) (hc2 : 0 ≤ c2) (hc3 : 0 ≤ c3) (hCf : 0 ≤ Cf)
+    (hD : Cf * δp * Real.sqrt k ≤ 1)
+    (ht : Real.exp (-((k : ℕ) * (2 * Real.pi ^ 2 * σ)) * R / 2)
+        * (1 + Real.sqrt (2 * Real.pi / ((k : ℕ) * (2 * Real.pi ^ 2 * σ)))) ^ d
+      ≤ c3 * δp * heatMu d σ k) :
+    heatEigErr d σ k δ (Cf * δp * Real.sqrt k * heatMu d σ k) R
+        + η * (1 + 2 * (1 + Real.sqrt (Real.pi / ((k : ℕ) * (2 * Real.pi ^ 2 * σ) / 2))) ^ d)
+      ≤ (6 * c1 + Cf + c3 + c2 * (1 + 2 * 2 ^ d)) * δp * Real.sqrt k * heatMu d σ k := by
+  have hpi := Real.pi_pos
+  have hkpos : (0 : ℝ) < k := by exact_mod_cast (by omega : 0 < k)
+  have hsk1 : 1 ≤ Real.sqrt k := by
+    rw [show (1 : ℝ) = Real.sqrt 1 from Real.sqrt_one.symm]
+    exact Real.sqrt_le_sqrt (by exact_mod_cast hk)
+  obtain ⟨y, hy⟩ : ∃ y : ℝ, y = Real.sqrt (Real.pi / ((k : ℕ) * (2 * Real.pi ^ 2 * σ))) := ⟨_, rfl⟩
+  have hy0 : 0 ≤ y := by rw [hy]; exact Real.sqrt_nonneg _
+  obtain ⟨μ, hμ⟩ : ∃ μ : ℝ, μ = heatMu d σ k := ⟨_, rfl⟩
+  have hμeq : μ = (1 + y) ^ d := by
+    rw [hμ, hy]; unfold heatMu heatM
+    rw [if_neg (by omega)]
+    have e : 2 * Real.pi ^ 2 * ((k : ℝ) * σ) = (k : ℝ) * (2 * Real.pi ^ 2 * σ) := by ring
+    rw [e]
+  have hμ1 : 1 ≤ μ := by rw [hμeq]; exact one_le_pow₀ (by linarith)
+  have hS : (1 + Real.sqrt (Real.pi / ((k : ℕ) * (2 * Real.pi ^ 2 * σ) / 2))) ^ d ≤ 2 ^ d * μ := by
+    rw [hμeq, ← mul_pow]
+    refine pow_le_pow_left₀ (by positivity) ?_ d
+    have e : Real.pi / ((k : ℕ) * (2 * Real.pi ^ 2 * σ) / 2)
+        = 2 * (Real.pi / ((k : ℕ) * (2 * Real.pi ^ 2 * σ))) := by field_simp
+    have h2 : Real.sqrt 2 ≤ 2 := Real.sqrt_le_iff.mpr ⟨by norm_num, by norm_num⟩
+    rw [e, Real.sqrt_mul (by norm_num), ← hy]
+    nlinarith [mul_le_mul_of_nonneg_right h2 hy0]
+  rw [← hμ] at ht ⊢
+  have hDμ : Cf * δp * Real.sqrt k * μ ≤ μ := by
+    have := mul_le_mul_of_nonneg_right hD (by linarith : (0 : ℝ) ≤ μ)
+    linarith
+  have hD0 : 0 ≤ Cf * δp * Real.sqrt k * μ := by positivity
+  have hμ0 : 0 ≤ μ := by linarith
+  have hδpμ : 0 ≤ δp * μ := mul_nonneg hδp0 hμ0
+  -- the four pieces
+  have p1 : 3 * δ * ((1 + y) ^ d + Cf * δp * Real.sqrt k * μ) ≤ 6 * c1 * (δp * μ) := by
+    rw [← hμeq]
+    have h1 : 3 * δ * (μ + Cf * δp * Real.sqrt k * μ) ≤ 3 * (c1 * δp) * (2 * μ) :=
+      mul_le_mul (by linarith) (by linarith) (by positivity) (by positivity)
+    linarith
+  have p2 : η * (1 + 2 * (1 + Real.sqrt (Real.pi / ((k : ℕ) * (2 * Real.pi ^ 2 * σ) / 2))) ^ d)
+      ≤ c2 * (1 + 2 * 2 ^ d) * (δp * μ) := by
+    have h1 : 1 + 2 * (1 + Real.sqrt (Real.pi / ((k : ℕ) * (2 * Real.pi ^ 2 * σ) / 2))) ^ d
+        ≤ (1 + 2 * 2 ^ d) * μ := by nlinarith [pow_pos (by norm_num : (0 : ℝ) < 2) d]
+    have h2 : η * (1 + 2 * (1 + Real.sqrt (Real.pi / ((k : ℕ) * (2 * Real.pi ^ 2 * σ) / 2))) ^ d)
+        ≤ c2 * δp * ((1 + 2 * 2 ^ d) * μ) :=
+      mul_le_mul hη h1 (by positivity) (by positivity)
+    linarith
+  have p3 : Cf * δp * Real.sqrt k * μ = Cf * (δp * μ) * Real.sqrt k := by ring
+  have hsmallpieces : (6 * c1 + c3 + c2 * (1 + 2 * 2 ^ d)) * (δp * μ)
+      ≤ (6 * c1 + c3 + c2 * (1 + 2 * 2 ^ d)) * (δp * μ) * Real.sqrt k :=
+    le_mul_of_one_le_right (by positivity) hsk1
+  unfold heatEigErr
+  rw [← hy]
+  have e : (6 * c1 + Cf + c3 + c2 * (1 + 2 * 2 ^ d)) * δp * Real.sqrt k * μ
+      = (6 * c1 + c3 + c2 * (1 + 2 * 2 ^ d)) * (δp * μ) * Real.sqrt k
+        + Cf * (δp * μ) * Real.sqrt k := by ring
+  rw [e]
+  have ht' : Real.exp (-((k : ℕ) * (2 * Real.pi ^ 2 * σ)) * R / 2)
+        * (1 + Real.sqrt (2 * Real.pi / ((k : ℕ) * (2 * Real.pi ^ 2 * σ)))) ^ d
+      ≤ c3 * (δp * μ) := by linarith
+  linarith
+
+/-- **From the error `E ≤ C' δ' √k mu_k` to the closed bound of part (ii).** If
+    `1/2 ≤ k · 2π²σ · r`, then
+    `2 e E/(k σ/2) ≤ 4 e C' δ' √(4π² r/σ) (1 + √(2π r))^d`. -/
+theorem eig_closed_bound {σ r δp C' E : ℝ} (hσ : 0 < σ) (hr : 0 < r) (d k : ℕ) (hk : 1 ≤ k)
+    (hδp0 : 0 ≤ δp) (hC' : 0 ≤ C')
+    (hlo : 1 / 2 ≤ (k : ℝ) * (2 * Real.pi ^ 2 * σ) * r)
+    (hE : E ≤ C' * δp * Real.sqrt k * heatMu d σ k) :
+    2 * Real.exp 1 * E / (k * (σ / 2))
+      ≤ 4 * Real.exp 1 * C' * δp * Real.sqrt (4 * Real.pi ^ 2 * r / σ)
+        * (1 + Real.sqrt (2 * Real.pi * r)) ^ d := by
+  have hpi := Real.pi_pos
+  have hkpos : (0 : ℝ) < k := by exact_mod_cast (by omega : 0 < k)
+  have hsk : 0 < Real.sqrt k := Real.sqrt_pos.mpr hkpos
+  have hsksq : Real.sqrt k * Real.sqrt k = k := Real.mul_self_sqrt hkpos.le
+  have he : 0 < Real.exp 1 := Real.exp_pos 1
+  -- mu_k ≤ (1 + √(2π r))^d
+  have hμ : heatMu d σ k ≤ (1 + Real.sqrt (2 * Real.pi * r)) ^ d := by
+    unfold heatMu heatM
+    rw [if_neg (by omega)]
+    refine pow_le_pow_left₀ (by positivity) ?_ d
+    have : Real.pi / (2 * Real.pi ^ 2 * ((k : ℝ) * σ)) ≤ 2 * Real.pi * r := by
+      rw [div_le_iff₀ (by positivity)]
+      nlinarith [mul_pos hpi hpi]
+    linarith [Real.sqrt_le_sqrt this]
+  have hμ0 : 0 ≤ heatMu d σ k := heatMu_nonneg d σ k
+  -- 1/(√k σ) ≤ √(4π² r/σ)
+  have h1 : 1 / (Real.sqrt k * σ) ≤ Real.sqrt (4 * Real.pi ^ 2 * r / σ) := by
+    apply Real.le_sqrt_of_sq_le
+    rw [div_pow, one_pow, mul_pow, Real.sq_sqrt hkpos.le, div_le_div_iff₀ (by positivity) hσ]
+    nlinarith
+  have hsq0 : 0 ≤ Real.sqrt (4 * Real.pi ^ 2 * r / σ) := Real.sqrt_nonneg _
+  calc 2 * Real.exp 1 * E / (k * (σ / 2))
+      ≤ 2 * Real.exp 1 * (C' * δp * Real.sqrt k * heatMu d σ k) / (k * (σ / 2)) := by
+        apply div_le_div_of_nonneg_right _ (by positivity)
+        exact mul_le_mul_of_nonneg_left hE (by positivity)
+    _ = 4 * Real.exp 1 * C' * δp * heatMu d σ k * (1 / (Real.sqrt k * σ)) := by
+        field_simp
+        rw [Real.sq_sqrt hkpos.le]
+        ring
+    _ ≤ 4 * Real.exp 1 * C' * δp * heatMu d σ k * Real.sqrt (4 * Real.pi ^ 2 * r / σ) :=
+        mul_le_mul_of_nonneg_left h1 (by positivity)
+    _ ≤ 4 * Real.exp 1 * C' * δp * (1 + Real.sqrt (2 * Real.pi * r)) ^ d
+          * Real.sqrt (4 * Real.pi ^ 2 * r / σ) := by
+        refine mul_le_mul_of_nonneg_right ?_ hsq0
+        exact mul_le_mul_of_nonneg_left hμ (by positivity)
+    _ = _ := by ring
+
+set_option maxHeartbeats 1600000 in
+/-- **Eigenvalues of the graph Laplacian on the torus in the closed form of part (ii) of Theorem
+    "eigenvalues on the torus".** In the situation of `heat_eig_lambda_sample`, with numbers
+    `c₁, c₂, c₃` such that `δ ≤ c₁ δ'`, `η ≤ c₂ δ'` and the tail of the Fourier series satisfies
+    `t_k ≤ c₃ δ' mu_k` for `2 ≤ k ≤ K`, and `C' = 6c₁ + C + c₃ + c₂ (1 + 2·2^d)`: except on the same
+    event, simultaneously for all `2 ≤ k ≤ K`, all `r > 0` with `1/2 ≤ k · 2π²σ · r ≤ 1` (that is,
+    `1/2 ≤ k τ λ ≤ 1` for `τ = σ/2`, `λ = 4π² r`) and all indices `j` of the shell: if
+    `2 C' δ' √k mu_k ≤ e^{-1}`, then
+    `|(1 - s_j)/τ - (1 - e^{-τλ})/τ| ≤ 4 e C' δ' √(λ/σ) (1 + √(λ/(2π)))^d`. -/
+theorem heat_eig_closed_sample {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {σ : ℝ} (hσ : 0 < σ) (hσ1 : σ ≤ 1) (d N K : ℕ) [NeZero N]
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (hN12 : 12 ≤ N) (hK : 0 < K) (hKN : K ≤ N)
+    (H : Finset (Fin d → ℤ)) (hH0 : ∀ n ∈ H, n ≠ 0) (hH2 : ∀ m ∈ H, ∀ n ∈ H, m + n ≠ 0)
+    {g : ℕ} (hg : 0 < g)
+    {M Lip δp ε δ η R c1 c2 c3 : ℝ}
+    (hMdef : M = (1 + Real.sqrt (Real.pi / (2 * Real.pi ^ 2 * σ))) ^ d)
+    (hLipdef : Lip = 2 * Real.pi * (2 / (2 * Real.pi ^ 2 * σ))
+      * (1 + Real.sqrt (2 * Real.pi / (2 * Real.pi ^ 2 * σ))) ^ d)
+    (hδp : δp = Real.sqrt (M * Real.log N / N))
+    (hLipc : 2 * Lip ≤ 3 * Real.sqrt (N * M * Real.log N))
+    (hKσ : (K : ℝ) * σ ≤ 1)
+    (hsmall : rateCfin d * δp * Real.sqrt K ≤ 1)
+    (hε : 0 < ε) (hδdef : δ = (ε + 2 * (N * Lip) * (1 / g)) / N) (hδ8 : δ ≤ 1 / 8) (hη0 : 0 ≤ η)
+    (hR : ∀ n : Fin d → ℤ, n ≠ 0 → n ∉ H → -n ∉ H → R ≤ ∑ i, ((n i : ℤ) : ℝ) ^ 2)
+    (hc1 : 0 ≤ c1) (hc2 : 0 ≤ c2) (hc3 : 0 ≤ c3) (hδc : δ ≤ c1 * δp) (hηc : η ≤ c2 * δp)
+    (htail : ∀ k : ℕ, 2 ≤ k → k ≤ K →
+      Real.exp (-((k : ℕ) * (2 * Real.pi ^ 2 * σ)) * R / 2)
+          * (1 + Real.sqrt (2 * Real.pi / ((k : ℕ) * (2 * Real.pi ^ 2 * σ)))) ^ d
+        ≤ c3 * δp * heatMu d σ k) :
+    μ.real {ω | ¬ ∀ k, 2 ≤ k → k ≤ K → ∀ r : ℝ, 0 < r →
+        1 / 2 ≤ (k : ℝ) * (2 * Real.pi ^ 2 * σ) * r → (k : ℝ) * (2 * Real.pi ^ 2 * σ) * r ≤ 1 →
+        ∀ (hS : (symGraph
+            (fun i j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X j ω))
+            (fun i : Fin N =>
+              (∑ l : Fin N, heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X l ω)) / N)).IsHermitian)
+          (j : Fin (Fintype.card (Fin N))),
+          1 + 2 * (H.filter fun n => ∑ i, ((n i : ℤ) : ℝ) ^ 2 < r).card ≤ j.val →
+          j.val ≤ 2 * (H.filter fun n => ∑ i, ((n i : ℤ) : ℝ) ^ 2 ≤ r).card →
+          2 * ((6 * c1 + rateCfin d + c3 + c2 * (1 + 2 * 2 ^ d)) * δp * Real.sqrt k * heatMu d σ k)
+            ≤ Real.exp (-1) →
+          |(1 - hS.eigenvalues₀ j) / (σ / 2)
+              - (1 - Real.exp (-(2 * Real.pi ^ 2 * σ) * r)) / (σ / 2)|
+            ≤ 4 * Real.exp 1 * (6 * c1 + rateCfin d + c3 + c2 * (1 + 2 * 2 ^ d)) * δp
+              * Real.sqrt (4 * Real.pi ^ 2 * r / σ) * (1 + Real.sqrt (2 * Real.pi * r)) ^ d}
+      ≤ 2 / (N : ℝ) ^ 3 + (g : ℝ) ^ d * (2 * Real.exp (-ε ^ 2 / (4 * (N * M) + 2 * M * ε)))
+        + (Fintype.card (modeSet d H) : ℝ) ^ 2 * (2 * Real.exp (-(N * η / 2) ^ 2 / (2 * N))) := by
+  have h := heat_eig_lambda_sample hσ hσ1 d N K X h_indep hX hlaw hN12 hK hKN H hH0 hH2 hg hMdef
+    hLipdef hδp hLipc hKσ hsmall hε hδdef hδ8 hη0 hR
+  refine le_trans (measureReal_mono ?_ (measure_ne_top μ _)) h
+  intro ω hω hlam
+  apply hω
+  intro k hk2 hkK r hr hlo hhi hS j hj1 hj2 hsize
+  have hNpos : (0 : ℝ) < N := by exact_mod_cast (by omega : 0 < N)
+  have hLip0 : 0 ≤ Lip := by rw [hLipdef]; positivity
+  have hδ0 : 0 ≤ δ := by rw [hδdef]; positivity
+  have hδp0 : 0 ≤ δp := by rw [hδp]; exact Real.sqrt_nonneg _
+  have hCf := rateCfin_nonneg d
+  have hC' : 0 ≤ 6 * c1 + rateCfin d + c3 + c2 * (1 + 2 * 2 ^ d) := by positivity
+  have hD : rateCfin d * δp * Real.sqrt k ≤ 1 := by
+    have h1 : Real.sqrt k ≤ Real.sqrt K := Real.sqrt_le_sqrt (by exact_mod_cast hkK)
+    have h2 := mul_le_mul_of_nonneg_left h1 (mul_nonneg hCf hδp0)
+    linarith
+  have hE := eig_err_closed hσ d k (by omega) hδ0 hδc hη0 hηc hδp0 hc1 hc2 hc3 hCf hD
+    (htail k hk2 hkK)
+  have h1 := hlam k hk2 hkK r hr hhi hS j hj1 hj2 (by linarith)
+  exact h1.trans (eig_closed_bound hσ hr d k (by omega) hδp0 hC' hlo hE)
+
+end EigClosed
+
+section EigPaper
+open Matrix
+
+/-- The choice of the step: for `0 < x ≤ 1/2` there is an integer `k ≥ 2` with `1/2 ≤ k x ≤ 1`
+    (namely `k = ⌊1/x⌋`). -/
+theorem exists_step {x : ℝ} (hx0 : 0 < x) (hx : x ≤ 1 / 2) :
+    ∃ k : ℕ, 2 ≤ k ∧ 1 / 2 ≤ (k : ℝ) * x ∧ (k : ℝ) * x ≤ 1 := by
+  refine ⟨⌊1 / x⌋₊, ?_, ?_, ?_⟩
+  · apply Nat.le_floor
+    rw [le_div_iff₀ hx0]; push_cast; linarith
+  · have h2 : 1 / x < (⌊1 / x⌋₊ : ℝ) + 1 := Nat.lt_floor_add_one _
+    rw [div_lt_iff₀ hx0] at h2
+    linarith
+  · have h1 : (⌊1 / x⌋₊ : ℝ) ≤ 1 / x := Nat.floor_le (by positivity)
+    have := mul_le_mul_of_nonneg_right h1 hx0.le
+    rwa [div_mul_cancel₀ _ hx0.ne'] at this
+
+/-- The uniform bound of the kernel at the step chosen for a shell:
+    `mu_k ≤ (1 + √(2π r))^d` if `1/2 ≤ k · 2π²σ · r`. -/
+theorem heatMu_le_shell {σ r : ℝ} (hσ : 0 < σ) (hr : 0 < r) (d k : ℕ) (hk : 1 ≤ k)
+    (hlo : 1 / 2 ≤ (k : ℝ) * (2 * Real.pi ^ 2 * σ) * r) :
+    heatMu d σ k ≤ (1 + Real.sqrt (2 * Real.pi * r)) ^ d := by
+  have hpi := Real.pi_pos
+  have hkpos : (0 : ℝ) < k := by exact_mod_cast (by omega : 0 < k)
+  unfold heatMu heatM
+  rw [if_neg (by omega)]
+  refine pow_le_pow_left₀ (by positivity) ?_ d
+  have : Real.pi / (2 * Real.pi ^ 2 * ((k : ℝ) * σ)) ≤ 2 * Real.pi * r := by
+    rw [div_le_iff₀ (by positivity)]
+    nlinarith [mul_pos hpi hpi]
+  linarith [Real.sqrt_le_sqrt this]
+
+/-- **The tail condition from a condition on the cut-off.** If `e^{-2π²σ R} 2^d ≤ c₃ δ'`, then for
+    every `k ≥ 2` the tail of the Fourier series beyond `|n|² ≥ R` satisfies
+    `t_k ≤ c₃ δ' mu_k`. -/
+theorem tail_closed {σ R c3 δp : ℝ} (hσ : 0 < σ) (d k : ℕ) (hk : 2 ≤ k) (hR0 : 0 ≤ R)
+    (hc3 : 0 ≤ c3 * δp) (h : Real.exp (-(2 * Real.pi ^ 2 * σ) * R) * 2 ^ d ≤ c3 * δp) :
+    Real.exp (-((k : ℕ) * (2 * Real.pi ^ 2 * σ)) * R / 2)
+        * (1 + Real.sqrt (2 * Real.pi / ((k : ℕ) * (2 * Real.pi ^ 2 * σ)))) ^ d
+      ≤ c3 * δp * heatMu d σ k := by
+  have hpi := Real.pi_pos
+  have hk2 : (2 : ℝ) ≤ k := by exact_mod_cast hk
+  have hc : 0 < 2 * Real.pi ^ 2 * σ := by positivity
+  obtain ⟨y, hy⟩ : ∃ y : ℝ, y = Real.sqrt (Real.pi / ((k : ℕ) * (2 * Real.pi ^ 2 * σ))) := ⟨_, rfl⟩
+  have hy0 : 0 ≤ y := by rw [hy]; exact Real.sqrt_nonneg _
+  have hμeq : heatMu d σ k = (1 + y) ^ d := by
+    rw [hy]; unfold heatMu heatM
+    rw [if_neg (by omega)]
+    have e : 2 * Real.pi ^ 2 * ((k : ℝ) * σ) = (k : ℝ) * (2 * Real.pi ^ 2 * σ) := by ring
+    rw [e]
+  have hS : (1 + Real.sqrt (2 * Real.pi / ((k : ℕ) * (2 * Real.pi ^ 2 * σ)))) ^ d
+      ≤ 2 ^ d * heatMu d σ k := by
+    rw [hμeq, ← mul_pow]
+    refine pow_le_pow_left₀ (by positivity) ?_ d
+    have e : 2 * Real.pi / ((k : ℕ) * (2 * Real.pi ^ 2 * σ))
+        = 2 * (Real.pi / ((k : ℕ) * (2 * Real.pi ^ 2 * σ))) := by ring
+    have h2 : Real.sqrt 2 ≤ 2 := Real.sqrt_le_iff.mpr ⟨by norm_num, by norm_num⟩
+    rw [e, Real.sqrt_mul (by norm_num), ← hy]
+    nlinarith [mul_le_mul_of_nonneg_right h2 hy0]
+  have hexp : Real.exp (-((k : ℕ) * (2 * Real.pi ^ 2 * σ)) * R / 2)
+      ≤ Real.exp (-(2 * Real.pi ^ 2 * σ) * R) := by
+    apply Real.exp_le_exp.mpr
+    have := mul_nonneg hc.le hR0
+    nlinarith
+  have hμ0 := heatMu_nonneg d σ k
+  calc Real.exp (-((k : ℕ) * (2 * Real.pi ^ 2 * σ)) * R / 2)
+        * (1 + Real.sqrt (2 * Real.pi / ((k : ℕ) * (2 * Real.pi ^ 2 * σ)))) ^ d
+      ≤ Real.exp (-(2 * Real.pi ^ 2 * σ) * R) * (2 ^ d * heatMu d σ k) :=
+        mul_le_mul hexp hS (by positivity) (Real.exp_pos _).le
+    _ = Real.exp (-(2 * Real.pi ^ 2 * σ) * R) * 2 ^ d * heatMu d σ k := by ring
+    _ ≤ c3 * δp * heatMu d σ k := mul_le_mul_of_nonneg_right h hμ0
+
+/-- **The bias of the eigenvalues of the population walk** (second inequality of part (ii)):
+    `0 ≤ λ - (1 - e^{-τλ})/τ ≤ τ λ²/2` for `τ > 0`, `λ ≥ 0`. -/
+theorem lambda_bias {τ lam : ℝ} (hτ : 0 < τ) (hl : 0 ≤ lam) :
+    0 ≤ lam - (1 - Real.exp (-(τ * lam))) / τ
+      ∧ lam - (1 - Real.exp (-(τ * lam))) / τ ≤ τ * lam ^ 2 / 2 := by
+  obtain ⟨y, hy⟩ : ∃ y : ℝ, y = τ * lam := ⟨_, rfl⟩
+  have hy0 : 0 ≤ y := by rw [hy]; positivity
+  rw [← hy]
+  have h1 : 1 - y ≤ Real.exp (-y) := by have := Real.add_one_le_exp (-y); linarith
+  have h2 : Real.exp (-y) ≤ 1 - y + y ^ 2 / 2 := by
+    have hq := Real.quadratic_le_exp_of_nonneg hy0
+    have hpos : 0 < 1 + y + y ^ 2 / 2 := by positivity
+    rw [Real.exp_neg, inv_eq_one_div, div_le_iff₀ (Real.exp_pos y)]
+    have h3 : 1 ≤ (1 - y + y ^ 2 / 2) * (1 + y + y ^ 2 / 2) := by nlinarith [sq_nonneg (y ^ 2)]
+    have h4 : 0 ≤ 1 - y + y ^ 2 / 2 := by nlinarith [sq_nonneg (y - 1)]
+    nlinarith [mul_le_mul_of_nonneg_left hq h4]
+  have e : lam = y / τ := by rw [hy]; field_simp
+  constructor
+  · rw [e, ← sub_div]
+    apply div_nonneg _ hτ.le
+    linarith
+  · rw [e, ← sub_div, div_le_iff₀ hτ]
+    have e2 : τ * (y / τ) ^ 2 / 2 * τ = y ^ 2 / 2 := by field_simp
+    rw [e2]
+    linarith
+
+set_option maxHeartbeats 1600000 in
+/-- **Eigenvalues of the graph Laplacian on the torus, part (ii) without a hypothesis on the
+    step.** In the situation of `heat_eig_closed_sample`, with the tail condition replaced by the
+    condition `e^{-2π²σ R} 2^d ≤ c₃ δ'` on the cut-off `R ≥ 0` of `H`: except on the same event,
+    simultaneously for all `r > 0` with `2π²σ r ≤ 1/2` and `1 ≤ K · 2π²σ · r` (that is, `τλ ≤ 1/2` and
+    `Kτλ ≥ 1` for `τ = σ/2`, `λ = 4π² r`) and all indices `j` of the shell: if
+    `2 C' δ' (1 + √(2π r))^d ≤ e^{-1} √(2π²σ r)`, then
+    `|(1 - s_j)/τ - (1 - e^{-τλ})/τ| ≤ 4 e C' δ' √(λ/σ) (1 + √(λ/(2π)))^d`. -/
+theorem heat_eig_paper_sample {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {σ : ℝ} (hσ : 0 < σ) (hσ1 : σ ≤ 1) (d N K : ℕ) [NeZero N]
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (hN12 : 12 ≤ N) (hK : 0 < K) (hKN : K ≤ N)
+    (H : Finset (Fin d → ℤ)) (hH0 : ∀ n ∈ H, n ≠ 0) (hH2 : ∀ m ∈ H, ∀ n ∈ H, m + n ≠ 0)
+    {g : ℕ} (hg : 0 < g)
+    {M Lip δp ε δ η R c1 c2 c3 : ℝ}
+    (hMdef : M = (1 + Real.sqrt (Real.pi / (2 * Real.pi ^ 2 * σ))) ^ d)
+    (hLipdef : Lip = 2 * Real.pi * (2 / (2 * Real.pi ^ 2 * σ))
+      * (1 + Real.sqrt (2 * Real.pi / (2 * Real.pi ^ 2 * σ))) ^ d)
+    (hδp : δp = Real.sqrt (M * Real.log N / N))
+    (hLipc : 2 * Lip ≤ 3 * Real.sqrt (N * M * Real.log N))
+    (hKσ : (K : ℝ) * σ ≤ 1)
+    (hsmall : rateCfin d * δp * Real.sqrt K ≤ 1)
+    (hε : 0 < ε) (hδdef : δ = (ε + 2 * (N * Lip) * (1 / g)) / N) (hδ8 : δ ≤ 1 / 8) (hη0 : 0 ≤ η)
+    (hR : ∀ n : Fin d → ℤ, n ≠ 0 → n ∉ H → -n ∉ H → R ≤ ∑ i, ((n i : ℤ) : ℝ) ^ 2)
+    (hc1 : 0 ≤ c1) (hc2 : 0 ≤ c2) (hc3 : 0 ≤ c3) (hδc : δ ≤ c1 * δp) (hηc : η ≤ c2 * δp)
+    (hR0 : 0 ≤ R) (htail : Real.exp (-(2 * Real.pi ^ 2 * σ) * R) * 2 ^ d ≤ c3 * δp) :
+    μ.real {ω | ¬ ∀ r : ℝ, 0 < r → (2 * Real.pi ^ 2 * σ) * r ≤ 1 / 2 →
+        1 ≤ (K : ℝ) * ((2 * Real.pi ^ 2 * σ) * r) →
+        ∀ (hS : (symGraph
+            (fun i j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X j ω))
+            (fun i : Fin N =>
+              (∑ l : Fin N, heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X l ω)) / N)).IsHermitian)
+          (j : Fin (Fintype.card (Fin N))),
+          1 + 2 * (H.filter fun n => ∑ i, ((n i : ℤ) : ℝ) ^ 2 < r).card ≤ j.val →
+          j.val ≤ 2 * (H.filter fun n => ∑ i, ((n i : ℤ) : ℝ) ^ 2 ≤ r).card →
+          2 * ((6 * c1 + rateCfin d + c3 + c2 * (1 + 2 * 2 ^ d)) * δp)
+              * (1 + Real.sqrt (2 * Real.pi * r)) ^ d
+            ≤ Real.exp (-1) * Real.sqrt ((2 * Real.pi ^ 2 * σ) * r) →
+          |(1 - hS.eigenvalues₀ j) / (σ / 2)
+              - (1 - Real.exp (-(2 * Real.pi ^ 2 * σ) * r)) / (σ / 2)|
+            ≤ 4 * Real.exp 1 * (6 * c1 + rateCfin d + c3 + c2 * (1 + 2 * 2 ^ d)) * δp
+              * Real.sqrt (4 * Real.pi ^ 2 * r / σ) * (1 + Real.sqrt (2 * Real.pi * r)) ^ d}
+      ≤ 2 / (N : ℝ) ^ 3 + (g : ℝ) ^ d * (2 * Real.exp (-ε ^ 2 / (4 * (N * M) + 2 * M * ε)))
+        + (Fintype.card (modeSet d H) : ℝ) ^ 2 * (2 * Real.exp (-(N * η / 2) ^ 2 / (2 * N))) := by
+  have hδp0 : 0 ≤ δp := by rw [hδp]; exact Real.sqrt_nonneg _
+  have h := heat_eig_closed_sample hσ hσ1 d N K X h_indep hX hlaw hN12 hK hKN H hH0 hH2 hg hMdef
+    hLipdef hδp hLipc hKσ hsmall hε hδdef hδ8 hη0 hR hc1 hc2 hc3 hδc hηc
+    (fun k hk2 _ => tail_closed hσ d k hk2 hR0 (mul_nonneg hc3 hδp0) htail)
+  refine le_trans (measureReal_mono ?_ (measure_ne_top μ _)) h
+  intro ω hω hclosed
+  apply hω
+  intro r hr hx hKx hS j hj1 hj2 hsize
+  have hc : 0 < 2 * Real.pi ^ 2 * σ := by positivity
+  have hx0 : 0 < (2 * Real.pi ^ 2 * σ) * r := mul_pos hc hr
+  obtain ⟨k, hk2, hlo, hhi⟩ := exists_step hx0 hx
+  have hkpos : (0 : ℝ) < k := by exact_mod_cast (by omega : 0 < k)
+  have hkK : k ≤ K := by
+    have : (k : ℝ) * ((2 * Real.pi ^ 2 * σ) * r) ≤ (K : ℝ) * ((2 * Real.pi ^ 2 * σ) * r) := by
+      linarith
+    have h2 : (k : ℝ) ≤ K := le_of_mul_le_mul_right this hx0
+    exact_mod_cast h2
+  have hlo' : 1 / 2 ≤ (k : ℝ) * (2 * Real.pi ^ 2 * σ) * r := by rw [mul_assoc]; exact hlo
+  have hhi' : (k : ℝ) * (2 * Real.pi ^ 2 * σ) * r ≤ 1 := by rw [mul_assoc]; exact hhi
+  have hCf := rateCfin_nonneg d
+  have hC' : 0 ≤ 6 * c1 + rateCfin d + c3 + c2 * (1 + 2 * 2 ^ d) := by positivity
+  -- the size condition at the chosen step
+  have hμ := heatMu_le_shell hσ hr d k (by omega) hlo'
+  have hμ0 := heatMu_nonneg d σ k
+  have hsx : 0 < Real.sqrt ((2 * Real.pi ^ 2 * σ) * r) := Real.sqrt_pos.mpr hx0
+  have hsk : Real.sqrt k * Real.sqrt ((2 * Real.pi ^ 2 * σ) * r) ≤ 1 := by
+    rw [← Real.sqrt_mul hkpos.le, show (1 : ℝ) = Real.sqrt 1 from Real.sqrt_one.symm]
+    exact Real.sqrt_le_sqrt hhi
+  have hsize' : 2 * ((6 * c1 + rateCfin d + c3 + c2 * (1 + 2 * 2 ^ d)) * δp * Real.sqrt k
+      * heatMu d σ k) ≤ Real.exp (-1) := by
+    have hA0 : 0 ≤ 2 * ((6 * c1 + rateCfin d + c3 + c2 * (1 + 2 * 2 ^ d)) * δp) := by positivity
+    have h1 : 2 * ((6 * c1 + rateCfin d + c3 + c2 * (1 + 2 * 2 ^ d)) * δp) * heatMu d σ k
+        ≤ Real.exp (-1) * Real.sqrt ((2 * Real.pi ^ 2 * σ) * r) :=
+      (mul_le_mul_of_nonneg_left hμ hA0).trans hsize
+    have h2 : 2 * ((6 * c1 + rateCfin d + c3 + c2 * (1 + 2 * 2 ^ d)) * δp) * heatMu d σ k
+          * Real.sqrt k
+        ≤ Real.exp (-1) * Real.sqrt ((2 * Real.pi ^ 2 * σ) * r) * Real.sqrt k :=
+      mul_le_mul_of_nonneg_right h1 (Real.sqrt_nonneg _)
+    have h3 : Real.exp (-1) * Real.sqrt ((2 * Real.pi ^ 2 * σ) * r) * Real.sqrt k
+        ≤ Real.exp (-1) * 1 := by
+      have hsk' : Real.sqrt ((2 * Real.pi ^ 2 * σ) * r) * Real.sqrt k ≤ 1 := by
+        rw [mul_comm]; exact hsk
+      rw [mul_assoc]
+      exact mul_le_mul_of_nonneg_left hsk' (Real.exp_pos _).le
+    linarith
+  exact hclosed k hk2 hkK r hr hlo' hhi' hS j hj1 hj2 hsize'
+
+end EigPaper
+
+section KernelM
+open Matrix
+
+/-- The periodised Gaussian at the origin is at least its main term. -/
+theorem perGauss_zero_ge {c : ℝ} (hc : 0 < c) : 1 / (c / Real.pi) ^ (1 / 2 : ℝ) ≤ perGauss c 0 := by
+  have ha : 0 < c / Real.pi := div_pos hc Real.pi_pos
+  have hb : 0 < Real.pi / (c / Real.pi) := div_pos Real.pi_pos ha
+  unfold perGauss
+  have e : (fun n : ℤ => Real.exp (-Real.pi / (c / Real.pi) * ((n : ℝ) - 0) ^ 2))
+      = fun n : ℤ => Real.exp (-(Real.pi / (c / Real.pi)) * ((n : ℝ) - 0) ^ 2) := by
+    funext n; congr 1; ring
+  have hsum : Summable fun n : ℤ => Real.exp (-Real.pi / (c / Real.pi) * ((n : ℝ) - 0) ^ 2) := by
+    rw [e]; exact gauss_shift_summable hb 0
+  have h1 : (1 : ℝ) ≤ ∑' n : ℤ, Real.exp (-Real.pi / (c / Real.pi) * ((n : ℝ) - 0) ^ 2) := by
+    have h := hsum.le_tsum 0 (fun n _ => (Real.exp_pos _).le)
+    simpa using h
+  exact le_mul_of_one_le_right (by positivity) h1
+
+/-- The heat kernel of the torus at the origin is at least `(c/π)^{-d/2}`. -/
+theorem heatTorus_zero_ge {c : ℝ} (hc : 0 < c) (d : ℕ) :
+    (1 / (c / Real.pi) ^ (1 / 2 : ℝ)) ^ d ≤ heatTorus d c 0 := by
+  have e : (0 : FlatTorus d) = fun i => (((fun _ : Fin d => (0 : ℝ)) i : ℝ) : UnitAddCircle) := by
+    funext i; simp
+  rw [e, heatTorus_eq_prod hc d (fun _ => 0), Finset.prod_const, Finset.card_univ,
+    Fintype.card_fin]
+  have hpi := Real.pi_pos
+  exact pow_le_pow_left₀ (by positivity) (perGauss_zero_ge hc) d
+
+/-- **The uniform bound of the kernel against its value at the origin:** for `k σ ≤ 1`,
+    `mu_k ≤ (1 + √(2π))^d p_{kσ}(0)`. -/
+theorem heatMu_le_m {σ : ℝ} (hσ : 0 < σ) (d k : ℕ) (hk : 1 ≤ k) (hkσ : (k : ℝ) * σ ≤ 1) :
+    heatMu d σ k
+      ≤ (1 + Real.sqrt (2 * Real.pi)) ^ d * heatTorus d (2 * Real.pi ^ 2 * ((k : ℝ) * σ)) 0 := by
+  have hpi := Real.pi_pos
+  have hkpos : (0 : ℝ) < k := by exact_mod_cast (by omega : 0 < k)
+  have hc : 0 < 2 * Real.pi ^ 2 * ((k : ℝ) * σ) := by positivity
+  obtain ⟨v, hv⟩ : ∃ v : ℝ, v = 2 * Real.pi * ((k : ℝ) * σ) := ⟨_, rfl⟩
+  have hv0 : 0 < v := by rw [hv]; positivity
+  have hv1 : v ≤ 2 * Real.pi := by rw [hv]; nlinarith
+  have hsv : 0 < Real.sqrt v := Real.sqrt_pos.mpr hv0
+  have hsv1 : Real.sqrt v ≤ Real.sqrt (2 * Real.pi) := Real.sqrt_le_sqrt hv1
+  have e1 : 2 * Real.pi ^ 2 * ((k : ℝ) * σ) / Real.pi = v := by rw [hv]; field_simp
+  have e2 : Real.pi / (2 * Real.pi ^ 2 * ((k : ℝ) * σ)) = 1 / v := by rw [hv]; field_simp
+  have h0 := heatTorus_zero_ge hc d
+  rw [e1, ← Real.sqrt_eq_rpow] at h0
+  unfold heatMu heatM
+  rw [if_neg (by omega), e2, Real.sqrt_div (by norm_num), Real.sqrt_one]
+  have hstep : 1 + 1 / Real.sqrt v ≤ (1 + Real.sqrt (2 * Real.pi)) * (1 / Real.sqrt v) := by
+    rw [mul_one_div, le_div_iff₀ hsv]
+    have : (1 + 1 / Real.sqrt v) * Real.sqrt v = Real.sqrt v + 1 := by field_simp
+    rw [this]; linarith
+  calc (1 + 1 / Real.sqrt v) ^ d ≤ ((1 + Real.sqrt (2 * Real.pi)) * (1 / Real.sqrt v)) ^ d :=
+        pow_le_pow_left₀ (by positivity) hstep d
+    _ = (1 + Real.sqrt (2 * Real.pi)) ^ d * (1 / Real.sqrt v) ^ d := mul_pow _ _ _
+    _ ≤ _ := mul_le_mul_of_nonneg_left h0 (by positivity)
+
+set_option maxHeartbeats 1600000 in
+/-- **Theorem "kernel" in the form `D_k ≤ C δ' √k m_k` with `m_k = p_{kσ}(0)`.** As
+    `heat_kernel_rate_paper`, with the value of the kernel at the origin in place of the uniform
+    bound `mu_k`, at the cost of the factor `(1 + √(2π))^d`. -/
+theorem heat_kernel_rate_paper_m {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {σ : ℝ} (hσ : 0 < σ) (hσ1 : σ ≤ 1) (d : ℕ)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (N K : ℕ) (hN12 : 12 ≤ N) (hK : 0 < K)
+    (hKN : K ≤ N)
+    {M Lip δp : ℝ} (hMdef : M = (1 + Real.sqrt (Real.pi / (2 * Real.pi ^ 2 * σ))) ^ d)
+    (hLipdef : Lip = 2 * Real.pi * (2 / (2 * Real.pi ^ 2 * σ))
+      * (1 + Real.sqrt (2 * Real.pi / (2 * Real.pi ^ 2 * σ))) ^ d)
+    (hδp : δp = Real.sqrt (M * Real.log N / N))
+    (hLipc : 2 * Lip ≤ 3 * Real.sqrt (N * M * Real.log N))
+    (hKσ : (K : ℝ) * σ ≤ 1)
+    (hsmall : rateCfin d * δp * Real.sqrt K ≤ 1) :
+    μ.real {ω | ¬ ∀ k, 2 ≤ k → k ≤ K → ∀ a i : Fin N,
+        |(N : ℝ) * ((walkMatrix
+              (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X a ω - X j ω))
+              (fun a : Fin N => heatRho d σ N (fun j => X j ω) a)) ^ k) a i
+            - heatP d σ k (X a ω - X i ω)|
+          ≤ rateCfin d * (1 + Real.sqrt (2 * Real.pi)) ^ d * δp * Real.sqrt k
+            * heatTorus d (2 * Real.pi ^ 2 * ((k : ℝ) * σ)) 0}
+      ≤ 2 / (N : ℝ) ^ 3 := by
+  have h := heat_kernel_rate_paper hσ hσ1 d X h_indep hX hlaw N K hN12 hK hKN hMdef hLipdef hδp
+    hLipc hKσ hsmall
+  refine le_trans (measureReal_mono ?_ (measure_ne_top μ _)) h
+  intro ω hω hgood
+  apply hω
+  intro k hk2 hkK a i
+  have hδp0 : 0 ≤ δp := by rw [hδp]; exact Real.sqrt_nonneg _
+  have hkσ : (k : ℝ) * σ ≤ 1 := by
+    have : (k : ℝ) ≤ K := by exact_mod_cast hkK
+    nlinarith
+  have hμ := heatMu_le_m hσ d k (by omega) hkσ
+  have hC0 : 0 ≤ rateCfin d * δp * Real.sqrt k :=
+    mul_nonneg (mul_nonneg (rateCfin_nonneg d) hδp0) (Real.sqrt_nonneg _)
+  calc _ ≤ rateCfin d * δp * Real.sqrt k * heatMu d σ k := hgood k hk2 hkK a i
+    _ ≤ rateCfin d * δp * Real.sqrt k * ((1 + Real.sqrt (2 * Real.pi)) ^ d
+          * heatTorus d (2 * Real.pi ^ 2 * ((k : ℝ) * σ)) 0) :=
+        mul_le_mul_of_nonneg_left hμ hC0
+    _ = _ := by ring
+
+end KernelM
+
+section EigParams
+open Matrix
+
+set_option maxHeartbeats 1600000 in
+/-- **The choice of the normalisation parameters.** With the grid parameter `g = N`,
+    `T = log((2 + 4K) · 2 N^d · N³)` and the tolerance `ε = 3 √(N M T)`: if `12 ≤ N`, `1 ≤ K ≤ N`,
+    `2 Lip ≤ 3 √(N M log N)` and `48 √(d+5) δ' ≤ 1`, then `ε > 0`, the normalisation error
+    `δ = (ε + 2 N Lip/N)/N` is at most `6 √(d+5) δ'` and at most `1/8`, and the probability term of the
+    normalisation event is at most `1/N³`. -/
+theorem param_choice (d N K : ℕ) (hN12 : 12 ≤ N) (hK : 0 < K) (hKN : K ≤ N) {M Lip δp ε : ℝ}
+    (hM : 0 < M) (hLip0 : 0 ≤ Lip) (hδp : δp = Real.sqrt (M * Real.log N / N))
+    (hLipc : 2 * Lip ≤ 3 * Real.sqrt (N * M * Real.log N))
+    (h48 : 48 * Real.sqrt ((d : ℝ) + 5) * δp ≤ 1)
+    (hε : ε = 3 * Real.sqrt (N * M
+      * Real.log ((2 + 4 * K) * (2 * ((N : ℕ) : ℝ) ^ d) * (N : ℝ) ^ 3))) :
+    0 < ε
+      ∧ (ε + 2 * (N * Lip) * (1 / ((N : ℕ) : ℝ))) / N ≤ 6 * Real.sqrt ((d : ℝ) + 5) * δp
+      ∧ (ε + 2 * (N * Lip) * (1 / ((N : ℕ) : ℝ))) / N ≤ 1 / 8
+      ∧ ((N : ℕ) : ℝ) ^ d * (2 * Real.exp (-ε ^ 2 / (4 * (N * M) + 2 * M * ε)))
+          ≤ 1 / (N : ℝ) ^ 3 := by
+  have hNr : (12 : ℝ) ≤ N := by exact_mod_cast hN12
+  have hNpos : (0 : ℝ) < N := by linarith
+  have hK1 : (1 : ℝ) ≤ K := by exact_mod_cast hK
+  have hKr : (K : ℝ) ≤ N := by exact_mod_cast hKN
+  obtain ⟨lg, hlg⟩ : ∃ lg : ℝ, lg = Real.log N := ⟨_, rfl⟩
+  have hlg1 : 1 ≤ lg := by
+    rw [hlg, Real.le_log_iff_exp_le hNpos]
+    have h1 : (1 / 2 : ℝ) ≤ Real.exp (-(1 / 2)) := by
+      have := Real.add_one_le_exp (-(1 / 2) : ℝ); linarith
+    have h2 : Real.exp (1 / 2) * Real.exp (-(1 / 2)) = 1 := by rw [← Real.exp_add]; norm_num
+    have h3 : Real.exp (1 / 2) ≤ 2 := by nlinarith [Real.exp_pos (1 / 2 : ℝ)]
+    have h4 : Real.exp 1 = Real.exp (1 / 2) * Real.exp (1 / 2) := by
+      rw [← Real.exp_add]; norm_num
+    nlinarith [Real.exp_pos (1 / 2 : ℝ)]
+  rw [← hlg] at hδp hLipc
+  obtain ⟨A, hA⟩ : ∃ A : ℝ, A = (2 + 4 * (K : ℝ)) * (2 * (N : ℝ) ^ d) * (N : ℝ) ^ 3 := ⟨_, rfl⟩
+  obtain ⟨T, hT⟩ : ∃ T : ℝ, T = Real.log A := ⟨_, rfl⟩
+  have hNd : (1 : ℝ) ≤ (N : ℝ) ^ d := one_le_pow₀ (by linarith)
+  have hApos : 0 < A := by rw [hA]; positivity
+  have hTle : T ≤ ((d : ℝ) + 5) * lg := by
+    have h1 : (2 + 4 * (K : ℝ)) * 2 ≤ (N : ℝ) ^ 2 := by nlinarith
+    have h2 : A ≤ (N : ℝ) ^ (d + 5) := by
+      rw [hA]
+      calc (2 + 4 * (K : ℝ)) * (2 * (N : ℝ) ^ d) * (N : ℝ) ^ 3
+          = ((2 + 4 * (K : ℝ)) * 2) * ((N : ℝ) ^ d * (N : ℝ) ^ 3) := by ring
+        _ ≤ (N : ℝ) ^ 2 * ((N : ℝ) ^ d * (N : ℝ) ^ 3) :=
+            mul_le_mul_of_nonneg_right h1 (by positivity)
+        _ = (N : ℝ) ^ (d + 5) := by ring
+    rw [hT, hlg]
+    calc Real.log A ≤ Real.log ((N : ℝ) ^ (d + 5)) := Real.log_le_log hApos h2
+      _ = ((d : ℝ) + 5) * Real.log N := by rw [Real.log_pow]; push_cast; ring
+  have hTge : lg ≤ T := by
+    rw [hT, hlg]
+    refine Real.log_le_log hNpos ?_
+    have h3 : (N : ℝ) ≤ (N : ℝ) ^ 3 := by nlinarith [sq_nonneg ((N : ℝ) - 1), sq_nonneg (N : ℝ)]
+    have h12 : (12 : ℝ) ≤ (2 + 4 * K) * (2 * (N : ℝ) ^ d) := by nlinarith
+    have h13 := mul_le_mul_of_nonneg_right h12 (by positivity : (0 : ℝ) ≤ (N : ℝ) ^ 3)
+    rw [hA]; linarith
+  have hTpos : 0 < T := by linarith
+  have hεeq : ε = 3 * Real.sqrt (N * M * T) := by rw [hε, hT, hA]
+  obtain ⟨Q, hQ⟩ : ∃ Q : ℝ, Q = Real.sqrt (N * M * lg) := ⟨_, rfl⟩
+  have hδp0 : 0 ≤ δp := by rw [hδp]; exact Real.sqrt_nonneg _
+  have hQeq : Q = δp * N := by
+    have hsq : (δp * N) ^ 2 = N * M * lg := by
+      rw [mul_pow, hδp, Real.sq_sqrt (by positivity)]; field_simp
+    rw [hQ, ← hsq, Real.sqrt_sq (by positivity)]
+  obtain ⟨Aa, hAa⟩ : ∃ Aa : ℝ, Aa = Real.sqrt ((d : ℝ) + 5) := ⟨_, rfl⟩
+  rw [← hAa] at h48 ⊢
+  have hAa0 : 0 ≤ Aa := by rw [hAa]; exact Real.sqrt_nonneg _
+  have hsqT : Real.sqrt (N * M * T) ≤ Aa * Q := by
+    rw [hAa, hQ, ← Real.sqrt_mul (by positivity)]
+    apply Real.sqrt_le_sqrt
+    have := mul_le_mul_of_nonneg_left hTle (by positivity : (0 : ℝ) ≤ N * M)
+    exact this.trans (le_of_eq (by ring))
+  have hsqTge : Q ≤ Real.sqrt (N * M * T) := by
+    rw [hQ]; exact Real.sqrt_le_sqrt (mul_le_mul_of_nonneg_left hTge (by positivity))
+  have hsq : 0 < Real.sqrt (N * M * T) := Real.sqrt_pos.mpr (by positivity)
+  have hεpos : 0 < ε := by rw [hεeq]; positivity
+  have he : 2 * ((N : ℝ) * Lip) * (1 / (N : ℝ)) = 2 * Lip := by field_simp
+  have hnum : ε + 2 * Lip ≤ 6 * Aa * δp * N := by
+    calc ε + 2 * Lip ≤ 3 * Real.sqrt (N * M * T) + 3 * Q := by rw [hεeq, hQ]; linarith
+      _ ≤ 6 * Real.sqrt (N * M * T) := by linarith
+      _ ≤ 6 * (Aa * Q) := by linarith
+      _ = 6 * Aa * δp * N := by rw [hQeq]; ring
+  have hδle : (ε + 2 * ((N : ℝ) * Lip) * (1 / (N : ℝ))) / N ≤ 6 * Aa * δp := by
+    rw [he, div_le_iff₀ hNpos]; exact hnum
+  have hεN : ε ≤ 5 * N / 2 := by
+    have h1 : ε ≤ 6 * Aa * δp * N := by linarith
+    have h2 : 6 * Aa * δp * N ≤ N / 8 := by
+      have := mul_le_mul_of_nonneg_right h48 hNpos.le
+      linarith
+    linarith
+  have hε2 : ε ^ 2 = 9 * (N * M * T) := by
+    rw [hεeq, mul_pow, Real.sq_sqrt (by positivity)]; norm_num
+  have hD : 0 < 4 * (N * M) + 2 * M * ε := by positivity
+  have hTcond : T * (4 * (N * M) + 2 * M * ε) ≤ ε ^ 2 := by
+    rw [hε2]
+    have hMT : 0 ≤ M * T := by positivity
+    have h1 : 2 * M * ε * T ≤ 5 * (N * M * T) := by
+      nlinarith [mul_le_mul_of_nonneg_left hεN hMT]
+    nlinarith
+  have he1 : Real.exp (-ε ^ 2 / (4 * (N * M) + 2 * M * ε)) ≤ 1 / A := by
+    have h1 : -ε ^ 2 / (4 * (N * M) + 2 * M * ε) ≤ -Real.log A := by
+      rw [neg_div, neg_le_neg_iff, le_div_iff₀ hD, ← hT]; exact hTcond
+    calc Real.exp (-ε ^ 2 / (4 * (N * M) + 2 * M * ε)) ≤ Real.exp (-Real.log A) :=
+          Real.exp_le_exp.mpr h1
+      _ = 1 / A := by rw [Real.exp_neg, Real.exp_log hApos, one_div]
+  refine ⟨hεpos, hδle, ?_, ?_⟩
+  · have := mul_le_mul_of_nonneg_left h48 (by norm_num : (0 : ℝ) ≤ 1 / 8)
+    linarith
+  · calc ((N : ℕ) : ℝ) ^ d * (2 * Real.exp (-ε ^ 2 / (4 * (N * M) + 2 * M * ε)))
+        ≤ (N : ℝ) ^ d * (2 * (1 / A)) := by
+          refine mul_le_mul_of_nonneg_left ?_ (by positivity)
+          linarith
+      _ = 1 / ((2 + 4 * (K : ℝ)) * (N : ℝ) ^ 3) := by rw [hA]; field_simp
+      _ ≤ 1 / (N : ℝ) ^ 3 := by
+          apply one_div_le_one_div_of_le (by positivity)
+          have : (0 : ℝ) < (N : ℝ) ^ 3 := by positivity
+          nlinarith
+
+theorem rateCfin_ge (d : ℕ) : 48 * Real.sqrt ((d : ℝ) + 5) ≤ rateCfin d := by
+  have hc := cvConst_nonneg
+  have hCK0 : 0 ≤ rateCK d := by unfold rateCK; positivity
+  have hRB0 : 0 ≤ rateRB d := Real.sqrt_nonneg _
+  have hmax : 0 ≤ max
+      (2 * (3 * (9 / 8) * ((5 / 4) * (16 * (rateCK d + 1) + 2 * Real.sqrt 7 * rateRA d)
+        + 12 * Real.sqrt ((d : ℝ) + 5) * rateRA d)))
+      (3 * ((5 / 4) * (16 * (rateCK d + 1) + 2 * Real.sqrt 7 * rateRB d)
+        + 12 * Real.sqrt ((d : ℝ) + 5) * rateRB d)) :=
+    le_max_of_le_right (by positivity)
+  unfold rateCfin
+  have : 0 ≤ 3 * 2 ^ d * max
+      (2 * (3 * (9 / 8) * ((5 / 4) * (16 * (rateCK d + 1) + 2 * Real.sqrt 7 * rateRA d)
+        + 12 * Real.sqrt ((d : ℝ) + 5) * rateRA d)))
+      (3 * ((5 / 4) * (16 * (rateCK d + 1) + 2 * Real.sqrt 7 * rateRB d)
+        + 12 * Real.sqrt ((d : ℝ) + 5) * rateRB d)) := by positivity
+  linarith
+
+set_option maxHeartbeats 1600000 in
+/-- **Eigenvalues of the graph Laplacian on the torus, part (ii), with the normalisation parameters
+    chosen.** As `heat_eig_paper_sample` with the grid parameter `g = N` and the tolerance
+    `ε = 3 √(N M T)`: the normalisation error satisfies `δ ≤ 6 √(d+5) δ'` (so `c₁ = 6 √(d+5)` is no
+    longer a hypothesis) and the probability of the normalisation event is at most `1/N³`. The
+    remaining hypotheses on numbers are `η ≤ c₂ δ'` (tolerance of the Gram matrix) and the condition
+    `e^{-2π²σ R} 2^d ≤ c₃ δ'` on the cut-off of `H`. -/
+theorem heat_eig_paper_sample_N {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {σ : ℝ} (hσ : 0 < σ) (hσ1 : σ ≤ 1) (d N K : ℕ) [NeZero N]
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (hN12 : 12 ≤ N) (hK : 0 < K) (hKN : K ≤ N)
+    (H : Finset (Fin d → ℤ)) (hH0 : ∀ n ∈ H, n ≠ 0) (hH2 : ∀ m ∈ H, ∀ n ∈ H, m + n ≠ 0)
+    {M Lip δp η R c2 c3 : ℝ}
+    (hMdef : M = (1 + Real.sqrt (Real.pi / (2 * Real.pi ^ 2 * σ))) ^ d)
+    (hLipdef : Lip = 2 * Real.pi * (2 / (2 * Real.pi ^ 2 * σ))
+      * (1 + Real.sqrt (2 * Real.pi / (2 * Real.pi ^ 2 * σ))) ^ d)
+    (hδp : δp = Real.sqrt (M * Real.log N / N))
+    (hLipc : 2 * Lip ≤ 3 * Real.sqrt (N * M * Real.log N))
+    (hKσ : (K : ℝ) * σ ≤ 1)
+    (hsmall : rateCfin d * δp * Real.sqrt K ≤ 1)
+    (hη0 : 0 ≤ η)
+    (hR : ∀ n : Fin d → ℤ, n ≠ 0 → n ∉ H → -n ∉ H → R ≤ ∑ i, ((n i : ℤ) : ℝ) ^ 2)
+    (hc2 : 0 ≤ c2) (hc3 : 0 ≤ c3) (hηc : η ≤ c2 * δp)
+    (hR0 : 0 ≤ R) (htail : Real.exp (-(2 * Real.pi ^ 2 * σ) * R) * 2 ^ d ≤ c3 * δp) :
+    μ.real {ω | ¬ ∀ r : ℝ, 0 < r → (2 * Real.pi ^ 2 * σ) * r ≤ 1 / 2 →
+        1 ≤ (K : ℝ) * ((2 * Real.pi ^ 2 * σ) * r) →
+        ∀ (hS : (symGraph
+            (fun i j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X j ω))
+            (fun i : Fin N =>
+              (∑ l : Fin N, heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X l ω)) / N)).IsHermitian)
+          (j : Fin (Fintype.card (Fin N))),
+          1 + 2 * (H.filter fun n => ∑ i, ((n i : ℤ) : ℝ) ^ 2 < r).card ≤ j.val →
+          j.val ≤ 2 * (H.filter fun n => ∑ i, ((n i : ℤ) : ℝ) ^ 2 ≤ r).card →
+          2 * ((6 * (6 * Real.sqrt ((d : ℝ) + 5)) + rateCfin d + c3 + c2 * (1 + 2 * 2 ^ d)) * δp)
+              * (1 + Real.sqrt (2 * Real.pi * r)) ^ d
+            ≤ Real.exp (-1) * Real.sqrt ((2 * Real.pi ^ 2 * σ) * r) →
+          |(1 - hS.eigenvalues₀ j) / (σ / 2)
+              - (1 - Real.exp (-(2 * Real.pi ^ 2 * σ) * r)) / (σ / 2)|
+            ≤ 4 * Real.exp 1 * (6 * (6 * Real.sqrt ((d : ℝ) + 5)) + rateCfin d + c3 + c2 * (1 + 2 * 2 ^ d)) * δp
+              * Real.sqrt (4 * Real.pi ^ 2 * r / σ) * (1 + Real.sqrt (2 * Real.pi * r)) ^ d}
+      ≤ 2 / (N : ℝ) ^ 3 + 1 / (N : ℝ) ^ 3
+        + (Fintype.card (modeSet d H) : ℝ) ^ 2 * (2 * Real.exp (-(N * η / 2) ^ 2 / (2 * N))) := by
+  have hN : 0 < N := by omega
+  have hMpos : 0 < M := by rw [hMdef]; positivity
+  have hLip0 : 0 ≤ Lip := by rw [hLipdef]; positivity
+  have hδp0 : 0 ≤ δp := by rw [hδp]; exact Real.sqrt_nonneg _
+  have hsK1 : 1 ≤ Real.sqrt K := by
+    rw [show (1 : ℝ) = Real.sqrt 1 from Real.sqrt_one.symm]
+    exact Real.sqrt_le_sqrt (by exact_mod_cast hK)
+  have h48 : 48 * Real.sqrt ((d : ℝ) + 5) * δp ≤ 1 := by
+    have h1 : 48 * Real.sqrt ((d : ℝ) + 5) * δp ≤ rateCfin d * δp :=
+      mul_le_mul_of_nonneg_right (rateCfin_ge d) hδp0
+    have h2 : rateCfin d * δp ≤ rateCfin d * δp * Real.sqrt K :=
+      le_mul_of_one_le_right (mul_nonneg (rateCfin_nonneg d) hδp0) hsK1
+    linarith
+  obtain ⟨ε, hε⟩ : ∃ ε : ℝ, ε = 3 * Real.sqrt (N * M
+      * Real.log ((2 + 4 * K) * (2 * ((N : ℕ) : ℝ) ^ d) * (N : ℝ) ^ 3)) := ⟨_, rfl⟩
+  obtain ⟨p1, p2, p3, p4⟩ := param_choice d N K hN12 hK hKN hMpos hLip0 hδp hLipc h48 hε
+  have h := heat_eig_paper_sample hσ hσ1 d N K X h_indep hX hlaw hN12 hK hKN H hH0 hH2 (g := N) hN
+    hMdef hLipdef hδp hLipc hKσ hsmall p1 rfl p3 hη0 hR
+    (c1 := 6 * Real.sqrt ((d : ℝ) + 5)) (by positivity) hc2 hc3 p2 hηc hR0 htail
+  refine h.trans ?_
+  linarith
+
+end EigParams
+
+section EigFinal
+open Matrix
+
+/-- **The choice of the tolerance of the Gram matrix.** With `η = √(8(3 + 2a)) δ'`,
+    `δ' = √(M log N/N)`, `M ≥ 1` and at most `N^a` modes, the term of the Gram matrix in the
+    probability is at most `2/N³`. -/
+theorem gram_choice {N a F : ℕ} (hN : 2 ≤ N) (hF : F ≤ N ^ a) {M δp : ℝ} (hM : 1 ≤ M)
+    (hδp : δp = Real.sqrt (M * Real.log N / N)) :
+    (F : ℝ) ^ 2 * (2 * Real.exp (-(N * (Real.sqrt (8 * (3 + 2 * (a : ℝ))) * δp) / 2) ^ 2 / (2 * N)))
+      ≤ 2 / (N : ℝ) ^ 3 := by
+  have hNr : (2 : ℝ) ≤ N := by exact_mod_cast hN
+  have hNpos : (0 : ℝ) < N := by linarith
+  have hlg : 0 ≤ Real.log N := Real.log_nonneg (by linarith)
+  have hFr : (F : ℝ) ≤ (N : ℝ) ^ a := by exact_mod_cast hF
+  have hsq : Real.sqrt (8 * (3 + 2 * (a : ℝ))) ^ 2 = 8 * (3 + 2 * (a : ℝ)) :=
+    Real.sq_sqrt (by positivity)
+  have hδ2 : δp ^ 2 = M * Real.log N / N := by rw [hδp, Real.sq_sqrt (by positivity)]
+  have hexpo : -(N * (Real.sqrt (8 * (3 + 2 * (a : ℝ))) * δp) / 2) ^ 2 / (2 * N)
+      = -((3 + 2 * (a : ℝ)) * (M * Real.log N)) := by
+    have e : (N * (Real.sqrt (8 * (3 + 2 * (a : ℝ))) * δp) / 2) ^ 2
+        = (N : ℝ) ^ 2 * (Real.sqrt (8 * (3 + 2 * (a : ℝ))) ^ 2 * δp ^ 2) / 4 := by ring
+    rw [e, hsq, hδ2]
+    field_simp
+    ring
+  have hle : Real.exp (-((3 + 2 * (a : ℝ)) * (M * Real.log N)))
+      ≤ 1 / (N : ℝ) ^ (3 + 2 * a) := by
+    have h1 : ((3 + 2 * a : ℕ) : ℝ) * Real.log N ≤ (3 + 2 * (a : ℝ)) * (M * Real.log N) := by
+      push_cast
+      have : Real.log N ≤ M * Real.log N := le_mul_of_one_le_left hlg hM
+      exact mul_le_mul_of_nonneg_left this (by positivity)
+    calc Real.exp (-((3 + 2 * (a : ℝ)) * (M * Real.log N)))
+        ≤ Real.exp (-(((3 + 2 * a : ℕ) : ℝ) * Real.log N)) :=
+          Real.exp_le_exp.mpr (by linarith)
+      _ = 1 / (N : ℝ) ^ (3 + 2 * a) := by
+          rw [Real.exp_neg, Real.exp_nat_mul, Real.exp_log hNpos, one_div]
+  rw [hexpo]
+  have hF2 : (F : ℝ) ^ 2 ≤ (N : ℝ) ^ (2 * a) := by
+    calc (F : ℝ) ^ 2 ≤ ((N : ℝ) ^ a) ^ 2 := pow_le_pow_left₀ (Nat.cast_nonneg F) hFr 2
+      _ = (N : ℝ) ^ (2 * a) := by rw [← pow_mul, mul_comm]
+  calc (F : ℝ) ^ 2 * (2 * Real.exp (-((3 + 2 * (a : ℝ)) * (M * Real.log N))))
+      ≤ (N : ℝ) ^ (2 * a) * (2 * (1 / (N : ℝ) ^ (3 + 2 * a))) :=
+        mul_le_mul hF2 (by linarith) (by positivity) (by positivity)
+    _ = 2 / (N : ℝ) ^ 3 := by
+        rw [pow_add]
+        field_simp
+
+set_option maxHeartbeats 1600000 in
+/-- **Eigenvalues of the graph Laplacian on the torus, part (ii), all tolerances chosen.** As
+    `heat_eig_paper_sample_N` with the tolerance `η = √(8(3 + 2a)) δ'` of the Gram matrix, for a set
+    `H` with at most `N^a` modes: the exceptional event has probability at most `5/N³`. The remaining
+    hypothesis on `H` is the condition `e^{-2π²σ R} 2^d ≤ c₃ δ'` on its cut-off. -/
+theorem heat_eig_paper_sample_final {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {σ : ℝ} (hσ : 0 < σ) (hσ1 : σ ≤ 1) (d N K : ℕ) [NeZero N]
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (hN12 : 12 ≤ N) (hK : 0 < K) (hKN : K ≤ N)
+    (H : Finset (Fin d → ℤ)) (hH0 : ∀ n ∈ H, n ≠ 0) (hH2 : ∀ m ∈ H, ∀ n ∈ H, m + n ≠ 0)
+    {M Lip δp R c3 : ℝ} (a : ℕ)
+    (hMdef : M = (1 + Real.sqrt (Real.pi / (2 * Real.pi ^ 2 * σ))) ^ d)
+    (hLipdef : Lip = 2 * Real.pi * (2 / (2 * Real.pi ^ 2 * σ))
+      * (1 + Real.sqrt (2 * Real.pi / (2 * Real.pi ^ 2 * σ))) ^ d)
+    (hδp : δp = Real.sqrt (M * Real.log N / N))
+    (hLipc : 2 * Lip ≤ 3 * Real.sqrt (N * M * Real.log N))
+    (hKσ : (K : ℝ) * σ ≤ 1)
+    (hsmall : rateCfin d * δp * Real.sqrt K ≤ 1)
+    (hF : Fintype.card (modeSet d H) ≤ N ^ a)
+    (hR : ∀ n : Fin d → ℤ, n ≠ 0 → n ∉ H → -n ∉ H → R ≤ ∑ i, ((n i : ℤ) : ℝ) ^ 2)
+    (hc3 : 0 ≤ c3)
+    (hR0 : 0 ≤ R) (htail : Real.exp (-(2 * Real.pi ^ 2 * σ) * R) * 2 ^ d ≤ c3 * δp) :
+    μ.real {ω | ¬ ∀ r : ℝ, 0 < r → (2 * Real.pi ^ 2 * σ) * r ≤ 1 / 2 →
+        1 ≤ (K : ℝ) * ((2 * Real.pi ^ 2 * σ) * r) →
+        ∀ (hS : (symGraph
+            (fun i j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X j ω))
+            (fun i : Fin N =>
+              (∑ l : Fin N, heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X l ω)) / N)).IsHermitian)
+          (j : Fin (Fintype.card (Fin N))),
+          1 + 2 * (H.filter fun n => ∑ i, ((n i : ℤ) : ℝ) ^ 2 < r).card ≤ j.val →
+          j.val ≤ 2 * (H.filter fun n => ∑ i, ((n i : ℤ) : ℝ) ^ 2 ≤ r).card →
+          2 * ((6 * (6 * Real.sqrt ((d : ℝ) + 5)) + rateCfin d + c3 + Real.sqrt (8 * (3 + 2 * (a : ℝ))) * (1 + 2 * 2 ^ d)) * δp)
+              * (1 + Real.sqrt (2 * Real.pi * r)) ^ d
+            ≤ Real.exp (-1) * Real.sqrt ((2 * Real.pi ^ 2 * σ) * r) →
+          |(1 - hS.eigenvalues₀ j) / (σ / 2)
+              - (1 - Real.exp (-(2 * Real.pi ^ 2 * σ) * r)) / (σ / 2)|
+            ≤ 4 * Real.exp 1 * (6 * (6 * Real.sqrt ((d : ℝ) + 5)) + rateCfin d + c3 + Real.sqrt (8 * (3 + 2 * (a : ℝ))) * (1 + 2 * 2 ^ d)) * δp
+              * Real.sqrt (4 * Real.pi ^ 2 * r / σ) * (1 + Real.sqrt (2 * Real.pi * r)) ^ d}
+      ≤ 5 / (N : ℝ) ^ 3 := by
+  have hsqM : 0 ≤ Real.sqrt (Real.pi / (2 * Real.pi ^ 2 * σ)) := Real.sqrt_nonneg _
+  have hMge : 1 ≤ M := by rw [hMdef]; exact one_le_pow₀ (by linarith)
+  have hg := gram_choice (by omega : 2 ≤ N) hF hMge hδp
+  have hδp0 : 0 ≤ δp := by rw [hδp]; exact Real.sqrt_nonneg _
+  have h := heat_eig_paper_sample_N hσ hσ1 d N K X h_indep hX hlaw hN12 hK hKN H hH0 hH2
+    hMdef hLipdef hδp hLipc hKσ hsmall
+    (η := Real.sqrt (8 * (3 + 2 * (a : ℝ))) * δp) (by positivity) hR
+    (c2 := Real.sqrt (8 * (3 + 2 * (a : ℝ)))) (Real.sqrt_nonneg _) hc3 le_rfl hR0 htail
+  refine h.trans ?_
+  have e : (5 : ℝ) / (N : ℝ) ^ 3 = 2 / (N : ℝ) ^ 3 + 1 / (N : ℝ) ^ 3 + 2 / (N : ℝ) ^ 3 := by ring
+  rw [e]
+  linarith
+
+end EigFinal
+
+section EigTorusFinal
+open Matrix
+
+/-- A frequency is lexicographically positive if its first nonzero coordinate is positive. -/
+def lexPos (d : ℕ) (n : Fin d → ℤ) : Prop := ∃ i, 0 < n i ∧ ∀ j, j < i → n j = 0
+
+theorem lexPos_ne_zero {d : ℕ} {n : Fin d → ℤ} (h : lexPos d n) : n ≠ 0 := by
+  obtain ⟨i, hi, -⟩ := h
+  intro h0
+  rw [h0] at hi
+  simp at hi
+
+theorem lexPos_neg_not {d : ℕ} {n : Fin d → ℤ} (h : lexPos d n) : ¬ lexPos d (-n) := by
+  obtain ⟨i, hi, hlt⟩ := h
+  rintro ⟨i', hi', hlt'⟩
+  simp only [Pi.neg_apply] at hi' hlt'
+  rcases lt_trichotomy i i' with h1 | h1 | h1
+  · have := hlt' i h1
+    omega
+  · subst h1; omega
+  · have := hlt i' h1
+    omega
+
+theorem lexPos_or_neg {d : ℕ} {n : Fin d → ℤ} (h : n ≠ 0) : lexPos d n ∨ lexPos d (-n) := by
+  classical
+  have hne : (Finset.univ.filter fun i : Fin d => n i ≠ 0).Nonempty := by
+    by_contra hcon
+    apply h
+    funext i
+    by_contra hi
+    have hi' : n i ≠ 0 := by simpa using hi
+    exact hcon ⟨i, by simp [hi']⟩
+  obtain ⟨i0, hi0⟩ : ∃ i0, i0 = (Finset.univ.filter fun i : Fin d => n i ≠ 0).min' hne := ⟨_, rfl⟩
+  have hmem : i0 ∈ Finset.univ.filter fun i : Fin d => n i ≠ 0 := by
+    rw [hi0]; exact Finset.min'_mem _ hne
+  have hn0 : n i0 ≠ 0 := (Finset.mem_filter.mp hmem).2
+  have hlt : ∀ j, j < i0 → n j = 0 := by
+    intro j hj
+    by_contra hnj
+    have hjm : j ∈ Finset.univ.filter fun i : Fin d => n i ≠ 0 := by simp [hnj]
+    have := Finset.min'_le _ j hjm
+    rw [← hi0] at this
+    exact absurd hj (not_lt.mpr this)
+  rcases lt_or_gt_of_ne hn0 with hneg | hpos
+  · right
+    exact ⟨i0, by simp only [Pi.neg_apply]; omega, fun j hj => by
+      simp only [Pi.neg_apply]; rw [hlt j hj]; simp⟩
+  · left
+    exact ⟨i0, hpos, hlt⟩
+
+/-- The half of the frequencies with `|n|² < R` inside the cube `[-m, m]^d`: the lexicographically
+    positive ones. -/
+noncomputable def halfFreq (d m : ℕ) (R : ℝ) : Finset (Fin d → ℤ) := by
+  classical
+  exact (Fintype.piFinset fun _ : Fin d => Finset.Icc (-(m : ℤ)) m).filter
+    fun n => lexPos d n ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 < R
+
+theorem mem_halfFreq {d m : ℕ} {R : ℝ} (hm : R ≤ (m : ℝ) ^ 2) (n : Fin d → ℤ) :
+    n ∈ halfFreq d m R ↔ lexPos d n ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 < R := by
+  classical
+  unfold halfFreq
+  rw [Finset.mem_filter]
+  refine ⟨fun h => h.2, fun h => ⟨?_, h⟩⟩
+  rw [Fintype.mem_piFinset]
+  intro i
+  rw [Finset.mem_Icc]
+  have h1 : ((n i : ℤ) : ℝ) ^ 2 ≤ ∑ i, ((n i : ℤ) : ℝ) ^ 2 :=
+    Finset.single_le_sum (f := fun i => ((n i : ℤ) : ℝ) ^ 2) (fun j _ => _root_.sq_nonneg _)
+      (Finset.mem_univ i)
+  have h2 : ((n i : ℤ) : ℝ) ^ 2 < (m : ℝ) ^ 2 := by linarith [h.2]
+  have h3 := abs_lt_of_sq_lt_sq' h2 (Nat.cast_nonneg m)
+  constructor
+  · have : (-(m : ℝ)) ≤ ((n i : ℤ) : ℝ) := h3.1.le
+    exact_mod_cast this
+  · have : ((n i : ℤ) : ℝ) ≤ (m : ℝ) := h3.2.le
+    exact_mod_cast this
+
+/-- **The half-set of frequencies has the properties required of `H`:** no zero frequency, no pair
+    `n, -n`, every other nonzero frequency has `|n|² ≥ R`; and it has at most `(2m+1)^d` elements. -/
+theorem halfFreq_props (d m : ℕ) {R : ℝ} (hm : R ≤ (m : ℝ) ^ 2) :
+    (∀ n ∈ halfFreq d m R, n ≠ 0)
+      ∧ (∀ a ∈ halfFreq d m R, ∀ n ∈ halfFreq d m R, a + n ≠ 0)
+      ∧ (∀ n : Fin d → ℤ, n ≠ 0 → n ∉ halfFreq d m R → -n ∉ halfFreq d m R →
+          R ≤ ∑ i, ((n i : ℤ) : ℝ) ^ 2)
+      ∧ (halfFreq d m R).card ≤ (2 * m + 1) ^ d := by
+  classical
+  refine ⟨?_, ?_, ?_, ?_⟩
+  · intro n hn
+    exact lexPos_ne_zero ((mem_halfFreq hm n).mp hn).1
+  · intro a ha n hn hsum
+    have hna : n = -a := by
+      have := eq_neg_of_add_eq_zero_right hsum
+      exact this
+    rw [hna] at hn
+    exact lexPos_neg_not ((mem_halfFreq hm a).mp ha).1 ((mem_halfFreq hm (-a)).mp hn).1
+  · intro n hn0 hn hnn
+    by_contra hlt
+    rw [not_le] at hlt
+    have hneg : ∑ i, (((-n) i : ℤ) : ℝ) ^ 2 = ∑ i, ((n i : ℤ) : ℝ) ^ 2 :=
+      Finset.sum_congr rfl fun i _ => by simp
+    rcases lexPos_or_neg hn0 with h | h
+    · exact hn ((mem_halfFreq hm n).mpr ⟨h, hlt⟩)
+    · exact hnn ((mem_halfFreq hm (-n)).mpr ⟨h, by rw [hneg]; exact hlt⟩)
+  · unfold halfFreq
+    refine (Finset.card_filter_le _ _).trans ?_
+    rw [Fintype.card_piFinset]
+    simp only [Finset.prod_const, Finset.card_univ, Fintype.card_fin, Int.card_Icc]
+    apply le_of_eq
+    congr 1
+    omega
+
+/-- The number of modes of a set of frequencies. -/
+theorem modeSet_card_le (d : ℕ) (H : Finset (Fin d → ℤ)) :
+    Fintype.card (modeSet d H) ≤ 1 + 2 * H.card := by
+  classical
+  rw [Fintype.card_coe]
+  unfold modeSet
+  have h1 := Finset.card_insert_le (none : Option ((Fin d → ℤ) × Bool))
+    ((H.image fun n => some (n, false)) ∪ (H.image fun n => some (n, true)))
+  have h2 := Finset.card_union_le (H.image fun n => (some (n, false) : Option ((Fin d → ℤ) × Bool)))
+    (H.image fun n => some (n, true))
+  have h3 := Finset.card_image_le (s := H)
+    (f := fun n => (some (n, false) : Option ((Fin d → ℤ) × Bool)))
+  have h4 := Finset.card_image_le (s := H)
+    (f := fun n => (some (n, true) : Option ((Fin d → ℤ) × Bool)))
+  omega
+
+set_option maxHeartbeats 1600000 in
+/-- **Eigenvalues of the graph Laplacian on the torus, part (ii), with the set of frequencies
+    chosen.** As `heat_eig_paper_sample_final` with `H = halfFreq d m R`, the lexicographically
+    positive frequencies with `|n|² < R` (`R ≤ m²`): the properties required of `H` are proved, and
+    the number of modes is at most `1 + 2 (2m+1)^d`. HYPOTHESES on numbers that remain: those of the
+    kernel theorem, `1 + 2 (2m+1)^d ≤ N^a`, the condition `e^{-2π²σ R} 2^d ≤ c₃ δ'` on the cut-off, and
+    the size condition for each shell. The exceptional event has probability at most `5/N³`. -/
+theorem heat_eig_torus_final {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {σ : ℝ} (hσ : 0 < σ) (hσ1 : σ ≤ 1) (d N K : ℕ) [NeZero N]
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (hN12 : 12 ≤ N) (hK : 0 < K) (hKN : K ≤ N)
+    (m : ℕ)
+    {M Lip δp R c3 : ℝ} (a : ℕ)
+    (hMdef : M = (1 + Real.sqrt (Real.pi / (2 * Real.pi ^ 2 * σ))) ^ d)
+    (hLipdef : Lip = 2 * Real.pi * (2 / (2 * Real.pi ^ 2 * σ))
+      * (1 + Real.sqrt (2 * Real.pi / (2 * Real.pi ^ 2 * σ))) ^ d)
+    (hδp : δp = Real.sqrt (M * Real.log N / N))
+    (hLipc : 2 * Lip ≤ 3 * Real.sqrt (N * M * Real.log N))
+    (hKσ : (K : ℝ) * σ ≤ 1)
+    (hsmall : rateCfin d * δp * Real.sqrt K ≤ 1)
+    (hRm : R ≤ (m : ℝ) ^ 2) (hF : 1 + 2 * (2 * m + 1) ^ d ≤ N ^ a)
+    (hc3 : 0 ≤ c3)
+    (hR0 : 0 ≤ R) (htail : Real.exp (-(2 * Real.pi ^ 2 * σ) * R) * 2 ^ d ≤ c3 * δp) :
+    μ.real {ω | ¬ ∀ r : ℝ, 0 < r → (2 * Real.pi ^ 2 * σ) * r ≤ 1 / 2 →
+        1 ≤ (K : ℝ) * ((2 * Real.pi ^ 2 * σ) * r) →
+        ∀ (hS : (symGraph
+            (fun i j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X j ω))
+            (fun i : Fin N =>
+              (∑ l : Fin N, heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X l ω)) / N)).IsHermitian)
+          (j : Fin (Fintype.card (Fin N))),
+          1 + 2 * ((halfFreq d m R).filter fun n => ∑ i, ((n i : ℤ) : ℝ) ^ 2 < r).card ≤ j.val →
+          j.val ≤ 2 * ((halfFreq d m R).filter fun n => ∑ i, ((n i : ℤ) : ℝ) ^ 2 ≤ r).card →
+          2 * ((6 * (6 * Real.sqrt ((d : ℝ) + 5)) + rateCfin d + c3 + Real.sqrt (8 * (3 + 2 * (a : ℝ))) * (1 + 2 * 2 ^ d)) * δp)
+              * (1 + Real.sqrt (2 * Real.pi * r)) ^ d
+            ≤ Real.exp (-1) * Real.sqrt ((2 * Real.pi ^ 2 * σ) * r) →
+          |(1 - hS.eigenvalues₀ j) / (σ / 2)
+              - (1 - Real.exp (-(2 * Real.pi ^ 2 * σ) * r)) / (σ / 2)|
+            ≤ 4 * Real.exp 1 * (6 * (6 * Real.sqrt ((d : ℝ) + 5)) + rateCfin d + c3 + Real.sqrt (8 * (3 + 2 * (a : ℝ))) * (1 + 2 * 2 ^ d)) * δp
+              * Real.sqrt (4 * Real.pi ^ 2 * r / σ) * (1 + Real.sqrt (2 * Real.pi * r)) ^ d}
+      ≤ 5 / (N : ℝ) ^ 3 := by
+  obtain ⟨p1, p2, p3, p4⟩ := halfFreq_props d m hRm
+  have hcard : Fintype.card (modeSet d (halfFreq d m R)) ≤ N ^ a :=
+    (modeSet_card_le d (halfFreq d m R)).trans
+      ((Nat.add_le_add_left (Nat.mul_le_mul_left 2 p4) 1).trans hF)
+  exact heat_eig_paper_sample_final hσ hσ1 d N K X h_indep hX hlaw hN12 hK hKN (halfFreq d m R) p1 p2
+    a hMdef hLipdef hδp hLipc hKσ hsmall hcard p3 hc3 hR0 htail
+
+end EigTorusFinal
+
+/-! ## The kernel recursion in the mean (`L¹` form), with a stationary weight -/
+
+section KernelL1
+open Matrix
+
+/-- One step of the weighted `L¹` contraction: for `P ≥ 0` with a stationary weight `w ≥ 0`
+    (`∑_b w_b P_{bj} = w_j`), `∑_b w_b |(P v)_b| ≤ ∑_b w_b |v_b|`. -/
+theorem weighted_l1_step {n : Type} [Fintype n] (P : Matrix n n ℝ) (h0 : ∀ i j, 0 ≤ P i j)
+    (w : n → ℝ) (hw0 : ∀ b, 0 ≤ w b) (hstat : ∀ j, ∑ b, w b * P b j = w j) (v : n → ℝ) :
+    ∑ b, w b * |(P *ᵥ v) b| ≤ ∑ b, w b * |v b| := by
+  have h1 : ∀ b, w b * |(P *ᵥ v) b| ≤ ∑ j, w b * P b j * |v j| := by
+    intro b
+    have : |(P *ᵥ v) b| ≤ ∑ j, P b j * |v j| := by
+      calc |(P *ᵥ v) b| = |∑ j, P b j * v j| := rfl
+        _ ≤ ∑ j, |P b j * v j| := Finset.abs_sum_le_sum_abs _ _
+        _ = ∑ j, P b j * |v j| := Finset.sum_congr rfl fun j _ => by
+            rw [abs_mul, abs_of_nonneg (h0 b j)]
+    calc w b * |(P *ᵥ v) b| ≤ w b * ∑ j, P b j * |v j| := mul_le_mul_of_nonneg_left this (hw0 b)
+      _ = ∑ j, w b * P b j * |v j| := by
+          rw [Finset.mul_sum]; exact Finset.sum_congr rfl fun j _ => by ring
+  calc ∑ b, w b * |(P *ᵥ v) b| ≤ ∑ b, ∑ j, w b * P b j * |v j| := Finset.sum_le_sum fun b _ => h1 b
+    _ = ∑ j, ∑ b, w b * P b j * |v j| := Finset.sum_comm
+    _ = ∑ j, w j * |v j| := Finset.sum_congr rfl fun j _ => by
+        rw [← Finset.sum_mul, hstat j]
+
+/-- **Weighted `L¹` contraction of the powers of a walk with a stationary weight.** -/
+theorem weighted_l1_pow {n : Type} [Fintype n] [DecidableEq n] (P : Matrix n n ℝ)
+    (h0 : ∀ i j, 0 ≤ P i j) (w : n → ℝ) (hw0 : ∀ b, 0 ≤ w b)
+    (hstat : ∀ j, ∑ b, w b * P b j = w j) (k : ℕ) (v : n → ℝ) :
+    ∑ b, w b * |((P ^ k) *ᵥ v) b| ≤ ∑ b, w b * |v b| := by
+  induction k generalizing v with
+  | zero => simp
+  | succ k ih =>
+    have e : (P ^ (k + 1)) *ᵥ v = (P ^ k) *ᵥ (P *ᵥ v) := by
+      rw [pow_succ, ← mulVec_mulVec]
+    rw [e]
+    exact (ih (P *ᵥ v)).trans (weighted_l1_step P h0 w hw0 hstat v)
+
+/-- The unweighted form: if `wlo ≤ w_b ≤ whi` with `wlo > 0`, then
+    `∑_b |(P^k v)_b| ≤ (whi/wlo) ∑_b |v_b|`. -/
+theorem l1_pow_le {n : Type} [Fintype n] [DecidableEq n] (P : Matrix n n ℝ)
+    (h0 : ∀ i j, 0 ≤ P i j) (w : n → ℝ) {wlo whi : ℝ} (hlo : 0 < wlo)
+    (hw : ∀ b, wlo ≤ w b ∧ w b ≤ whi) (hstat : ∀ j, ∑ b, w b * P b j = w j) (k : ℕ)
+    (v : n → ℝ) :
+    ∑ b, |((P ^ k) *ᵥ v) b| ≤ whi / wlo * ∑ b, |v b| := by
+  have hw0 : ∀ b, 0 ≤ w b := fun b => hlo.le.trans (hw b).1
+  have h := weighted_l1_pow P h0 w hw0 hstat k v
+  have h1 : wlo * ∑ b, |((P ^ k) *ᵥ v) b| ≤ ∑ b, w b * |((P ^ k) *ᵥ v) b| := by
+    rw [Finset.mul_sum]
+    exact Finset.sum_le_sum fun b _ => mul_le_mul_of_nonneg_right (hw b).1 (abs_nonneg _)
+  have h2 : ∑ b, w b * |v b| ≤ whi * ∑ b, |v b| := by
+    rw [Finset.mul_sum]
+    exact Finset.sum_le_sum fun b _ => mul_le_mul_of_nonneg_right (hw b).2 (abs_nonneg _)
+  rw [div_mul_eq_mul_div, le_div_iff₀ hlo]
+  linarith
+
+/-- **The kernel recursion in the mean (`L¹` form).** For a walk `P ≥ 0` with a stationary weight
+    between `wlo > 0` and `whi`: if `∑_b |c_b - g_1(b)| ≤ V` (last step) and the defects satisfy
+    `∑_b |(P g_{m+1} - g_{m+2})_b| ≤ hb_{m+1}` for `m ≤ j`, then
+    `∑_a |(P^{j+1} c)_a - g_{j+2}(a)| ≤ (whi/wlo) (V + ∑_{m ≤ j} hb_{m+1})`.
+    No induction on the size of the powers and no smallness condition is needed. -/
+theorem l1_kernel_bound {n : Type} [Fintype n] [DecidableEq n] [Nonempty n] (P : Matrix n n ℝ)
+    (h0 : ∀ i j, 0 ≤ P i j) (w : n → ℝ) {wlo whi : ℝ} (hlo : 0 < wlo)
+    (hw : ∀ b, wlo ≤ w b ∧ w b ≤ whi) (hstat : ∀ j, ∑ b, w b * P b j = w j)
+    (g : ℕ → n → ℝ) (c : n → ℝ) {V : ℝ} (hc : ∑ b, |c b - g 1 b| ≤ V) (hb : ℕ → ℝ) (j : ℕ)
+    (hbar : ∀ m, m < j + 1 → ∑ b, |(P *ᵥ g (m + 1) - g (m + 2)) b| ≤ hb (m + 1)) :
+    ∑ a, |((P ^ (j + 1)) *ᵥ c) a - g (j + 2) a|
+      ≤ whi / wlo * (V + ∑ m ∈ Finset.range (j + 1), hb (m + 1)) := by
+  have hr0 : 0 ≤ whi / wlo := div_nonneg (hlo.le.trans ((hw (Classical.arbitrary n)).1.trans
+    (hw (Classical.arbitrary n)).2)) hlo.le
+  have hsplit : ∀ a, ((P ^ (j + 1)) *ᵥ c) a - g (j + 2) a
+      = ((P ^ (j + 1)) *ᵥ (c - g 1)) a
+        + ∑ m ∈ Finset.range (j + 1),
+            ((P ^ (j + 1 - 1 - m)) *ᵥ (P *ᵥ g (m + 1) - g (m + 2))) a := by
+    intro a
+    have ht := congrFun (lax_telescope P g (j + 1)) a
+    rw [Finset.sum_apply] at ht
+    rw [← ht, mulVec_sub]
+    simp only [Pi.sub_apply]
+    ring
+  calc ∑ a, |((P ^ (j + 1)) *ᵥ c) a - g (j + 2) a|
+      ≤ ∑ a, (|((P ^ (j + 1)) *ᵥ (c - g 1)) a|
+          + ∑ m ∈ Finset.range (j + 1),
+              |((P ^ (j + 1 - 1 - m)) *ᵥ (P *ᵥ g (m + 1) - g (m + 2))) a|) :=
+        Finset.sum_le_sum fun a _ => by
+          rw [hsplit a]
+          exact (abs_add_le _ _).trans (add_le_add le_rfl (Finset.abs_sum_le_sum_abs _ _))
+    _ = ∑ a, |((P ^ (j + 1)) *ᵥ (c - g 1)) a|
+          + ∑ m ∈ Finset.range (j + 1),
+              ∑ a, |((P ^ (j + 1 - 1 - m)) *ᵥ (P *ᵥ g (m + 1) - g (m + 2))) a| := by
+        rw [Finset.sum_add_distrib, Finset.sum_comm]
+    _ ≤ whi / wlo * V + ∑ m ∈ Finset.range (j + 1), whi / wlo * hb (m + 1) := by
+        refine add_le_add ?_ (Finset.sum_le_sum fun m hm => ?_)
+        · refine (l1_pow_le P h0 w hlo hw hstat (j + 1) (c - g 1)).trans ?_
+          exact mul_le_mul_of_nonneg_left (by simpa using hc) hr0
+        · refine (l1_pow_le P h0 w hlo hw hstat _ _).trans ?_
+          exact mul_le_mul_of_nonneg_left (hbar m (Finset.mem_range.mp hm)) hr0
+    _ = whi / wlo * (V + ∑ m ∈ Finset.range (j + 1), hb (m + 1)) := by
+        rw [mul_add, Finset.mul_sum]
+
+/-- **The stationary weight of the walk of a symmetric kernel.** For `P = walkMatrix K ρ` with a
+    symmetric kernel `K` and `ρ > 0`, the weight `w_b = (∑_l K_{bl}/ρ_l)/ρ_b` satisfies
+    `w_b P_{bj} = K_{bj}/(ρ_b ρ_j)`, hence `∑_b w_b P_{bj} = w_j`. -/
+theorem walkMatrix_stationary {n : Type} [Fintype n] (K : n → n → ℝ) (ρ : n → ℝ)
+    (hsym : ∀ a b, K a b = K b a) (hρ : ∀ a, 0 < ρ a)
+    (hS : ∀ b, 0 < ∑ l, K b l / ρ l) (j : n) :
+    ∑ b, ((∑ l, K b l / ρ l) / ρ b) * walkMatrix K ρ b j = (∑ l, K j l / ρ l) / ρ j := by
+  have e : ∀ b, ((∑ l, K b l / ρ l) / ρ b) * walkMatrix K ρ b j = K j b / ρ b / ρ j := by
+    intro b
+    rw [walkMatrix_apply' K ρ b j (hρ b).ne', hsym b j]
+    have h1 := (hS b).ne'
+    have h2 := (hρ b).ne'
+    have h3 := (hρ j).ne'
+    field_simp
+  rw [Finset.sum_congr rfl fun b _ => e b, ← Finset.sum_div]
+
+/-- **The kernel theorem in the mean (`L¹` form) for the sampled walk, deterministic part.**
+    On the good event (normalisation `|ρ_j - 1| ≤ δ ≤ 1/8`, estimate (ii) for `1 ≤ m ≤ j+1`, estimate
+    (iii) at the four times): for every `i`,
+    `∑_a |N P^{j+2}(a,i) - p_{(j+2)σ}(x_a - x_i)| ≤ (9/7) (4δ N(1+δ) + ∑_{m ≤ j} N · heatEtaBar_{m+1})`.
+    No smallness condition and no induction on the size of the powers. -/
+theorem heat_kernel_l1_det {σ M L δ δ3 : ℝ} (hσ : 0 < σ) (d N : ℕ) (hN : 0 < N)
+    (x : ℕ → FlatTorus d) (hM : 0 ≤ M) (hL : 0 ≤ L) (hδ0 : 0 ≤ δ) (hδ : δ ≤ 1 / 8) (hδ3 : 0 ≤ δ3)
+    (hρ : ∀ j, |heatRho d σ N x j - 1| ≤ δ) (j : ℕ)
+    (hdef : ∀ m, 1 ≤ m → m ≤ j + 1 → ∀ b, b < N → ∀ i, i < N →
+      |heatDefect d σ N m x b i| ≤ heatDefBound d σ N m M L δ (x b - x i))
+    (hA : ∀ m, 1 ≤ m → m ≤ j + 1 → ∀ i, i < N →
+      ∑ b ∈ Finset.range N, heatTorus d (2 * Real.pi ^ 2 * ((m : ℝ) * σ + 2 * σ)) (x b - x i)
+        ≤ N * (1 + δ3))
+    (hB : ∀ m, 1 ≤ m → m ≤ j + 1 → ∀ i, i < N →
+      ∑ b ∈ Finset.range N, heatTorus d (2 * Real.pi ^ 2 * (σ + (m : ℝ) * σ)) (x b - x i)
+        ≤ N * (1 + δ3))
+    (hC : ∀ m, 1 ≤ m → m ≤ j + 1 → ∀ i, i < N →
+      ∑ b ∈ Finset.range N, heatTorus d (2 * Real.pi ^ 2 * (6 * ((m : ℝ) * σ))) (x b - x i)
+        ≤ N * (1 + δ3))
+    (hC12 : ∀ m, 1 ≤ m → m ≤ j + 1 → ∀ i, i < N →
+      ∑ b ∈ Finset.range N, heatTorus d (2 * Real.pi ^ 2 * (12 * ((m : ℝ) * σ))) (x b - x i)
+        ≤ N * (1 + δ3))
+    (i : Fin N) :
+    ∑ a : Fin N,
+        |(N : ℝ) * ((walkMatrix (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (x a - x j))
+            (fun a : Fin N => heatRho d σ N x a)) ^ (j + 2)) a i - heatP d σ (j + 2) (x a - x i)|
+      ≤ 9 / 7 * (4 * δ * (N * (1 + δ))
+          + ∑ m ∈ Finset.range (j + 1), N * heatEtaBar d σ N (m + 1) M L δ δ3) := by
+  haveI : Nonempty (Fin N) := ⟨⟨0, hN⟩⟩
+  have hNpos : (0 : ℝ) < N := by exact_mod_cast hN
+  have hcσ : 0 < 2 * Real.pi ^ 2 * σ := by positivity
+  have hρb := fun j => abs_le.mp (hρ j)
+  have hρpos : ∀ j, 0 < heatRho d σ N x j := fun j => by linarith [(hρb j).1]
+  have h1m : 0 < 1 - δ := by linarith
+  have h1p : 0 < 1 + δ := by linarith
+  obtain ⟨K, hKdef⟩ : ∃ K : Fin N → Fin N → ℝ,
+      K = fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (x a - x j) := ⟨_, rfl⟩
+  obtain ⟨ρ, hρdef⟩ : ∃ ρ : Fin N → ℝ, ρ = fun a : Fin N => heatRho d σ N x a := ⟨_, rfl⟩
+  rw [← hKdef, ← hρdef]
+  have hK0 : ∀ a j : Fin N, 0 ≤ K a j := fun a j => by
+    rw [hKdef]; exact heatTorus_nonneg hcσ d _
+  have hKsym : ∀ a b : Fin N, K a b = K b a := fun a b => by
+    rw [hKdef]
+    show heatTorus d _ (x a - x b) = heatTorus d _ (x b - x a)
+    rw [← heatTorus_even, neg_sub]
+  have hρp : ∀ a : Fin N, 0 < ρ a := fun a => by rw [hρdef]; exact hρpos a
+  have hρlo : ∀ a : Fin N, 1 - δ ≤ ρ a := fun a => by rw [hρdef]; linarith [(hρb a).1]
+  have hρhi : ∀ a : Fin N, ρ a ≤ 1 + δ := fun a => by rw [hρdef]; linarith [(hρb a).2]
+  have hcard : (Fintype.card (Fin N) : ℝ) = N := by simp
+  have hsumK : ∀ a : Fin N, ∑ l, K a l = (N : ℝ) * ρ a := fun a => by
+    rw [hKdef, hρdef]
+    show ∑ l : Fin N, heatTorus d (2 * Real.pi ^ 2 * σ) (x a - x l) = (N : ℝ) * heatRho d σ N x a
+    unfold heatRho
+    rw [mul_div_cancel₀ _ hNpos.ne']
+    exact Fin.sum_univ_eq_sum_range
+      (fun l => heatTorus d (2 * Real.pi ^ 2 * σ) (x a - x l)) N
+  -- the sums S_b = ∑_l K_bl/ρ_l
+  have hS1 : ∀ b : Fin N, (N : ℝ) * ρ b ≤ (∑ l, K b l / ρ l) * (1 + δ) := fun b => by
+    rw [← hsumK b, Finset.sum_mul]
+    exact Finset.sum_le_sum fun l _ => by
+      rw [div_mul_eq_mul_div, le_div_iff₀ (hρp l)]
+      exact mul_le_mul_of_nonneg_left (hρhi l) (hK0 b l)
+  have hS2 : ∀ b : Fin N, (∑ l, K b l / ρ l) * (1 - δ) ≤ (N : ℝ) * ρ b := fun b => by
+    rw [← hsumK b, Finset.sum_mul]
+    exact Finset.sum_le_sum fun l _ => by
+      rw [div_mul_eq_mul_div, div_le_iff₀ (hρp l)]
+      exact mul_le_mul_of_nonneg_left (hρlo l) (hK0 b l)
+  have hSpos : ∀ b : Fin N, 0 < ∑ l, K b l / ρ l := fun b => by
+    have h1 : 0 < (∑ l, K b l / ρ l) * (1 + δ) :=
+      lt_of_lt_of_le (mul_pos hNpos (hρp b)) (hS1 b)
+    exact (mul_pos_iff_of_pos_right h1p).mp h1
+  have hwlo : (0 : ℝ) < N / (1 + δ) := div_pos hNpos h1p
+  have hw : ∀ b : Fin N, (N : ℝ) / (1 + δ) ≤ (∑ l, K b l / ρ l) / ρ b
+      ∧ (∑ l, K b l / ρ l) / ρ b ≤ (N : ℝ) / (1 - δ) := fun b => by
+    constructor
+    · rw [div_le_div_iff₀ h1p (hρp b)]
+      exact hS1 b
+    · rw [div_le_div_iff₀ (hρp b) h1m]
+      exact hS2 b
+  have hP0 : ∀ a b : Fin N, 0 ≤ walkMatrix K ρ a b := fun a b => by
+    rw [walkMatrix_apply' _ _ a b (hρp a).ne']
+    exact div_nonneg (div_nonneg (hK0 a b) (hρp b).le) (hSpos a).le
+  have hstat := walkMatrix_stationary K ρ hKsym hρp hSpos
+  -- the one-step defect in matrix form
+  have hterm : ∀ m, 1 ≤ m → ∀ b : Fin N,
+      ((walkMatrix K ρ) *ᵥ (fun b' : Fin N => heatP d σ m (x b' - x i))) b
+          - heatP d σ (m + 1) (x b - x i)
+        = heatDefect d σ N m x b i := by
+    intro m hm b
+    have e1 : (fun b' : Fin N => heatP d σ m (x b' - x i))
+        = fun b' : Fin N => heatTorus d (2 * Real.pi ^ 2 * ((m : ℝ) * σ)) (x b' - x i) :=
+      funext fun b' => heatP_of_ne d σ (by omega) _
+    rw [e1, heatP_succ, hKdef, hρdef]
+    exact walk_defect_eq d σ N m hN x (fun j => (hρpos j).ne') b i
+  -- last step
+  have hc : ∑ b : Fin N, |(fun b : Fin N => (N : ℝ) * walkMatrix K ρ b i) b
+      - (fun k (b : Fin N) => heatP d σ k (x b - x i)) 1 b| ≤ 4 * δ * (N * (1 + δ)) := by
+    have h1 : ∀ b : Fin N, |(N : ℝ) * walkMatrix K ρ b i - heatP d σ 1 (x b - x i)|
+        ≤ 4 * δ * K i b := fun b => by
+      have h := walk_last_step K ρ hK0 (fun a => by rw [hcard]; exact hsumK a) hδ0 hδ
+        (fun a => by rw [hρdef]; exact hρ a) b i
+      rw [hcard] at h
+      rw [heatP_one, hKsym i b]
+      have e : K b i = heatTorus d (2 * Real.pi ^ 2 * σ) (x b - x i) := by rw [hKdef]
+      rw [← e]
+      exact h
+    calc ∑ b : Fin N, |(N : ℝ) * walkMatrix K ρ b i - heatP d σ 1 (x b - x i)|
+        ≤ ∑ b : Fin N, 4 * δ * K i b := Finset.sum_le_sum fun b _ => h1 b
+      _ = 4 * δ * ((N : ℝ) * ρ i) := by rw [← Finset.mul_sum, hsumK i]
+      _ ≤ 4 * δ * (N * (1 + δ)) :=
+          mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_left (hρhi i) hNpos.le) (by linarith)
+  have hbar : ∀ m, m < j + 1 →
+      ∑ b : Fin N, |((walkMatrix K ρ) *ᵥ (fun k (b : Fin N) => heatP d σ k (x b - x i)) (m + 1)
+          - (fun k (b : Fin N) => heatP d σ k (x b - x i)) (m + 2)) b|
+        ≤ (fun m : ℕ => (N : ℝ) * heatEtaBar d σ N m M L δ δ3) (m + 1) := by
+    intro m hm
+    have hm1 : 1 ≤ m + 1 := by omega
+    have hmj : m + 1 ≤ j + 1 := by omega
+    calc ∑ b : Fin N, |((walkMatrix K ρ) *ᵥ (fun k (b : Fin N) => heatP d σ k (x b - x i)) (m + 1)
+          - (fun k (b : Fin N) => heatP d σ k (x b - x i)) (m + 2)) b|
+        = ∑ b : Fin N, |heatDefect d σ N (m + 1) x b i| :=
+          Finset.sum_congr rfl fun b _ => by
+            rw [← hterm (m + 1) hm1 b]; rfl
+      _ ≤ ∑ b : Fin N, heatDefBound d σ N (m + 1) M L δ (x b - x i) :=
+          Finset.sum_le_sum fun b _ => hdef (m + 1) hm1 hmj b b.2 i i.2
+      _ = ∑ b ∈ Finset.range N, heatDefBound d σ N (m + 1) M L δ (x b - x i) :=
+          Fin.sum_univ_eq_sum_range (fun b => heatDefBound d σ N (m + 1) M L δ (x b - x i)) N
+      _ ≤ _ := heat_defect_mean_det_min hσ hM hL hδ0 d N (m + 1) hN hm1 x i hδ3
+          (hA (m + 1) hm1 hmj i i.2) (hB (m + 1) hm1 hmj i i.2) (hC (m + 1) hm1 hmj i i.2)
+          (hC12 (m + 1) hm1 hmj i i.2)
+  have hmain := l1_kernel_bound (walkMatrix K ρ) hP0 (fun b => (∑ l, K b l / ρ l) / ρ b) hwlo hw
+    hstat (fun k (b : Fin N) => heatP d σ k (x b - x i))
+    (fun b : Fin N => (N : ℝ) * walkMatrix K ρ b i) hc
+    (fun m : ℕ => (N : ℝ) * heatEtaBar d σ N m M L δ δ3) j hbar
+  have epow : ∀ a : Fin N, (((walkMatrix K ρ) ^ (j + 1)) *ᵥ
+        (fun b : Fin N => (N : ℝ) * walkMatrix K ρ b i)) a
+      = (N : ℝ) * ((walkMatrix K ρ) ^ (j + 2)) a i := by
+    intro a
+    have e2 : (walkMatrix K ρ) ^ (j + 2) = (walkMatrix K ρ) ^ (j + 1) * walkMatrix K ρ :=
+      pow_succ _ _
+    rw [e2, Matrix.mul_apply, Finset.mul_sum]
+    show ∑ b, ((walkMatrix K ρ) ^ (j + 1)) a b * ((N : ℝ) * walkMatrix K ρ b i) = _
+    exact Finset.sum_congr rfl fun b _ => by ring
+  have hB0 : 0 ≤ 4 * δ * (N * (1 + δ))
+      + ∑ m ∈ Finset.range (j + 1), (N : ℝ) * heatEtaBar d σ N (m + 1) M L δ δ3 := by
+    refine add_nonneg (by positivity) (Finset.sum_nonneg fun m hm => ?_)
+    exact (Finset.sum_nonneg fun _ _ => abs_nonneg _).trans (hbar m (Finset.mem_range.mp hm))
+  have hr : (N : ℝ) / (1 - δ) / ((N : ℝ) / (1 + δ)) ≤ 9 / 7 := by
+    rw [div_le_iff₀ hwlo]
+    have e1 : (N : ℝ) / (1 - δ) = (N : ℝ) * (1 + δ) / ((1 - δ) * (1 + δ)) := by field_simp
+    have e2 : 9 / 7 * ((N : ℝ) / (1 + δ)) = 9 / 7 * (N : ℝ) * (1 - δ) / ((1 - δ) * (1 + δ)) := by
+      field_simp
+    rw [e1, e2]
+    refine div_le_div_of_nonneg_right ?_ (mul_pos h1m h1p).le
+    nlinarith [mul_nonneg hNpos.le (by linarith : (0 : ℝ) ≤ 1 / 8 - δ)]
+  calc ∑ a : Fin N, |(N : ℝ) * ((walkMatrix K ρ) ^ (j + 2)) a i - heatP d σ (j + 2) (x a - x i)|
+      = ∑ a : Fin N, |(((walkMatrix K ρ) ^ (j + 1)) *ᵥ
+            (fun b : Fin N => (N : ℝ) * walkMatrix K ρ b i)) a
+          - (fun k (b : Fin N) => heatP d σ k (x b - x i)) (j + 2) a| :=
+        Finset.sum_congr rfl fun a _ => by rw [epow a]
+    _ ≤ _ := hmain
+    _ ≤ _ := mul_le_mul_of_nonneg_right hr hB0
+
+/-- The conclusion of the kernel theorem in the mean: for `j + 1 < K` and every `i`,
+    `∑_a |N P^{j+2}(a,i) - p_{(j+2)σ}(x_a - x_i)| ≤ (9/7) N (4δ(1+δ) + 2 a √(j+1))`. -/
+def heatKernelL1 (d : ℕ) (σ δ a : ℝ) (N K : ℕ) (x : ℕ → FlatTorus d) : Prop :=
+  ∀ j, j + 1 < K → ∀ i : Fin N,
+    ∑ a' : Fin N,
+        |(N : ℝ) * ((walkMatrix (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (x a - x j))
+            (fun a : Fin N => heatRho d σ N x a)) ^ (j + 2)) a' i - heatP d σ (j + 2) (x a' - x i)|
+      ≤ 9 / 7 * (N * (4 * δ * (1 + δ) + 2 * a * Real.sqrt ((j + 1 : ℕ) : ℝ)))
+
+/-- The mean bound of the defect in closed form: `heatEtaBar_m ≤ a/√m` with `a = heatRateA`, for
+    `σ ≤ 1`, `m < K`, `K σ ≤ 1` and `(2L + 2)(kb + M) √K ≤ θ N`. -/
+theorem heatEtaBar_closed {σ M L δ θ : ℝ} (hσ : 0 < σ) (hσ1 : σ ≤ 1) (hM : 0 ≤ M) (hL : 0 ≤ L)
+    (hδ : 0 ≤ δ) (d N K : ℕ) (hN : 0 < N) (hKσ : (K : ℝ) * σ ≤ 1)
+    (hθ : (2 * L + 2) * (heatKbar d σ + M) * Real.sqrt K ≤ θ * N) (m : ℕ) (hm : 1 ≤ m)
+    (hmK : m < K) :
+    heatEtaBar d σ N m M L δ δ ≤ heatRateA d N M L δ θ / Real.sqrt m := by
+  have hc := cvConst_nonneg
+  have hkb0 : 0 ≤ heatKbar d σ := by unfold heatKbar; positivity
+  have hm1 : (1 : ℝ) ≤ m := by exact_mod_cast hm
+  have hmK' : (m : ℝ) ≤ K := by exact_mod_cast hmK.le
+  have r1 : σ ≤ (m : ℝ) * σ := by nlinarith
+  have r2 : (m : ℝ) * σ ≤ 1 := by nlinarith
+  have r3 : (2 * L + 2) * (heatKbar d σ + M) * Real.sqrt m ≤ θ * N := by
+    have h1 : Real.sqrt m ≤ Real.sqrt K := Real.sqrt_le_sqrt hmK'
+    have h2 : 0 ≤ (2 * L + 2) * (heatKbar d σ + M) := by positivity
+    nlinarith [mul_le_mul_of_nonneg_left h1 h2]
+  have hmpos : (0 : ℝ) < m := by exact_mod_cast (by omega : 0 < m)
+  have hrc : 0 ≤ (d : ℝ) * cvConst * (2 * Real.sqrt 6)
+      * (12 * (1 + Real.sqrt (2 * Real.pi))) ^ (d - 1) := by positivity
+  have hcq := heatCV_heatQ hσ r1 r2 d
+  have e : σ / ((m : ℝ) * σ) = 1 / m := by field_simp
+  rw [e] at hcq
+  unfold heatRateA
+  refine heatEtaBar_le hσ hM hL hδ d N m hN hm hkb0 (Real.sqrt_nonneg _)
+    (by unfold heatKbar; exact heatKB_le hσ r1 hσ1 d) ?_ r3
+  rw [Real.sq_sqrt hrc]
+  calc _ ≤ _ := hcq
+    _ = _ := by ring
+
+/-- **The kernel theorem in the mean, deterministic, in closed form.** On the good event, if
+    `heatEtaBar_m ≤ a/√m` for `1 ≤ m < K`, then `heatKernelL1` holds. -/
+theorem heat_kernel_l1_closed_det {σ M L δ δ3 : ℝ} (hσ : 0 < σ) (d N K : ℕ) (hN : 0 < N)
+    (x : ℕ → FlatTorus d) (hM : 0 ≤ M) (hL : 0 ≤ L) (hδ0 : 0 ≤ δ) (hδ : δ ≤ 1 / 8) (hδ3 : 0 ≤ δ3)
+    (hρ : ∀ j, |heatRho d σ N x j - 1| ≤ δ)
+    (hdef : ∀ m, 1 ≤ m → m < K → ∀ b, b < N → ∀ i, i < N →
+      |heatDefect d σ N m x b i| ≤ heatDefBound d σ N m M L δ (x b - x i))
+    (hA : ∀ m, 1 ≤ m → m < K → ∀ i, i < N →
+      ∑ b ∈ Finset.range N, heatTorus d (2 * Real.pi ^ 2 * ((m : ℝ) * σ + 2 * σ)) (x b - x i)
+        ≤ N * (1 + δ3))
+    (hB : ∀ m, 1 ≤ m → m < K → ∀ i, i < N →
+      ∑ b ∈ Finset.range N, heatTorus d (2 * Real.pi ^ 2 * (σ + (m : ℝ) * σ)) (x b - x i)
+        ≤ N * (1 + δ3))
+    (hC : ∀ m, 1 ≤ m → m < K → ∀ i, i < N →
+      ∑ b ∈ Finset.range N, heatTorus d (2 * Real.pi ^ 2 * (6 * ((m : ℝ) * σ))) (x b - x i)
+        ≤ N * (1 + δ3))
+    (hC12 : ∀ m, 1 ≤ m → m < K → ∀ i, i < N →
+      ∑ b ∈ Finset.range N, heatTorus d (2 * Real.pi ^ 2 * (12 * ((m : ℝ) * σ))) (x b - x i)
+        ≤ N * (1 + δ3))
+    {a : ℝ} (ha : 0 ≤ a)
+    (hEta : ∀ m, 1 ≤ m → m < K → heatEtaBar d σ N m M L δ δ3 ≤ a / Real.sqrt m) :
+    heatKernelL1 d σ δ a N K x := by
+  intro j hj i
+  have hNpos : (0 : ℝ) < N := by exact_mod_cast hN
+  have h := heat_kernel_l1_det hσ d N hN x hM hL hδ0 hδ hδ3 hρ j
+    (fun m h1 h2 => hdef m h1 (by omega)) (fun m h1 h2 => hA m h1 (by omega))
+    (fun m h1 h2 => hB m h1 (by omega)) (fun m h1 h2 => hC m h1 (by omega))
+    (fun m h1 h2 => hC12 m h1 (by omega)) i
+  refine h.trans (mul_le_mul_of_nonneg_left ?_ (by norm_num))
+  have hs : ∑ m ∈ Finset.range (j + 1), (N : ℝ) * heatEtaBar d σ N (m + 1) M L δ δ3
+      ≤ N * (a * (2 * Real.sqrt ((j + 1 : ℕ) : ℝ))) := by
+    calc ∑ m ∈ Finset.range (j + 1), (N : ℝ) * heatEtaBar d σ N (m + 1) M L δ δ3
+        ≤ ∑ m ∈ Finset.range (j + 1), (N : ℝ) * (a * (1 / Real.sqrt ((m : ℝ) + 1))) :=
+          Finset.sum_le_sum fun m hm => by
+            have hmm := Finset.mem_range.mp hm
+            have h1 := hEta (m + 1) (by omega) (by omega)
+            rw [Nat.cast_succ] at h1
+            rw [mul_one_div]
+            exact mul_le_mul_of_nonneg_left h1 hNpos.le
+      _ = N * (a * ∑ m ∈ Finset.range (j + 1), 1 / Real.sqrt ((m : ℝ) + 1)) := by
+          rw [Finset.mul_sum, Finset.mul_sum]
+      _ ≤ _ := mul_le_mul_of_nonneg_left
+          (mul_le_mul_of_nonneg_left (sum_inv_sqrt_le (j + 1)) ha) hNpos.le
+  linarith
+
+/-- **The kernel theorem in the mean for a random sample, with the normalisation events as
+    hypothesis.** As `heat_kernel_sharp_whp`, for the `L¹` form: no summation hypothesis and no
+    smallness condition on `W`. HYPOTHESIS `hBn` as there; HYPOTHESIS on numbers: `hEta`. -/
+theorem heat_kernel_l1_whp {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {σ : ℝ} (hσ : 0 < σ) (d : ℕ)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (N K : ℕ) (hN : 0 < N) {M L epsn pn : ℝ}
+    (hMσ : ∀ u, heatTorus d (2 * Real.pi ^ 2 * σ) u ≤ M) (hL : 0 < L)
+    (hepsn0 : 0 ≤ epsn) (hepsn : epsn ≤ N / 8)
+    (hBn : ∀ τ, σ ≤ τ → μ.real {ω | ∃ x : FlatTorus d,
+        epsn < |∑ j ∈ Finset.range N, heatTorus d (2 * Real.pi ^ 2 * τ) (x - X j ω) - N|} ≤ pn)
+    {a : ℝ} (ha : 0 ≤ a)
+    (hEta : ∀ m, 1 ≤ m → m < K →
+      heatEtaBar d σ N m M L (epsn / N) (epsn / N) ≤ a / Real.sqrt m) :
+    μ.real {ω | ¬ heatKernelL1 d σ (epsn / N) a N K (fun j => X j ω)}
+      ≤ pn + (pn + ((K : ℝ) * ((N : ℝ) ^ 2 * (2 * Real.exp (-L)))
+          + (K : ℝ) * ((N : ℝ) ^ 2 * (2 * Real.exp (-L))))) + (K : ℝ) * (4 * pn) := by
+  have hNpos : 0 < (N : ℝ) := by exact_mod_cast hN
+  have hcσ : 0 < 2 * Real.pi ^ 2 * σ := by positivity
+  have hM0 : 0 ≤ M := (heatTorus_nonneg hcσ d 0).trans (hMσ 0)
+  obtain ⟨Bn, hBnd⟩ : ∃ Bn : ℝ → Set Ω, Bn = fun τ => {ω | ∃ x : FlatTorus d,
+      epsn < |∑ j ∈ Finset.range N, heatTorus d (2 * Real.pi ^ 2 * τ) (x - X j ω) - N|} := ⟨_, rfl⟩
+  have hBnP : ∀ τ, σ ≤ τ → μ.real (Bn τ) ≤ pn := fun τ hτ => by rw [hBnd]; exact hBn τ hτ
+  have hBnc : ∀ τ ω, ω ∉ Bn τ → ∀ y : FlatTorus d,
+      |∑ j ∈ Finset.range N, heatTorus d (2 * Real.pi ^ 2 * τ) (y - X j ω) - N| ≤ epsn := by
+    intro τ ω hω y
+    by_contra h
+    rw [hBnd] at hω
+    exact hω ⟨y, not_le.mp h⟩
+  obtain ⟨D, hDd⟩ : ∃ D : Set Ω, D = {ω | ∃ m ∈ Finset.Icc 1 K, ∃ b ∈ Finset.range N,
+      ∃ i ∈ Finset.range N, heatDefBound d σ N m M L (epsn / N) (X b ω - X i ω)
+          < |heatDefect d σ N m (fun j => X j ω) b i|} := ⟨_, rfl⟩
+  have hDP : μ.real D ≤ pn + ((K : ℝ) * ((N : ℝ) ^ 2 * (2 * Real.exp (-L)))
+          + (K : ℝ) * ((N : ℝ) ^ 2 * (2 * Real.exp (-L)))) := by
+    rw [hDd]
+    exact heat_defect_whp hσ d X h_indep hX hlaw N K hN hMσ hL hepsn0 (by linarith) (hBn σ le_rfl)
+  obtain ⟨A, hAd⟩ : ∃ A : ℕ → Set Ω, A = fun m : ℕ =>
+      Bn ((m : ℝ) * σ + 2 * σ) ∪ (Bn (σ + (m : ℝ) * σ)
+        ∪ (Bn (6 * ((m : ℝ) * σ)) ∪ Bn (12 * ((m : ℝ) * σ)))) := ⟨_, rfl⟩
+  have hAP : ∀ m ∈ Finset.Icc 1 K, μ.real (A m) ≤ 4 * pn := by
+    intro m hm
+    have hm1 : (1 : ℝ) ≤ m := by exact_mod_cast (Finset.mem_Icc.mp hm).1
+    have t1 : σ ≤ (m : ℝ) * σ + 2 * σ := by nlinarith
+    have t2 : σ ≤ σ + (m : ℝ) * σ := by nlinarith
+    have t3 : σ ≤ 6 * ((m : ℝ) * σ) := by nlinarith
+    have t4 : σ ≤ 12 * ((m : ℝ) * σ) := by nlinarith
+    rw [hAd]
+    have u1 := measureReal_union_le (μ := μ) (Bn ((m : ℝ) * σ + 2 * σ))
+      (Bn (σ + (m : ℝ) * σ) ∪ (Bn (6 * ((m : ℝ) * σ)) ∪ Bn (12 * ((m : ℝ) * σ))))
+    have u2 := measureReal_union_le (μ := μ) (Bn (σ + (m : ℝ) * σ))
+      (Bn (6 * ((m : ℝ) * σ)) ∪ Bn (12 * ((m : ℝ) * σ)))
+    have u3 := measureReal_union_le (μ := μ) (Bn (6 * ((m : ℝ) * σ))) (Bn (12 * ((m : ℝ) * σ)))
+    linarith [hBnP _ t1, hBnP _ t2, hBnP _ t3, hBnP _ t4]
+  have hUP : μ.real (⋃ m ∈ Finset.Icc 1 K, A m) ≤ (K : ℝ) * (4 * pn) := by
+    calc μ.real (⋃ m ∈ Finset.Icc 1 K, A m) ≤ ∑ m ∈ Finset.Icc 1 K, μ.real (A m) :=
+          measureReal_biUnion_finset_le _ _
+      _ ≤ ∑ _m ∈ Finset.Icc 1 K, 4 * pn := Finset.sum_le_sum hAP
+      _ = (K : ℝ) * (4 * pn) := by simp
+  have hsub : {ω | ¬ heatKernelL1 d σ (epsn / N) a N K (fun j => X j ω)}
+      ⊆ Bn σ ∪ D ∪ ⋃ m ∈ Finset.Icc 1 K, A m := by
+    intro ω hbad
+    by_contra hcon
+    simp only [Set.mem_union, Set.mem_iUnion, not_or, not_exists] at hcon
+    obtain ⟨⟨hn, hD⟩, hAm⟩ := hcon
+    apply hbad
+    have hδ0 : 0 ≤ epsn / N := div_nonneg hepsn0 hNpos.le
+    have hδ8 : epsn / N ≤ 1 / 8 := by rw [div_le_iff₀ hNpos]; linarith
+    have hρ : ∀ j, |heatRho d σ N (fun j => X j ω) j - 1| ≤ epsn / N := by
+      intro j
+      have h := hBnc σ ω hn (X j ω)
+      have e : heatRho d σ N (fun j => X j ω) j - 1
+          = (∑ l ∈ Finset.range N, heatTorus d (2 * Real.pi ^ 2 * σ) (X j ω - X l ω) - N) / N := by
+        unfold heatRho; field_simp
+      rw [e, abs_div, abs_of_pos hNpos]
+      exact div_le_div_of_nonneg_right h hNpos.le
+    have hmem : ∀ m, 1 ≤ m → m < K → m ∈ Finset.Icc 1 K := fun m h1 h2 =>
+      Finset.mem_Icc.mpr ⟨h1, h2.le⟩
+    refine heat_kernel_l1_closed_det hσ d N K hN (fun j => X j ω) hM0 hL.le hδ0 hδ8 hδ0 hρ
+      ?_ ?_ ?_ ?_ ?_ ha hEta
+    · intro m hm hmK b hb i hi
+      by_contra h
+      rw [hDd] at hD
+      exact hD ⟨m, hmem m hm hmK, b, Finset.mem_range.mpr hb, i, Finset.mem_range.mpr hi,
+        not_le.mp h⟩
+    · intro m hm hmK i _
+      have hA' := hAm m (hmem m hm hmK)
+      rw [hAd] at hA'
+      simp only [Set.mem_union, not_or] at hA'
+      exact norm_event_sum hN (fun j => X j ω) (hBnc _ ω hA'.1) i
+    · intro m hm hmK i _
+      have hA' := hAm m (hmem m hm hmK)
+      rw [hAd] at hA'
+      simp only [Set.mem_union, not_or] at hA'
+      exact norm_event_sum hN (fun j => X j ω) (hBnc _ ω hA'.2.1) i
+    · intro m hm hmK i _
+      have hA' := hAm m (hmem m hm hmK)
+      rw [hAd] at hA'
+      simp only [Set.mem_union, not_or] at hA'
+      exact norm_event_sum hN (fun j => X j ω) (hBnc _ ω hA'.2.2.1) i
+    · intro m hm hmK i _
+      have hA' := hAm m (hmem m hm hmK)
+      rw [hAd] at hA'
+      simp only [Set.mem_union, not_or] at hA'
+      exact norm_event_sum hN (fun j => X j ω) (hBnc _ ω hA'.2.2.2) i
+  calc μ.real _ ≤ μ.real (Bn σ ∪ D ∪ ⋃ m ∈ Finset.Icc 1 K, A m) :=
+        measureReal_mono hsub (measure_ne_top μ _)
+    _ ≤ μ.real (Bn σ ∪ D) + μ.real (⋃ m ∈ Finset.Icc 1 K, A m) := measureReal_union_le _ _
+    _ ≤ (μ.real (Bn σ) + μ.real D) + μ.real (⋃ m ∈ Finset.Icc 1 K, A m) :=
+        add_le_add (measureReal_union_le _ _) le_rfl
+    _ ≤ _ := by linarith [hBnP σ le_rfl]
+
+/-- **The kernel theorem in the mean (`L¹` form) for a random sample on the torus.** Independent
+    uniform points on the flat torus, kernel time `σ ≤ 1`, `K σ ≤ 1`,
+    `δ = (ε + 2 N Lip/g)/N ≤ 1/8`, `(2L + 2)(kb + M) √K ≤ θ N`. No hypothesis on events, no
+    summation hypothesis, NO smallness condition `4δ + (1 + 4δ) W_K ≤ 1`. CONCLUSION: except on an
+    event of probability at most `(2 + 4K) · 2 g^d exp(-ε²/(4NM + 2Mε)) + 4 K N² e^{-L}`, for all
+    `j + 1 < K` and every `i`,
+    `(1/N) ∑_a |N P^{j+2}(a,i) - p_{(j+2)σ}(x_a - x_i)| ≤ (9/7)(4δ(1+δ) + 2 a √(j+1))`,
+    `a = heatRateA`. -/
+theorem heat_kernel_l1_sample {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {σ : ℝ} (hσ : 0 < σ) (hσ1 : σ ≤ 1) (d : ℕ)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (N K : ℕ) (hN : 0 < N) {g : ℕ} (hg : 0 < g)
+    {M Lip L ε δ θ : ℝ} (hMdef : M = (1 + Real.sqrt (Real.pi / (2 * Real.pi ^ 2 * σ))) ^ d)
+    (hLipdef : Lip = 2 * Real.pi * (2 / (2 * Real.pi ^ 2 * σ))
+      * (1 + Real.sqrt (2 * Real.pi / (2 * Real.pi ^ 2 * σ))) ^ d)
+    (hL : 0 < L) (hε : 0 < ε) (hsmall : ε + 2 * (N * Lip) * (1 / g) ≤ N / 8)
+    (hδ : δ = (ε + 2 * (N * Lip) * (1 / g)) / N)
+    (hKσ : (K : ℝ) * σ ≤ 1) (hθ0 : 0 ≤ θ)
+    (hθ : (2 * L + 2) * (heatKbar d σ + M) * Real.sqrt K ≤ θ * N) :
+    μ.real {ω | ¬ heatKernelL1 d σ δ (heatRateA d N M L δ θ) N K (fun j => X j ω)}
+      ≤ (g : ℝ) ^ d * (2 * Real.exp (-ε ^ 2 / (4 * (N * M) + 2 * M * ε)))
+        + ((g : ℝ) ^ d * (2 * Real.exp (-ε ^ 2 / (4 * (N * M) + 2 * M * ε)))
+          + ((K : ℝ) * ((N : ℝ) ^ 2 * (2 * Real.exp (-L)))
+            + (K : ℝ) * ((N : ℝ) ^ 2 * (2 * Real.exp (-L)))))
+        + (K : ℝ) * (4 * ((g : ℝ) ^ d * (2 * Real.exp (-ε ^ 2 / (4 * (N * M) + 2 * M * ε))))) := by
+  have hcσ : 0 < 2 * Real.pi ^ 2 * σ := by positivity
+  have hM0 : 0 ≤ M := by rw [hMdef]; positivity
+  have hLip0 : 0 ≤ Lip := by rw [hLipdef]; positivity
+  have hNpos : (0 : ℝ) < N := by exact_mod_cast hN
+  have hgpos : (0 : ℝ) < g := by exact_mod_cast hg
+  have hconst : ∀ τ, σ ≤ τ →
+      (∀ u, heatTorus d (2 * Real.pi ^ 2 * τ) u ≤ M)
+      ∧ (∀ u u', |heatTorus d (2 * Real.pi ^ 2 * τ) u - heatTorus d (2 * Real.pi ^ 2 * τ) u'|
+          ≤ Lip * dist u u') := by
+    intro τ hτ
+    have hcτ : 0 < 2 * Real.pi ^ 2 * τ := by have := lt_of_lt_of_le hσ hτ; positivity
+    have hcc : 2 * Real.pi ^ 2 * σ ≤ 2 * Real.pi ^ 2 * τ :=
+      mul_le_mul_of_nonneg_left hτ (by positivity)
+    obtain ⟨a1, a2⟩ := heat_consts_anti hcσ hcc d
+    constructor
+    · intro u; rw [hMdef]; exact (heatTorus_le hcτ d u).trans a1
+    · intro u u'; rw [hLipdef]
+      exact (heatTorus_lipschitz hcτ d u u').trans (mul_le_mul_of_nonneg_right a2 dist_nonneg)
+  have hepsn0 : 0 ≤ ε + 2 * (N * Lip) * (1 / g) := by positivity
+  have hδ0 : 0 ≤ δ := by rw [hδ]; positivity
+  have hEta := fun m hm hmK =>
+    heatEtaBar_closed hσ hσ1 hM0 hL.le hδ0 d N K hN hKσ hθ m hm hmK
+  subst hδ
+  exact heat_kernel_l1_whp hσ d X h_indep hX hlaw N K hN (hconst σ le_rfl).1 hL hepsn0 hsmall
+    (fun τ hτ => heat_normalisation_whp (lt_of_lt_of_le hσ hτ) d X h_indep hX hlaw N hg
+      (hconst τ hτ).1 (hconst τ hτ).2 hLip0 hε) (heatRateA_nonneg hM0 hL.le (div_nonneg hepsn0 hNpos.le) hθ0 d N) hEta
+
+end KernelL1
 
 end Probability
 
