@@ -1,0 +1,231 @@
+\documentclass[a4paper,11pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[sc]{mathpazo}
+\usepackage[scaled=0.92]{helvet}
+\usepackage[a4paper,margin=28mm]{geometry}
+\usepackage{amsmath,amssymb,amsthm,mathtools}
+\usepackage{booktabs,array}
+\usepackage{enumitem}
+\usepackage[colorlinks=true,linkcolor=black,citecolor=black,urlcolor=black]{hyperref}
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{corollary}[theorem]{Corollary}
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{question}[theorem]{Question}
+\theoremstyle{remark}
+\newtheorem{remark}[theorem]{Remark}
+\DeclareMathOperator{\tr}{tr}
+\newcommand{\M}{\mathcal{M}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\dd}{\mathrm{d}}
+\newcommand{\Lie}{\mathcal{L}}
+\newcommand{\status}[1]{\par\noindent\textsf{\small Status: #1}\par}
+\title{Time and dynamics: working draft}
+\author{Draft accompanying ``From Correlations to Geometry''}
+\date{19 November 2026}
+\begin{document}
+\maketitle
+
+\noindent\textbf{What this file is.} A working draft for Sections~5--7 and~9 of the paper. It is \emph{not} part of the paper; nothing in it has been read by a person. Every statement carries a status: \emph{proven} (with the proof given here, which has been read only by sessions of an AI system), \emph{from the paper} (a statement of the paper, with its status there), \emph{conditional}, \emph{open} (with a precise formulation), or \emph{refuted} (with a counterexample). References to labels such as \texttt{prop:kin} are to the paper. Numbers, where they occur, come from scripts in \texttt{scripts/}.
+
+\tableofcontents
+
+\section{B0. Which data about the time evolution fix $K$ and the lapse}
+
+\subsection{Setting and notation}
+
+As in Section~7 of the paper: a slice $\M$ of dimension $D$ with Riemannian metric $h$, a lapse $\Omega>0$ and a shift $\beta$, so that the spacetime metric is $-\Omega^2\dd t^2+h_{ij}(\dd x^i-\beta^i\dd t)(\dd x^j-\beta^j\dd t)$, the unit normal is $n=\Omega^{-1}(\partial_t+\beta\cdot\nabla)$ and $K=\tfrac12\Lie_nh$. The time $t$ is the time of the underlying system, and the points $x$ are labels that are carried along by the system: a node keeps its label. In these coordinates
+\begin{equation}\label{eq:hdot}
+\partial_th=2\Omega K-\Lie_\beta h .
+\end{equation}
+The field has the canonical pair $(\phi,\pi)$ with $[\phi(x),\pi(y)]=i\,\delta_h(x,y)$, where $\delta_h$ is the delta function with respect to $\dd V_h$, and the Hamiltonian
+\begin{equation}\label{eq:H}
+H=\int\Big[\Omega\,\big(\tfrac12\pi^2+\tfrac12|\nabla\phi|_h^2+\tfrac12m^2\phi^2\big)-\pi\,\beta\cdot\nabla\phi\Big]\dd V_h ,
+\end{equation}
+which for $\Omega=1$ is (\texttt{eq:Hshift}) of the paper. A Gaussian state is described by $X=\langle\phi\phi\rangle$, $P=\langle\pi\pi\rangle$ and $Y(x,y)=\tfrac12\langle\{\phi(x),\pi(y)\}\rangle$; $C_{ij}$ is the mutual information of two nodes.
+
+\begin{definition}[Tiers of data]\label{def:tiers}
+\begin{enumerate}[label=\textup{(D\arabic*)},start=0]
+\item \emph{Equal-time entropic data:} the matrix $C_{ij}$ at one time.
+\item \emph{Polarisation:} at every node the canonical pair is given, that is, which quadrature is $\phi$ and which is $\pi$, with the normalisation of the commutator; then $X$, $P$ and $Y$ at one time are data.
+\item \emph{First time derivative:} $\partial_tC_{ij}$ at one time, at fixed node labels.
+\item \emph{Two-time data:} correlators and commutators of the node variables at two times; to first order in the time difference these are the commutators of the velocities $\dot\phi$ with $\phi$ and $\pi$ and the correlators $\langle\dot\phi\,\phi\rangle$.
+\item \emph{Modular data:} the reduced states of regions, not only of pairs of nodes.
+\end{enumerate}
+\end{definition}
+
+The tiers are not nested in a single chain: (D2) does not need (D1), and (D4) concerns the state alone while (D3) concerns the dynamics.
+
+\subsection{What the state at one time can and cannot see}
+
+\begin{proposition}[The sign of $K$ is invisible in equal-time entropic data]\label{prop:sign}
+Let $\varrho_\beta$ be the ground state of \eqref{eq:H} with shift $\beta$, assumed unique. Then the time-reversed state, obtained by $(\phi,\pi)\mapsto(\phi,-\pi)$, is $\varrho_{-\beta}$; it has the same $X$ and $P$ and the opposite $Y$, and every function of the state that is invariant under local symplectic transformations of the nodes, in particular $C_{ij}$, takes the same value on $\varrho_\beta$ and $\varrho_{-\beta}$. Hence \textup{(D0)} cannot distinguish the stationary configurations $(h,\Omega,\beta)$ and $(h,\Omega,-\beta)$, whose extrinsic curvatures are $K$ and $-K$.
+\end{proposition}
+
+\begin{proof}
+The antiunitary time reversal $\Theta$ with $\Theta\phi\Theta^{-1}=\phi$, $\Theta\pi\Theta^{-1}=-\pi$ preserves the commutation relations and maps $H_\beta$ to $H_{-\beta}$, because the first bracket in \eqref{eq:H} is even and the last term is odd in $\pi$. It therefore maps the ground state of $H_\beta$ to a ground state of $H_{-\beta}$, which is $\varrho_{-\beta}$ by uniqueness. Under $\Theta$ the correlators $X$ and $P$ are unchanged and $Y$ changes sign. By \texttt{prop:Todd} of the paper every local symplectic invariant of a two-mode Gaussian state is invariant under this map. In the stationary case $\partial_th=0$, so \eqref{eq:hdot} gives $K=\Lie_\beta h/2\Omega$, which is odd in $\beta$.
+\end{proof}
+\status{proven; it is \texttt{prop:Todd} of the paper together with the observation that time reversal maps the ground state for $\beta$ to that for $-\beta$. Not covered: non-stationary states, where one would compare a state with its time reverse without reference to a Hamiltonian; the statement about the invariants holds for every Gaussian state, the identification of the time-reversed state with another physical configuration is what uses stationarity.}
+
+\begin{proposition}[What \textup{(D1)} adds: $\Omega K$ along geodesics]\label{prop:D1}
+Suppose that on a set of pairs the correlator has the profile form $X_t(x,y)=F(d_{h_t}(x,y))$ with $F$ independent of $t$ and $F'\ne0$. Then on this set
+\begin{equation}\label{eq:xray}
+\Omega(x)\,Y(y,x)+\Omega(y)\,Y(x,y)=F'(d_h(x,y))\int_\gamma\Omega\,K(\dot\gamma,\dot\gamma)\,\dd s ,
+\end{equation}
+with $\gamma$ the unit-speed minimising geodesic from $x$ to $y$. Consequently, if the set contains all pairs at distance less than some $r_0>0$ and $\Omega$ is known, then $K$ is determined at every point: for a unit vector $v$ at $x$ and $y=\exp_x(rv)$,
+\[
+\Omega(x)\,K_x(v,v)=\lim_{r\to0}\frac{\Omega(x)\,Y(y,x)+\Omega(y)\,Y(x,y)}{r\,F'(r)} .
+\]
+If $\Omega$ is known only up to a constant factor, $K$ is still determined, because both sides of \eqref{eq:xray} are homogeneous of degree one in $\Omega$.
+\end{proposition}
+
+\begin{proof}
+\eqref{eq:xray} is \texttt{thm:xray}(b) of the paper. Dividing by $rF'(r)$ and letting $r\to0$, the mean of the continuous function $s\mapsto\Omega K(\dot\gamma,\dot\gamma)$ over $[0,r]$ tends to its value at $s=0$.
+\end{proof}
+\status{from the paper (\texttt{thm:xray}(b), proven there under the profile-form assumption); the limit and the remark on the constant factor are immediate. Open, and the subject of B2: the size of the corrections to the profile form, and the $N$-point version.}
+
+\begin{remark}[The lapse from the state alone, static case]\label{rem:static}
+For the ground state of a static configuration ($\beta=0$, $\partial_th=0$, hence $K=0$) the paper shows that the lapse enters the equal-time correlators at leading power-law order through the second length $T(x,y)=\int_\gamma\Omega^{-2}\dd s$ (\texttt{thm:vargap}(b)), that node-independent cross-ratios determine it in $D=1$ up to a two-parameter family (\texttt{prop:crossratio}), and that for $D\ge2$ an ambiguity beyond a constant factor forces a foliation by totally geodesic hypersurfaces (\texttt{prop:rigid}). In this case the lapse profile $\Omega/\Omega(x_0)$ is a property of the spacetime near the slice (the norm of the static Killing field), and it is therefore not surprising that the state knows it; the constant factor is the unit of the Killing time and is not a property of the state.
+\end{remark}
+\status{from the paper. ``Generically the lapse is determined up to a constant'' is stated in the paper without a quantified notion of genericity; that part is \emph{open} as a theorem.}
+
+\subsection{What the first time derivative of the entropic data adds}
+
+\begin{proposition}[\textup{(D2)} gives the velocity of the metric in the gauge of the nodes]\label{prop:D2}
+Suppose that $C_{ij}(t)=G(d_{h_t}(x_i,x_j))$ on a set of pairs, with $G$ independent of $t$ and $G'\ne0$, where $h_t$ is the metric in the coordinates carried by the nodes. Then on this set
+\begin{equation}\label{eq:Cdot}
+\partial_tC_{ij}=\tfrac12\,G'(d_h(x_i,x_j))\int_\gamma(\partial_th)(\dot\gamma,\dot\gamma)\,\dd s,\qquad\partial_th=2\Omega K-\Lie_\beta h .
+\end{equation}
+If the set contains all pairs at distance less than some $r_0>0$, the symmetric tensor field $\partial_th$ is determined by \textup{(D0)} and \textup{(D2)}. It is odd under time reversal. It determines $\Omega K$ if and only if $\Lie_\beta h$ is known, for instance if the nodes move along the normals ($\beta=0$).
+\end{proposition}
+
+\begin{proof}
+By the first variation of arc length, for a family of metrics $h_t$ and fixed end points, $\partial_td_{h_t}(x,y)=\tfrac12\int_\gamma(\partial_th)(\dot\gamma,\dot\gamma)\,\dd s$, the variation of the curve contributing nothing because $\gamma$ is a geodesic. The short-distance limit as in Proposition~\ref{prop:D1} gives $(\partial_th)_x(v,v)$ for all $v$, hence $\partial_th$ by polarisation. The formula for $\partial_th$ is \eqref{eq:hdot}. For the last statement, \eqref{eq:hdot} is one equation for the two tensors $\Omega K$ and $\Lie_\beta h$.
+\end{proof}
+\status{proven under the stated profile-form assumption (which is the assumption under which the paper reconstructs $h$ from $C$ at all). The assumption that $G$ does not depend on $t$ is restrictive: it fails when the gap or the node factors change in time; no estimate of the corrections is given. The $N$-point version is B2.}
+
+\begin{corollary}[Polarisation and first derivative together give the shift]\label{cor:shift}
+Under the assumptions of Propositions~\ref{prop:D1} and~\ref{prop:D2}, and with $\Omega$ known, the data \textup{(D0)}, \textup{(D1)}, \textup{(D2)} determine $h$, $K$ and $\Lie_\beta h=2\Omega K-\partial_th$, hence $\beta$ up to Killing fields of $h$.
+\end{corollary}
+\status{proven as a consequence; conditional on the two profile-form assumptions and on the knowledge of $\Omega$.}
+
+\begin{remark}[Reading]
+\textup{(D2)} resolves the apparent conflict with Proposition~\ref{prop:sign}: entropic data at \emph{two} times do see a sign, namely that of $\partial_th$. What they cannot do without a polarisation is to separate the motion of the nodes relative to the normal observers (the shift) from the bending of the slice ($K$). The polarisation $\pi=n\phi$ is exactly the datum that says what ``normal'' means at a node.
+\end{remark}
+
+\subsection{What the dynamics adds: lapse and shift as the velocity map}
+
+\begin{proposition}[Lapse and shift from the commutators of the velocities]\label{prop:velocity}
+For the Hamiltonian \eqref{eq:H}, $\dot\phi=i[H,\phi]=\Omega\,\pi-\beta\cdot\nabla\phi$, and for test functions $f,g$, with $\phi(f)=\int f\phi\,\dd V_h$ and $\pi(g)=\int g\pi\,\dd V_h$,
+\begin{equation}\label{eq:velocity}
+i\,[\dot\phi(f),\phi(g)]=\int\Omega\,f\,g\,\dd V_h,\qquad i\,[\dot\phi(f),\pi(g)]=\int f\,\beta\cdot\nabla g\,\dd V_h .
+\end{equation}
+These identities hold as operator identities, independently of the state. Hence the lapse and the shift are determined by the commutators of the velocities of the configuration variables with the canonical variables: $\Omega$ pointwise including its normalisation, and $\beta$ as a vector field.
+\end{proposition}
+
+\begin{proof}
+$i[H,\phi(x)]=\delta H/\delta\pi(x)=\Omega\pi-\beta\cdot\nabla\phi$. Then $[\dot\phi(x),\phi(y)]=\Omega(x)[\pi(x),\phi(y)]=-i\Omega(x)\delta_h(x,y)$, because $\beta\cdot\nabla\phi$ commutes with $\phi$; and $[\dot\phi(x),\pi(y)]=-\beta(x)\cdot\nabla_x[\phi(x),\pi(y)]=-i\,\beta(x)\cdot\nabla_x\delta_h(x,y)$, because $\pi$ commutes with $\pi$. Integrating against $f(x)g(y)$ and, in the second case, integrating by parts in $x$ and using $\int\operatorname{div}_h(f\beta)\,g\,\dd V_h=-\int f\,\beta\cdot\nabla g\,\dd V_h$ gives \eqref{eq:velocity}.
+\end{proof}
+\status{proven (a two-line computation). What it presupposes is as important as what it says: a polarisation with normalised commutators (D1), and the time derivative of the node variables as operators (D3). For measured node variables $\phi_a=F_a\phi(f_a)$ with unknown factors $F_a$ the first identity gives $F_a^2\int\Omega f_a^2$; how the node factors are eliminated is \emph{open} (compare the cross-ratios of the paper).}
+
+\begin{remark}[Lapse as a local clock rate]
+The first identity in \eqref{eq:velocity} says that the lapse is the rate at which the configuration variable of a node responds to its own momentum, measured in the time of the system: one number per node, with no asymptotic analysis and no genericity assumption. It is the infinitesimal form of the statement that the commutator function of the field is supported inside the light cone of the optical metric $h/\Omega^2$ (finite propagation speed for $\partial_t^2\phi=-A\phi$). The stronger statement that the support of the two-time commutator function \emph{equals} the cone for short times, so that the optical distance and with it $\Omega$ can be read off from the support, is used in the paper only as a remark (after \texttt{prop:Todd}); a reference for it has not been checked for this draft.
+\end{remark}
+\status{the infinitesimal statement is Proposition~\ref{prop:velocity}; the statement about the support of the commutator function is \emph{cited without a checked reference}.}
+
+\begin{theorem}[Summary: minimal data for $K$, lapse and shift]\label{thm:summary}
+In the linear model \eqref{eq:H}, under the profile-form assumptions of Propositions~\ref{prop:D1} and~\ref{prop:D2}:
+\begin{enumerate}[label=\textup{(\roman*)}]
+\item \textup{(D0)} determines $h$ (this is the reconstruction of the paper) and is blind to the sign of $K$ (Proposition~\ref{prop:sign}).
+\item \textup{(D0)} and \textup{(D2)} determine $\partial_th=2\Omega K-\Lie_\beta h$ and nothing more of $(\Omega,\beta,K)$.
+\item \textup{(D1)} determines the left-hand side of \eqref{eq:xray} only when $\Omega$ is known up to a constant; then it determines $K$.
+\item The velocity map \eqref{eq:velocity}, which is part of \textup{(D3)} and presupposes \textup{(D1)}, determines $\Omega$ and $\beta$ exactly.
+\item Hence \textup{(D1)} together with the velocity map determines $(h,K,\Omega,\beta)$ on the slice; \textup{(D2)} is then a consistency condition, namely \eqref{eq:hdot}.
+\end{enumerate}
+\end{theorem}
+\status{proven as a summary of the propositions above, with their conditions. \emph{Not} proven: minimality in the sense that no smaller set of data suffices. What is shown towards minimality: (D0) alone does not give the sign of $K$ (Proposition~\ref{prop:sign}); (D0)+(D2) do not separate $K$ from the shift (Proposition~\ref{prop:D2}, last statement, which is a statement about equation~\eqref{eq:hdot} and assumes that nothing else in the data depends on $\beta$).}
+
+\begin{question}[Minimality]\label{q:minimal}
+\textup{(a)} Is there a pair of configurations with the same $h$ and the same $\partial_th$, different $(\Omega K,\Lie_\beta h)$, and \emph{identical} $C_{ij}(t)$ to first order in $t$, exactly and not only in the profile-form approximation? A candidate: on flat space, the ground state for a shift $\beta$ with $\Lie_\beta h\ne0$ (so $K\ne0$, $\partial_th=0$) against the static vacuum ($K=0$, $\beta=0$): both have $\partial_tC=0$, and by Proposition~\ref{prop:sign} $C$ is even in $\beta$, so they differ at most at second order in $\beta$.
+\textup{(b)} Does the antisymmetric part of $Y$ carry information about $\nabla\Omega$? In \eqref{eq:xray} the left-hand side is $(\Omega(x)+\Omega(y))Y^{\mathrm s}+(\Omega(y)-\Omega(x))Y^{\mathrm a}$; for a static configuration $Y=0$, so there the answer is no.
+\end{question}
+\status{open.}
+
+\subsection{State without dynamics: the modular tier}
+
+\begin{remark}[What \textup{(D4)} can give]
+By \texttt{prop:modular} of the paper (cited results of Bisognano--Wichmann and of Borchers, Wiesbrock, Araki--Zsid\'o), for states of the vacuum type the modular Hamiltonian of a region near its boundary is the generator of boosts, built from the energy density with respect to the \emph{unit normal}. It therefore supplies, from the state alone, a notion of normal time evolution near the entangling surface, that is, a polarisation in the sense of \textup{(D1)}, and with it $K$ through Proposition~\ref{prop:D1}. It does not contain the lapse or the shift of the system: these compare the time of the system with the normal evolution and are properties of the pair (state, Hamiltonian of the system), as Proposition~\ref{prop:velocity} shows. In a description with the state alone they are a choice of time function, that is, gauge.
+\end{remark}
+\status{the first sentence is from the paper (cited results); the rest is an \emph{interpretation}, not a theorem. Open (already listed in the paper as open problem~7): a quantitative version on curved backgrounds and on the lattice, and a characterisation of the states for which the modular flow of small regions is geometric.}
+
+\subsection{What remains free for the field equations}
+
+Suppose $(h,K,\Omega,\beta)$ are known on the slice, as in Theorem~\ref{thm:summary}(v). Write $G$ for Newton's constant and $\Lambda$ for the cosmological constant, and let $R$ be the scalar curvature of $h$ and $D$ its Levi-Civita connection.
+
+\begin{proposition}[The constraints and the evolution equations define a source]\label{prop:source}
+For every choice of constants $G>0$ and $\Lambda$ the quantities
+\[
+\rho_{\mathrm{geo}}=\frac{1}{16\pi G}\big(R+(\tr K)^2-|K|^2-2\Lambda\big),\qquad
+j^i_{\mathrm{geo}}=\frac{1}{8\pi G}\,D_j\big(K^{ij}-h^{ij}\tr K\big)
+\]
+are defined by the data \textup{(D1)} and the velocity map at one time. With them the Hamiltonian and the momentum constraint of general relativity hold identically. If in addition $\partial_tK$ is known, the evolution equation for $K$ defines a spatial stress tensor $S^{\mathrm{geo}}_{ij}$ in the same way, and then all components of the Einstein equations hold identically with the source $(\rho_{\mathrm{geo}},j_{\mathrm{geo}},S^{\mathrm{geo}})$.
+\end{proposition}
+
+\begin{proof}
+These are the definitions; the constraints of general relativity for a source $(\rho,j)$ read $R+(\tr K)^2-|K|^2-2\Lambda=16\pi G\rho$ and $D_j(K^{ij}-h^{ij}\tr K)=8\pi Gj^i$ in the present sign conventions, and the evolution equation for $K$ is linear in $S_{ij}$ with an invertible coefficient.
+\end{proof}
+\status{proven in the sense that it is a definition; the statement is the remark at the end of Section~7 of the paper made explicit. The sign conventions of the two constraint equations have been written from the standard $3+1$ form and have \emph{not} been checked against a reference for this draft; nothing below depends on the signs.}
+
+\begin{remark}[The data needed for $\partial_tK$]
+By Proposition~\ref{prop:D1}, $\partial_tK$ requires $\partial_tY$ in addition, or equivalently the second time derivative of $X$ at fixed nodes: differentiating the kinematic identity \texttt{prop:kin} once more. So the evolution equations need one more order of time derivatives of the state than the constraints do.
+\end{remark}
+
+\begin{theorem}[What is free]\label{thm:free}
+In the present framework the field equations of general relativity, evaluated on the reconstructed data, are not a constraint on the data but a definition of a source. A statement with content arises only when the source is specified independently. What is then free is exactly:
+\begin{enumerate}[label=\textup{(\alph*)}]
+\item the two constants $G$ and $\Lambda$;
+\item the definition of the matter source from the same data, that is, of $\rho_{\mathrm m}$, $j_{\mathrm m}$, $S_{\mathrm m}$ as functionals of the state: for the field itself these are coincidence limits of derivatives of $X$, $P$ and $Y$, which diverge and require a subtraction;
+\item the principle that equates the two, $\rho_{\mathrm{geo}}=\rho_{\mathrm m}$, $j_{\mathrm{geo}}=j_{\mathrm m}$, $S^{\mathrm{geo}}=S_{\mathrm m}$, as a condition that selects admissible pairs (background, state).
+\end{enumerate}
+Nothing in the correlation data implies \textup{(c)}: for every background $(h,\Omega,\beta)$ the Hamiltonian \eqref{eq:H} has a ground state, so the map from backgrounds to data is defined on all backgrounds, and \textup{(c)} is not satisfied on all of them for any fixed choice in \textup{(a)} and \textup{(b)}.
+\end{theorem}
+
+\begin{proof}
+The first two sentences are Proposition~\ref{prop:source}. For the last statement it suffices to exhibit, for a fixed choice of $(G,\Lambda)$ and of a subtraction in (b), two backgrounds of which at most one satisfies (c). Take the static flat torus of side $L$ with $\Omega=1$, $\beta=0$: then $R=0$, $K=0$, so $\rho_{\mathrm{geo}}=-\Lambda/8\pi G$ for every $L$, while the subtracted ground-state energy density $\rho_{\mathrm m}(L)$ of the field depends on $L$ (it is the Casimir energy density for any subtraction that is local, that is, independent of $L$). Hence (c) can hold for at most those $L$ at which $\rho_{\mathrm m}(L)=-\Lambda/8\pi G$.
+\end{proof}
+\status{the structure (a)--(c) is a restatement, in the terms of this section, of what the paper says at the end of Section~7 and in Section~9; it is an organising statement, not a new result. The counterexample in the proof uses that the Casimir energy density of a massive scalar field on a flat torus is a non-constant function of $L$; this is standard and \emph{has not been verified with a script or a checked reference for this draft}. It also uses that the subtraction is local; a subtraction that depends on the global geometry could make $\rho_{\mathrm m}$ vanish identically, in which case (c) with $\Lambda=0$ would hold on all static flat tori and the argument would have to use a curved or non-static background.}
+
+\begin{remark}[Relation to Section~9 of the paper]
+Item (b) is where the short-distance structure enters: with a spatial cutoff the induced terms are not covariant (\texttt{prop:shiftresponse}, \texttt{prop:nocancel} of the paper), and \texttt{prop:lambda} gives a kinetic coupling $\lambda\le1$ for node systems. Item (c) is the missing principle (open problem~8 of the paper). The present section adds only the bookkeeping: which tier of data is needed to \emph{state} each component of (c). The constraints need \textup{(D1)} and the velocity map at one time; the evolution equations need in addition one more time derivative of the state.
+\end{remark}
+
+\begin{table}[ht]
+\centering\small
+\begin{tabular}{@{}p{0.27\textwidth}p{0.33\textwidth}p{0.32\textwidth}@{}}
+\toprule
+Data & Determines & Not determined, or gauge\\
+\midrule
+(D0) $C_{ij}$ at one time & $h$; in the static case the lapse profile (paper) & sign of $K$; unit of time\\
+(D0)+(D2) $\partial_tC_{ij}$ & $\partial_th=2\Omega K-\Lie_\beta h$ & $K$ and the shift separately\\
+(D1) polarisation, $Y$ & $\Omega K$ along geodesics, once $\Omega$ is known up to a constant & $\Omega$, $\beta$\\
+(D3) velocity map & $\Omega$ including its normalisation, $\beta$ & ---\\
+(D1)+(D3) & $(h,K,\Omega,\beta)$ on the slice; $\rho_{\mathrm{geo}}$, $j_{\mathrm{geo}}$ & $\partial_tK$ (needs $\partial_tY$)\\
+(D4) modular data & a polarisation near entangling surfaces, for vacuum-type states (cited) & $\Omega$, $\beta$: gauge without a Hamiltonian\\
+\bottomrule
+\end{tabular}
+\caption{Summary of B0. Each entry holds under the conditions of the corresponding statement.}
+\end{table}
+
+\section{B1. A lapse estimator from cross-ratios}
+\emph{Not started.}
+
+\section{B2. The $N$-point version of the differentiated pipeline; corrections to the profile form}
+\emph{Not started.}
+
+\section{B3. A map of the missing principle}
+\emph{Not started.}
+
+\end{document}
