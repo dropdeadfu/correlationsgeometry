@@ -15,6 +15,8 @@ The exponentially small correlators are computed with high relative accuracy: X 
 positive ratios (no cancellation); everything is kept in logarithms.
 
 Single deterministic runs; the table shows the form of the error, it is not a proof of a rate.
+The last block varies the lattice spacing: at small l the error of the first blocks is dominated by the
+lattice (it scales like a^2), not by the continuum model.
 Usage: python lapse_tidal_estimator.py
 """
 import numpy as np
@@ -124,6 +126,19 @@ def main():
         khat, ktrue, rho = estimate(80.0, ell, 2.5, 0.05 / 80.0)
         print("l = %4.2f  Khat = %8.4f  K_true = %8.4f  error = %+8.4f   l^2 = %6.4f  1/(mbar l) = %6.4f"
               % (ell, khat, ktrue, khat - ktrue, ell ** 2, 1.0 / (80.0 * ell)))
+    print()
+    print("fixed x0 = 2.5: dependence on mbar and on the lattice spacing a = f/mbar (error = Khat - K_true);")
+    print("'extrapolated' is the Richardson value (4 e(f/2) - e(f))/3 from the two finest lattices")
+    print(" mbar     l    f=0.10    f=0.05    f=0.025   extrapolated")
+    for mbar, ell in ((40.0, 0.10), (80.0, 0.10), (160.0, 0.10), (80.0, 0.15)):
+        fs = (0.10, 0.05) if mbar > 100 else (0.10, 0.05, 0.025)
+        errs = []
+        for f in fs:
+            khat, ktrue, rho = estimate(mbar, ell, 2.5, f / mbar)
+            errs.append(khat - ktrue)
+        extra = (4.0 * errs[-1] - errs[-2]) / 3.0
+        cols = "  ".join("%+8.5f" % e for e in errs) + ("            " if len(errs) == 2 else "  ")
+        print("%5.0f  %4.2f  %s%+8.5f" % (mbar, ell, cols, extra))
 
 
 if __name__ == "__main__":
