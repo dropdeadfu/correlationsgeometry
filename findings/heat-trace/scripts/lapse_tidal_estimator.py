@@ -139,6 +139,12 @@ def main():
         extra = (4.0 * errs[-1] - errs[-2]) / 3.0
         cols = "  ".join("%+8.5f" % e for e in errs) + ("            " if len(errs) == 2 else "  ")
         print("%5.0f  %4.2f  %s%+8.5f" % (mbar, ell, cols, extra))
+    print()
+    print("lattice term at f = 0.10 (a = 0.10/mbar), x0 = 2.5: dependence on mbar and l")
+    for mbar, ell in ((20.0, 0.10), (40.0, 0.10), (80.0, 0.10), (160.0, 0.10), (40.0, 0.20)):
+        khat, ktrue, rho = estimate(mbar, ell, 2.5, 0.10 / mbar)
+        print("mbar = %5.0f  l = %4.2f  error = %+8.5f   error (l/a)^2 / (1 + mbar l) = %+8.4f"
+              % (mbar, ell, khat - ktrue, (khat - ktrue) * mbar ** 2 * ell ** 2 / (0.01 * (1.0 + mbar * ell))))
 
 
 if __name__ == "__main__":
