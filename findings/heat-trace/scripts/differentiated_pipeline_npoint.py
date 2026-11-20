@@ -12,6 +12,10 @@ Compared, for f = sin(2 pi x): the tau-derivative of L_N f at tau = 0 (central d
 maximum over the sample points, the relative bias of the population value, and delta'/xi with
 delta' = sqrt(log N / (N xi^d)).
 
+Caveat: the script uses the nearest image only, so the comparison value (a) is the population value of the
+periodised kernel, not of the kernel used; the difference is negligible for xi <= 0.10 and visible for
+xi >= 0.14 (it explains the constant 0.066 at xi = 0.20).
+
 Single samples with a fixed seed; the table shows the size of the errors, it is not a proof of a rate.
 Usage: python differentiated_pipeline_npoint.py
 """
