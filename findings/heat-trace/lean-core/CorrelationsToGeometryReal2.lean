@@ -9869,4 +9869,542 @@ end SampleFA
 
 end PiBound
 
+/-! ## Almost sure statements with the regime in place of the smallness hypothesis.
+Regime (R'): `N σ_N^{d/2+1}/log N → ∞` (with `σ = ξ²` this is `N ξ^{d+2}/log N → ∞`). No rate is stated. -/
+
+namespace Regime
+
+open Filter Topology
+open CTG.Reals.TraceG29 CTG.Reals.Assembled
+
+theorem eigC3_nonneg (d : ℕ) : 0 ≤ eigC3 d := by
+  unfold eigC3
+  have h1 := TraceG29.kernelC1_nonneg d
+  have h2 : 0 ≤ (6 * (6 * Real.sqrt (3 * (d : ℝ) + 5)) + 2
+      + Real.sqrt (8 * (3 + 2 * ((3 * d + 1 : ℕ) : ℝ))) * (1 + 2 * Real.sqrt 2 ^ d))
+    * ((1 + Real.sqrt (2 * Real.pi)) ^ d) ^ 2 := by positivity
+  linarith
+
+/-! ### The smallness condition derived from the regime -/
+
+/-! ### Stage 1: pure analysis -/
+
+/-- `1 + (2πσ)^{-1/2} ≤ 2 σ^{-1/2}` for `0 < σ ≤ 1`. -/
+theorem one_add_sqrt_le {σ : ℝ} (hσ : 0 < σ) (hσ1 : σ ≤ 1) :
+    1 + Real.sqrt (Real.pi / (2 * Real.pi ^ 2 * σ)) ≤ 2 / Real.sqrt σ := by
+  have hs : 0 < Real.sqrt σ := Real.sqrt_pos.mpr hσ
+  have hs1 : Real.sqrt σ ≤ 1 := (Real.sqrt_le_sqrt hσ1).trans_eq Real.sqrt_one
+  have hpi := Real.two_le_pi
+  have h1 : (1 : ℝ) ≤ 1 / Real.sqrt σ := (one_le_div hs).mpr hs1
+  have h2 : Real.pi / (2 * Real.pi ^ 2 * σ) ≤ 1 / σ := by
+    rw [div_le_div_iff₀ (by positivity) hσ]
+    nlinarith [mul_pos (mul_pos hσ Real.pi_pos) (by linarith : (0 : ℝ) < 2 * Real.pi - 1)]
+  have h3 : Real.sqrt (Real.pi / (2 * Real.pi ^ 2 * σ)) ≤ 1 / Real.sqrt σ := by
+    have := Real.sqrt_le_sqrt h2
+    rwa [Real.sqrt_div (by norm_num : (0 : ℝ) ≤ 1), Real.sqrt_one] at this
+  calc 1 + Real.sqrt (Real.pi / (2 * Real.pi ^ 2 * σ))
+      ≤ 1 / Real.sqrt σ + 1 / Real.sqrt σ := add_le_add h1 h3
+    _ = 2 / Real.sqrt σ := by ring
+
+/-- Core of the smallness condition (real numbers only). -/
+theorem small_core {C M L n s K η : ℝ} (d : ℕ) (hC : 0 ≤ C) (hη : 0 < η)
+    (hM : M ≤ 2 ^ d / s) (hs : 0 < s) (hL : 0 < L) (hn : 0 < n) (hK : 0 < K)
+    (hR : C ^ 2 * 2 ^ d / η ^ 2 + 1 ≤ n * s / (L * K)) :
+    C * Real.sqrt (M * L / n) * Real.sqrt K ≤ η := by
+  have hLK : 0 < L * K := mul_pos hL hK
+  have hC2 : 0 ≤ C ^ 2 := _root_.sq_nonneg C
+  have hη2 : 0 < η ^ 2 := pow_pos hη 2
+  have hA : 0 ≤ C ^ 2 * 2 ^ d / η ^ 2 := by positivity
+  have hB : 0 < C ^ 2 * 2 ^ d / η ^ 2 + 1 := by linarith
+  have hx : M * L / n * K ≤ 2 ^ d / (C ^ 2 * 2 ^ d / η ^ 2 + 1) := by
+    have h1 : M * L / n * K ≤ 2 ^ d / s * L / n * K :=
+      mul_le_mul_of_nonneg_right
+        (div_le_div_of_nonneg_right (mul_le_mul_of_nonneg_right hM hL.le) hn.le) hK.le
+    have h2 : 2 ^ d / s * L / n * K = 2 ^ d / (n * s / (L * K)) := by
+      field_simp
+    rw [h2] at h1
+    exact h1.trans (div_le_div_of_nonneg_left (by positivity) hB hR)
+  have hx2 : C ^ 2 * (M * L / n * K) ≤ η ^ 2 := by
+    refine (mul_le_mul_of_nonneg_left hx hC2).trans ?_
+    rw [← mul_div_assoc, div_le_iff₀ hB]
+    have h5 : η ^ 2 * (C ^ 2 * 2 ^ d / η ^ 2) = C ^ 2 * 2 ^ d := by
+      field_simp
+    rw [mul_add, h5]
+    linarith
+  have e : C * Real.sqrt (M * L / n) * Real.sqrt K
+      = Real.sqrt (C ^ 2 * (M * L / n * K)) := by
+    rw [Real.sqrt_mul hC2, Real.sqrt_sq hC, Real.sqrt_mul' _ hK.le, mul_assoc]
+  rw [e]
+  exact (Real.sqrt_le_sqrt hx2).trans_eq (Real.sqrt_sq hη.le)
+
+/-- Core of the smallness of the Poisson-tail term `4M/N²`. -/
+theorem tail_core {M L n s J η : ℝ} (d : ℕ) (hη : 0 < η)
+    (hM : M ≤ 2 ^ d / s) (hs : 0 < s) (hL : Real.log 2 ≤ L) (hn : 2 ≤ n) (hJ : 2 ≤ J)
+    (hR : 4 * 2 ^ d / η ≤ n * s / (L * J)) :
+    4 * M / n ^ 2 ≤ η := by
+  have hl2 := Real.log_two_gt_d9
+  have hLJ : 1 ≤ L * J := by
+    nlinarith [mul_nonneg (sub_nonneg.2 (hl2.le.trans hL)) (sub_nonneg.2 hJ)]
+  have hn0 : (0 : ℝ) < n := by linarith
+  have hdiv : n * s / (L * J) ≤ n * s := div_le_self (mul_pos hn0 hs).le hLJ
+  have h1 : 4 * 2 ^ d ≤ n * s * η := (div_le_iff₀ hη).1 (hR.trans hdiv)
+  have h2 : n * s * η ≤ η * n ^ 2 * s := by
+    nlinarith [mul_nonneg (mul_pos (mul_pos hη hs) hn0).le (by linarith : (0 : ℝ) ≤ n - 1)]
+  have h4 : 4 * (2 ^ d / s) ≤ η * n ^ 2 := by
+    rw [← mul_div_assoc, div_le_iff₀ hs]; linarith
+  rw [div_le_iff₀ (pow_pos hn0 2)]
+  linarith
+
+/-- `N / (log N)^n → ∞`. -/
+theorem tendsto_nat_div_log_pow (n : ℕ) :
+    Tendsto (fun N : ℕ => (N : ℝ) / Real.log N ^ n) atTop atTop := by
+  have h0 : Tendsto (fun x : ℝ => Real.log x ^ n / (1 * x + 0)) atTop (𝓝 0) :=
+    Real.tendsto_pow_log_div_mul_add_atTop 1 0 n one_ne_zero
+  have h1 : Tendsto (fun x : ℝ => Real.log x ^ n / (1 * x + 0)) atTop (𝓝[>] 0) := by
+    refine tendsto_nhdsWithin_iff.2 ⟨h0, ?_⟩
+    filter_upwards [eventually_gt_atTop (1 : ℝ)] with x hx
+    have hl : 0 < Real.log x := Real.log_pos hx
+    exact div_pos (pow_pos hl n) (by linarith)
+  have h2 := (tendsto_inv_nhdsGT_zero.comp h1).comp
+    (tendsto_natCast_atTop_atTop (R := ℝ))
+  refine h2.congr (fun N => ?_)
+  simp [Function.comp]
+
+/-- Core of: `N σ^{d/2+1}/log N` large and `N/(log N)^{d+2}` large imply
+    `N σ^{d/2+1}/(log N (1 + σ log N))` large. -/
+theorem log_core {n σ L b : ℝ} (d : ℕ) (hσ : 0 < σ) (hσ1 : σ ≤ 1) (hL : 1 ≤ L) (hn : 0 < n)
+    (h1 : 2 * b ≤ n * Real.sqrt σ ^ d * σ / L) (h2 : 2 * b ≤ n / L ^ (d + 2)) :
+    b ≤ n * Real.sqrt σ ^ d * σ / (L * (1 + σ * L)) := by
+  have hL0 : (0 : ℝ) < L := by linarith
+  have hr0 : 0 < Real.sqrt σ := Real.sqrt_pos.mpr hσ
+  have hr1 : Real.sqrt σ ≤ 1 := (Real.sqrt_le_sqrt hσ1).trans_eq Real.sqrt_one
+  have hX : 0 ≤ n * Real.sqrt σ ^ d * σ :=
+    (mul_pos (mul_pos hn (pow_pos hr0 d)) hσ).le
+  have hden0 : 0 < L * (1 + σ * L) := mul_pos hL0 (by nlinarith [mul_pos hσ hL0])
+  by_cases h : σ * L ≤ 1
+  · have hden : L * (1 + σ * L) ≤ 2 * L := by
+      nlinarith [mul_nonneg hL0.le (sub_nonneg.2 h)]
+    calc b ≤ n * Real.sqrt σ ^ d * σ / L / 2 := by linarith
+      _ = n * Real.sqrt σ ^ d * σ / (2 * L) := by rw [div_div, mul_comm L 2]
+      _ ≤ n * Real.sqrt σ ^ d * σ / (L * (1 + σ * L)) :=
+          div_le_div_of_nonneg_left hX hden0 hden
+  · rw [not_le] at h
+    have hσr : σ ≤ Real.sqrt σ := by
+      have hr2 : Real.sqrt σ * Real.sqrt σ = σ := Real.mul_self_sqrt hσ.le
+      nlinarith [mul_nonneg hr0.le (sub_nonneg.2 hr1)]
+    have hsq : 1 / L ≤ Real.sqrt σ :=
+      (((div_lt_iff₀ hL0).2 h).le).trans hσr
+    have hs : 1 / L ^ d ≤ Real.sqrt σ ^ d := by
+      rw [← _root_.one_div_pow]
+      exact pow_le_pow_left₀ (div_pos one_pos hL0).le hsq d
+    have hden : L * (1 + σ * L) ≤ 2 * σ * L ^ 2 := by
+      nlinarith [mul_nonneg hL0.le (by linarith : (0 : ℝ) ≤ σ * L - 1)]
+    have hLd : (0 : ℝ) < L ^ d := pow_pos hL0 d
+    have e : n / L ^ (d + 2) / 2 = n * (1 / L ^ d) * σ / (2 * σ * L ^ 2) := by
+      rw [pow_add]
+      field_simp
+    calc b ≤ n / L ^ (d + 2) / 2 := by linarith
+      _ = n * (1 / L ^ d) * σ / (2 * σ * L ^ 2) := e
+      _ ≤ n * Real.sqrt σ ^ d * σ / (2 * σ * L ^ 2) :=
+          div_le_div_of_nonneg_right
+            (mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_left hs hn.le) hσ.le)
+            (mul_nonneg (mul_nonneg zero_le_two hσ.le) (_root_.sq_nonneg L))
+      _ ≤ n * Real.sqrt σ ^ d * σ / (L * (1 + σ * L)) :=
+          div_le_div_of_nonneg_left hX hden0 hden
+
+/-! ### Stage 1 (continued): the heat kernel at zero and the smallness condition -/
+
+/-- `M = p_σ(0) ≤ 2^d σ^{-d/2}` for `0 < σ ≤ 1` (written with `(√σ)^d`). -/
+theorem heatM_bound {σ : ℝ} (hσ : 0 < σ) (hσ1 : σ ≤ 1) (d : ℕ) :
+    heatTorus d (2 * Real.pi ^ 2 * σ) 0 ≤ 2 ^ d / Real.sqrt σ ^ d := by
+  have hc : 0 < 2 * Real.pi ^ 2 * σ := by positivity
+  have h0 : (0 : ℝ) ≤ 1 + Real.sqrt (Real.pi / (2 * Real.pi ^ 2 * σ)) := by positivity
+  exact (heatTorus_le hc d 0).trans
+    ((pow_le_pow_left₀ h0 (one_add_sqrt_le hσ hσ1) d).trans_eq (div_pow _ _ d))
+
+/-- **The smallness condition follows from the regime.** If `0 < σ_N ≤ 1`, `K_N ≥ 1` eventually and
+    `N σ_N^{d/2} / (log N · K_N) → ∞`, then for every constant `C ≥ 0` and every `η > 0`,
+    eventually `C √(M_N log N / N) √K_N ≤ η`. -/
+theorem eventually_small (d : ℕ) {C : ℝ} (hC : 0 ≤ C) (σ : ℕ → ℝ) (K : ℕ → ℕ)
+    (hσ : ∀ᶠ N in atTop, 0 < σ N ∧ σ N ≤ 1) (hK : ∀ᶠ N in atTop, 0 < K N)
+    (hreg : Tendsto (fun N : ℕ => (N : ℝ) * Real.sqrt (σ N) ^ d / (Real.log N * K N))
+      atTop atTop) {η : ℝ} (hη : 0 < η) :
+    ∀ᶠ N : ℕ in atTop,
+      C * Real.sqrt (heatTorus d (2 * Real.pi ^ 2 * σ N) 0 * Real.log N / N)
+        * Real.sqrt (K N) ≤ η := by
+  filter_upwards [hσ, hK, hreg.eventually_ge_atTop (C ^ 2 * 2 ^ d / η ^ 2 + 1),
+    eventually_ge_atTop 2] with N h1 h2 h3 h4
+  have hN : (2 : ℝ) ≤ N := by exact_mod_cast h4
+  exact small_core d hC hη (heatM_bound h1.1 h1.2 d) (pow_pos (Real.sqrt_pos.mpr h1.1) d)
+    (Real.log_pos (by linarith)) (by linarith) (by exact_mod_cast h2) h3
+
+/-- Under the regime, `C δ'_N √K_N → 0`. -/
+theorem tendsto_small (d : ℕ) {C : ℝ} (hC : 0 ≤ C) (σ : ℕ → ℝ) (K : ℕ → ℕ)
+    (hσ : ∀ᶠ N in atTop, 0 < σ N ∧ σ N ≤ 1) (hK : ∀ᶠ N in atTop, 0 < K N)
+    (hreg : Tendsto (fun N : ℕ => (N : ℝ) * Real.sqrt (σ N) ^ d / (Real.log N * K N))
+      atTop atTop) :
+    Tendsto (fun N : ℕ =>
+      C * Real.sqrt (heatTorus d (2 * Real.pi ^ 2 * σ N) 0 * Real.log N / N)
+        * Real.sqrt (K N)) atTop (𝓝 0) := by
+  refine tendsto_order.2 ⟨fun a ha => Eventually.of_forall (fun N => lt_of_lt_of_le ha
+      (mul_nonneg (mul_nonneg hC (Real.sqrt_nonneg _)) (Real.sqrt_nonneg _))), fun a ha => ?_⟩
+  exact (eventually_small d hC σ K hσ hK hreg (half_pos ha)).mono
+    (fun N h => lt_of_le_of_lt h (half_lt_self ha))
+
+/-- Under the regime with `J_N ≥ 2`, the tail term `4 M_N / N²` is eventually `≤ η`. -/
+theorem eventually_tail_small (d : ℕ) (σ : ℕ → ℝ) (J : ℕ → ℕ)
+    (hσ : ∀ᶠ N in atTop, 0 < σ N ∧ σ N ≤ 1) (hJ : ∀ᶠ N in atTop, 2 ≤ J N)
+    (hreg : Tendsto (fun N : ℕ => (N : ℝ) * Real.sqrt (σ N) ^ d / (Real.log N * J N))
+      atTop atTop) {η : ℝ} (hη : 0 < η) :
+    ∀ᶠ N : ℕ in atTop, 4 * heatTorus d (2 * Real.pi ^ 2 * σ N) 0 / (N : ℝ) ^ 2 ≤ η := by
+  filter_upwards [hσ, hJ, hreg.eventually_ge_atTop (4 * 2 ^ d / η),
+    eventually_ge_atTop 2] with N h1 h2 h3 h4
+  have hN : (2 : ℝ) ≤ N := by exact_mod_cast h4
+  exact tail_core d hη (heatM_bound h1.1 h1.2 d) (pow_pos (Real.sqrt_pos.mpr h1.1) d)
+    (Real.log_le_log (by norm_num) hN) hN (by exact_mod_cast h2) h3
+
+/-- The regime for the concrete choice `K_N = ⌈c/σ_N⌉`: `N σ_N^{d/2+1}/log N → ∞`
+    (with `σ = ξ²` this is `N ξ^{d+2}/log N → ∞`) implies the regime of `eventually_small`. -/
+theorem regime_ceil (d : ℕ) (σ : ℕ → ℝ) {c : ℝ} (hc : 0 < c)
+    (hσ : ∀ᶠ N in atTop, 0 < σ N ∧ σ N ≤ 1)
+    (hreg : Tendsto (fun N : ℕ => (N : ℝ) * Real.sqrt (σ N) ^ d * σ N / Real.log N)
+      atTop atTop) :
+    Tendsto (fun N : ℕ => (N : ℝ) * Real.sqrt (σ N) ^ d
+      / (Real.log N * ((⌈c / σ N⌉₊ : ℕ) : ℝ))) atTop atTop := by
+  have hc1 : (0 : ℝ) < c + 1 := by linarith
+  refine tendsto_atTop_mono' atTop ?_ (hreg.atTop_div_const hc1)
+  filter_upwards [hσ, eventually_ge_atTop 2] with N h1 h4
+  have hN : (2 : ℝ) ≤ N := by exact_mod_cast h4
+  have hL : 0 < Real.log N := Real.log_pos (by linarith)
+  have hσ0 := h1.1
+  have hcσ : 0 < c / σ N := div_pos hc hσ0
+  have hKpos : (0 : ℝ) < ((⌈c / σ N⌉₊ : ℕ) : ℝ) := by exact_mod_cast Nat.ceil_pos.mpr hcσ
+  have hKb : ((⌈c / σ N⌉₊ : ℕ) : ℝ) ≤ (c + 1) / σ N := by
+    have h5 := (Nat.ceil_lt_add_one hcσ.le).le
+    have h6 : (1 : ℝ) ≤ 1 / σ N := (one_le_div hσ0).mpr h1.2
+    have h7 : (c + 1) / σ N = c / σ N + 1 / σ N := by ring
+    linarith
+  have hX : 0 ≤ (N : ℝ) * Real.sqrt (σ N) ^ d :=
+    mul_nonneg (by linarith) (pow_nonneg (Real.sqrt_nonneg _) d)
+  have e : (N : ℝ) * Real.sqrt (σ N) ^ d * σ N / Real.log N / (c + 1)
+      = (N : ℝ) * Real.sqrt (σ N) ^ d / (Real.log N * ((c + 1) / σ N)) := by
+    field_simp
+  show (N : ℝ) * Real.sqrt (σ N) ^ d * σ N / Real.log N / (c + 1)
+      ≤ (N : ℝ) * Real.sqrt (σ N) ^ d / (Real.log N * ((⌈c / σ N⌉₊ : ℕ) : ℝ))
+  rw [e]
+  exact div_le_div_of_nonneg_left hX (mul_pos hL hKpos) (mul_le_mul_of_nonneg_left hKb hL.le)
+
+/-- `N σ^{d/2+1}/log N → ∞` implies `N σ^{d/2+1}/(log N (1 + σ log N)) → ∞` (the reciprocal of the
+    quantity in the bound of the corollary "joint regime, almost surely"). -/
+theorem regime_log (d : ℕ) (σ : ℕ → ℝ)
+    (hσ : ∀ᶠ N in atTop, 0 < σ N ∧ σ N ≤ 1)
+    (hreg : Tendsto (fun N : ℕ => (N : ℝ) * Real.sqrt (σ N) ^ d * σ N / Real.log N)
+      atTop atTop) :
+    Tendsto (fun N : ℕ => (N : ℝ) * Real.sqrt (σ N) ^ d * σ N
+      / (Real.log N * (1 + σ N * Real.log N))) atTop atTop := by
+  refine tendsto_atTop.2 (fun b => ?_)
+  filter_upwards [hσ, hreg.eventually_ge_atTop (2 * b),
+    (tendsto_nat_div_log_pow (d + 2)).eventually_ge_atTop (2 * b),
+    eventually_ge_atTop 3] with N h1 h2 h3 h4
+  have hN : (3 : ℝ) ≤ N := by exact_mod_cast h4
+  have hL : 1 ≤ Real.log N := by
+    rw [Real.le_log_iff_exp_le (by linarith)]
+    have := Real.exp_one_lt_d9
+    linarith
+  exact log_core d h1.1 h1.2 hL (by linarith) h2 h3
+
+/-- The regime for the concrete choice `J_N = ⌈3c/σ_N + 2 log N⌉` (trace):
+    `N σ^{d/2+1}/(log N (1 + σ log N)) → ∞` implies the regime of `eventually_small` for `J_N`. -/
+theorem regime_ceil_trace (d : ℕ) (σ : ℕ → ℝ) {c : ℝ} (hc : 0 < c)
+    (hσ : ∀ᶠ N in atTop, 0 < σ N ∧ σ N ≤ 1)
+    (hreg : Tendsto (fun N : ℕ => (N : ℝ) * Real.sqrt (σ N) ^ d * σ N
+      / (Real.log N * (1 + σ N * Real.log N))) atTop atTop) :
+    Tendsto (fun N : ℕ => (N : ℝ) * Real.sqrt (σ N) ^ d
+      / (Real.log N * ((⌈3 * c / σ N + 2 * Real.log N⌉₊ : ℕ) : ℝ))) atTop atTop := by
+  have hc1 : (0 : ℝ) < 3 * c + 2 := by linarith
+  refine tendsto_atTop_mono' atTop ?_ (hreg.atTop_div_const hc1)
+  filter_upwards [hσ, eventually_ge_atTop 2] with N h1 h4
+  have hN : (2 : ℝ) ≤ N := by exact_mod_cast h4
+  have hL : 0 < Real.log N := Real.log_pos (by linarith)
+  have hσ0 := h1.1
+  have hcσ : 0 < 3 * c / σ N := div_pos (by linarith) hσ0
+  have harg : 0 < 3 * c / σ N + 2 * Real.log N := by linarith
+  have hKpos : (0 : ℝ) < ((⌈3 * c / σ N + 2 * Real.log N⌉₊ : ℕ) : ℝ) := by
+    exact_mod_cast Nat.ceil_pos.mpr harg
+  have hKb : ((⌈3 * c / σ N + 2 * Real.log N⌉₊ : ℕ) : ℝ)
+      ≤ (3 * c + 2) * (1 + σ N * Real.log N) / σ N := by
+    have h5 := (Nat.ceil_lt_add_one harg.le).le
+    have h6 : (1 : ℝ) ≤ 1 / σ N := (one_le_div hσ0).mpr h1.2
+    have h7 : (3 * c + 2) * (1 + σ N * Real.log N) / σ N
+        = 3 * c / σ N + 2 * (1 / σ N) + (3 * c + 2) * Real.log N := by
+      field_simp
+    have h8 : 0 ≤ c * Real.log N := (mul_pos hc hL).le
+    rw [h7]
+    nlinarith
+  have hX : 0 ≤ (N : ℝ) * Real.sqrt (σ N) ^ d :=
+    mul_nonneg (by linarith) (pow_nonneg (Real.sqrt_nonneg _) d)
+  have h1L : 0 < 1 + σ N * Real.log N := by nlinarith [mul_pos hσ0 hL]
+  have e : (N : ℝ) * Real.sqrt (σ N) ^ d * σ N / (Real.log N * (1 + σ N * Real.log N))
+        / (3 * c + 2)
+      = (N : ℝ) * Real.sqrt (σ N) ^ d
+        / (Real.log N * ((3 * c + 2) * (1 + σ N * Real.log N) / σ N)) := by
+    field_simp
+  show (N : ℝ) * Real.sqrt (σ N) ^ d * σ N / (Real.log N * (1 + σ N * Real.log N))
+        / (3 * c + 2)
+      ≤ (N : ℝ) * Real.sqrt (σ N) ^ d
+        / (Real.log N * ((⌈3 * c / σ N + 2 * Real.log N⌉₊ : ℕ) : ℝ))
+  rw [e]
+  exact div_le_div_of_nonneg_left hX (mul_pos hL hKpos) (mul_le_mul_of_nonneg_left hKb hL.le)
+
+/-- `J_N = ⌈3c/σ_N + 2 log N⌉ ≥ 2` for `N ≥ 2`. -/
+theorem ceil_trace_ge_two (σ : ℕ → ℝ) {c : ℝ} (hc : 0 < c)
+    (hσ : ∀ᶠ N in atTop, 0 < σ N ∧ σ N ≤ 1) :
+    ∀ᶠ N : ℕ in atTop, 2 ≤ ⌈3 * c / σ N + 2 * Real.log N⌉₊ := by
+  filter_upwards [hσ, eventually_ge_atTop 2] with N h1 h4
+  have hN : (2 : ℝ) ≤ N := by exact_mod_cast h4
+  have hl2 := Real.log_two_gt_d9
+  have hL : Real.log 2 ≤ Real.log N := Real.log_le_log (by norm_num) hN
+  have hcσ : 0 < 3 * c / σ N := div_pos (by linarith) h1.1
+  have : ((1 : ℕ) : ℝ) < 3 * c / σ N + 2 * Real.log N := by
+    push_cast; linarith
+  exact Nat.lt_ceil.mpr this
+
+/-! ### Stage 2: almost sure statements with the regime as the only condition -/
+
+/-- **Kernel estimate, almost surely, regime derived.** Independent uniform points on the flat torus
+    of dimension `d ≥ 1`; `σ_N` (kernel variance, `σ = ξ²`) and `K_N` may depend on `N`.
+    Conditions on the sequences: eventually `0 < σ_N ≤ 1`, `K_N ≥ 1`, and the REGIME
+    `N σ_N^{d/2} / (log N · K_N) → ∞`. Then almost surely, for all large `N`, all `1 ≤ k ≤ K_N` and
+    all entries, `|N P^k(a,i) - p_{kσ_N}(x_a - x_i)| ≤ C₁ δ'_N √k m_k`. -/
+theorem kernel_theorem_G28_regime {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] (d : ℕ) (hd : 1 ≤ d)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (σ : ℕ → ℝ) (K : ℕ → ℕ)
+    (hσ : ∀ᶠ N in atTop, 0 < σ N ∧ σ N ≤ 1) (hK : ∀ᶠ N in atTop, 0 < K N)
+    (hreg : Tendsto (fun N : ℕ => (N : ℝ) * Real.sqrt (σ N) ^ d / (Real.log N * K N))
+      atTop atTop) :
+    ∀ᵐ ω ∂μ, ∀ᶠ N : ℕ in atTop, ∀ k, 1 ≤ k → k ≤ K N → ∀ a i : Fin N,
+        |(N : ℝ) * ((walkMatrix
+              (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ N) (X a ω - X j ω))
+              (fun a : Fin N => heatRho d (σ N) N (fun j => X j ω) a)) ^ k) a i
+            - heatP d (σ N) k (X a ω - X i ω)|
+          ≤ kernelC1 d * Real.sqrt (heatTorus d (2 * Real.pi ^ 2 * σ N) 0 * Real.log N / N)
+            * Real.sqrt k * heatTorus d (2 * Real.pi ^ 2 * ((k : ℝ) * σ N)) 0 :=
+  AlmostSure.kernel_theorem_G28_ae d hd X h_indep hX hlaw σ K hσ hK
+    (eventually_small d (kernelC1_nonneg d) σ K hσ hK hreg one_pos)
+
+/-- **Stage 3, kernel: convergence.** Under the same regime, almost surely: for EVERY `η > 0`, for
+    all large `N`, all `1 ≤ k ≤ K_N` and all entries,
+    `|N P^k(a,i) - p_{kσ_N}(x_a - x_i)| ≤ η m_k` (`m_k = p_{kσ_N}(0)`): the relative error, uniformly
+    in `k ≤ K_N` and the entries, tends to zero. No rate is claimed. -/
+theorem kernel_theorem_G28_regime_tendsto {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] (d : ℕ) (hd : 1 ≤ d)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (σ : ℕ → ℝ) (K : ℕ → ℕ)
+    (hσ : ∀ᶠ N in atTop, 0 < σ N ∧ σ N ≤ 1) (hK : ∀ᶠ N in atTop, 0 < K N)
+    (hreg : Tendsto (fun N : ℕ => (N : ℝ) * Real.sqrt (σ N) ^ d / (Real.log N * K N))
+      atTop atTop) :
+    ∀ᵐ ω ∂μ, ∀ η : ℝ, 0 < η → ∀ᶠ N : ℕ in atTop, ∀ k, 1 ≤ k → k ≤ K N → ∀ a i : Fin N,
+        |(N : ℝ) * ((walkMatrix
+              (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ N) (X a ω - X j ω))
+              (fun a : Fin N => heatRho d (σ N) N (fun j => X j ω) a)) ^ k) a i
+            - heatP d (σ N) k (X a ω - X i ω)|
+          ≤ η * heatTorus d (2 * Real.pi ^ 2 * ((k : ℝ) * σ N)) 0 := by
+  filter_upwards [kernel_theorem_G28_regime d hd X h_indep hX hlaw σ K hσ hK hreg] with ω hω
+  intro η hη
+  filter_upwards [hω, eventually_small d (kernelC1_nonneg d) σ K hσ hK hreg hη, hσ]
+    with N h1 h2 h3 k hk1 hk2 a i
+  refine (h1 k hk1 hk2 a i).trans ?_
+  have hk0 : (0 : ℝ) < k := by exact_mod_cast hk1
+  have hσ0 := h3.1
+  have hm : 0 ≤ heatTorus d (2 * Real.pi ^ 2 * ((k : ℝ) * σ N)) 0 :=
+    (heatTorus_zero_pos (by positivity) d).le
+  have hkK : Real.sqrt (k : ℝ) ≤ Real.sqrt (K N) :=
+    Real.sqrt_le_sqrt (by exact_mod_cast hk2)
+  exact mul_le_mul_of_nonneg_right
+    ((mul_le_mul_of_nonneg_left hkK
+      (mul_nonneg (kernelC1_nonneg d) (Real.sqrt_nonneg _))).trans h2) hm
+
+/-- **Kernel, concrete step range `K_N = ⌈c/σ_N⌉`.** For fixed `c > 0`: if eventually `0 < σ_N ≤ 1`
+    and `N σ_N^{d/2+1} / log N → ∞` (with `σ = ξ²`: `N ξ^{d+2}/log N → ∞`), then almost surely, for
+    every `η > 0`, for all large `N`, all `1 ≤ k ≤ ⌈c/σ_N⌉` and all entries, both
+    `|N P^k(a,i) - p_k| ≤ C₁ δ'_N √k m_k` and `|N P^k(a,i) - p_k| ≤ η m_k`. -/
+theorem kernel_theorem_G28_regime_ceil {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] (d : ℕ) (hd : 1 ≤ d)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (σ : ℕ → ℝ) {c : ℝ} (hc : 0 < c)
+    (hσ : ∀ᶠ N in atTop, 0 < σ N ∧ σ N ≤ 1)
+    (hreg : Tendsto (fun N : ℕ => (N : ℝ) * Real.sqrt (σ N) ^ d * σ N / Real.log N)
+      atTop atTop) :
+    ∀ᵐ ω ∂μ, ∀ η : ℝ, 0 < η → ∀ᶠ N : ℕ in atTop, ∀ k, 1 ≤ k → k ≤ ⌈c / σ N⌉₊ →
+      ∀ a i : Fin N,
+        |(N : ℝ) * ((walkMatrix
+              (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ N) (X a ω - X j ω))
+              (fun a : Fin N => heatRho d (σ N) N (fun j => X j ω) a)) ^ k) a i
+            - heatP d (σ N) k (X a ω - X i ω)|
+          ≤ kernelC1 d * Real.sqrt (heatTorus d (2 * Real.pi ^ 2 * σ N) 0 * Real.log N / N)
+            * Real.sqrt k * heatTorus d (2 * Real.pi ^ 2 * ((k : ℝ) * σ N)) 0
+        ∧ |(N : ℝ) * ((walkMatrix
+              (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ N) (X a ω - X j ω))
+              (fun a : Fin N => heatRho d (σ N) N (fun j => X j ω) a)) ^ k) a i
+            - heatP d (σ N) k (X a ω - X i ω)|
+          ≤ η * heatTorus d (2 * Real.pi ^ 2 * ((k : ℝ) * σ N)) 0 := by
+  have hK : ∀ᶠ N in atTop, 0 < ⌈c / σ N⌉₊ := by
+    filter_upwards [hσ] with N h1
+    exact Nat.ceil_pos.mpr (div_pos hc h1.1)
+  have hreg' := regime_ceil d σ hc hσ hreg
+  filter_upwards [kernel_theorem_G28_regime d hd X h_indep hX hlaw σ (fun N => ⌈c / σ N⌉₊)
+      hσ hK hreg',
+    kernel_theorem_G28_regime_tendsto d hd X h_indep hX hlaw σ (fun N => ⌈c / σ N⌉₊)
+      hσ hK hreg'] with ω hω1 hω2
+  intro η hη
+  filter_upwards [hω1, hω2 η hη] with N h1 h2 k hk1 hk2 a i
+  exact ⟨h1 k hk1 hk2 a i, h2 k hk1 hk2 a i⟩
+
+/-- **Subtracted heat trace, almost surely, regime derived, with convergence.** Conditions on the
+    sequences: eventually `0 < σ_N ≤ 1`, `J_N ≥ 2`, and `N σ_N^{d/2} / (log N · J_N) → ∞`. Then
+    almost surely, for every `η > 0`, for all large `N` and ALL `τ ≥ 2` with
+    `3τ + 2 log N ≤ J_N + 1` (EMPTY unless `J_N ≥ 5 + 2 log N`):
+    `|(Tr exp(τ(S-1)) - N e^{-τ})/T(τ) - 1| ≤ C₁ δ'_N √J_N + 4 M_N/N²` and the right-hand side
+    is `≤ η`. -/
+theorem heat_trace_G29_regime {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] (d : ℕ) (hd : 1 ≤ d)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (σ : ℕ → ℝ) (J : ℕ → ℕ)
+    (hσ : ∀ᶠ N in atTop, 0 < σ N ∧ σ N ≤ 1) (hJ : ∀ᶠ N in atTop, 2 ≤ J N)
+    (hreg : Tendsto (fun N : ℕ => (N : ℝ) * Real.sqrt (σ N) ^ d / (Real.log N * J N))
+      atTop atTop) :
+    ∀ᵐ ω ∂μ, ∀ η : ℝ, 0 < η → ∀ᶠ N : ℕ in atTop,
+      ∀ τ : ℝ, 2 ≤ τ → 3 * τ + 2 * Real.log N ≤ (J N : ℝ) + 1 →
+        |((NormedSpace.exp (τ • (symGraph
+              (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ N) (X a ω - X j ω))
+              (fun a : Fin N => heatRho d (σ N) N (fun j => X j ω) a) - 1))).trace
+            - (N : ℝ) * Real.exp (-τ)) / poissonMean d (σ N) τ - 1|
+          ≤ kernelC1 d * Real.sqrt (heatTorus d (2 * Real.pi ^ 2 * σ N) 0 * Real.log N / N)
+              * Real.sqrt (J N)
+            + 4 * heatTorus d (2 * Real.pi ^ 2 * σ N) 0 / (N : ℝ) ^ 2
+        ∧ kernelC1 d * Real.sqrt (heatTorus d (2 * Real.pi ^ 2 * σ N) 0 * Real.log N / N)
+              * Real.sqrt (J N)
+            + 4 * heatTorus d (2 * Real.pi ^ 2 * σ N) 0 / (N : ℝ) ^ 2 ≤ η := by
+  have hJ0 : ∀ᶠ N in atTop, 0 < J N := hJ.mono (fun N h => by omega)
+  filter_upwards [AlmostSure.heat_trace_G29_ae d hd X h_indep hX hlaw σ J hσ hJ
+    (eventually_small d (kernelC1_nonneg d) σ J hσ hJ0 hreg one_pos)] with ω hω
+  intro η hη
+  filter_upwards [hω, eventually_small d (kernelC1_nonneg d) σ J hσ hJ0 hreg (half_pos hη),
+    eventually_tail_small d σ J hσ hJ hreg (half_pos hη)] with N h1 h2 h3 τ hτ1 hτ2
+  exact ⟨h1 τ hτ1 hτ2, by linarith⟩
+
+/-- **Subtracted heat trace, concrete `J_N = ⌈3c/σ_N + 2 log N⌉`.** For fixed `c > 0`: if eventually
+    `0 < σ_N ≤ 1` and `N σ_N^{d/2+1} / log N → ∞` (with `σ = ξ²`: `N ξ^{d+2}/log N → ∞`), then
+    almost surely, for every `η > 0`, for all large `N` and all `τ` with `2 ≤ τ ≤ c/σ_N`:
+    `|(Tr exp(τ(S-1)) - N e^{-τ})/T(τ) - 1| ≤ η`. -/
+theorem heat_trace_G29_regime_ceil {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] (d : ℕ) (hd : 1 ≤ d)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (σ : ℕ → ℝ) {c : ℝ} (hc : 0 < c)
+    (hσ : ∀ᶠ N in atTop, 0 < σ N ∧ σ N ≤ 1)
+    (hreg : Tendsto (fun N : ℕ => (N : ℝ) * Real.sqrt (σ N) ^ d * σ N / Real.log N)
+      atTop atTop) :
+    ∀ᵐ ω ∂μ, ∀ η : ℝ, 0 < η → ∀ᶠ N : ℕ in atTop,
+      ∀ τ : ℝ, 2 ≤ τ → τ ≤ c / σ N →
+        |((NormedSpace.exp (τ • (symGraph
+              (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ N) (X a ω - X j ω))
+              (fun a : Fin N => heatRho d (σ N) N (fun j => X j ω) a) - 1))).trace
+            - (N : ℝ) * Real.exp (-τ)) / poissonMean d (σ N) τ - 1| ≤ η := by
+  have hreg' := regime_ceil_trace d σ hc hσ (regime_log d σ hσ hreg)
+  filter_upwards [heat_trace_G29_regime d hd X h_indep hX hlaw σ
+    (fun N => ⌈3 * c / σ N + 2 * Real.log N⌉₊) hσ (ceil_trace_ge_two σ hc hσ) hreg'] with ω hω
+  intro η hη
+  filter_upwards [hω η hη, hσ] with N h1 h3 τ hτ1 hτ2
+  have hσ0 := h3.1
+  have h5 : 3 * τ ≤ 3 * c / σ N := by
+    have : 3 * c / σ N = 3 * (c / σ N) := by ring
+    linarith
+  have h6 := Nat.le_ceil (3 * c / σ N + 2 * Real.log N)
+  have key : 3 * τ + 2 * Real.log N
+      ≤ ((⌈3 * c / σ N + 2 * Real.log N⌉₊ : ℕ) : ℝ) + 1 := by linarith
+  have h7 := h1 τ hτ1 key
+  exact h7.1.trans h7.2
+
+/-- **Eigenvalues, part (i), almost surely, regime derived, with a bound `η · m_k` (small RELATIVE TO
+    `m_k = p_{kσ}(0)`; not convergence of the eigenvalues, and trivial as long as `η m_k ≥ 1`).** Conditions on the
+    sequences: eventually `0 < σ_N ≤ 1`, `K_N ≥ 1`, and `N σ_N^{d/2} / (log N · K_N) → ∞`. Then
+    almost surely, for every `η > 0`, for all large `N`, all `1 ≤ k ≤ K_N` and all indices `j`
+    (counted from zero): `s_0 = 1`, and for `j ≥ 1`, with `q = shellIndex d j`,
+    `|s_j^k - e^{-k 2π²σ_N q}| ≤ C₃ δ'_N √k m_k` and `C₃ δ'_N √k m_k ≤ η m_k`. -/
+theorem eig_theorem_G38_i_regime {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] (d : ℕ) (hd : 1 ≤ d)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (σ : ℕ → ℝ) (K : ℕ → ℕ)
+    (hσ : ∀ᶠ N in atTop, 0 < σ N ∧ σ N ≤ 1) (hK : ∀ᶠ N in atTop, 0 < K N)
+    (hreg : Tendsto (fun N : ℕ => (N : ℝ) * Real.sqrt (σ N) ^ d / (Real.log N * K N))
+      atTop atTop) :
+    ∀ᵐ ω ∂μ, ∀ η : ℝ, 0 < η → ∀ᶠ N : ℕ in atTop, ∀ k, 1 ≤ k → k ≤ K N →
+        ∀ (hS : (symGraph
+            (fun i j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ N) (X i ω - X j ω))
+            (fun i : Fin N =>
+              (∑ l : Fin N, heatTorus d (2 * Real.pi ^ 2 * σ N) (X i ω - X l ω)) / N)).IsHermitian)
+          (j : Fin (Fintype.card (Fin N))),
+          (j.val = 0 → hS.eigenvalues₀ j = 1)
+          ∧ (1 ≤ j.val →
+            |hS.eigenvalues₀ j ^ k
+                - Real.exp (-(2 * Real.pi ^ 2 * σ N) * (shellIndex d j.val : ℝ)) ^ k|
+              ≤ eigC3 d
+                * Real.sqrt (heatTorus d (2 * Real.pi ^ 2 * σ N) 0 * Real.log N / N)
+                * Real.sqrt k * heatTorus d (2 * Real.pi ^ 2 * ((k : ℝ) * σ N)) 0
+            ∧ eigC3 d
+                * Real.sqrt (heatTorus d (2 * Real.pi ^ 2 * σ N) 0 * Real.log N / N)
+                * Real.sqrt k * heatTorus d (2 * Real.pi ^ 2 * ((k : ℝ) * σ N)) 0
+              ≤ η * heatTorus d (2 * Real.pi ^ 2 * ((k : ℝ) * σ N)) 0) := by
+  filter_upwards [AlmostSure.eig_theorem_G38_i_ae d hd X h_indep hX hlaw σ K hσ hK
+    (eventually_small d (kernelC1_nonneg d) σ K hσ hK hreg one_pos)] with ω hω
+  intro η hη
+  filter_upwards [hω, eventually_small d (eigC3_nonneg d) σ K hσ hK hreg hη, hσ]
+    with N h1 h2 h3 k hk1 hk2 hS j
+  refine ⟨(h1 k hk1 hk2 hS j).1, fun hj => ⟨(h1 k hk1 hk2 hS j).2 hj, ?_⟩⟩
+  have hk0 : (0 : ℝ) < k := by exact_mod_cast hk1
+  have hσ0 := h3.1
+  have hm : 0 ≤ heatTorus d (2 * Real.pi ^ 2 * ((k : ℝ) * σ N)) 0 :=
+    (heatTorus_zero_pos (by positivity) d).le
+  have hkK : Real.sqrt (k : ℝ) ≤ Real.sqrt (K N) :=
+    Real.sqrt_le_sqrt (by exact_mod_cast hk2)
+  exact mul_le_mul_of_nonneg_right
+    ((mul_le_mul_of_nonneg_left hkK
+      (mul_nonneg (eigC3_nonneg d) (Real.sqrt_nonneg _))).trans h2) hm
+
+/-- **Eigenvalues (i), concrete `K_N = ⌈c/σ_N⌉`**, under `N σ_N^{d/2+1}/log N → ∞`. -/
+theorem eig_theorem_G38_i_regime_ceil {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] (d : ℕ) (hd : 1 ≤ d)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (σ : ℕ → ℝ) {c : ℝ} (hc : 0 < c)
+    (hσ : ∀ᶠ N in atTop, 0 < σ N ∧ σ N ≤ 1)
+    (hreg : Tendsto (fun N : ℕ => (N : ℝ) * Real.sqrt (σ N) ^ d * σ N / Real.log N)
+      atTop atTop) :
+    ∀ᵐ ω ∂μ, ∀ η : ℝ, 0 < η → ∀ᶠ N : ℕ in atTop, ∀ k, 1 ≤ k → k ≤ ⌈c / σ N⌉₊ →
+        ∀ (hS : (symGraph
+            (fun i j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ N) (X i ω - X j ω))
+            (fun i : Fin N =>
+              (∑ l : Fin N, heatTorus d (2 * Real.pi ^ 2 * σ N) (X i ω - X l ω)) / N)).IsHermitian)
+          (j : Fin (Fintype.card (Fin N))),
+          (j.val = 0 → hS.eigenvalues₀ j = 1)
+          ∧ (1 ≤ j.val →
+            |hS.eigenvalues₀ j ^ k
+                - Real.exp (-(2 * Real.pi ^ 2 * σ N) * (shellIndex d j.val : ℝ)) ^ k|
+              ≤ eigC3 d
+                * Real.sqrt (heatTorus d (2 * Real.pi ^ 2 * σ N) 0 * Real.log N / N)
+                * Real.sqrt k * heatTorus d (2 * Real.pi ^ 2 * ((k : ℝ) * σ N)) 0
+            ∧ eigC3 d
+                * Real.sqrt (heatTorus d (2 * Real.pi ^ 2 * σ N) 0 * Real.log N / N)
+                * Real.sqrt k * heatTorus d (2 * Real.pi ^ 2 * ((k : ℝ) * σ N)) 0
+              ≤ η * heatTorus d (2 * Real.pi ^ 2 * ((k : ℝ) * σ N)) 0) := by
+  have hK : ∀ᶠ N in atTop, 0 < ⌈c / σ N⌉₊ := by
+    filter_upwards [hσ] with N h1
+    exact Nat.ceil_pos.mpr (div_pos hc h1.1)
+  exact eig_theorem_G38_i_regime d hd X h_indep hX hlaw σ (fun N => ⌈c / σ N⌉₊) hσ hK
+    (regime_ceil d σ hc hσ hreg)
+
+
+
+end Regime
+
 end CTG.Reals2
