@@ -7393,7 +7393,7 @@ theorem noloop_kernel_sample {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measu
   linarith
 
 /-- **The trace of the walk without self-loops, for samples.** Same hypotheses and the same
-    event: `Tr P° = 0`, and for `2 ≤ k ≤ K`:
+    event; for `2 ≤ k ≤ K` (the case `k = 1`, `Tr P° = 0`, is in `noloop_first_step`, not here):
     `|Tr P°^k - m_k| ≤ kernelC1 d · δ' √k m_k + 96 (M/N) ∑_{l=1}^k m_l`. -/
 theorem noloop_trace_sample {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
     [IsProbabilityMeasure μ] {σ : ℝ} (hσ : 0 < σ) (hσ1 : σ ≤ 1) (d : ℕ) (hd : 1 ≤ d)
@@ -7418,8 +7418,10 @@ theorem noloop_trace_sample {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measur
   rw [sub_self] at h1
   exact h1
 
-/-- **The first step: `D_1 = m_1` and `Tr P° = 0`.** On the normalisation event the diagonal of
-    the walk without self-loops vanishes, so `|N P°(a,a) - p_σ(0)| = p_σ(0)` and `Tr P° = 0`. -/
+/-- **The first step on the diagonal, and `Tr P° = 0`.** The diagonal of the walk without
+    self-loops vanishes, so `|N P°(a,a) - p_σ(0)| = p_σ(0) = m_1` and `Tr P° = 0`. This gives only
+    `D_1 ≥ m_1`; the bound `4δM` for the off-diagonal entries (which makes `D_1 = m_1` in the
+    paper) is NOT part of this statement. -/
 theorem noloop_first_step {σ : ℝ} (hσ : 0 < σ) (d N : ℕ) (hN : 1 ≤ N) (x : ℕ → FlatTorus d)
     {δ : ℝ} (hδ : δ ≤ 1 / 8) (hρ : ∀ a : Fin N, |heatRho d σ N x a - 1| ≤ δ)
     (hMN : 24 * heatTorus d (2 * Real.pi ^ 2 * σ) 0 ≤ N) :
