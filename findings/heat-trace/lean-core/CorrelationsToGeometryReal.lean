@@ -19911,6 +19911,457 @@ theorem walk_H1 {n : Type} [Fintype n] [Nonempty n] (K : n → n → ℝ) (ρ : 
 
 end ShellAndWalk
 
+/-! ### The deterministic reduction instantiated for the sampled graph on the torus -/
+
+namespace TorusReduction
+
+/-- The kernel matrix `K_{aj} = p_σ(x_a - x_j)`. -/
+noncomputable def torusK (d : ℕ) (σ : ℝ) (N : ℕ) (x : ℕ → FlatTorus d) (a j : Fin N) : ℝ :=
+  heatTorus d (2 * Real.pi ^ 2 * σ) (x a - x j)
+
+/-- The estimated normalisation `ρ_a = (1/N) ∑_{l<N} p_σ(x_a - x_l)` on `Fin N`. -/
+noncomputable def torusRho (d : ℕ) (σ : ℝ) (N : ℕ) (x : ℕ → FlatTorus d) (a : Fin N) : ℝ :=
+  heatRho d σ N x a
+
+/-- The walk matrix of the sample graph. -/
+noncomputable def torusWalk (d : ℕ) (σ : ℝ) (N : ℕ) (x : ℕ → FlatTorus d) :
+    Matrix (Fin N) (Fin N) ℝ :=
+  walkMatrix (torusK d σ N x) (torusRho d σ N x)
+
+/-- `q_s(a,b) = p_{sσ}(x_a - x_b)` (`heatP`, zero for `s = 0`). -/
+noncomputable def torusQ (d : ℕ) (σ : ℝ) (N : ℕ) (x : ℕ → FlatTorus d) (s : ℕ) (a b : Fin N) : ℝ :=
+  heatP d σ s (x a - x b)
+
+/-- `m_s = p_{sσ}(0)`. -/
+noncomputable def torusM (d : ℕ) (σ : ℝ) (s : ℕ) : ℝ :=
+  heatTorus d (2 * Real.pi ^ 2 * ((s : ℝ) * σ)) 0
+
+/-- The linearisation `θ¹_{bi} = -ε_i - ε_b + (P̃ε)_b` of the main file, for the torus graph. -/
+noncomputable def torusTheta1 (d : ℕ) (σ : ℝ) (N : ℕ) (x : ℕ → FlatTorus d) (b i : Fin N) : ℝ :=
+  ShellAndWalk.walkTheta1 (torusK d σ N x) (torusRho d σ N x) b i
+
+/-- The statistic subtracted from the trace (the `Π_k` of `reduction_abstract`, for a given
+    family `hh` of linearised defects). -/
+noncomputable def torusPi (d : ℕ) (σ : ℝ) (N : ℕ) (x : ℕ → FlatTorus d) (k : ℕ)
+    (hh : ℕ → Fin N → Fin N → ℝ) : ℝ :=
+  1 / (N : ℝ) ^ 2 * ∑ i : Fin N, ∑ b : Fin N,
+      torusQ d σ N x k i b * torusQ d σ N x 1 b i * torusTheta1 d σ N x b i
+    + ∑ m ∈ Finset.Icc 1 (k - 1),
+        1 / (N : ℝ) ^ 2 * ∑ i : Fin N, ∑ b : Fin N, torusQ d σ N x (k - m) i b * hh m i b
+    + 1 / (N : ℝ) * ∑ i : Fin N, hh k i i
+
+/-- The walk matrix is the matrix of `kernel_theorem_G28` (definitional). -/
+theorem torusWalk_eq (d : ℕ) (σ : ℝ) (N : ℕ) (x : ℕ → FlatTorus d) :
+    torusWalk d σ N x
+      = walkMatrix (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (x a - x j))
+          (fun a : Fin N => heatRho d σ N x a) := rfl
+
+/-- `θ¹` written out with `N`. -/
+theorem torusTheta1_eq (d : ℕ) (σ : ℝ) (N : ℕ) (x : ℕ → FlatTorus d) (b i : Fin N) :
+    torusTheta1 d σ N x b i
+      = -(heatRho d σ N x i - 1) - (heatRho d σ N x b - 1)
+        + (∑ j : Fin N, heatTorus d (2 * Real.pi ^ 2 * σ) (x b - x j) * (heatRho d σ N x j - 1))
+            / (N : ℝ) := by
+  have hc : (N : ℝ) = (Fintype.card (Fin N) : ℝ) := by rw [Fintype.card_fin]
+  have h : torusTheta1 d σ N x b i
+      = -(heatRho d σ N x i - 1) - (heatRho d σ N x b - 1)
+        + (∑ j : Fin N, heatTorus d (2 * Real.pi ^ 2 * σ) (x b - x j) * (heatRho d σ N x j - 1))
+            / (Fintype.card (Fin N) : ℝ) := rfl
+  exact h.trans (by rw [hc])
+
+/-- The heat kernel of the torus is largest at the origin. -/
+theorem heatTorus_le_zero {c : ℝ} (hc : 0 < c) (d : ℕ) (u : FlatTorus d) :
+    heatTorus d c u ≤ heatTorus d c 0 := by
+  have habs : Summable fun n : Fin d → ℤ => |Real.exp (-c * ∑ i, ((n i : ℤ) : ℝ) ^ 2)| := by
+    simpa [abs_of_pos (Real.exp_pos _)] using gauss_summable hc d
+  have h1 := cosSeries_abs_le d (fun n => Real.exp (-c * ∑ i, ((n i : ℤ) : ℝ) ^ 2)) habs u
+  simp_rw [abs_of_pos (Real.exp_pos _)] at h1
+  have h0 : heatTorus d c 0 = ∑' n : Fin d → ℤ, Real.exp (-c * ∑ i, ((n i : ℤ) : ℝ) ^ 2) :=
+    cosSeries_zero d _
+  have h2 : heatTorus d c u ≤ |heatTorus d c u| := le_abs_self _
+  have h3 : |heatTorus d c u| ≤ ∑' n : Fin d → ℤ, Real.exp (-c * ∑ i, ((n i : ℤ) : ℝ) ^ 2) := h1
+  exact h2.trans (h3.trans h0.symm.le)
+
+/-- `m_s` is positive for `s ≥ 1`. -/
+theorem torusM_pos {σ : ℝ} (hσ : 0 < σ) (d : ℕ) {s : ℕ} (hs : 1 ≤ s) : 0 < torusM d σ s := by
+  have hpi := Real.pi_pos
+  have hs' : (0 : ℝ) < (s : ℝ) := Nat.cast_pos.mpr (by omega)
+  have hc : 0 < 2 * Real.pi ^ 2 * ((s : ℝ) * σ) := by positivity
+  exact heatTorus_zero_pos hc d
+
+/-- `m_s ≤ m_k` for `1 ≤ k ≤ s`. -/
+theorem torusM_anti {σ : ℝ} (hσ : 0 < σ) (d : ℕ) {k s : ℕ} (hk : 1 ≤ k) (hks : k ≤ s) :
+    torusM d σ s ≤ torusM d σ k := by
+  have hpi := Real.pi_pos
+  have hk' : (0 : ℝ) < (k : ℝ) := Nat.cast_pos.mpr (by omega)
+  have hks' : (k : ℝ) ≤ (s : ℝ) := by exact_mod_cast hks
+  have h2pi : 0 ≤ 2 * Real.pi ^ 2 := by positivity
+  have hc : 0 < 2 * Real.pi ^ 2 * ((k : ℝ) * σ) := by positivity
+  have hcc : 2 * Real.pi ^ 2 * ((k : ℝ) * σ) ≤ 2 * Real.pi ^ 2 * ((s : ℝ) * σ) :=
+    mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_right hks' hσ.le) h2pi
+  exact TraceG29.heatTorus_zero_anti hc hcc d
+
+/-- Doubling: `m_l ≤ (√2)^d m_k` for `1 ≤ l ≤ k ≤ 2l` (from (P1) of the main file). -/
+theorem torusM_ratio {σ : ℝ} (hσ : 0 < σ) (d : ℕ) {l k : ℕ} (hl : 1 ≤ l) (hlk : l ≤ k)
+    (hk2 : k ≤ 2 * l) : torusM d σ l ≤ (Real.sqrt 2) ^ d * torusM d σ k := by
+  have hpi := Real.pi_pos
+  have hl' : (0 : ℝ) < (l : ℝ) := Nat.cast_pos.mpr (by omega)
+  have hk' : (0 : ℝ) < (k : ℝ) := Nat.cast_pos.mpr (by omega)
+  have hlk' : (l : ℝ) ≤ (k : ℝ) := by exact_mod_cast hlk
+  have hk2' : (k : ℝ) ≤ 2 * (l : ℝ) := by exact_mod_cast hk2
+  have h2pi : 0 ≤ 2 * Real.pi ^ 2 := by positivity
+  have hca : 0 < 2 * Real.pi ^ 2 * ((l : ℝ) * σ) := by positivity
+  have hct : 0 < 2 * Real.pi ^ 2 * ((k : ℝ) * σ) := by positivity
+  have hat : 2 * Real.pi ^ 2 * ((l : ℝ) * σ) ≤ 2 * Real.pi ^ 2 * ((k : ℝ) * σ) :=
+    mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_right hlk' hσ.le) h2pi
+  have h1 : heatTorus d (2 * Real.pi ^ 2 * ((l : ℝ) * σ)) 0
+      ≤ (((2 * Real.pi ^ 2 * ((k : ℝ) * σ)) / (2 * Real.pi ^ 2 * ((l : ℝ) * σ))) ^ (1 / 2 : ℝ)) ^ d
+        * heatTorus d (2 * Real.pi ^ 2 * ((k : ℝ) * σ)) 0 := heatTorus_P1 hca hat d 0
+  have hmk : 0 ≤ heatTorus d (2 * Real.pi ^ 2 * ((k : ℝ) * σ)) 0 := (heatTorus_zero_pos hct d).le
+  have hratio : (2 * Real.pi ^ 2 * ((k : ℝ) * σ)) / (2 * Real.pi ^ 2 * ((l : ℝ) * σ)) ≤ 2 := by
+    rw [div_le_iff₀ hca]
+    calc 2 * Real.pi ^ 2 * ((k : ℝ) * σ) ≤ 2 * Real.pi ^ 2 * ((2 * (l : ℝ)) * σ) :=
+          mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_right hk2' hσ.le) h2pi
+      _ = 2 * (2 * Real.pi ^ 2 * ((l : ℝ) * σ)) := by ring
+  have hroot : ((2 * Real.pi ^ 2 * ((k : ℝ) * σ)) / (2 * Real.pi ^ 2 * ((l : ℝ) * σ))) ^ (1 / 2 : ℝ)
+      ≤ Real.sqrt 2 := by
+    rw [← Real.sqrt_eq_rpow]
+    exact Real.sqrt_le_sqrt hratio
+  have hroot0 : 0 ≤ ((2 * Real.pi ^ 2 * ((k : ℝ) * σ)) / (2 * Real.pi ^ 2 * ((l : ℝ) * σ)))
+      ^ (1 / 2 : ℝ) := Real.rpow_nonneg (div_nonneg hct.le hca.le) _
+  have hpow := pow_le_pow_left₀ hroot0 hroot d
+  have h2 := mul_le_mul_of_nonneg_right hpow hmk
+  show heatTorus d (2 * Real.pi ^ 2 * ((l : ℝ) * σ)) 0
+      ≤ (Real.sqrt 2) ^ d * heatTorus d (2 * Real.pi ^ 2 * ((k : ℝ) * σ)) 0
+  exact h1.trans h2
+
+/-- **The hypotheses of `reduction_abstract` that hold for the torus sample graph on the
+    normalisation event** `|ρ_a - 1| ≤ δ ≤ 1/8`: `0 ≤ δ`, (P) `hP0`, `hrow`, (Q) `hq0`, `hqm`,
+    `hqd`, (H1), (H1a) with `a_θ = 4δ`, (H1b) with `b_θ = 14δ²`, (H2). Deterministic. -/
+theorem torus_hyps {σ : ℝ} (hσ : 0 < σ) (d N : ℕ) (hN : 1 ≤ N) (x : ℕ → FlatTorus d)
+    {δ : ℝ} (hδ : δ ≤ 1 / 8) (hρ : ∀ a : Fin N, |heatRho d σ N x a - 1| ≤ δ) :
+    0 ≤ δ ∧
+    (∀ a b : Fin N, 0 ≤ torusWalk d σ N x a b) ∧
+    (∀ a : Fin N, ∑ b : Fin N, torusWalk d σ N x a b = 1) ∧
+    (∀ s, 1 ≤ s → ∀ a b : Fin N, 0 ≤ torusQ d σ N x s a b) ∧
+    (∀ s, 1 ≤ s → ∀ a b : Fin N, torusQ d σ N x s a b ≤ torusM d σ s) ∧
+    (∀ s, 1 ≤ s → ∀ a : Fin N, torusQ d σ N x s a a = torusM d σ s) ∧
+    (∀ b i : Fin N, (N : ℝ) * torusWalk d σ N x b i
+        = torusQ d σ N x 1 b i
+          * (1 + ShellAndWalk.walkTheta (torusK d σ N x) (torusRho d σ N x) b i)) ∧
+    (∀ b i : Fin N,
+        |ShellAndWalk.walkTheta (torusK d σ N x) (torusRho d σ N x) b i| ≤ 4 * δ) ∧
+    (∀ b i : Fin N,
+        |ShellAndWalk.walkTheta (torusK d σ N x) (torusRho d σ N x) b i
+          - torusTheta1 d σ N x b i| ≤ 14 * δ ^ 2) ∧
+    (∀ i : Fin N, ∑ b : Fin N, torusQ d σ N x 1 b i ≤ (N : ℝ) * (1 + δ)) := by
+  have hN0 : 0 < N := by omega
+  haveI : Nonempty (Fin N) := ⟨⟨0, hN0⟩⟩
+  have hpi := Real.pi_pos
+  have hcσ : 0 < 2 * Real.pi ^ 2 * σ := by positivity
+  have hNpos : (0 : ℝ) < (N : ℝ) := Nat.cast_pos.mpr hN0
+  have hc : (Fintype.card (Fin N) : ℝ) = (N : ℝ) := by rw [Fintype.card_fin]
+  have hδ0 : 0 ≤ δ := (abs_nonneg _).trans (hρ ⟨0, hN0⟩)
+  have hρ' : ∀ a : Fin N, |torusRho d σ N x a - 1| ≤ δ := fun a => hρ a
+  have hρpos : ∀ a : Fin N, 0 < torusRho d σ N x a := fun a => by
+    have := (abs_le.mp (hρ' a)).1
+    linarith
+  have hK : ∀ a j : Fin N, 0 ≤ torusK d σ N x a j := fun a j => by
+    show 0 ≤ heatTorus d (2 * Real.pi ^ 2 * σ) (x a - x j)
+    exact heatTorus_nonneg hcσ d _
+  have hKd : ∀ a : Fin N, 0 < torusK d σ N x a a := fun a => by
+    show 0 < heatTorus d (2 * Real.pi ^ 2 * σ) (x a - x a)
+    rw [sub_self]
+    exact heatTorus_zero_pos hcσ d
+  have hsum : ∀ a : Fin N,
+      ∑ l : Fin N, torusK d σ N x a l = (Fintype.card (Fin N) : ℝ) * torusRho d σ N x a := by
+    intro a
+    have e : ∑ l : Fin N, torusK d σ N x a l
+        = ∑ l ∈ Finset.range N, heatTorus d (2 * Real.pi ^ 2 * σ) (x a - x l) :=
+      Fin.sum_univ_eq_sum_range (fun l => heatTorus d (2 * Real.pi ^ 2 * σ) (x a - x l)) N
+    have e2 : torusRho d σ N x a
+        = (∑ l ∈ Finset.range N, heatTorus d (2 * Real.pi ^ 2 * σ) (x a - x l)) / (N : ℝ) := rfl
+    rw [e, e2, hc, mul_comm (N : ℝ), div_mul_cancel₀ _ hNpos.ne']
+  obtain ⟨hH1, hH1a, hH1b⟩ := ShellAndWalk.walk_H1 (torusK d σ N x) (torusRho d σ N x)
+    hK hsum hδ0 hδ hρ'
+  have hH1N : ∀ b i : Fin N, (N : ℝ) * torusWalk d σ N x b i
+      = torusK d σ N x b i
+        * (1 + ShellAndWalk.walkTheta (torusK d σ N x) (torusRho d σ N x) b i) := by
+    intro b i
+    have h := hH1 b i
+    rw [hc] at h
+    exact h
+  have hP0 : ∀ a b : Fin N, 0 ≤ torusWalk d σ N x a b := by
+    intro a b
+    have h1 := hH1N a b
+    have h2 := (abs_le.mp (hH1a a b)).1
+    have h3 : 0 ≤ (N : ℝ) * torusWalk d σ N x a b := by
+      rw [h1]
+      exact mul_nonneg (hK a b) (by linarith)
+    have h4 : (N : ℝ) * 0 ≤ (N : ℝ) * torusWalk d σ N x a b := by
+      rw [mul_zero]
+      exact h3
+    exact le_of_mul_le_mul_left h4 hNpos
+  have hrow : ∀ a : Fin N, ∑ b : Fin N, torusWalk d σ N x a b = 1 := by
+    intro a
+    have hS : 0 < ∑ l : Fin N,
+        torusK d σ N x a l / (torusRho d σ N x a * torusRho d σ N x l) :=
+      Finset.sum_pos'
+        (fun l _ => div_nonneg (hK a l) (mul_nonneg (hρpos a).le (hρpos l).le))
+        ⟨a, Finset.mem_univ a, div_pos (hKd a) (mul_pos (hρpos a) (hρpos a))⟩
+    exact walkMatrix_row_sum (torusK d σ N x) (torusRho d σ N x) a hS.ne'
+  have hq0 : ∀ s, 1 ≤ s → ∀ a b : Fin N, 0 ≤ torusQ d σ N x s a b := fun s _ a b => by
+    show 0 ≤ heatP d σ s (x a - x b)
+    exact heatP_nonneg hσ d s _
+  have hqm : ∀ s, 1 ≤ s → ∀ a b : Fin N, torusQ d σ N x s a b ≤ torusM d σ s := by
+    intro s hs a b
+    have hs' : (0 : ℝ) < (s : ℝ) := Nat.cast_pos.mpr (by omega)
+    have hcs : 0 < 2 * Real.pi ^ 2 * ((s : ℝ) * σ) := by positivity
+    have e : torusQ d σ N x s a b
+        = heatTorus d (2 * Real.pi ^ 2 * ((s : ℝ) * σ)) (x a - x b) :=
+      heatP_of_ne d σ (by omega) _
+    rw [e]
+    exact heatTorus_le_zero hcs d _
+  have hqd : ∀ s, 1 ≤ s → ∀ a : Fin N, torusQ d σ N x s a a = torusM d σ s := by
+    intro s hs a
+    have e : torusQ d σ N x s a a
+        = heatTorus d (2 * Real.pi ^ 2 * ((s : ℝ) * σ)) (x a - x a) :=
+      heatP_of_ne d σ (by omega) _
+    rw [e]
+    show heatTorus d (2 * Real.pi ^ 2 * ((s : ℝ) * σ)) (x a - x a)
+      = heatTorus d (2 * Real.pi ^ 2 * ((s : ℝ) * σ)) 0
+    rw [sub_self]
+  have hH1' : ∀ b i : Fin N, (N : ℝ) * torusWalk d σ N x b i
+      = torusQ d σ N x 1 b i
+        * (1 + ShellAndWalk.walkTheta (torusK d σ N x) (torusRho d σ N x) b i) := by
+    intro b i
+    have e : torusQ d σ N x 1 b i = torusK d σ N x b i := heatP_one d σ _
+    rw [e]
+    exact hH1N b i
+  have hH1b' : ∀ b i : Fin N,
+      |ShellAndWalk.walkTheta (torusK d σ N x) (torusRho d σ N x) b i
+        - torusTheta1 d σ N x b i| ≤ 14 * δ ^ 2 := fun b i => hH1b b i
+  have hH2 : ∀ i : Fin N, ∑ b : Fin N, torusQ d σ N x 1 b i ≤ (N : ℝ) * (1 + δ) := by
+    intro i
+    have e1 : ∀ b : Fin N, torusQ d σ N x 1 b i = torusK d σ N x i b := by
+      intro b
+      have e : torusQ d σ N x 1 b i = heatTorus d (2 * Real.pi ^ 2 * σ) (x b - x i) :=
+        heatP_one d σ _
+      have e' : torusK d σ N x i b = heatTorus d (2 * Real.pi ^ 2 * σ) (-(x b - x i)) := by
+        show heatTorus d (2 * Real.pi ^ 2 * σ) (x i - x b)
+          = heatTorus d (2 * Real.pi ^ 2 * σ) (-(x b - x i))
+        rw [neg_sub]
+      rw [e, e', heatTorus_even]
+    have e2 : ∑ b : Fin N, torusQ d σ N x 1 b i = ∑ b : Fin N, torusK d σ N x i b :=
+      Finset.sum_congr rfl fun b _ => e1 b
+    have h1 : torusRho d σ N x i ≤ 1 + δ := by
+      have := (abs_le.mp (hρ' i)).2
+      linarith
+    rw [e2, hsum i, hc]
+    exact mul_le_mul_of_nonneg_left h1 hNpos.le
+  exact ⟨hδ0, hP0, hrow, hq0, hqm, hqd, hH1', hH1a, hH1b', hH2⟩
+
+/-- **The reduction, instantiated for the sample graph on the flat torus (deterministic).**
+    Points `x`, `N ≥ 1`, `P = torusWalk` (the walk matrix of `kernel_theorem_G28`),
+    `q_s(a,b) = heatP d σ s (x_a - x_b)`, `m_s = p_{sσ}(0)`, `θ¹ = torusTheta1`.
+    From the normalisation `|ρ_a - 1| ≤ δ ≤ 1/8` the hypotheses (P), (Q), (H1) with
+    `a_θ = 4δ`, `b_θ = 14δ²`, and (H2) of `reduction_abstract` are discharged.
+    HYPOTHESES that remain: (H3) the entrywise kernel bound `dd l` (the form of the conclusion
+    of `kernel_theorem_G28`), (H4) the `ℓ¹` kernel bound `e l`, (H5a)–(H5d) the bounds for
+    the defect minus its linearisation `hh` and for `hh` itself. -/
+theorem torus_reduction {σ : ℝ} (hσ : 0 < σ) (d N : ℕ) (hN : 1 ≤ N) (x : ℕ → FlatTorus d)
+    {δ : ℝ} (hδ : δ ≤ 1 / 8) (hρ : ∀ a : Fin N, |heatRho d σ N x a - 1| ≤ δ)
+    (k : ℕ) (hk : 1 ≤ k)
+    (hh : ℕ → Fin N → Fin N → ℝ) (dd e α αb β βb : ℕ → ℝ)
+    (H3 : ∀ l, 1 ≤ l → l ≤ k → ∀ a i : Fin N,
+      |(N : ℝ) * ((torusWalk d σ N x) ^ l) a i - torusQ d σ N x l a i| ≤ dd l)
+    (H4 : ∀ l, 1 ≤ l → l ≤ k → ∀ b : Fin N,
+      ∑ i : Fin N, |(N : ℝ) * ((torusWalk d σ N x) ^ l) i b - torusQ d σ N x l i b|
+        ≤ (N : ℝ) * e l)
+    (H5a : ∀ m, 1 ≤ m → m ≤ k → ∀ i b : Fin N,
+      |((∑ j : Fin N, torusWalk d σ N x b j * torusQ d σ N x m j i)
+          - torusQ d σ N x (m + 1) b i) - hh m i b| ≤ α m)
+    (H5b : ∀ m, 1 ≤ m → m ≤ k → ∀ i : Fin N,
+      ∑ b : Fin N, |((∑ j : Fin N, torusWalk d σ N x b j * torusQ d σ N x m j i)
+          - torusQ d σ N x (m + 1) b i) - hh m i b| ≤ (N : ℝ) * αb m)
+    (H5c : ∀ m, 1 ≤ m → m ≤ k → ∀ i b : Fin N, |hh m i b| ≤ β m)
+    (H5d : ∀ m, 1 ≤ m → m ≤ k → ∀ i : Fin N, ∑ b : Fin N, |hh m i b| ≤ (N : ℝ) * βb m) :
+    |((torusWalk d σ N x) ^ (k + 1)).trace - torusM d σ (k + 1) - torusPi d σ N x k hh|
+      ≤ (1 + δ) * (4 * δ * dd k + 14 * δ ^ 2 * torusM d σ k) + α k
+        + ∑ m ∈ Finset.Icc 1 (k - 1),
+            (min ((torusM d σ (k - m) + dd (k - m)) * αb m) (α m)
+              + min (dd (k - m) * βb m) (e (k - m) * β m)) := by
+  have hN0 : 0 < N := by omega
+  haveI : Nonempty (Fin N) := ⟨⟨0, hN0⟩⟩
+  obtain ⟨_, hP0, hrow, hq0, hqm, hqd, hH1, hH1a, hH1b, hH2⟩ := torus_hyps hσ d N hN x hδ hρ
+  have hc : (Fintype.card (Fin N) : ℝ) = (N : ℝ) := by rw [Fintype.card_fin]
+  have key := reduction_abstract (n := Fin N) (torusWalk d σ N x) hP0 hrow k hk
+    (torusQ d σ N x) (torusM d σ)
+    (fun s hs _ => hq0 s hs) (fun s hs _ => hqm s hs) (fun a => hqd (k + 1) (by omega) a)
+    (ShellAndWalk.walkTheta (torusK d σ N x) (torusRho d σ N x)) (torusTheta1 d σ N x) hh
+    (δ := δ) (aθ := 4 * δ) (bθ := 14 * δ ^ 2) dd e α αb β βb
+  rw [hc] at key
+  exact key hH1 hH1a hH1b hH2 H3 H4 H5a H5b H5c H5d
+
+/-- **The same with the closed right-hand side** (`Assembled.reduction_abstract_closed`), with
+    `A = (√2)^d`, `m'_{6m} = m_{6m}`, `a_θ = 4δ ≤ 4 c_δ η`, `b_θ = 14δ² ≤ 14 c_δ² η²`.
+    Discharged in addition: `d_l ≤ m_l` (from `c_D η √k ≤ 1`), `m_{6m} ≤ m_k` for `k ≤ 2m`,
+    the doubling `m_l ≤ A m_k` for `k < 2l`, `m_k ≤ A m_{k+1}`.
+    HYPOTHESES that remain: (H3) in the form of the conclusion of `kernel_theorem_G28`
+    (`c_D η √l m_l`), (H4) `c_E η √l`, (H5a)–(H5d) in the closed forms below. -/
+theorem torus_reduction_closed {σ : ℝ} (hσ : 0 < σ) (d N : ℕ) (hN : 1 ≤ N)
+    (x : ℕ → FlatTorus d)
+    {δ : ℝ} (hδ : δ ≤ 1 / 8) (hρ : ∀ a : Fin N, |heatRho d σ N x a - 1| ≤ δ)
+    (k : ℕ) (hk : 1 ≤ k)
+    (hh : ℕ → Fin N → Fin N → ℝ) {cα cβ cD cE cδ η : ℝ}
+    (hcα : 0 ≤ cα) (hcβ : 0 ≤ cβ) (hcD : 0 ≤ cD) (hcE : 0 ≤ cE) (hcδ : 0 ≤ cδ) (hη : 0 ≤ η)
+    (hδη : δ ≤ cδ * η) (hrange : cD * η * Real.sqrt k ≤ 1)
+    (H3 : ∀ l, 1 ≤ l → l ≤ k → ∀ a i : Fin N,
+      |(N : ℝ) * ((torusWalk d σ N x) ^ l) a i - torusQ d σ N x l a i|
+        ≤ cD * η * Real.sqrt l * torusM d σ l)
+    (H4 : ∀ l, 1 ≤ l → l ≤ k → ∀ b : Fin N,
+      ∑ i : Fin N, |(N : ℝ) * ((torusWalk d σ N x) ^ l) i b - torusQ d σ N x l i b|
+        ≤ (N : ℝ) * (cE * η * Real.sqrt l))
+    (H5a : ∀ m, 1 ≤ m → m ≤ k → ∀ i b : Fin N,
+      |((∑ j : Fin N, torusWalk d σ N x b j * torusQ d σ N x m j i)
+          - torusQ d σ N x (m + 1) b i) - hh m i b|
+        ≤ cα * η ^ 2 * (1 / Real.sqrt m) * torusM d σ (6 * m))
+    (H5b : ∀ m, 1 ≤ m → m ≤ k → ∀ i : Fin N,
+      ∑ b : Fin N, |((∑ j : Fin N, torusWalk d σ N x b j * torusQ d σ N x m j i)
+          - torusQ d σ N x (m + 1) b i) - hh m i b|
+        ≤ (N : ℝ) * (cα * η ^ 2 * (1 / Real.sqrt m)))
+    (H5c : ∀ m, 1 ≤ m → m ≤ k → ∀ i b : Fin N,
+      |hh m i b| ≤ cβ * η * (1 / Real.sqrt m) * torusM d σ (6 * m))
+    (H5d : ∀ m, 1 ≤ m → m ≤ k → ∀ i : Fin N,
+      ∑ b : Fin N, |hh m i b| ≤ (N : ℝ) * (cβ * η * (1 / Real.sqrt m))) :
+    |((torusWalk d σ N x) ^ (k + 1)).trace - torusM d σ (k + 1) - torusPi d σ N x k hh|
+      ≤ (Real.sqrt 2) ^ d
+          * (2 * (4 * cδ) * cD + 2 * (14 * cδ ^ 2) + cα
+              + 2 * (2 * (Real.sqrt 2) ^ d * cα + cα + (Real.sqrt 2) ^ d * cD * cβ + cE * cβ))
+          * η ^ 2 * k * torusM d σ (k + 1) := by
+  have hN0 : 0 < N := by omega
+  haveI : Nonempty (Fin N) := ⟨⟨0, hN0⟩⟩
+  obtain ⟨hδ0, hP0, hrow, hq0, hqm, hqd, hH1, hH1a, hH1b, hH2⟩ :=
+    torus_hyps hσ d N hN x hδ hρ
+  have hc : (Fintype.card (Fin N) : ℝ) = (N : ℝ) := by rw [Fintype.card_fin]
+  have hA : (1 : ℝ) ≤ (Real.sqrt 2) ^ d :=
+    one_le_pow₀ (Real.one_le_sqrt.mpr (by norm_num))
+  have hcDη : 0 ≤ cD * η := mul_nonneg hcD hη
+  have hdle : ∀ l : ℕ, 1 ≤ l → l ≤ k →
+      cD * η * Real.sqrt l * torusM d σ l ≤ torusM d σ l := by
+    intro l hl hlk
+    have hlk' : (l : ℝ) ≤ (k : ℝ) := by exact_mod_cast hlk
+    have h1 : cD * η * Real.sqrt l ≤ 1 :=
+      (mul_le_mul_of_nonneg_left (Real.sqrt_le_sqrt hlk') hcDη).trans hrange
+    calc cD * η * Real.sqrt l * torusM d σ l ≤ 1 * torusM d σ l :=
+          mul_le_mul_of_nonneg_right h1 (torusM_pos hσ d hl).le
+      _ = torusM d σ l := one_mul _
+  have hm6 : ∀ m : ℕ, 1 ≤ m → m ≤ k → k ≤ 2 * m → torusM d σ (6 * m) ≤ torusM d σ k :=
+    fun m _ _ h => torusM_anti hσ d hk (by omega)
+  have hmA : ∀ l : ℕ, 1 ≤ l → l ≤ k → k < 2 * l →
+      torusM d σ l ≤ (Real.sqrt 2) ^ d * torusM d σ k :=
+    fun l hl hlk h2 => torusM_ratio hσ d hl hlk (by omega)
+  have hmk1 : torusM d σ k ≤ (Real.sqrt 2) ^ d * torusM d σ (k + 1) :=
+    torusM_ratio hσ d hk (by omega) (by omega)
+  have hcθ : 0 ≤ 4 * cδ := by linarith
+  have hcθ' : 0 ≤ 14 * cδ ^ 2 := by positivity
+  have haθ : 4 * δ ≤ 4 * cδ * η := by
+    have e : 4 * cδ * η = 4 * (cδ * η) := by ring
+    rw [e]
+    linarith
+  have hbθ : 14 * δ ^ 2 ≤ 14 * cδ ^ 2 * η ^ 2 := by
+    have h : δ ^ 2 ≤ (cδ * η) ^ 2 := pow_le_pow_left₀ hδ0 hδη 2
+    have e : 14 * cδ ^ 2 * η ^ 2 = 14 * (cδ * η) ^ 2 := by ring
+    rw [e]
+    linarith
+  have hδ1 : δ ≤ 1 := by linarith
+  have key := Assembled.reduction_abstract_closed (n := Fin N) (torusWalk d σ N x) hP0 hrow k hk
+    (torusQ d σ N x) (torusM d σ)
+    (fun s hs _ => hq0 s hs) (fun s hs _ => hqm s hs) (fun a => hqd (k + 1) (by omega) a)
+    (ShellAndWalk.walkTheta (torusK d σ N x) (torusRho d σ N x)) (torusTheta1 d σ N x) hh
+    (δ := δ) (aθ := 4 * δ) (bθ := 14 * δ ^ 2)
+    (fun l => cD * η * Real.sqrt l * torusM d σ l)
+    (fun l => cE * η * Real.sqrt l)
+    (fun m => cα * η ^ 2 * (1 / Real.sqrt m) * torusM d σ (6 * m))
+    (fun m => cα * η ^ 2 * (1 / Real.sqrt m))
+    (fun m => cβ * η * (1 / Real.sqrt m) * torusM d σ (6 * m))
+    (fun m => cβ * η * (1 / Real.sqrt m))
+    (fun m => torusM d σ (6 * m))
+  rw [hc] at key
+  exact key hH1 hH1a hH1b hH2 H3 H4 H5a H5b H5c H5d hA hcα hcβ hcD hcE hcθ hcθ' hη
+    (fun _ _ _ => rfl) (fun _ _ _ => rfl) (fun _ _ _ => rfl) (fun _ _ _ => rfl)
+    (fun _ _ _ => rfl) hdle (fun _ _ _ => rfl) hm6 hmA hmk1 haθ hbθ hδ1
+
+/-- HYPOTHESES (H4), (H5a)–(H5d) in the instantiated closed form, as one proposition. -/
+def RemainingHyps (d : ℕ) (σ : ℝ) (N : ℕ) (x : ℕ → FlatTorus d) (k : ℕ)
+    (hh : ℕ → Fin N → Fin N → ℝ) (cα cβ cE η : ℝ) : Prop :=
+  (∀ l, 1 ≤ l → l ≤ k → ∀ b : Fin N,
+      ∑ i : Fin N, |(N : ℝ) * ((torusWalk d σ N x) ^ l) i b - torusQ d σ N x l i b|
+        ≤ (N : ℝ) * (cE * η * Real.sqrt l)) ∧
+  (∀ m, 1 ≤ m → m ≤ k → ∀ i b : Fin N,
+      |((∑ j : Fin N, torusWalk d σ N x b j * torusQ d σ N x m j i)
+          - torusQ d σ N x (m + 1) b i) - hh m i b|
+        ≤ cα * η ^ 2 * (1 / Real.sqrt m) * torusM d σ (6 * m)) ∧
+  (∀ m, 1 ≤ m → m ≤ k → ∀ i : Fin N,
+      ∑ b : Fin N, |((∑ j : Fin N, torusWalk d σ N x b j * torusQ d σ N x m j i)
+          - torusQ d σ N x (m + 1) b i) - hh m i b|
+        ≤ (N : ℝ) * (cα * η ^ 2 * (1 / Real.sqrt m))) ∧
+  (∀ m, 1 ≤ m → m ≤ k → ∀ i b : Fin N,
+      |hh m i b| ≤ cβ * η * (1 / Real.sqrt m) * torusM d σ (6 * m)) ∧
+  (∀ m, 1 ≤ m → m ≤ k → ∀ i : Fin N,
+      ∑ b : Fin N, |hh m i b| ≤ (N : ℝ) * (cβ * η * (1 / Real.sqrt m)))
+
+/-- **Sample version, (H3) discharged by `kernel_theorem_G28`.** Under the hypotheses of that
+    theorem, outside its exceptional event (probability at most `3/N³`), for every `1 ≤ k ≤ K`:
+    whenever the normalisation satisfies `|ρ_a - 1| ≤ δ ≤ 1/8`, `δ ≤ c_δ δ'`, and
+    HYPOTHESES (H4), (H5a)–(H5d) hold at this sample point (`RemainingHyps`, with `η = δ'`),
+    the closed bound of `torus_reduction_closed` holds with `c_D = kernelC1 d`.
+    Neither the normalisation event nor (H4), (H5) are given a probability here. -/
+theorem torus_reduction_sample {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {σ : ℝ} (hσ : 0 < σ) (hσ1 : σ ≤ 1) (d : ℕ) (hd : 1 ≤ d)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (N K : ℕ) (hN2 : 2 ≤ N) (hK : 0 < K)
+    {Mp δp : ℝ} (hMp : Mp = heatTorus d (2 * Real.pi ^ 2 * σ) 0)
+    (hδp : δp = Real.sqrt (Mp * Real.log N / N))
+    (hrange : kernelC1 d * δp * Real.sqrt K ≤ 1) :
+    μ.real {ω | ¬ ∀ k, 1 ≤ k → k ≤ K →
+        ∀ (δ cα cβ cE cδ : ℝ) (hh : ℕ → Fin N → Fin N → ℝ),
+          δ ≤ 1 / 8 → (∀ a : Fin N, |heatRho d σ N (fun j => X j ω) a - 1| ≤ δ) →
+          0 ≤ cα → 0 ≤ cβ → 0 ≤ cE → 0 ≤ cδ → δ ≤ cδ * δp →
+          RemainingHyps d σ N (fun j => X j ω) k hh cα cβ cE δp →
+          |((torusWalk d σ N (fun j => X j ω)) ^ (k + 1)).trace - torusM d σ (k + 1)
+              - torusPi d σ N (fun j => X j ω) k hh|
+            ≤ (Real.sqrt 2) ^ d
+                * (2 * (4 * cδ) * kernelC1 d + 2 * (14 * cδ ^ 2) + cα
+                    + 2 * (2 * (Real.sqrt 2) ^ d * cα + cα
+                        + (Real.sqrt 2) ^ d * kernelC1 d * cβ + cE * cβ))
+                * δp ^ 2 * k * torusM d σ (k + 1)}
+      ≤ 3 / (N : ℝ) ^ 3 := by
+  refine le_trans (measureReal_mono ?_ (measure_ne_top μ _))
+    (kernel_theorem_G28 hσ hσ1 d hd X h_indep hX hlaw N K hN2 hK hMp hδp hrange)
+  intro ω hω
+  simp only [Set.mem_setOf_eq] at hω ⊢
+  intro hgood
+  apply hω
+  intro k hk1 hkK δ cα cβ cE cδ hh hδ hρ hcα hcβ hcE hcδ hδη hrem
+  obtain ⟨H4, H5a, H5b, H5c, H5d⟩ := hrem
+  have hη : 0 ≤ δp := by
+    rw [hδp]
+    exact Real.sqrt_nonneg _
+  have hC : 0 ≤ kernelC1 d := TraceG29.kernelC1_nonneg d
+  have hkK' : (k : ℝ) ≤ (K : ℝ) := by exact_mod_cast hkK
+  have hrange' : kernelC1 d * δp * Real.sqrt k ≤ 1 :=
+    (mul_le_mul_of_nonneg_left (Real.sqrt_le_sqrt hkK') (mul_nonneg hC hη)).trans hrange
+  have H3 : ∀ l, 1 ≤ l → l ≤ k → ∀ a i : Fin N,
+      |(N : ℝ) * ((torusWalk d σ N (fun j => X j ω)) ^ l) a i
+          - torusQ d σ N (fun j => X j ω) l a i|
+        ≤ kernelC1 d * δp * Real.sqrt l * torusM d σ l :=
+    fun l hl hlk a i => hgood l hl (hlk.trans hkK) a i
+  exact torus_reduction_closed hσ d N (by omega) (fun j => X j ω) hδ hρ k hk1 hh
+    hcα hcβ hC hcE hcδ hη hδη hrange' H3 H4 H5a H5b H5c H5d
+
+end TorusReduction
+
 end KernelL1
 
 end Probability
