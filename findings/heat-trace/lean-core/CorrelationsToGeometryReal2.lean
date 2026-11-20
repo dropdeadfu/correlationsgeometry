@@ -1,4 +1,6 @@
 import CorrelationsToGeometryReal
+import Mathlib.Order.OrderIsoNat
+import Mathlib.Data.Countable.Basic
 /-!
 # From Correlations to Geometry: continuation of the Mathlib file
 
@@ -1583,5 +1585,722 @@ theorem corrected_G30_tail {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure
   linarith
 
 end Corrected
+
+/-! ### Delocalisation in the shell parameter (`cor:deloc`, with explicit conditions per shell) -/
+
+namespace DelocalisationFinal
+
+/-! ### Copied block -/
+
+/-- Powers of a matrix on an eigenvector. -/
+theorem pow_mulVec_eig {n : Type} [Fintype n] [DecidableEq n] (S : Matrix n n ℝ) (u : n → ℝ)
+    (s : ℝ) (hSu : S *ᵥ u = s • u) (k : ℕ) : (S ^ k) *ᵥ u = s ^ k • u := by
+  induction k with
+  | zero => simp
+  | succ k ih =>
+    rw [pow_succ, ← Matrix.mulVec_mulVec, hSu, Matrix.mulVec_smul, ih, smul_smul, pow_succ,
+      mul_comm]
+
+/-- Deterministic step: `u_a² ≤ (S^{2k})_{aa} / s^{2k}`. -/
+theorem deloc_det {n : Type} [Fintype n] [DecidableEq n] (S : Matrix n n ℝ) (hS : S.IsHermitian)
+    (u : n → ℝ) (s : ℝ) (hs : s ≠ 0) (hSu : S *ᵥ u = s • u) (hu : ∑ a, u a ^ 2 = 1)
+    (k : ℕ) (a : n) :
+    u a ^ 2 ≤ (S ^ (2 * k)) a a / s ^ (2 * k) := by
+  have hk := pow_mulVec_eig S u s hSu k
+  have e1 : s ^ k * u a = ∑ b, (S ^ k) a b * u b := by
+    have h := congrFun hk a
+    simp only [Matrix.mulVec, dotProduct, Pi.smul_apply, smul_eq_mul] at h
+    exact h.symm
+  have hsym : ∀ b, (S ^ k) b a = (S ^ k) a b := fun b => by
+    have h := (hS.pow k).apply a b
+    simpa using h
+  have e2 : (S ^ (2 * k)) a a = ∑ b, (S ^ k) a b ^ 2 := by
+    rw [two_mul, pow_add, Matrix.mul_apply]
+    exact Finset.sum_congr rfl fun b _ => by rw [hsym b, pow_two]
+  have cs : (∑ b, (S ^ k) a b * u b) ^ 2 ≤ (∑ b, (S ^ k) a b ^ 2) * ∑ b, u b ^ 2 :=
+    Finset.sum_mul_sq_le_sq_mul_sq Finset.univ (fun b => (S ^ k) a b) u
+  rw [← e1, ← e2, hu, mul_one] at cs
+  have e3 : s ^ (2 * k) = (s ^ k) ^ 2 := pow_mul' s 2 k
+  have hsk : s ^ k ≠ 0 := pow_ne_zero k hs
+  have hpos : 0 < (s ^ k) ^ 2 := by positivity
+  rw [e3, le_div_iff₀ hpos]
+  calc u a ^ 2 * (s ^ k) ^ 2 = (s ^ k * u a) ^ 2 := by ring
+    _ ≤ (S ^ (2 * k)) a a := cs
+
+/-- The diagonals of the powers of `S` and of `P` coincide. -/
+theorem symGraph_pow_diag {n : Type} [Fintype n] [DecidableEq n] (K : n → n → ℝ) (rho : n → ℝ)
+    (hD : ∀ i, 0 < ∑ l, K i l / (rho i * rho l)) (k : ℕ) (a : n) :
+    (symGraph K rho ^ k) a a = (walkMatrix K rho ^ k) a a := by
+  have h := conj_pow_entry (symGraph K rho) (walkMatrix K rho)
+    (fun i => Real.sqrt (∑ j, K i j / (rho i * rho j)))
+    (fun i => Real.sqrt_pos.mpr (hD i)) (fun i l => symGraph_conj K rho hD i l) k
+  rw [h a a]
+  exact mul_div_cancel_left₀ _ (Real.sqrt_pos.mpr (hD a)).ne'
+
+/-- Variant of `deloc_graph` with `s ≠ 0` instead of `0 < s`. -/
+theorem deloc_graph' {n : Type} [Fintype n] [DecidableEq n] (K : n → n → ℝ) (rho : n → ℝ)
+    (hK : ∀ i j, K i j = K j i) (hD : ∀ i, 0 < ∑ l, K i l / (rho i * rho l))
+    {N m D s : ℝ} (hN : 0 < N) (hs : s ≠ 0) (k : ℕ) (a : n)
+    (hker : |N * (walkMatrix K rho ^ (2 * k)) a a - m| ≤ D) (hDm : D ≤ m)
+    (u : n → ℝ) (hSu : symGraph K rho *ᵥ u = s • u) (hu : ∑ b, u b ^ 2 = 1) :
+    u a ^ 2 ≤ 2 * m / (N * s ^ (2 * k)) := by
+  have h := deloc_det (symGraph K rho) (symGraph_isHermitian K rho hK) u s hs hSu hu k a
+  rw [symGraph_pow_diag K rho hD (2 * k) a] at h
+  have hP : (walkMatrix K rho ^ (2 * k)) a a ≤ 2 * m / N := by
+    rw [le_div_iff₀ hN]
+    have := (abs_le.mp hker).2
+    linarith
+  have hsk : s ^ k ≠ 0 := pow_ne_zero k hs
+  have hsp : 0 < s ^ (2 * k) := by
+    rw [pow_mul' s 2 k]
+    exact lt_of_le_of_ne (_root_.sq_nonneg _) (Ne.symm (pow_ne_zero 2 hsk))
+  calc u a ^ 2 ≤ (walkMatrix K rho ^ (2 * k)) a a / s ^ (2 * k) := h
+    _ ≤ (2 * m / N) / s ^ (2 * k) := div_le_div_of_nonneg_right hP hsp.le
+    _ = 2 * m / (N * s ^ (2 * k)) := by rw [div_div]
+
+/-! ### (1) The deterministic final step -/
+
+/-- **Final step.** From `u² ≤ 2m/(N s^{2k})` and `s^k ≥ c > 0`: `u² ≤ 2m/(N c²)`. -/
+theorem final_step {N m s c u : ℝ} (k : ℕ) (hN : 0 < N) (hm : 0 ≤ m) (hc : 0 < c)
+    (hsk : c ≤ s ^ k) (h : u ^ 2 ≤ 2 * m / (N * s ^ (2 * k))) :
+    u ^ 2 ≤ 2 * m / (N * c ^ 2) := by
+  have e : s ^ (2 * k) = (s ^ k) ^ 2 := pow_mul' s 2 k
+  have h2 : c ^ 2 ≤ s ^ (2 * k) := by rw [e]; exact pow_le_pow_left₀ hc.le hsk 2
+  refine h.trans ?_
+  exact div_le_div_of_nonneg_left (mul_nonneg zero_le_two hm) (mul_pos hN (pow_pos hc 2))
+    (mul_le_mul_of_nonneg_left h2 hN.le)
+
+/-- **Final step, absolute value.** From `u² ≤ 2B/(N c²)`: `|u| ≤ √(2B)/(c √N)`. -/
+theorem final_step_abs {N B c u : ℝ} (hN : 0 < N) (hB : 0 ≤ B) (hc : 0 < c)
+    (h : u ^ 2 ≤ 2 * B / (N * c ^ 2)) : |u| ≤ Real.sqrt (2 * B) / (c * Real.sqrt N) := by
+  have h0 : 0 ≤ Real.sqrt (2 * B) / (c * Real.sqrt N) :=
+    div_nonneg (Real.sqrt_nonneg _) (mul_nonneg hc.le (Real.sqrt_nonneg _))
+  have e : (Real.sqrt (2 * B) / (c * Real.sqrt N)) ^ 2 = 2 * B / (N * c ^ 2) := by
+    rw [div_pow, mul_pow, Real.sq_sqrt (mul_nonneg zero_le_two hB), Real.sq_sqrt hN.le,
+      mul_comm (c ^ 2) N]
+  exact abs_le_of_sq_le_sq (by rw [e]; exact h) h0
+
+/-- The constant: `2m/(N (e^{-1}/2)²) = 8 e² m/N`. -/
+theorem const_eq (N m : ℝ) (hN : 0 < N) :
+    2 * m / (N * (Real.exp (-1) / 2) ^ 2) = 8 * Real.exp 1 ^ 2 * m / N := by
+  have hE0 : 0 < Real.exp 1 := Real.exp_pos 1
+  have hE : Real.exp 1 * (Real.exp 1)⁻¹ = 1 := mul_inv_cancel₀ hE0.ne'
+  have h4 : ((Real.exp 1)⁻¹ / 2) ^ 2 * Real.exp 1 ^ 2 = 1 / 4 := by
+    calc ((Real.exp 1)⁻¹ / 2) ^ 2 * Real.exp 1 ^ 2
+        = (Real.exp 1 * (Real.exp 1)⁻¹) ^ 2 / 4 := by ring
+      _ = 1 / 4 := by rw [hE]; norm_num
+  rw [Real.exp_neg,
+    div_eq_div_iff (mul_pos hN (pow_pos (div_pos (inv_pos.mpr hE0) two_pos) 2)).ne' hN.ne']
+  linear_combination (-(8 * m * N)) * h4
+
+/-! ### (2) The lower bound for `s^k` -/
+
+/-- **Lower bound.** If `|s^k - α^k| ≤ err`, `α^k = e^{-x}` with `x ≤ 1` and `err ≤ e^{-1}/2`,
+    then `s^k ≥ e^{-1}/2 = 1/(2e)`. -/
+theorem pow_lower {s α err x : ℝ} (k : ℕ) (hx : x ≤ 1) (hα : α ^ k = Real.exp (-x))
+    (herr : err ≤ Real.exp (-1) / 2) (h : |s ^ k - α ^ k| ≤ err) :
+    Real.exp (-1) / 2 ≤ s ^ k := by
+  have h1 := (abs_le.mp h).1
+  have h2 : Real.exp (-1) ≤ Real.exp (-x) := Real.exp_le_exp.mpr (by linarith)
+  rw [hα] at h1
+  linarith
+
+/-! ### Auxiliary bounds -/
+
+theorem eigC3_nonneg (d : ℕ) : 0 ≤ eigC3 d := by
+  unfold eigC3
+  have h1 := TraceG29.kernelC1_nonneg d
+  have h2 : 0 ≤ (6 * (6 * Real.sqrt (3 * (d : ℝ) + 5)) + 2
+      + Real.sqrt (8 * (3 + 2 * ((3 * d + 1 : ℕ) : ℝ))) * (1 + 2 * Real.sqrt 2 ^ d))
+    * ((1 + Real.sqrt (2 * Real.pi)) ^ d) ^ 2 := by positivity
+  linarith
+
+/-- `((1 + √(2π r))^d)² ≤ (4π(1 + r))^d`. -/
+theorem shell_sq_le {r : ℝ} (hr : 0 ≤ r) (d : ℕ) :
+    ((1 + Real.sqrt (2 * Real.pi * r)) ^ d) ^ 2 ≤ (4 * Real.pi * (1 + r)) ^ d := by
+  have hpi := Real.two_le_pi
+  have hs := Real.sq_sqrt (show 0 ≤ 2 * Real.pi * r by positivity)
+  have hs0 := Real.sqrt_nonneg (2 * Real.pi * r)
+  have hb : (1 + Real.sqrt (2 * Real.pi * r)) ^ 2 ≤ 4 * Real.pi * (1 + r) := by
+    nlinarith [_root_.sq_nonneg (1 - Real.sqrt (2 * Real.pi * r))]
+  calc ((1 + Real.sqrt (2 * Real.pi * r)) ^ d) ^ 2
+      = ((1 + Real.sqrt (2 * Real.pi * r)) ^ 2) ^ d := pow_right_comm _ d 2
+    _ ≤ (4 * Real.pi * (1 + r)) ^ d := pow_le_pow_left₀ (_root_.sq_nonneg _) hb d
+
+/-- From a bound for the fourth power to a bound for the absolute value, with real exponents. -/
+theorem fourth_root_bound {u C A N : ℝ} (d : ℕ) (hC : 0 ≤ C) (hA : 0 ≤ A) (hN : 0 < N)
+    (h : u ^ 4 ≤ C * A ^ d / N ^ 2) :
+    |u| ≤ C ^ (1 / 4 : ℝ) * A ^ ((d : ℝ) / 4) / Real.sqrt N := by
+  have c1 : (1 / 4 : ℝ) * ((4 : ℕ) : ℝ) = 1 := by norm_num
+  have c2 : (d : ℝ) / 4 * ((4 : ℕ) : ℝ) = (d : ℝ) := by push_cast; ring
+  have e1 : (C ^ (1 / 4 : ℝ)) ^ 4 = C := by
+    rw [← Real.rpow_mul_natCast hC, c1, Real.rpow_one]
+  have e2 : (A ^ ((d : ℝ) / 4)) ^ 4 = A ^ d := by
+    rw [← Real.rpow_mul_natCast hA, c2, Real.rpow_natCast]
+  have e3 : Real.sqrt N ^ 4 = N ^ 2 := by
+    calc Real.sqrt N ^ 4 = (Real.sqrt N ^ 2) ^ 2 := by ring
+      _ = N ^ 2 := by rw [Real.sq_sqrt hN.le]
+  obtain ⟨R, hR⟩ : ∃ R : ℝ, R = C ^ (1 / 4 : ℝ) * A ^ ((d : ℝ) / 4) / Real.sqrt N := ⟨_, rfl⟩
+  rw [← hR]
+  have hR0 : 0 ≤ R := by
+    rw [hR]
+    exact div_nonneg (mul_nonneg (Real.rpow_nonneg hC _) (Real.rpow_nonneg hA _))
+      (Real.sqrt_nonneg _)
+  have e4 : R ^ 4 = C * A ^ d / N ^ 2 := by
+    rw [hR, div_pow, mul_pow, e1, e2, e3]
+  have h4 : (u ^ 2) ^ 2 ≤ (R ^ 2) ^ 2 := by
+    calc (u ^ 2) ^ 2 = u ^ 4 := by ring
+      _ ≤ C * A ^ d / N ^ 2 := h
+      _ = R ^ 4 := e4.symm
+      _ = (R ^ 2) ^ 2 := by ring
+  have h2 := abs_le_of_sq_le_sq h4 (_root_.sq_nonneg R)
+  rw [abs_of_nonneg (_root_.sq_nonneg u)] at h2
+  exact abs_le_of_sq_le_sq h2 hR0
+
+/-! ### (3) The sample theorems -/
+
+set_option maxHeartbeats 3200000 in
+/-- **Delocalisation, sample form with a free number of steps.** Hypotheses of
+    `kernel_theorem_G28` and `eig_theorem_G38_i`. Except on the union of their two exceptional
+    sets (probability at most `3/N³ + 6/N³ = 9/N³`): for every `k ≥ 1` with `2k ≤ K`, every shell
+    `r > 0` and every index `j` of the shell (counted from zero, as in `eig_theorem_G38_i`) with
+    `k · 2π²σ r ≤ 1` and `C₃ δ' √k m_k ≤ e^{-1}/2`, every vector `u` with
+    `S u = s_j u` (`s_j = hS.eigenvalues₀ j`) and `∑ u² = 1` satisfies
+    `u_a² ≤ 8 e² m_{2k} / N` for all `a`. -/
+theorem deloc_sample_k {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {σ : ℝ} (hσ : 0 < σ) (hσ1 : σ ≤ 1) (d N K : ℕ) [NeZero N] (hd : 1 ≤ d)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (hN2 : 2 ≤ N) (hK : 0 < K)
+    {Mp δp : ℝ} (hMp : Mp = heatTorus d (2 * Real.pi ^ 2 * σ) 0)
+    (hδp : δp = Real.sqrt (Mp * Real.log N / N))
+    (hrange : kernelC1 d * δp * Real.sqrt K ≤ 1) :
+    μ.real {ω | ¬ ∀ k, 1 ≤ k → 2 * k ≤ K →
+        ∀ (hS : (symGraph
+            (fun i j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X j ω))
+            (fun i : Fin N =>
+              (∑ l : Fin N, heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X l ω)) / N)).IsHermitian)
+          (j : Fin (Fintype.card (Fin N))) (r : ℝ), 0 < r → ∀ Hlt Hle : Finset (Fin d → ℤ),
+            (∀ n, n ∈ Hlt ↔ lexPos d n ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 < r) →
+            (∀ n, n ∈ Hle ↔ lexPos d n ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 ≤ r) →
+            1 + 2 * Hlt.card ≤ j.val → j.val ≤ 2 * Hle.card →
+            (k : ℝ) * (2 * Real.pi ^ 2 * σ * r) ≤ 1 →
+            eigC3 d * δp * Real.sqrt k * heatTorus d (2 * Real.pi ^ 2 * ((k : ℝ) * σ)) 0
+              ≤ Real.exp (-1) / 2 →
+            ∀ (u : Fin N → ℝ) (a : Fin N),
+              symGraph
+                (fun i j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X j ω))
+                (fun i : Fin N =>
+                  (∑ l : Fin N, heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X l ω)) / N) *ᵥ u
+                = hS.eigenvalues₀ j • u →
+              ∑ b, u b ^ 2 = 1 →
+              u a ^ 2 ≤ 8 * Real.exp 1 ^ 2
+                * heatTorus d (2 * Real.pi ^ 2 * (((2 * k : ℕ) : ℝ) * σ)) 0 / N}
+      ≤ 9 / (N : ℝ) ^ 3 := by
+  have hpi := Real.pi_pos
+  have hN : 0 < N := by omega
+  have hNpos : (0 : ℝ) < N := by exact_mod_cast hN
+  have hcσ : 0 < 2 * Real.pi ^ 2 * σ := by positivity
+  obtain ⟨Bk, hBkd⟩ : ∃ Bk : Set Ω, Bk = {ω | ¬ ∀ k, 1 ≤ k → k ≤ K → ∀ a i : Fin N,
+      |(N : ℝ) * ((walkMatrix
+            (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X a ω - X j ω))
+            (fun a : Fin N => heatRho d σ N (fun j => X j ω) a)) ^ k) a i
+          - heatP d σ k (X a ω - X i ω)|
+        ≤ kernelC1 d * δp * Real.sqrt k * heatTorus d (2 * Real.pi ^ 2 * ((k : ℝ) * σ)) 0} :=
+    ⟨_, rfl⟩
+  have hBk : μ.real Bk ≤ 3 / (N : ℝ) ^ 3 := by
+    rw [hBkd]
+    exact kernel_theorem_G28 hσ hσ1 d hd X h_indep hX hlaw N K hN2 hK hMp hδp hrange
+  obtain ⟨Bi, hBid⟩ : ∃ Bi : Set Ω, Bi = {ω | ¬ ∀ k, 1 ≤ k → k ≤ K →
+        ∀ (hS : (symGraph
+            (fun i j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X j ω))
+            (fun i : Fin N =>
+              (∑ l : Fin N, heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X l ω)) / N)).IsHermitian)
+          (j : Fin (Fintype.card (Fin N))),
+          (j.val = 0 → hS.eigenvalues₀ j = 1)
+          ∧ ∀ r : ℝ, 0 < r → ∀ Hlt Hle : Finset (Fin d → ℤ),
+            (∀ n, n ∈ Hlt ↔ lexPos d n ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 < r) →
+            (∀ n, n ∈ Hle ↔ lexPos d n ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 ≤ r) →
+            1 + 2 * Hlt.card ≤ j.val → j.val ≤ 2 * Hle.card →
+            |hS.eigenvalues₀ j ^ k - Real.exp (-(2 * Real.pi ^ 2 * σ) * r) ^ k|
+              ≤ eigC3 d * δp * Real.sqrt k
+                * heatTorus d (2 * Real.pi ^ 2 * ((k : ℝ) * σ)) 0} := ⟨_, rfl⟩
+  have hBi : μ.real Bi ≤ 6 / (N : ℝ) ^ 3 := by
+    rw [hBid]
+    exact eig_theorem_G38_i hσ hσ1 d N K hd X h_indep hX hlaw hN2 hK hMp hδp hrange
+  refine le_trans (measureReal_mono (s₂ := Bk ∪ Bi) ?_ (measure_ne_top μ _)) ?_
+  swap
+  · have hun := measureReal_union_le (μ := μ) Bk Bi
+    have e : 3 / (N : ℝ) ^ 3 + 6 / (N : ℝ) ^ 3 = 9 / (N : ℝ) ^ 3 := by ring
+    linarith
+  intro ω hω
+  by_contra hcon
+  simp only [Set.mem_union, not_or] at hcon
+  obtain ⟨hk, hi⟩ := hcon
+  rw [hBkd] at hk
+  rw [hBid] at hi
+  have hkern := not_not.mp hk
+  have heig := not_not.mp hi
+  apply hω
+  intro k hk1 hkK hS j r hr Hlt Hle hlt hle h1 h2 hx hsmall u a hSu hu
+  -- the lower bound for the power of the eigenvalue
+  have hpw := (heig k hk1 (by omega) hS j).2 r hr Hlt Hle hlt hle h1 h2
+  have e : Real.exp (-(2 * Real.pi ^ 2 * σ) * r) ^ k
+      = Real.exp (-((k : ℝ) * (2 * Real.pi ^ 2 * σ * r))) := by
+    rw [← Real.exp_nat_mul]
+    congr 1
+    ring
+  have hlow : Real.exp (-1) / 2 ≤ hS.eigenvalues₀ j ^ k := pow_lower k hx e hsmall hpw
+  have hc0 : 0 < Real.exp (-1) / 2 := by positivity
+  have hs : hS.eigenvalues₀ j ≠ 0 := by
+    intro h0
+    rw [h0, zero_pow (by omega : k ≠ 0)] at hlow
+    linarith
+  -- the two forms of the normalisation coincide
+  have hrho : (fun a : Fin N => heatRho d σ N (fun j => X j ω) a)
+      = (fun i : Fin N =>
+          (∑ l : Fin N, heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X l ω)) / N) := by
+    funext b
+    simp only [heatRho]
+    rw [Fin.sum_univ_eq_sum_range (fun l => heatTorus d (2 * Real.pi ^ 2 * σ) (X b ω - X l ω)) N]
+  have h1k := hkern (2 * k) (by omega) hkK a a
+  rw [hrho, sub_self, heatP_of_ne d σ (by omega)] at h1k
+  have hc : 0 ≤ kernelC1 d * δp := by
+    rw [hδp]; exact mul_nonneg (TraceG29.kernelC1_nonneg d) (Real.sqrt_nonneg _)
+  have hcast : (((2 * k : ℕ) : ℝ)) ≤ (K : ℝ) := by exact_mod_cast hkK
+  have hc1 : kernelC1 d * δp * Real.sqrt ((2 * k : ℕ) : ℝ) ≤ 1 :=
+    le_trans (mul_le_mul_of_nonneg_left (Real.sqrt_le_sqrt hcast) hc) hrange
+  have hm0 : 0 ≤ heatTorus d (2 * Real.pi ^ 2 * (((2 * k : ℕ) : ℝ) * σ)) 0 :=
+    (heatTorus_pos (by
+      have : (0 : ℝ) < ((2 * k : ℕ) : ℝ) := by exact_mod_cast (by omega : 0 < 2 * k)
+      positivity) d 0).le
+  haveI : Nonempty (Fin N) := ⟨⟨0, hN⟩⟩
+  have hKsymm : ∀ a j : Fin N,
+      heatTorus d (2 * Real.pi ^ 2 * σ) (X a ω - X j ω)
+        = heatTorus d (2 * Real.pi ^ 2 * σ) (X j ω - X a ω) := fun a j => by
+    rw [← heatTorus_even d _ (X j ω - X a ω), neg_sub]
+  have hrhopos : ∀ i : Fin N,
+      0 < (∑ l : Fin N, heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X l ω)) / N := fun i =>
+    div_pos (Finset.sum_pos (fun l _ => heatTorus_pos hcσ d _) Finset.univ_nonempty) hNpos
+  have hD : ∀ i : Fin N, 0 < ∑ l : Fin N,
+      heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X l ω)
+        / ((∑ l' : Fin N, heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X l' ω)) / N
+          * ((∑ l' : Fin N, heatTorus d (2 * Real.pi ^ 2 * σ) (X l ω - X l' ω)) / N)) := fun i =>
+    Finset.sum_pos (fun l _ => div_pos (heatTorus_pos hcσ d _) (mul_pos (hrhopos i) (hrhopos l)))
+      Finset.univ_nonempty
+  have hg := deloc_graph'
+    (fun i j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X j ω))
+    (fun i : Fin N => (∑ l : Fin N, heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X l ω)) / N)
+    hKsymm hD hNpos hs k a h1k (mul_le_of_le_one_left hm0 hc1) u hSu hu
+  have hf := final_step k hNpos hm0 hc0 hlow hg
+  rw [const_eq _ _ hNpos] at hf
+  exact hf
+
+set_option maxHeartbeats 3200000 in
+/-- **Delocalisation of the eigenvectors, sample form in the shell parameter (a form of
+    `cor:deloc`).** Hypotheses of `kernel_theorem_G28` and `eig_theorem_G38_i`. Except on the
+    union of their two exceptional sets (probability at most `9/N³`): for every shell `r > 0`
+    (`λ = 4π² r`) with `2π²σ r ≤ 1/2`, `1 ≤ K π²σ r` and
+    `2 e C₃ δ' (1 + √(2π r))^d ≤ √(2π²σ r)`, every index `j` of the shell (counted from zero) and
+    every vector `u` with `S u = s_j u` (`s_j = hS.eigenvalues₀ j`), `∑ u² = 1`, for all `a`:
+    `u_a² ≤ 8 e² (1 + √(2π r))^d / N`, `u_a⁴ ≤ 64 e⁴ (4π(1+r))^d / N²` and
+    `|u_a| ≤ (64 e⁴)^{1/4} (4π(1+r))^{d/4} / √N`. -/
+theorem deloc_sample_shell {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {σ : ℝ} (hσ : 0 < σ) (hσ1 : σ ≤ 1) (d N K : ℕ) [NeZero N] (hd : 1 ≤ d)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (hN2 : 2 ≤ N) (hK : 0 < K)
+    {Mp δp : ℝ} (hMp : Mp = heatTorus d (2 * Real.pi ^ 2 * σ) 0)
+    (hδp : δp = Real.sqrt (Mp * Real.log N / N))
+    (hrange : kernelC1 d * δp * Real.sqrt K ≤ 1) :
+    μ.real {ω | ¬
+        ∀ (hS : (symGraph
+            (fun i j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X j ω))
+            (fun i : Fin N =>
+              (∑ l : Fin N, heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X l ω)) / N)).IsHermitian)
+          (j : Fin (Fintype.card (Fin N))) (r : ℝ), 0 < r → ∀ Hlt Hle : Finset (Fin d → ℤ),
+            (∀ n, n ∈ Hlt ↔ lexPos d n ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 < r) →
+            (∀ n, n ∈ Hle ↔ lexPos d n ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 ≤ r) →
+            1 + 2 * Hlt.card ≤ j.val → j.val ≤ 2 * Hle.card →
+            2 * Real.pi ^ 2 * σ * r ≤ 1 / 2 →
+            1 ≤ (K : ℝ) * (Real.pi ^ 2 * σ * r) →
+            2 * Real.exp 1 * (eigC3 d * δp) * (1 + Real.sqrt (2 * Real.pi * r)) ^ d
+              ≤ Real.sqrt (2 * Real.pi ^ 2 * σ * r) →
+            ∀ (u : Fin N → ℝ) (a : Fin N),
+              symGraph
+                (fun i j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X j ω))
+                (fun i : Fin N =>
+                  (∑ l : Fin N, heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X l ω)) / N) *ᵥ u
+                = hS.eigenvalues₀ j • u →
+              ∑ b, u b ^ 2 = 1 →
+              u a ^ 2 ≤ 8 * Real.exp 1 ^ 2 * (1 + Real.sqrt (2 * Real.pi * r)) ^ d / N
+              ∧ u a ^ 4 ≤ 64 * Real.exp 1 ^ 4 * (4 * Real.pi * (1 + r)) ^ d / (N : ℝ) ^ 2
+              ∧ |u a| ≤ (64 * Real.exp 1 ^ 4) ^ (1 / 4 : ℝ)
+                  * (4 * Real.pi * (1 + r)) ^ ((d : ℝ) / 4) / Real.sqrt N}
+      ≤ 9 / (N : ℝ) ^ 3 := by
+  have h := deloc_sample_k hσ hσ1 d N K hd X h_indep hX hlaw hN2 hK hMp hδp hrange
+  refine le_trans (measureReal_mono ?_ (measure_ne_top μ _)) h
+  intro ω hω hgood
+  apply hω
+  intro hS j r hr Hlt Hle hlt hle h1 h2 hx hK' hsm u a hSu hu
+  have hpi := Real.pi_pos
+  have hN : 0 < N := by omega
+  have hNpos : (0 : ℝ) < N := by exact_mod_cast hN
+  have hx0 : 0 < 2 * Real.pi ^ 2 * σ * r := by positivity
+  have hy : 0 < Real.pi ^ 2 * σ * r := by positivity
+  obtain ⟨k, hk2, hlo, hhi⟩ := exists_step hx0 hx
+  have hkr : (0 : ℝ) ≤ k := Nat.cast_nonneg k
+  have hkx0 : 0 ≤ (k : ℝ) * (2 * Real.pi ^ 2 * σ * r) := mul_nonneg hkr hx0.le
+  have h2kK : 2 * k ≤ K := by
+    have h3 : ((2 * k : ℕ) : ℝ) ≤ K := by
+      push_cast
+      by_contra hc
+      rw [not_le] at hc
+      have h4 := mul_lt_mul_of_pos_right hc hy
+      nlinarith [h4, hhi, hK']
+    exact_mod_cast h3
+  -- the heat kernel at the origin at the chosen steps
+  have hmk : heatTorus d (2 * Real.pi ^ 2 * ((k : ℝ) * σ)) 0
+      ≤ (1 + Real.sqrt (2 * Real.pi * r)) ^ d := by
+    have h5 := heatP_le_mu hσ d k (0 : FlatTorus d)
+    rw [heatP_of_ne d σ (by omega)] at h5
+    exact h5.trans (heatMu_le_shell hσ hr d k (by omega) (by linarith [hlo]))
+  have hm2k : heatTorus d (2 * Real.pi ^ 2 * (((2 * k : ℕ) : ℝ) * σ)) 0
+      ≤ (1 + Real.sqrt (2 * Real.pi * r)) ^ d := by
+    have h5 := heatP_le_mu hσ d (2 * k) (0 : FlatTorus d)
+    rw [heatP_of_ne d σ (by omega)] at h5
+    exact h5.trans (heatMu_le_shell hσ hr d (2 * k) (by omega)
+      (by push_cast; nlinarith [hlo, hkx0]))
+  -- the smallness condition at the chosen step
+  have hδp0 : 0 ≤ δp := by rw [hδp]; exact Real.sqrt_nonneg _
+  have hE0 : 0 ≤ eigC3 d * δp := mul_nonneg (eigC3_nonneg d) hδp0
+  have hsk0 : 0 ≤ Real.sqrt (k : ℝ) := Real.sqrt_nonneg _
+  have hsk : Real.sqrt (k : ℝ) * Real.sqrt (2 * Real.pi ^ 2 * σ * r) ≤ 1 := by
+    rw [← Real.sqrt_mul hkr]
+    calc Real.sqrt ((k : ℝ) * (2 * Real.pi ^ 2 * σ * r)) ≤ Real.sqrt 1 := Real.sqrt_le_sqrt hhi
+      _ = 1 := Real.sqrt_one
+  have hee : Real.exp (-1) * Real.exp 1 = 1 := by
+    rw [← Real.exp_add]; norm_num
+  have he2 : 0 ≤ Real.exp (-1) / 2 := by positivity
+  have h5 := mul_le_mul_of_nonneg_left hsm he2
+  have h6 : Real.exp (-1) / 2
+        * (2 * Real.exp 1 * (eigC3 d * δp) * (1 + Real.sqrt (2 * Real.pi * r)) ^ d)
+      = (Real.exp (-1) * Real.exp 1)
+        * ((eigC3 d * δp) * (1 + Real.sqrt (2 * Real.pi * r)) ^ d) := by ring
+  rw [h6, hee, one_mul] at h5
+  have hsmall : eigC3 d * δp * Real.sqrt k * heatTorus d (2 * Real.pi ^ 2 * ((k : ℝ) * σ)) 0
+      ≤ Real.exp (-1) / 2 := by
+    calc eigC3 d * δp * Real.sqrt k * heatTorus d (2 * Real.pi ^ 2 * ((k : ℝ) * σ)) 0
+        ≤ eigC3 d * δp * Real.sqrt k * (1 + Real.sqrt (2 * Real.pi * r)) ^ d :=
+          mul_le_mul_of_nonneg_left hmk (mul_nonneg hE0 hsk0)
+      _ = Real.sqrt k * ((eigC3 d * δp) * (1 + Real.sqrt (2 * Real.pi * r)) ^ d) := by ring
+      _ ≤ Real.sqrt k * (Real.exp (-1) / 2 * Real.sqrt (2 * Real.pi ^ 2 * σ * r)) :=
+          mul_le_mul_of_nonneg_left h5 hsk0
+      _ = (Real.sqrt k * Real.sqrt (2 * Real.pi ^ 2 * σ * r)) * (Real.exp (-1) / 2) := by ring
+      _ ≤ 1 * (Real.exp (-1) / 2) := mul_le_mul_of_nonneg_right hsk he2
+      _ = Real.exp (-1) / 2 := one_mul _
+  have hA := hgood k (by omega) h2kK hS j r hr Hlt Hle hlt hle h1 h2 hhi hsmall u a hSu hu
+  have hB0 : 0 ≤ (1 + Real.sqrt (2 * Real.pi * r)) ^ d := by positivity
+  have hsq : u a ^ 2 ≤ 8 * Real.exp 1 ^ 2 * (1 + Real.sqrt (2 * Real.pi * r)) ^ d / N :=
+    hA.trans (div_le_div_of_nonneg_right
+      (mul_le_mul_of_nonneg_left hm2k (by positivity)) hNpos.le)
+  have h4 : u a ^ 4 ≤ 64 * Real.exp 1 ^ 4 * (4 * Real.pi * (1 + r)) ^ d / (N : ℝ) ^ 2 := by
+    calc u a ^ 4 = (u a ^ 2) ^ 2 := by ring
+      _ ≤ (8 * Real.exp 1 ^ 2 * (1 + Real.sqrt (2 * Real.pi * r)) ^ d / N) ^ 2 :=
+          pow_le_pow_left₀ (_root_.sq_nonneg _) hsq 2
+      _ = 64 * Real.exp 1 ^ 4 * ((1 + Real.sqrt (2 * Real.pi * r)) ^ d) ^ 2 / (N : ℝ) ^ 2 := by
+          ring
+      _ ≤ 64 * Real.exp 1 ^ 4 * (4 * Real.pi * (1 + r)) ^ d / (N : ℝ) ^ 2 :=
+          div_le_div_of_nonneg_right
+            (mul_le_mul_of_nonneg_left (shell_sq_le hr.le d) (by positivity)) (by positivity)
+  exact ⟨hsq, h4, fourth_root_bound d (by positivity) (by positivity) hNpos h4⟩
+
+end DelocalisationFinal
+
+/-! ### Enumeration of the lattice by non-decreasing norm; part (i) of the eigenvalue theorem for all indices -/
+
+namespace LatticeEnumeration
+
+/-- `|n|²` as a natural number. -/
+def nsq {d : ℕ} (n : Fin d → ℤ) : ℕ := ∑ i, (n i).natAbs ^ 2
+
+theorem nsq_cast {d : ℕ} (n : Fin d → ℤ) :
+    ((nsq n : ℕ) : ℝ) = ∑ i, ((n i : ℤ) : ℝ) ^ 2 := by
+  unfold nsq
+  rw [Nat.cast_sum]
+  refine Finset.sum_congr rfl fun i _ => ?_
+  have h : (((n i).natAbs : ℤ)) ^ 2 = (n i) ^ 2 := by
+    rw [Int.natCast_natAbs, sq_abs]
+  calc (((n i).natAbs ^ 2 : ℕ) : ℝ) = ((((n i).natAbs : ℤ) ^ 2 : ℤ) : ℝ) := by
+        rw [Int.cast_pow, Int.cast_natCast, Nat.cast_pow]
+    _ = (((n i) ^ 2 : ℤ) : ℝ) := by rw [h]
+    _ = ((n i : ℤ) : ℝ) ^ 2 := by rw [Int.cast_pow]
+
+theorem natAbs_le_nsq {d : ℕ} (n : Fin d → ℤ) (i : Fin d) : (n i).natAbs ≤ nsq n := by
+  have h1 : (n i).natAbs ^ 2 ≤ nsq n := by
+    unfold nsq
+    exact Finset.single_le_sum (f := fun j => (n j).natAbs ^ 2) (fun j _ => Nat.zero_le _)
+      (Finset.mem_univ i)
+  have h2 : (n i).natAbs ≤ (n i).natAbs ^ 2 := Nat.le_self_pow (n := 2) (by decide) _
+  exact h2.trans h1
+
+theorem nsq_zero {d : ℕ} : nsq (0 : Fin d → ℤ) = 0 := by
+  unfold nsq
+  exact Finset.sum_eq_zero fun i _ => by simp
+
+theorem nsq_eq_zero {d : ℕ} {n : Fin d → ℤ} (h : nsq n = 0) : n = 0 := by
+  funext i
+  have h3 := natAbs_le_nsq n i
+  have h4 : (n i).natAbs = 0 := by omega
+  exact Int.natAbs_eq_zero.mp h4
+
+/-- The finite set of lattice points with `|n|² < q`. -/
+noncomputable def ball (d q : ℕ) : Finset (Fin d → ℤ) :=
+  (Fintype.piFinset fun _ : Fin d => Finset.Icc (-(q : ℤ)) q).filter fun n => nsq n < q
+
+theorem mem_ball {d q : ℕ} (n : Fin d → ℤ) : n ∈ ball d q ↔ nsq n < q := by
+  unfold ball
+  rw [Finset.mem_filter]
+  refine ⟨fun h => h.2, fun h => ⟨?_, h⟩⟩
+  rw [Fintype.mem_piFinset]
+  intro i
+  have h3 : (n i).natAbs < q := lt_of_le_of_lt (natAbs_le_nsq n i) h
+  rw [Finset.mem_Icc]
+  omega
+
+/-- An auxiliary code: strictly increasing in `|n|²`, and injective if `f` is. -/
+noncomputable def code {d : ℕ} (f : (Fin d → ℤ) → ℕ) (n : Fin d → ℤ) : ℕ :=
+  (∑ m ∈ ball d (nsq n), (f m + 1)) + f n
+
+theorem code_lt {d : ℕ} (f : (Fin d → ℤ) → ℕ) {n n' : Fin d → ℤ} (h : nsq n < nsq n') :
+    code f n < code f n' := by
+  have hsub : insert n (ball d (nsq n)) ⊆ ball d (nsq n') := by
+    intro m hm
+    rw [Finset.mem_insert] at hm
+    rw [mem_ball]
+    rcases hm with hm | hm
+    · rw [hm]; exact h
+    · rw [mem_ball] at hm; omega
+  have hnot : n ∉ ball d (nsq n) := by
+    rw [mem_ball]; omega
+  have h1 := Finset.sum_le_sum_of_subset (f := fun m => f m + 1) hsub
+  rw [Finset.sum_insert hnot] at h1
+  have h1' : f n + 1 + ∑ m ∈ ball d (nsq n), (f m + 1) ≤ ∑ m ∈ ball d (nsq n'), (f m + 1) := h1
+  unfold code
+  omega
+
+theorem code_injective {d : ℕ} {f : (Fin d → ℤ) → ℕ} (hf : Function.Injective f) :
+    Function.Injective (code f) := by
+  intro n n' h
+  rcases Nat.lt_trichotomy (nsq n) (nsq n') with hlt | hq | hgt
+  · have := code_lt f hlt
+    omega
+  · apply hf
+    unfold code at h
+    rw [hq] at h
+    omega
+  · have := code_lt f hgt
+    omega
+
+/-- **Existence of the enumeration (natural-number form).** For `d ≥ 1` there is a bijection
+    `e : ℕ → ℤ^d` along which `|n|²` is non-decreasing. -/
+theorem exists_enum {d : ℕ} (hd : 1 ≤ d) :
+    ∃ e : ℕ → (Fin d → ℤ), Function.Bijective e ∧ ∀ i j, i ≤ j → nsq (e i) ≤ nsq (e j) := by
+  obtain ⟨f, hf⟩ := exists_injective_nat (Fin d → ℤ)
+  haveI hinf : Infinite (Fin d → ℤ) :=
+    Infinite.of_injective (fun (z : ℤ) (_ : Fin d) => z) (fun a b h => congrFun h ⟨0, hd⟩)
+  have hcinj : Function.Injective (code f) := code_injective hf
+  have hsinf : (Set.range (code f)).Infinite := Set.infinite_range_of_injective hcinj
+  haveI : Infinite (Set.range (code f)) := hsinf.to_subtype
+  obtain ⟨φ, _⟩ : ∃ φ : ℕ ≃o Set.range (code f), True :=
+    ⟨Nat.Subtype.orderIsoOfNat (Set.range (code f)), trivial⟩
+  have hex : ∀ j, ∃ a, code f a = ((φ j : Set.range (code f)) : ℕ) := fun j => (φ j).2
+  choose e he using hex
+  refine ⟨e, ⟨?_, ?_⟩, ?_⟩
+  · intro i j hij
+    have h1 : ((φ i : Set.range (code f)) : ℕ) = ((φ j : Set.range (code f)) : ℕ) := by
+      rw [← he i, ← he j, hij]
+    exact φ.injective (Subtype.ext h1)
+  · intro a
+    refine ⟨φ.symm ⟨code f a, a, rfl⟩, hcinj ?_⟩
+    rw [he, OrderIso.apply_symm_apply]
+  · intro i j hij
+    by_contra hlt
+    have h1 : code f (e j) < code f (e i) := code_lt f (not_le.mp hlt)
+    have h2 : φ i ≤ φ j := φ.monotone hij
+    have h3 : ((φ i : Set.range (code f)) : ℕ) ≤ ((φ j : Set.range (code f)) : ℕ) := h2
+    have e1 := he i
+    have e2 := he j
+    omega
+
+/-- **Existence of the enumeration (form used by `shell_position`).** -/
+theorem exists_enum_real {d : ℕ} (hd : 1 ≤ d) :
+    ∃ e : ℕ → (Fin d → ℤ), Function.Bijective e ∧
+      ∀ i j, i ≤ j → ∑ t, ((e i t : ℤ) : ℝ) ^ 2 ≤ ∑ t, ((e j t : ℤ) : ℝ) ^ 2 := by
+  obtain ⟨e, he, hmono⟩ := exists_enum hd
+  refine ⟨e, he, fun i j hij => ?_⟩
+  rw [← nsq_cast, ← nsq_cast]
+  exact_mod_cast hmono i j hij
+
+/-! ## Consequences for any such enumeration -/
+
+/-- The enumeration starts at the origin. -/
+theorem enum_zero {d : ℕ} (e : ℕ → (Fin d → ℤ)) (he : Function.Bijective e)
+    (hmono : ∀ i j, i ≤ j → ∑ t, ((e i t : ℤ) : ℝ) ^ 2 ≤ ∑ t, ((e j t : ℤ) : ℝ) ^ 2) :
+    e 0 = 0 := by
+  obtain ⟨j0, hj0⟩ := he.2 0
+  have h := hmono 0 j0 (Nat.zero_le _)
+  rw [← nsq_cast, ← nsq_cast, hj0, nsq_zero] at h
+  have h' : nsq (e 0) ≤ 0 := by exact_mod_cast h
+  exact nsq_eq_zero (by omega)
+
+/-- For `j ≥ 1` the value `|e_j|²` is at least `1`. -/
+theorem enum_pos {d : ℕ} (e : ℕ → (Fin d → ℤ)) (he : Function.Bijective e)
+    (hmono : ∀ i j, i ≤ j → ∑ t, ((e i t : ℤ) : ℝ) ^ 2 ≤ ∑ t, ((e j t : ℤ) : ℝ) ^ 2)
+    {j : ℕ} (hj : 1 ≤ j) : 1 ≤ ∑ t, ((e j t : ℤ) : ℝ) ^ 2 := by
+  have h0 := enum_zero e he hmono
+  have hne : e j ≠ 0 := by
+    intro h
+    have : j = 0 := he.1 (h.trans h0.symm)
+    omega
+  have h1 : 1 ≤ nsq (e j) := by
+    by_contra hc
+    exact hne (nsq_eq_zero (by omega))
+  rw [← nsq_cast]
+  exact_mod_cast h1
+
+/-- The Finsets of lexicographically positive frequencies below a natural level exist. -/
+theorem shell_sets (d q : ℕ) : ∃ Hlt Hle : Finset (Fin d → ℤ),
+    (∀ n, n ∈ Hlt ↔ lexPos d n ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 < (q : ℝ)) ∧
+    (∀ n, n ∈ Hle ↔ lexPos d n ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 ≤ (q : ℝ)) := by
+  classical
+  refine ⟨(ball d q).filter (lexPos d), (ball d (q + 1)).filter (lexPos d),
+    fun n => ?_, fun n => ?_⟩
+  · rw [Finset.mem_filter, mem_ball, ← nsq_cast n, Nat.cast_lt]
+    exact and_comm
+  · rw [Finset.mem_filter, mem_ball, ← nsq_cast n, Nat.cast_le, Nat.lt_succ_iff]
+    exact and_comm
+
+/-- **The shell condition along the enumeration.** For `j ≥ 1` and `r = |e_j|²`, the Finsets
+    `Hlt`, `Hle` of the eigenvalue theorems exist, and for ANY Finsets with these membership
+    characterisations the index condition `1 + 2 #Hlt ≤ j ≤ 2 #Hle` holds. -/
+theorem enum_shell {d : ℕ} (e : ℕ → (Fin d → ℤ)) (he : Function.Bijective e)
+    (hmono : ∀ i j, i ≤ j → ∑ t, ((e i t : ℤ) : ℝ) ^ 2 ≤ ∑ t, ((e j t : ℤ) : ℝ) ^ 2)
+    {j : ℕ} (hj : 1 ≤ j) :
+    (∃ Hlt Hle : Finset (Fin d → ℤ),
+      (∀ n, n ∈ Hlt ↔ lexPos d n ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 < ∑ t, ((e j t : ℤ) : ℝ) ^ 2) ∧
+      (∀ n, n ∈ Hle ↔ lexPos d n ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 ≤ ∑ t, ((e j t : ℤ) : ℝ) ^ 2)) ∧
+    ∀ Hlt Hle : Finset (Fin d → ℤ),
+      (∀ n, n ∈ Hlt ↔ lexPos d n ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 < ∑ t, ((e j t : ℤ) : ℝ) ^ 2) →
+      (∀ n, n ∈ Hle ↔ lexPos d n ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 ≤ ∑ t, ((e j t : ℤ) : ℝ) ^ 2) →
+      1 + 2 * Hlt.card ≤ j ∧ j ≤ 2 * Hle.card := by
+  have hpos : (0 : ℝ) < ∑ t, ((e j t : ℤ) : ℝ) ^ 2 :=
+    lt_of_lt_of_le one_pos (enum_pos e he hmono hj)
+  refine ⟨?_, fun Hlt Hle hlt hle =>
+    (ShellAndWalk.shell_position e he hmono hpos hlt hle j).mpr rfl⟩
+  obtain ⟨Hlt, Hle, hlt, hle⟩ := shell_sets d (nsq (e j))
+  rw [nsq_cast] at hlt hle
+  exact ⟨Hlt, Hle, hlt, hle⟩
+
+/-- **The sequence of values does not depend on the enumeration.** Any two bijections
+    `ℕ → ℤ^d` along which `|n|²` is non-decreasing take the same value of `|n|²` at every
+    position. -/
+theorem enum_value_unique {d : ℕ} (e e' : ℕ → (Fin d → ℤ))
+    (he : Function.Bijective e) (he' : Function.Bijective e')
+    (hmono : ∀ i j, i ≤ j → ∑ t, ((e i t : ℤ) : ℝ) ^ 2 ≤ ∑ t, ((e j t : ℤ) : ℝ) ^ 2)
+    (hmono' : ∀ i j, i ≤ j → ∑ t, ((e' i t : ℤ) : ℝ) ^ 2 ≤ ∑ t, ((e' j t : ℤ) : ℝ) ^ 2)
+    (j : ℕ) : ∑ t, ((e' j t : ℤ) : ℝ) ^ 2 = ∑ t, ((e j t : ℤ) : ℝ) ^ 2 := by
+  rcases Nat.eq_zero_or_pos j with hj | hj
+  · rw [hj, enum_zero e he hmono, enum_zero e' he' hmono']
+  · have hpos : (0 : ℝ) < ∑ t, ((e j t : ℤ) : ℝ) ^ 2 :=
+      lt_of_lt_of_le one_pos (enum_pos e he hmono hj)
+    obtain ⟨⟨Hlt, Hle, hlt, hle⟩, hall⟩ := enum_shell e he hmono hj
+    exact (ShellAndWalk.shell_position e' he' hmono' hpos hlt hle j).mp (hall Hlt Hle hlt hle)
+
+/-! ## The sample statement -/
+
+theorem eigC3_nonneg (d : ℕ) : 0 ≤ eigC3 d := by
+  unfold eigC3
+  exact add_nonneg (TraceG29.kernelC1_nonneg d) (by positivity)
+
+/-- **Part (i) of the eigenvalue theorem with the comparison value indexed by an enumeration
+    of the lattice.** Hypotheses of `eig_theorem_G38_i`; `e` is ANY bijection `ℕ → ℤ^d` along
+    which `|n|²` is non-decreasing (one exists by `exists_enum_real`). Except on an event of
+    probability at most `6/N³` (the set is contained in that of `eig_theorem_G38_i`), for all
+    `1 ≤ k ≤ K` and ALL indices `j` (counted from zero):
+    `|s_j^k - exp(-2π²σ |e_j|²)^k| ≤ C₃ δ' √k m_k`.
+
+    That `4π²|n|²` are the eigenvalues of `-Δ` on the flat unit torus is NOT part of this
+    statement and is not formalised. -/
+theorem eig_theorem_G38_i_enum {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {σ : ℝ} (hσ : 0 < σ) (hσ1 : σ ≤ 1) (d N K : ℕ) [NeZero N] (hd : 1 ≤ d)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (hN2 : 2 ≤ N) (hK : 0 < K)
+    {Mp δp : ℝ} (hMp : Mp = heatTorus d (2 * Real.pi ^ 2 * σ) 0)
+    (hδp : δp = Real.sqrt (Mp * Real.log N / N))
+    (hrange : kernelC1 d * δp * Real.sqrt K ≤ 1)
+    (e : ℕ → (Fin d → ℤ)) (he : Function.Bijective e)
+    (hmono : ∀ i j, i ≤ j → ∑ t, ((e i t : ℤ) : ℝ) ^ 2 ≤ ∑ t, ((e j t : ℤ) : ℝ) ^ 2) :
+    μ.real {ω | ¬ ∀ k, 1 ≤ k → k ≤ K →
+        ∀ (hS : (symGraph
+            (fun i j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X j ω))
+            (fun i : Fin N =>
+              (∑ l : Fin N, heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X l ω)) / N)).IsHermitian)
+          (j : Fin (Fintype.card (Fin N))),
+          |hS.eigenvalues₀ j ^ k
+              - Real.exp (-(2 * Real.pi ^ 2 * σ) * ∑ t, ((e j.val t : ℤ) : ℝ) ^ 2) ^ k|
+            ≤ eigC3 d * δp * Real.sqrt k
+              * heatTorus d (2 * Real.pi ^ 2 * ((k : ℝ) * σ)) 0}
+      ≤ 6 / (N : ℝ) ^ 3 := by
+  have h := eig_theorem_G38_i hσ hσ1 d N K hd X h_indep hX hlaw hN2 hK hMp hδp hrange
+  refine le_trans (measureReal_mono ?_ (measure_ne_top μ _)) h
+  intro ω hω hgood
+  apply hω
+  intro k hk hkK hS j
+  obtain ⟨h0, hr⟩ := hgood k hk hkK hS j
+  rcases Nat.eq_zero_or_pos j.val with hj0 | hjpos
+  · have hz : ∑ t, ((e j.val t : ℤ) : ℝ) ^ 2 = 0 := by
+      rw [hj0, enum_zero e he hmono]
+      simp
+    rw [hz, h0 hj0, mul_zero, Real.exp_zero, sub_self, abs_zero]
+    have hδp0 : 0 ≤ δp := by rw [hδp]; exact Real.sqrt_nonneg _
+    have hkpos : (0 : ℝ) < (k : ℝ) := Nat.cast_pos.mpr (by omega)
+    have hc : 0 < 2 * Real.pi ^ 2 * ((k : ℝ) * σ) :=
+      mul_pos (mul_pos two_pos (pow_pos Real.pi_pos 2)) (mul_pos hkpos hσ)
+    exact mul_nonneg (mul_nonneg (mul_nonneg (eigC3_nonneg d) hδp0) (Real.sqrt_nonneg _))
+      (heatTorus_nonneg hc d 0)
+  · have hpos : (0 : ℝ) < ∑ t, ((e j.val t : ℤ) : ℝ) ^ 2 :=
+      lt_of_lt_of_le one_pos (enum_pos e he hmono hjpos)
+    obtain ⟨⟨Hlt, Hle, hlt, hle⟩, hall⟩ := enum_shell e he hmono hjpos
+    obtain ⟨h1, h2⟩ := hall Hlt Hle hlt hle
+    exact hr _ hpos Hlt Hle hlt hle h1 h2
+
+/-- **Non-vacuous form.** For `d ≥ 1` there IS an enumeration `e` of `ℤ^d` (bijective, `|n|²`
+    non-decreasing, `e 0 = 0`) for which the sample statement holds; by `enum_value_unique` the
+    comparison values `|e_j|²` are the same for every such enumeration. -/
+theorem eig_theorem_G38_i_enum_exists {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {σ : ℝ} (hσ : 0 < σ) (hσ1 : σ ≤ 1) (d N K : ℕ) [NeZero N] (hd : 1 ≤ d)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (hN2 : 2 ≤ N) (hK : 0 < K)
+    {Mp δp : ℝ} (hMp : Mp = heatTorus d (2 * Real.pi ^ 2 * σ) 0)
+    (hδp : δp = Real.sqrt (Mp * Real.log N / N))
+    (hrange : kernelC1 d * δp * Real.sqrt K ≤ 1) :
+    ∃ e : ℕ → (Fin d → ℤ), Function.Bijective e ∧
+      (∀ i j, i ≤ j → ∑ t, ((e i t : ℤ) : ℝ) ^ 2 ≤ ∑ t, ((e j t : ℤ) : ℝ) ^ 2) ∧
+      e 0 = 0 ∧
+      μ.real {ω | ¬ ∀ k, 1 ≤ k → k ≤ K →
+        ∀ (hS : (symGraph
+            (fun i j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X j ω))
+            (fun i : Fin N =>
+              (∑ l : Fin N, heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X l ω)) / N)).IsHermitian)
+          (j : Fin (Fintype.card (Fin N))),
+          |hS.eigenvalues₀ j ^ k
+              - Real.exp (-(2 * Real.pi ^ 2 * σ) * ∑ t, ((e j.val t : ℤ) : ℝ) ^ 2) ^ k|
+            ≤ eigC3 d * δp * Real.sqrt k
+              * heatTorus d (2 * Real.pi ^ 2 * ((k : ℝ) * σ)) 0}
+      ≤ 6 / (N : ℝ) ^ 3 := by
+  obtain ⟨e, he, hmono⟩ := exists_enum_real hd
+  exact ⟨e, he, hmono, enum_zero e he hmono,
+    eig_theorem_G38_i_enum hσ hσ1 d N K hd X h_indep hX hlaw hN2 hK hMp hδp hrange e he hmono⟩
+
+end LatticeEnumeration
 
 end CTG.Reals2
