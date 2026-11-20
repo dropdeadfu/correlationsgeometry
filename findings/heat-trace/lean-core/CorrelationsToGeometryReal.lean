@@ -18145,6 +18145,557 @@ theorem closed_rhs (k : ℕ) (hk : 1 ≤ k) (mm d e α αb β βb m6 : ℕ → �
       _ = A * G * η ^ 2 * kk * mm (k + 1) := by ring
   exact hmid.trans hlast
 
+/-! ### The subtracted heat trace of the sampled graph (second display of `cor:kernel-trace`, finite form) -/
+
+namespace TraceG29
+
+/-! ### Poisson weights and their tail -/
+
+/-- The Poisson weight `w_j = e^{-τ} τ^j / j!`. -/
+noncomputable def pw (τ : ℝ) (j : ℕ) : ℝ := Real.exp (-τ) * (τ ^ j / (j.factorial : ℝ))
+
+theorem pw_nonneg {τ : ℝ} (hτ : 0 ≤ τ) (j : ℕ) : 0 ≤ pw τ j :=
+  mul_nonneg (Real.exp_pos _).le (div_nonneg (pow_nonneg hτ j) (Nat.cast_nonneg _))
+
+/-- The Poisson weights sum to one. -/
+theorem pw_hasSum (τ : ℝ) : HasSum (pw τ) 1 := by
+  have h := (real_hasSum_exp τ).mul_left (Real.exp (-τ))
+  have e : Real.exp (-τ) * Real.exp τ = 1 := by rw [← Real.exp_add]; simp
+  rw [e] at h
+  exact h
+
+theorem pw_zero (τ : ℝ) : pw τ 0 = Real.exp (-τ) := by
+  unfold pw
+  simp
+
+/-- The shifted Poisson weights sum to `1 - e^{-τ}`. -/
+theorem pw_shift_hasSum (τ : ℝ) : HasSum (fun j : ℕ => pw τ (j + 1)) (1 - Real.exp (-τ)) := by
+  have h1 : HasSum (fun j : ℕ => pw τ (j + 1)) (1 - ∑ i ∈ Finset.range 1, pw τ i) :=
+    (hasSum_nat_add_iff' 1).2 (pw_hasSum τ)
+  rw [Finset.sum_range_one, pw_zero] at h1
+  exact h1
+
+/-- The Poisson tail `∑_{j > J} w_j`, written as `1 - ∑_{j ≤ J} w_j`. -/
+noncomputable def ptail (τ : ℝ) (J : ℕ) : ℝ := 1 - ∑ j ∈ Finset.range (J + 1), pw τ j
+
+/-- The tail as an infinite sum over the indices `j > J`. -/
+theorem ptail_hasSum' (τ : ℝ) (J : ℕ) :
+    HasSum (fun j : ℕ => if j < J + 1 then 0 else pw τ j) (ptail τ J) := by
+  have h2 : HasSum (fun j : ℕ => if j < J + 1 then pw τ j else 0)
+      (∑ j ∈ Finset.range (J + 1), (if j < J + 1 then pw τ j else 0)) :=
+    hasSum_sum_of_ne_finset_zero (fun b hb => by
+      rw [Finset.mem_range] at hb; simp [hb])
+  have e : ∑ j ∈ Finset.range (J + 1), (if j < J + 1 then pw τ j else 0)
+      = ∑ j ∈ Finset.range (J + 1), pw τ j :=
+    Finset.sum_congr rfl (fun j hj => by rw [if_pos (Finset.mem_range.mp hj)])
+  rw [e] at h2
+  have h3 := (pw_hasSum τ).sub h2
+  have hf : (fun j : ℕ => if j < J + 1 then 0 else pw τ j)
+      = fun j : ℕ => pw τ j - (if j < J + 1 then pw τ j else 0) := by
+    funext j
+    by_cases hj : j < J + 1 <;> simp [hj]
+  rw [hf]
+  exact h3
+
+/-- The tail as an infinite sum over the shifted indices. -/
+theorem ptail_hasSum (τ : ℝ) (J : ℕ) :
+    HasSum (fun j : ℕ => if j < J then 0 else pw τ (j + 1)) (ptail τ J) := by
+  have h1 : HasSum (fun j : ℕ => (fun i : ℕ => if i < J + 1 then 0 else pw τ i) (j + 1))
+      (ptail τ J - ∑ i ∈ Finset.range 1, (fun i : ℕ => if i < J + 1 then 0 else pw τ i) i) :=
+    (hasSum_nat_add_iff' 1).2 (ptail_hasSum' τ J)
+  have e : ∑ i ∈ Finset.range 1, (fun i : ℕ => if i < J + 1 then 0 else pw τ i) i = 0 := by
+    rw [Finset.sum_range_one]
+    simp
+  rw [e, sub_zero] at h1
+  have hf : (fun j : ℕ => if j < J then 0 else pw τ (j + 1))
+      = fun j : ℕ => (fun i : ℕ => if i < J + 1 then 0 else pw τ i) (j + 1) := by
+    funext j
+    by_cases hj : j < J
+    · have hj' : j + 1 < J + 1 := by omega
+      simp [hj, hj']
+    · have hj' : ¬ j + 1 < J + 1 := by omega
+      simp [hj, hj']
+  rw [hf]
+  exact h1
+
+theorem ptail_nonneg {τ : ℝ} (hτ : 0 ≤ τ) (J : ℕ) : 0 ≤ ptail τ J := by
+  refine hasSum_le (fun j => ?_) hasSum_zero (ptail_hasSum' τ J)
+  by_cases hj : j < J + 1
+  · simp [hj]
+  · simp only [if_neg hj]
+    exact pw_nonneg hτ j
+
+/-- Comparison of two sums: `|f_j| ≤ g_j` termwise gives `|∑ f| ≤ ∑ g`. -/
+theorem abs_le_of_hasSum {f g : ℕ → ℝ} {a b : ℝ} (hf : HasSum f a) (hg : HasSum g b)
+    (h : ∀ j, |f j| ≤ g j) : |a| ≤ b := by
+  rw [abs_le]
+  constructor
+  · exact hasSum_le (fun j => (abs_le.mp (h j)).1) hg.neg hf
+  · exact hasSum_le (fun j => (abs_le.mp (h j)).2) hf hg
+
+/-! ### Level 1: the deterministic splitting -/
+
+/-- **Splitting of a Poisson mean at an index `J` (abstract form).** For `τ ≥ 0`, sequences
+    `a_j`, `m_j`, relative errors `|a_j - m_j| ≤ ε_j m_j` for `1 ≤ j ≤ J` and bounds
+    `|a_j| ≤ B`, `|m_j| ≤ B'` for `j > J`:
+    `|∑_{j≥1} w_j a_j - ∑_{j≥1} w_j m_j| ≤ ∑_{j=1}^J w_j ε_j m_j + (B + B') (1 - ∑_{j≤J} w_j)`.
+    HYPOTHESES: the two sums exist (`hA`, `hT`). -/
+theorem poisson_split {τ : ℝ} (hτ : 0 ≤ τ) (a m ε : ℕ → ℝ) (J : ℕ) {A T B B' : ℝ}
+    (hA : HasSum (fun j : ℕ => pw τ (j + 1) * a (j + 1)) A)
+    (hT : HasSum (fun j : ℕ => pw τ (j + 1) * m (j + 1)) T)
+    (hlow : ∀ j, 1 ≤ j → j ≤ J → |a j - m j| ≤ ε j * m j)
+    (hB : ∀ j, J < j → |a j| ≤ B) (hB' : ∀ j, J < j → |m j| ≤ B') :
+    |A - T| ≤ ∑ j ∈ Finset.range J, pw τ (j + 1) * (ε (j + 1) * m (j + 1))
+        + (B + B') * ptail τ J := by
+  have hdiff : HasSum (fun j : ℕ => pw τ (j + 1) * a (j + 1) - pw τ (j + 1) * m (j + 1))
+      (A - T) := hA.sub hT
+  have h2 : HasSum (fun j : ℕ => if j < J then pw τ (j + 1) * (ε (j + 1) * m (j + 1)) else 0)
+      (∑ j ∈ Finset.range J, pw τ (j + 1) * (ε (j + 1) * m (j + 1))) := by
+    have h : HasSum (fun j : ℕ => if j < J then pw τ (j + 1) * (ε (j + 1) * m (j + 1)) else 0)
+        (∑ j ∈ Finset.range J,
+          (if j < J then pw τ (j + 1) * (ε (j + 1) * m (j + 1)) else 0)) :=
+      hasSum_sum_of_ne_finset_zero (fun b hb => by rw [Finset.mem_range] at hb; simp [hb])
+    have e : ∑ j ∈ Finset.range J,
+          (if j < J then pw τ (j + 1) * (ε (j + 1) * m (j + 1)) else 0)
+        = ∑ j ∈ Finset.range J, pw τ (j + 1) * (ε (j + 1) * m (j + 1)) :=
+      Finset.sum_congr rfl (fun j hj => by rw [if_pos (Finset.mem_range.mp hj)])
+    rw [e] at h
+    exact h
+  have h3 := h2.add ((ptail_hasSum τ J).mul_left (B + B'))
+  refine abs_le_of_hasSum hdiff h3 (fun j => ?_)
+  have hw := pw_nonneg hτ (j + 1)
+  beta_reduce
+  by_cases hj : j < J
+  · simp only [if_pos hj, mul_zero, add_zero]
+    rw [← mul_sub, abs_mul, abs_of_nonneg hw]
+    exact mul_le_mul_of_nonneg_left (hlow (j + 1) (by omega) (by omega)) hw
+  · simp only [if_neg hj, zero_add]
+    rw [← mul_sub, abs_mul, abs_of_nonneg hw, mul_comm (B + B')]
+    refine mul_le_mul_of_nonneg_left ?_ hw
+    have h1 := hB (j + 1) (by omega)
+    have h2' := hB' (j + 1) (by omega)
+    have h3' : |a (j + 1) - m (j + 1)| ≤ |a (j + 1)| + |m (j + 1)| := by
+      rcases abs_cases (a (j + 1) - m (j + 1)) with h | h <;>
+        rcases abs_cases (a (j + 1)) with h' | h' <;>
+        rcases abs_cases (m (j + 1)) with h'' | h'' <;> linarith
+    linarith
+
+/-- The Poisson series of the subtracted heat trace: for a real symmetric matrix,
+    `Tr exp(τ(S - 1)) - N e^{-τ} = ∑_{j≥1} w_j Tr S^j`. No hypotheses. -/
+theorem subtracted_trace_hasSum {n : Type} [Fintype n] [DecidableEq n] (S : Matrix n n ℝ)
+    (hS : S.IsHermitian) (τ : ℝ) :
+    HasSum (fun j : ℕ => pw τ (j + 1) * (S ^ (j + 1)).trace)
+      ((NormedSpace.exp (τ • (S - 1))).trace - (Fintype.card n : ℝ) * Real.exp (-τ)) := by
+  obtain ⟨F, hF⟩ : ∃ F : ℕ → ℝ,
+      F = fun j : ℕ => Real.exp (-τ) * (τ ^ j / (j.factorial : ℝ)) * (S ^ j).trace := ⟨_, rfl⟩
+  have hP : HasSum F (NormedSpace.exp (τ • (S - 1))).trace := by
+    rw [hF]; exact poisson_representation_matrix S hS τ
+  have h0 := (hasSum_nat_add_iff' (f := F) 1).2 hP
+  have e : ∑ i ∈ Finset.range 1, F i = (Fintype.card n : ℝ) * Real.exp (-τ) := by
+    rw [Finset.sum_range_one, hF]
+    simp only [pow_zero, Nat.factorial_zero, Nat.cast_one, div_one, mul_one, Matrix.trace_one]
+    ring
+  rw [e] at h0
+  have hf : (fun j : ℕ => pw τ (j + 1) * (S ^ (j + 1)).trace) = fun j : ℕ => F (j + 1) := by
+    funext j; rw [hF]; rfl
+  rw [hf]
+  exact h0
+
+/-- **Level 1.** Real symmetric `S`, `τ ≥ 0`, numbers `m_j` with `T = ∑_{j≥1} w_j m_j`,
+    `|Tr S^j - m_j| ≤ ε_j m_j` for `1 ≤ j ≤ J`, `|Tr S^j| ≤ B` and `|m_j| ≤ B'` for `j > J`. Then
+    `|Tr exp(τ(S-1)) - N e^{-τ} - T| ≤ ∑_{j=1}^J w_j ε_j m_j + (B + B') (1 - ∑_{j≤J} w_j)`.
+    HYPOTHESIS: the sum `T` of the series `∑_{j≥1} w_j m_j` exists (`hT`). -/
+theorem heat_trace_split {n : Type} [Fintype n] [DecidableEq n] (S : Matrix n n ℝ)
+    (hS : S.IsHermitian) {τ : ℝ} (hτ : 0 ≤ τ) (m ε : ℕ → ℝ) (J : ℕ) {T B B' : ℝ}
+    (hT : HasSum (fun j : ℕ => pw τ (j + 1) * m (j + 1)) T)
+    (hlow : ∀ j, 1 ≤ j → j ≤ J → |(S ^ j).trace - m j| ≤ ε j * m j)
+    (hB : ∀ j, J < j → |(S ^ j).trace| ≤ B) (hB' : ∀ j, J < j → |m j| ≤ B') :
+    |(NormedSpace.exp (τ • (S - 1))).trace - (Fintype.card n : ℝ) * Real.exp (-τ) - T|
+      ≤ ∑ j ∈ Finset.range J, pw τ (j + 1) * (ε (j + 1) * m (j + 1))
+        + (B + B') * ptail τ J :=
+  poisson_split hτ (fun j => (S ^ j).trace) m ε J (subtracted_trace_hasSum S hS τ) hT hlow hB hB'
+
+/-! ### Level 2: relative errors `c √j` -/
+
+/-- Abstract form of Level 2. HYPOTHESES: the two sums exist (`hA`, `hT`). -/
+theorem poisson_split_sqrt {τ : ℝ} (hτ : 0 ≤ τ) (a m : ℕ → ℝ) (J : ℕ) {A T B B' c : ℝ}
+    (hc : 0 ≤ c)
+    (hA : HasSum (fun j : ℕ => pw τ (j + 1) * a (j + 1)) A)
+    (hT : HasSum (fun j : ℕ => pw τ (j + 1) * m (j + 1)) T)
+    (hm : ∀ j, 1 ≤ j → 0 ≤ m j)
+    (hlow : ∀ j, 1 ≤ j → j ≤ J → |a j - m j| ≤ c * Real.sqrt j * m j)
+    (hB : ∀ j, J < j → |a j| ≤ B) (hB' : ∀ j, J < j → |m j| ≤ B') :
+    |A - T| ≤ c * Real.sqrt J * T + (B + B') * ptail τ J := by
+  have h := poisson_split hτ a m (fun j => c * Real.sqrt j) J hA hT hlow hB hB'
+  have hnn : ∀ j : ℕ, 0 ≤ pw τ (j + 1) * m (j + 1) := fun j =>
+    mul_nonneg (pw_nonneg hτ (j + 1)) (hm (j + 1) (by omega))
+  have h1 : ∑ j ∈ Finset.range J, pw τ (j + 1) * (c * Real.sqrt ((j + 1 : ℕ) : ℝ) * m (j + 1))
+      ≤ ∑ j ∈ Finset.range J, c * Real.sqrt J * (pw τ (j + 1) * m (j + 1)) := by
+    refine Finset.sum_le_sum (fun j hj => ?_)
+    have hjJ : (((j + 1 : ℕ) : ℝ)) ≤ (J : ℝ) := by
+      exact_mod_cast (by have := Finset.mem_range.mp hj; omega : j + 1 ≤ J)
+    have hs : c * Real.sqrt ((j + 1 : ℕ) : ℝ) ≤ c * Real.sqrt J :=
+      mul_le_mul_of_nonneg_left (Real.sqrt_le_sqrt hjJ) hc
+    have e : pw τ (j + 1) * (c * Real.sqrt ((j + 1 : ℕ) : ℝ) * m (j + 1))
+        = c * Real.sqrt ((j + 1 : ℕ) : ℝ) * (pw τ (j + 1) * m (j + 1)) := by ring
+    rw [e]
+    exact mul_le_mul_of_nonneg_right hs (hnn j)
+  have h2 : ∑ j ∈ Finset.range J, pw τ (j + 1) * m (j + 1) ≤ T :=
+    sum_le_hasSum (Finset.range J) (fun j _ => hnn j) hT
+  have h3 : ∑ j ∈ Finset.range J, c * Real.sqrt J * (pw τ (j + 1) * m (j + 1))
+      ≤ c * Real.sqrt J * T := by
+    rw [← Finset.mul_sum]
+    exact mul_le_mul_of_nonneg_left h2 (mul_nonneg hc (Real.sqrt_nonneg _))
+  beta_reduce at h
+  linarith
+
+/-- **Level 2.** As Level 1 with `ε_j = c √j`, `c ≥ 0` and `m_j ≥ 0`:
+    `|Tr exp(τ(S-1)) - N e^{-τ} - T| ≤ c √J T + (B + B') (1 - ∑_{j≤J} w_j)`.
+    HYPOTHESIS: the sum `T` of the series `∑_{j≥1} w_j m_j` exists (`hT`). -/
+theorem heat_trace_split_sqrt {n : Type} [Fintype n] [DecidableEq n] (S : Matrix n n ℝ)
+    (hS : S.IsHermitian) {τ : ℝ} (hτ : 0 ≤ τ) (m : ℕ → ℝ) (J : ℕ) {T B B' c : ℝ} (hc : 0 ≤ c)
+    (hT : HasSum (fun j : ℕ => pw τ (j + 1) * m (j + 1)) T)
+    (hm : ∀ j, 1 ≤ j → 0 ≤ m j)
+    (hlow : ∀ j, 1 ≤ j → j ≤ J → |(S ^ j).trace - m j| ≤ c * Real.sqrt j * m j)
+    (hB : ∀ j, J < j → |(S ^ j).trace| ≤ B) (hB' : ∀ j, J < j → |m j| ≤ B') :
+    |(NormedSpace.exp (τ • (S - 1))).trace - (Fintype.card n : ℝ) * Real.exp (-τ) - T|
+      ≤ c * Real.sqrt J * T + (B + B') * ptail τ J :=
+  poisson_split_sqrt hτ (fun j => (S ^ j).trace) m J hc (subtracted_trace_hasSum S hS τ) hT hm
+    hlow hB hB'
+
+/-! ### The symmetric matrix and the walk -/
+
+/-- `Tr S^k = Tr P^k` for `S = D^{1/2} P D^{-1/2}`. -/
+theorem symGraph_trace_pow {n : Type} [Fintype n] [DecidableEq n] (K : n → n → ℝ) (rho : n → ℝ)
+    (hD : ∀ i, 0 < ∑ l, K i l / (rho i * rho l)) (k : ℕ) :
+    (symGraph K rho ^ k).trace = (walkMatrix K rho ^ k).trace := by
+  have h := conj_pow_entry (symGraph K rho) (walkMatrix K rho)
+    (fun i => Real.sqrt (∑ j, K i j / (rho i * rho j)))
+    (fun i => Real.sqrt_pos.mpr (hD i)) (fun i l => symGraph_conj K rho hD i l) k
+  simp only [Matrix.trace, Matrix.diag_apply]
+  refine Finset.sum_congr rfl (fun i _ => ?_)
+  rw [h i i]
+  exact mul_div_cancel_left₀ _ (Real.sqrt_pos.mpr (hD i)).ne'
+
+/-- Crude bounds for the traces of the powers of `S`: `|Tr S^k| ≤ N`, and `|Tr S^k| ≤ Tr S²` for
+    `k ≥ 2` (eigenvalues in `[-1, 1]`). -/
+theorem symGraph_trace_bounds {n : Type} [Fintype n] [DecidableEq n] (K : n → n → ℝ)
+    (rho : n → ℝ) (hK : ∀ i j, K i j = K j i) (hK0 : ∀ i j, 0 ≤ K i j) (hrho : ∀ i, 0 < rho i)
+    (hD : ∀ i, 0 < ∑ l, K i l / (rho i * rho l)) (k : ℕ) :
+    |(symGraph K rho ^ k).trace| ≤ (Fintype.card n : ℝ)
+      ∧ (2 ≤ k → |(symGraph K rho ^ k).trace| ≤ (symGraph K rho ^ 2).trace) := by
+  have hS := symGraph_isHermitian K rho hK
+  have hmem : ∀ i, -1 ≤ hS.eigenvalues i ∧ hS.eigenvalues i ≤ 1 := fun i =>
+    normalised_eigenvalues_mem (fun i j => K i j / (rho i * rho j))
+      (fun i j => by beta_reduce; rw [hK i j, mul_comm])
+      (fun i j => div_nonneg (hK0 i j) (mul_pos (hrho i) (hrho j)).le) hD
+      (symGraph K rho) (fun i j => rfl) hS i
+  have e := trace_pow_eq_sum_eigenvalues _ hS k
+  have e2 := trace_pow_eq_sum_eigenvalues _ hS 2
+  constructor
+  · rw [e]
+    calc |∑ i, hS.eigenvalues i ^ k| ≤ ∑ i, |hS.eigenvalues i ^ k| :=
+          Finset.abs_sum_le_sum_abs _ _
+      _ ≤ ∑ _i : n, (1 : ℝ) := Finset.sum_le_sum (fun i _ => by
+          rw [abs_pow]; exact pow_le_one₀ (abs_nonneg _) (abs_le.mpr (hmem i)))
+      _ = (Fintype.card n : ℝ) := by simp
+  · intro hk
+    rw [e, e2]
+    calc |∑ i, hS.eigenvalues i ^ k| ≤ ∑ i, |hS.eigenvalues i ^ k| :=
+          Finset.abs_sum_le_sum_abs _ _
+      _ ≤ ∑ i, hS.eigenvalues i ^ 2 := Finset.sum_le_sum (fun i _ => by
+          rw [abs_pow, ← _root_.sq_abs (hS.eigenvalues i)]
+          exact pow_le_pow_of_le_one (abs_nonneg _) (abs_le.mpr (hmem i)) hk)
+
+/-! ### The heat kernel at the origin -/
+
+/-- The heat kernel of the torus at the origin decreases in time. -/
+theorem heatTorus_zero_anti {c c' : ℝ} (hc : 0 < c) (h : c ≤ c') (d : ℕ) :
+    heatTorus d c' 0 ≤ heatTorus d c 0 := by
+  unfold heatTorus
+  rw [cosSeries_zero, cosSeries_zero]
+  refine Summable.tsum_le_tsum (fun n => ?_) (gauss_summable (hc.trans_le h) d)
+    (gauss_summable hc d)
+  apply Real.exp_le_exp.mpr
+  have h0 : 0 ≤ ∑ i, ((n i : ℤ) : ℝ) ^ 2 :=
+    Finset.sum_nonneg (fun i _ => _root_.sq_nonneg _)
+  have h1 := mul_le_mul_of_nonneg_right h h0
+  linarith
+
+/-- `m_j = p_{jσ}(0)`, the heat kernel of the torus at the origin after `j` steps of variance `σ`
+    (in its Fourier form `∑_n e^{-2π² j σ |n|²}`). -/
+noncomputable def heatMode (d : ℕ) (σ : ℝ) (j : ℕ) : ℝ :=
+  heatTorus d (2 * Real.pi ^ 2 * ((j : ℝ) * σ)) 0
+
+theorem heatMode_ge_one {σ : ℝ} (hσ : 0 < σ) (d : ℕ) {j : ℕ} (hj : 1 ≤ j) :
+    1 ≤ heatMode d σ j := by
+  have hj' : (0 : ℝ) < j := by exact_mod_cast (by omega : 0 < j)
+  have hpi := Real.pi_pos
+  exact heatTorus_zero_ge_one (by positivity) d
+
+theorem heatMode_le {σ : ℝ} (hσ : 0 < σ) (d : ℕ) {j : ℕ} (hj : 1 ≤ j) :
+    heatMode d σ j ≤ heatTorus d (2 * Real.pi ^ 2 * σ) 0 := by
+  have hj' : (1 : ℝ) ≤ j := by exact_mod_cast hj
+  have hpi := Real.pi_pos
+  have hc : 0 < 2 * Real.pi ^ 2 * σ := by positivity
+  refine heatTorus_zero_anti hc ?_ d
+  have h1 : σ ≤ (j : ℝ) * σ := by
+    have := mul_le_mul_of_nonneg_right hj' hσ.le
+    linarith
+  have h2 : (0 : ℝ) ≤ 2 * Real.pi ^ 2 := by positivity
+  exact mul_le_mul_of_nonneg_left h1 h2
+
+/-- The Poisson mean `T = ∑_{j≥1} w_j m_j` of the heat-kernel values at the origin. -/
+noncomputable def poissonMean (d : ℕ) (σ τ : ℝ) : ℝ := ∑' j : ℕ, pw τ (j + 1) * heatMode d σ (j + 1)
+
+/-- The series defining `poissonMean` converges (no hypothesis). -/
+theorem poissonMean_hasSum {σ : ℝ} (hσ : 0 < σ) (d : ℕ) {τ : ℝ} (hτ : 0 ≤ τ) :
+    HasSum (fun j : ℕ => pw τ (j + 1) * heatMode d σ (j + 1)) (poissonMean d σ τ) := by
+  have hs : Summable (fun j : ℕ => pw τ (j + 1) * heatTorus d (2 * Real.pi ^ 2 * σ) 0) :=
+    (pw_shift_hasSum τ).summable.mul_right _
+  have hsum : Summable (fun j : ℕ => pw τ (j + 1) * heatMode d σ (j + 1)) :=
+    Summable.of_nonneg_of_le
+      (fun j => mul_nonneg (pw_nonneg hτ (j + 1))
+        (le_trans zero_le_one (heatMode_ge_one hσ d (by omega))))
+      (fun j => mul_le_mul_of_nonneg_left (heatMode_le hσ d (by omega)) (pw_nonneg hτ (j + 1)))
+      hs
+  exact hsum.hasSum
+
+/-- `T ≥ 1 - e^{-τ}`, because `m_j ≥ 1`. -/
+theorem poissonMean_ge {σ : ℝ} (hσ : 0 < σ) (d : ℕ) {τ : ℝ} (hτ : 0 ≤ τ) :
+    1 - Real.exp (-τ) ≤ poissonMean d σ τ := by
+  refine hasSum_le (fun j => ?_) (pw_shift_hasSum τ) (poissonMean_hasSum hσ d hτ)
+  have h := mul_le_mul_of_nonneg_left (heatMode_ge_one hσ d (by omega : 1 ≤ j + 1))
+    (pw_nonneg hτ (j + 1))
+  linarith
+
+/-! ### Level 3: the sampled graph -/
+
+/-- **Level 3, deterministic part.** Points `x_0, …, x_{N-1}` on the flat torus, kernel of
+    variance `σ`, graph with self-loops, `P` the walk and `S` the symmetric matrix. If
+    `|Tr P^k - m_k| ≤ c √k m_k` for `1 ≤ k ≤ J` (HYPOTHESIS `hgood`: the conclusion of the kernel
+    theorem), `2 ≤ J` and `c √J ≤ 1`, then with `T = ∑_{j≥1} w_j m_j` and `M = p_σ(0)`:
+    `|Tr exp(τ(S-1)) - N e^{-τ} - T| ≤ c √J T + 3 M (1 - ∑_{j≤J} w_j)`. -/
+theorem heat_trace_det {σ : ℝ} (hσ : 0 < σ) (d N J : ℕ) (hN : 0 < N) (hJ : 2 ≤ J)
+    (x : ℕ → FlatTorus d) {τ c : ℝ} (hτ : 0 ≤ τ) (hc : 0 ≤ c) (hc1 : c * Real.sqrt J ≤ 1)
+    (hgood : ∀ k, 1 ≤ k → k ≤ J →
+      |((walkMatrix (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (x a - x j))
+            (fun a : Fin N => heatRho d σ N x a)) ^ k).trace - heatMode d σ k|
+        ≤ c * Real.sqrt k * heatMode d σ k) :
+    |(NormedSpace.exp (τ • (symGraph
+            (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (x a - x j))
+            (fun a : Fin N => heatRho d σ N x a) - 1))).trace
+        - (N : ℝ) * Real.exp (-τ) - poissonMean d σ τ|
+      ≤ c * Real.sqrt J * poissonMean d σ τ
+        + 3 * heatTorus d (2 * Real.pi ^ 2 * σ) 0 * ptail τ J := by
+  have hpi := Real.pi_pos
+  have hcσ : 0 < 2 * Real.pi ^ 2 * σ := by positivity
+  haveI : Nonempty (Fin N) := ⟨⟨0, hN⟩⟩
+  obtain ⟨K, hKdef⟩ : ∃ K : Fin N → Fin N → ℝ,
+      K = fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (x a - x j) := ⟨_, rfl⟩
+  obtain ⟨rho, hrhodef⟩ : ∃ rho : Fin N → ℝ,
+      rho = fun a : Fin N => heatRho d σ N x a := ⟨_, rfl⟩
+  rw [← hKdef, ← hrhodef] at hgood ⊢
+  obtain ⟨Mp, hMp⟩ : ∃ Mp : ℝ, Mp = heatTorus d (2 * Real.pi ^ 2 * σ) 0 := ⟨_, rfl⟩
+  rw [← hMp]
+  have hKpos : ∀ a j, 0 < K a j := fun a j => by rw [hKdef]; exact heatTorus_pos hcσ d _
+  have hKsymm : ∀ a j, K a j = K j a := fun a j => by
+    rw [hKdef]
+    show heatTorus d (2 * Real.pi ^ 2 * σ) (x a - x j) = heatTorus d (2 * Real.pi ^ 2 * σ) (x j - x a)
+    rw [← heatTorus_even d _ (x j - x a), neg_sub]
+  have hrho : ∀ a, 0 < rho a := fun a => by
+    rw [hrhodef]
+    show 0 < heatRho d σ N x a
+    unfold heatRho
+    exact div_pos (Finset.sum_pos (fun l _ => heatTorus_pos hcσ d _)
+      ⟨0, Finset.mem_range.mpr hN⟩) (by exact_mod_cast hN)
+  have hD : ∀ i, 0 < ∑ l, K i l / (rho i * rho l) := fun i =>
+    Finset.sum_pos (fun l _ => div_pos (hKpos i l) (mul_pos (hrho i) (hrho l)))
+      Finset.univ_nonempty
+  have hS := symGraph_isHermitian K rho hKsymm
+  have hm1 : ∀ j, 1 ≤ j → 1 ≤ heatMode d σ j := fun j hj => heatMode_ge_one hσ d hj
+  have hmM : ∀ j, 1 ≤ j → heatMode d σ j ≤ Mp := fun j hj => by
+    rw [hMp]; exact heatMode_le hσ d hj
+  have hlow : ∀ j, 1 ≤ j → j ≤ J →
+      |(symGraph K rho ^ j).trace - heatMode d σ j| ≤ c * Real.sqrt j * heatMode d σ j := by
+    intro j hj hjJ
+    rw [symGraph_trace_pow K rho hD j]
+    exact hgood j hj hjJ
+  -- the second moment
+  have h2 : (symGraph K rho ^ 2).trace ≤ 2 * Mp := by
+    have h := hlow 2 (by omega) hJ
+    have hsq : c * Real.sqrt ((2 : ℕ) : ℝ) ≤ 1 := by
+      have h2J : (((2 : ℕ) : ℝ)) ≤ (J : ℝ) := by exact_mod_cast hJ
+      exact le_trans (mul_le_mul_of_nonneg_left (Real.sqrt_le_sqrt h2J) hc) hc1
+    have hm0 : 0 ≤ heatMode d σ 2 := le_trans zero_le_one (hm1 2 (by omega))
+    have h' := mul_le_mul_of_nonneg_right hsq hm0
+    have h'' := (abs_le.mp h).2
+    have := hmM 2 (by omega)
+    linarith
+  have hB : ∀ j, J < j → |(symGraph K rho ^ j).trace| ≤ 2 * Mp := fun j hj =>
+    le_trans ((symGraph_trace_bounds K rho hKsymm (fun a j => (hKpos a j).le) hrho hD j).2
+      (by omega)) h2
+  have hB' : ∀ j, J < j → |heatMode d σ j| ≤ Mp := fun j hj => by
+    rw [abs_of_nonneg (le_trans zero_le_one (hm1 j (by omega)))]
+    exact hmM j (by omega)
+  have h := heat_trace_split_sqrt (symGraph K rho) hS hτ (heatMode d σ) J hc
+    (poissonMean_hasSum hσ d hτ) (fun j hj => le_trans zero_le_one (hm1 j hj)) hlow hB hB'
+  rw [Fintype.card_fin] at h
+  have e : (2 * Mp + Mp) * ptail τ J = 3 * Mp * ptail τ J := by ring
+  rw [e] at h
+  exact h
+
+theorem kernelC1_nonneg (d : ℕ) : 0 ≤ kernelC1 d := by
+  unfold kernelC1
+  exact mul_nonneg (rateCfin3_nonneg d) (_root_.sq_nonneg _)
+
+/-- **Level 3 (sample statement): a form of the second estimate of Corollary "joint regime".**
+    Independent uniform points on the flat torus of dimension `d ≥ 1`, periodised Gaussian kernel
+    of variance `σ = ξ² ≤ 1`, graph with self-loops, `N ≥ 2`, `M = p_σ(0)`, `δ' = √(M log N/N)`,
+    `C₁ = kernelC1 d`, an integer `J ≥ 2` with `C₁ δ' √J ≤ 1`, `τ ≥ 0`,
+    `T = poissonMean d σ τ = ∑_{j≥1} e^{-τ} τ^j/j! · p_{jσ}(0)`. Except on an event of probability
+    at most `3/N³`,
+    `|Tr exp(τ(S-1)) - N e^{-τ} - T| ≤ C₁ δ' √J · T + 3 M (1 - ∑_{j≤J} e^{-τ} τ^j/j!)`. -/
+theorem heat_trace_G29 {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {σ : ℝ} (hσ : 0 < σ) (hσ1 : σ ≤ 1) (d : ℕ) (hd : 1 ≤ d)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (N J : ℕ) (hN2 : 2 ≤ N) (hJ : 2 ≤ J)
+    {Mp δp : ℝ} (hMp : Mp = heatTorus d (2 * Real.pi ^ 2 * σ) 0)
+    (hδp : δp = Real.sqrt (Mp * Real.log N / N))
+    (hrange : kernelC1 d * δp * Real.sqrt J ≤ 1) {τ : ℝ} (hτ : 0 ≤ τ) :
+    μ.real {ω | ¬ |(NormedSpace.exp (τ • (symGraph
+              (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X a ω - X j ω))
+              (fun a : Fin N => heatRho d σ N (fun j => X j ω) a) - 1))).trace
+            - (N : ℝ) * Real.exp (-τ) - poissonMean d σ τ|
+          ≤ kernelC1 d * δp * Real.sqrt J * poissonMean d σ τ + 3 * Mp * ptail τ J}
+      ≤ 3 / (N : ℝ) ^ 3 := by
+  have h := kernel_trace_G28 hσ hσ1 d hd X h_indep hX hlaw N J hN2 (by omega) hMp hδp hrange
+  refine le_trans (measureReal_mono ?_ (measure_ne_top μ _)) h
+  intro ω hω hgood
+  apply hω
+  have hc : 0 ≤ kernelC1 d * δp := by
+    rw [hδp]; exact mul_nonneg (kernelC1_nonneg d) (Real.sqrt_nonneg _)
+  rw [hMp]
+  exact heat_trace_det hσ d N J (by omega) hJ (fun j => X j ω) hτ hc hrange
+    (fun k hk hkJ => hgood k hk hkJ)
+
+/-! ### Level 4: the Poisson tail -/
+
+/-- Chernoff bound for the Poisson tail: `∑_{j>J} w_j ≤ exp(τ e - τ - (J+1))`. -/
+theorem ptail_le {τ : ℝ} (hτ : 0 ≤ τ) (J : ℕ) :
+    ptail τ J ≤ Real.exp (τ * Real.exp 1 - τ - ((J : ℝ) + 1)) := by
+  have hG : HasSum (fun j : ℕ => Real.exp (-((J : ℝ) + 1))
+        * (Real.exp (-τ) * ((τ * Real.exp 1) ^ j / (j.factorial : ℝ))))
+      (Real.exp (-((J : ℝ) + 1)) * (Real.exp (-τ) * Real.exp (τ * Real.exp 1))) :=
+    ((real_hasSum_exp (τ * Real.exp 1)).mul_left _).mul_left _
+  have hle : ∀ j : ℕ, (if j < J + 1 then 0 else pw τ j)
+      ≤ Real.exp (-((J : ℝ) + 1))
+        * (Real.exp (-τ) * ((τ * Real.exp 1) ^ j / (j.factorial : ℝ))) := by
+    intro j
+    by_cases hj : j < J + 1
+    · rw [if_pos hj]
+      exact mul_nonneg (Real.exp_pos _).le (mul_nonneg (Real.exp_pos _).le
+        (div_nonneg (pow_nonneg (mul_nonneg hτ (Real.exp_pos _).le) _) (Nat.cast_nonneg _)))
+    · rw [if_neg hj]
+      have hjJ : ((J : ℝ) + 1) ≤ (j : ℝ) := by exact_mod_cast (by omega : J + 1 ≤ j)
+      have he : Real.exp 1 ^ j = Real.exp (j : ℝ) := by
+        rw [← Real.exp_nat_mul, mul_one]
+      have h1 : 1 ≤ Real.exp (-((J : ℝ) + 1)) * Real.exp (j : ℝ) := by
+        rw [← Real.exp_add]; exact Real.one_le_exp (by linarith)
+      have hw := pw_nonneg hτ j
+      have e : Real.exp (-((J : ℝ) + 1))
+            * (Real.exp (-τ) * ((τ * Real.exp 1) ^ j / (j.factorial : ℝ)))
+          = pw τ j * (Real.exp (-((J : ℝ) + 1)) * Real.exp (j : ℝ)) := by
+        unfold pw; rw [mul_pow, he]; ring
+      rw [e]
+      exact le_mul_of_one_le_right hw h1
+  have h := hasSum_le hle (ptail_hasSum' τ J) hG
+  have e : Real.exp (-((J : ℝ) + 1)) * (Real.exp (-τ) * Real.exp (τ * Real.exp 1))
+      = Real.exp (τ * Real.exp 1 - τ - ((J : ℝ) + 1)) := by
+    rw [← Real.exp_add, ← Real.exp_add]; congr 1; ring
+  rw [e] at h
+  exact h
+
+/-- The Poisson tail beyond `J ≥ 3τ + 2 log N - 1` is at most `N^{-2}`. -/
+theorem ptail_le_inv_sq {τ : ℝ} (hτ : 0 ≤ τ) (J N : ℕ) (hN : 0 < N)
+    (hJ : 3 * τ + 2 * Real.log N ≤ (J : ℝ) + 1) : ptail τ J ≤ 1 / (N : ℝ) ^ 2 := by
+  have hNpos : (0 : ℝ) < N := by exact_mod_cast hN
+  have h := ptail_le hτ J
+  have h4 := exp_one_le_four
+  have h1 : τ * Real.exp 1 ≤ τ * 4 := mul_le_mul_of_nonneg_left h4 hτ
+  have h2 : Real.exp (τ * Real.exp 1 - τ - ((J : ℝ) + 1)) ≤ Real.exp (-(2 * Real.log N)) :=
+    Real.exp_le_exp.mpr (by linarith)
+  have h3 : Real.exp (-(2 * Real.log N)) = 1 / (N : ℝ) ^ 2 := by
+    rw [Real.exp_neg, two_mul, Real.exp_add, Real.exp_log hNpos, one_div, pow_two]
+  rw [h3] at h2
+  exact le_trans h h2
+
+/-- From the absolute to the relative form. -/
+theorem ratio_form {X T c s Mp pt N2 : ℝ} (hT : 3 / 4 ≤ T)
+    (h : |X - T| ≤ c * s * T + 3 * Mp * pt) (hMp : 0 ≤ Mp) (hpt : pt ≤ 1 / N2) (hN2 : 0 < N2) :
+    |X / T - 1| ≤ c * s + 4 * Mp / N2 := by
+  have hTpos : 0 < T := by linarith
+  have e0 : X / T - 1 = (X - T) / T := by field_simp
+  rw [e0, abs_div, abs_of_pos hTpos, div_le_iff₀ hTpos]
+  have hq : 0 ≤ Mp / N2 := div_nonneg hMp hN2.le
+  have h1 : 3 * Mp * pt ≤ 3 * (Mp / N2) := by
+    have := mul_le_mul_of_nonneg_left hpt hMp
+    rw [mul_one_div] at this
+    linarith
+  have h2 : 0 ≤ Mp / N2 * (T - 3 / 4) := mul_nonneg hq (by linarith)
+  have e : (c * s + 4 * Mp / N2) * T = c * s * T + 4 * (Mp / N2) * T := by ring
+  rw [e]
+  linarith
+
+theorem exp_neg_le_quarter {τ : ℝ} (hτ : 2 ≤ τ) : Real.exp (-τ) ≤ 1 / 4 := by
+  have h2 : (2 : ℝ) ≤ Real.exp 1 := by
+    have := Real.add_one_le_exp (1 : ℝ); linarith
+  have h4 : (4 : ℝ) ≤ Real.exp τ := by
+    have h5 : Real.exp 2 ≤ Real.exp τ := Real.exp_le_exp.mpr hτ
+    have h6 : Real.exp 2 = Real.exp 1 * Real.exp 1 := by
+      rw [← Real.exp_add]; norm_num
+    have h7 : (2 : ℝ) * 2 ≤ Real.exp 1 * Real.exp 1 :=
+      mul_le_mul h2 h2 (by norm_num) (Real.exp_pos _).le
+    linarith
+  have hprod : Real.exp (-τ) * Real.exp τ = 1 := by rw [← Real.exp_add]; simp
+  have h8 := mul_le_mul_of_nonneg_left h4 (Real.exp_pos (-τ)).le
+  linarith
+
+/-- **Level 4 (sample statement in the relative form of the corollary).** In the situation of
+    `heat_trace_G29` let moreover `τ ≥ 2` and `3τ + 2 log N ≤ J + 1`. Except on an event of
+    probability at most `3/N³`,
+    `|(Tr exp(τ(S-1)) - N e^{-τ}) / T - 1| ≤ C₁ δ' √J + 4 M / N²`. -/
+theorem heat_trace_G29_ratio {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {σ : ℝ} (hσ : 0 < σ) (hσ1 : σ ≤ 1) (d : ℕ) (hd : 1 ≤ d)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (N J : ℕ) (hN2 : 2 ≤ N) (hJ : 2 ≤ J)
+    {Mp δp : ℝ} (hMp : Mp = heatTorus d (2 * Real.pi ^ 2 * σ) 0)
+    (hδp : δp = Real.sqrt (Mp * Real.log N / N))
+    (hrange : kernelC1 d * δp * Real.sqrt J ≤ 1) {τ : ℝ} (hτ : 2 ≤ τ)
+    (hJτ : 3 * τ + 2 * Real.log N ≤ (J : ℝ) + 1) :
+    μ.real {ω | ¬ |((NormedSpace.exp (τ • (symGraph
+              (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X a ω - X j ω))
+              (fun a : Fin N => heatRho d σ N (fun j => X j ω) a) - 1))).trace
+            - (N : ℝ) * Real.exp (-τ)) / poissonMean d σ τ - 1|
+          ≤ kernelC1 d * δp * Real.sqrt J + 4 * Mp / (N : ℝ) ^ 2}
+      ≤ 3 / (N : ℝ) ^ 3 := by
+  have hτ0 : 0 ≤ τ := by linarith
+  have h := heat_trace_G29 hσ hσ1 d hd X h_indep hX hlaw N J hN2 hJ hMp hδp hrange hτ0
+  refine le_trans (measureReal_mono ?_ (measure_ne_top μ _)) h
+  intro ω hω hgood
+  apply hω
+  have hpi := Real.pi_pos
+  have hNpos : (0 : ℝ) < N := by exact_mod_cast (by omega : 0 < N)
+  have hT : 3 / 4 ≤ poissonMean d σ τ := by
+    have h1 := poissonMean_ge hσ d hτ0
+    have h2 := exp_neg_le_quarter hτ
+    linarith
+  have hMp0 : 0 ≤ Mp := by
+    rw [hMp]; exact le_trans zero_le_one (heatTorus_zero_ge_one (by positivity) d)
+  exact ratio_form hT hgood hMp0 (ptail_le_inv_sq hτ0 J N (by omega) hJτ) (by positivity)
+
+end TraceG29
+
 end KernelL1
 
 end Probability
