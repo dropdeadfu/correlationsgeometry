@@ -16,14 +16,16 @@ archive that he published on 2026-11-20 together with his note
 
 **The archive contains no licence file, and its files carry no licence or copyright header.** These
 files are therefore not covered by this repository's licence, and no right to reuse them is granted
-here. They are included, with credit to their author, because proofs in this repository build on them;
-the decision to include them was taken by the repository owner and the paper's author. The author of
+here. They are included, with credit to their author, because proofs in this repository are meant to
+build on them (as of this commit no proof imports them yet; see "Which files"); the decision to include them was taken by the repository owner and the paper's author. The author of
 the files has not been asked. **They will be removed on his request.** If the archive is given a
 licence, this section will be replaced by its terms.
 
 ## Which files
 
-Only files that a proof in this repository imports, together with the archive files they import.
+Only files that a proof in this repository imports or is planned to import, together with the archive
+files they import. **State now: candidates. No proof in this repository imports these files yet.**
+A file that turns out not to be needed is removed again.
 
 | File (path below `lean/src/` in the archive) | Lines | sha256 | Why here |
 |---|---|---|---|
@@ -31,7 +33,7 @@ Only files that a proof in this repository imports, together with the archive fi
 | `GroundTheory/AutomorphicForms/TraceClass.lean` | 449 | `48b8330a87e1134a3a058e5b20ea3240d93130c3627383fda5b555e6a87895f5` | listed |
 | `GroundTheory/AutomorphicForms/TraceNormComp.lean` | 61 | `7b4e198636be553d5d1fc17bfdced1a44e18e3c0c44ea7c2bc2f33158c829f1b` | listed |
 
-"listed" = asked for by a proof of this repository; "imported" = needed by a listed file. The three
+"listed" = chosen for the planned use below; "imported" = needed by a listed file. The three
 files import only Mathlib and each other. The `.gitattributes` next to this file switches off
 line-ending conversion, so a checkout has exactly the bytes of the archive and the hashes above can be
 checked with `sha256sum`.
