@@ -14358,4 +14358,374 @@ theorem eig_theorem_G38_i_regime_ceil {Ω : Type*} {mΩ : MeasurableSpace Ω} {�
 
 end Regime
 
+/-! ## The second stage for a fixed sample size: reduction and the bound for `Π_k` combined.
+No Poisson summation, no statement on the heat trace, no limit. -/
+
+/-! ## The second stage in probability, finite form: the reduction (`H5.torus_reduction_paper`)
+combined with Markov's inequality for `Π_k` (`PiBound.pi_markov`), for a FIXED sample size `N`.
+This is the form that `cor:secondstage-alld` needs before the Poisson summation; the Poisson
+summation and the statement about the heat trace are NOT formalised here. -/
+
+namespace SecondStage
+
+open CTG.Reals.TorusReduction TorusReductionL1 H5 PiBound
+
+/-- Abstract step: if `|f - g| ≤ B` except with probability `p1` and `|g| ≥ t` has probability
+    at most `p2`, then `|f| > B + t` has probability at most `p1 + p2`. No measurability needed. -/
+theorem union_markov {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω} [IsFiniteMeasure μ]
+    (f g : Ω → ℝ) {B t p1 p2 : ℝ}
+    (h1 : μ.real {ω | ¬ |f ω - g ω| ≤ B} ≤ p1) (h2 : μ.real {ω | t ≤ |g ω|} ≤ p2) :
+    μ.real {ω | B + t < |f ω|} ≤ p1 + p2 := by
+  refine le_trans (measureReal_mono ?_ (measure_ne_top μ _))
+    ((measureReal_union_le _ _).trans (add_le_add h1 h2))
+  intro ω hω
+  have hω' : B + t < |f ω| := hω
+  by_cases h : |f ω - g ω| ≤ B
+  · refine Or.inr ?_
+    show t ≤ |g ω|
+    have c := abs_sub_abs_le_abs_sub (f ω) (g ω)
+    linarith
+  · exact Or.inl h
+
+/-- The same for finitely many indices `1 ≤ k ≤ K` with ONE exceptional event for the first
+    hypothesis: the probability `p1` is paid once, the Markov terms are summed. -/
+theorem union_markov_fin {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω} [IsFiniteMeasure μ]
+    (K : ℕ) (f g : ℕ → Ω → ℝ) (B t p2 : ℕ → ℝ) {p1 : ℝ}
+    (h1 : μ.real {ω | ¬ ∀ k, 1 ≤ k → k ≤ K → |f k ω - g k ω| ≤ B k} ≤ p1)
+    (h2 : ∀ k, 1 ≤ k → k ≤ K → μ.real {ω | t k ≤ |g k ω|} ≤ p2 k) :
+    μ.real {ω | ¬ ∀ k, 1 ≤ k → k ≤ K → |f k ω| ≤ B k + t k}
+      ≤ p1 + ∑ k ∈ Finset.Icc 1 K, p2 k := by
+  have hU : μ.real (⋃ k ∈ Finset.Icc 1 K, {ω | t k ≤ |g k ω|})
+      ≤ ∑ k ∈ Finset.Icc 1 K, p2 k :=
+    (measureReal_biUnion_finset_le _ _).trans
+      (Finset.sum_le_sum fun k hk => h2 k (Finset.mem_Icc.mp hk).1 (Finset.mem_Icc.mp hk).2)
+  refine le_trans (measureReal_mono ?_ (measure_ne_top μ _))
+    ((measureReal_union_le _ _).trans (add_le_add h1 hU))
+  intro ω hω
+  have hω' : ¬ ∀ k, 1 ≤ k → k ≤ K → |f k ω| ≤ B k + t k := hω
+  by_cases h : ∀ k, 1 ≤ k → k ≤ K → |f k ω - g k ω| ≤ B k
+  · refine Or.inr ?_
+    by_contra hno
+    apply hω'
+    intro k hk hkK
+    by_contra hlt
+    apply hno
+    refine Set.mem_iUnion₂.mpr ⟨k, Finset.mem_Icc.mpr ⟨hk, hkK⟩, ?_⟩
+    show t k ≤ |g k ω|
+    have c := abs_sub_abs_le_abs_sub (f k ω) (g k ω)
+    have a := h k hk hkK
+    have b := not_le.mp hlt
+    linarith
+  · exact Or.inl h
+
+/-- The constant of the reduction `H5.torus_reduction_paper` (depends only on `d`). -/
+noncomputable def redC (d : ℕ) : ℝ :=
+  (Real.sqrt 2) ^ d
+    * (2 * (4 * normC d) * kernelC1 d + 2 * (14 * normC d ^ 2) + h5Ca d
+        + 2 * (2 * (Real.sqrt 2) ^ d * h5Ca d + h5Ca d
+            + (Real.sqrt 2) ^ d * kernelC1 d * h5Cb d + h4C d * h5Cb d))
+
+/-- `redC d` is the constant written out in `H5.torus_reduction_paper`. -/
+theorem redC_eq (d : ℕ) :
+    redC d = (Real.sqrt 2) ^ d
+      * (2 * (4 * normC d) * kernelC1 d + 2 * (14 * normC d ^ 2) + h5Ca d
+          + 2 * (2 * (Real.sqrt 2) ^ d * h5Ca d + h5Ca d
+              + (Real.sqrt 2) ^ d * kernelC1 d * h5Cb d + h4C d * h5Cb d)) := rfl
+
+/-- `H5.torus_reduction_paper` with the constant named `redC d`. -/
+theorem torus_reduction_redC {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {σ : ℝ} (hσ : 0 < σ) (hσ1 : σ ≤ 1) (d : ℕ) (hd : 1 ≤ d)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (N K : ℕ) (hN2 : 2 ≤ N) (hK : 0 < K)
+    {Mp δp : ℝ} (hMp : Mp = heatTorus d (2 * Real.pi ^ 2 * σ) 0)
+    (hδp : δp = Real.sqrt (Mp * Real.log N / N))
+    (hrange : kernelC1 d * δp * Real.sqrt K ≤ 1) :
+    μ.real {ω | ¬ ∀ k, 1 ≤ k → k ≤ K →
+        |((torusWalk d σ N (fun j => X j ω)) ^ (k + 1)).trace - torusM d σ (k + 1)
+            - torusPi d σ N (fun j => X j ω) k (torusHhat d σ N (fun j => X j ω))|
+          ≤ redC d * δp ^ 2 * k * torusM d σ (k + 1)}
+      ≤ 8 / (N : ℝ) ^ 3 := by
+  unfold redC
+  exact torus_reduction_paper hσ hσ1 d hd X h_indep hX hlaw N K hN2 hK hMp hδp hrange
+
+/-- Consequences of the smallness hypothesis of `kernel_theorem_G28`: `1 ≤ M`, `1152 M ≤ N`
+    (in particular `M ≤ N`), `δ' ≥ 0`, `δ'² = M log N / N` and `log N ≥ 1/2`.
+    (`kernelC1 d ≥ 48` and `√K ≥ 1` give `δ' ≤ 1/48`.) -/
+theorem ss_setup {σ : ℝ} (hσ : 0 < σ) (d N K : ℕ) (hN2 : 2 ≤ N) (hK : 0 < K) {Mp δp : ℝ}
+    (hMp : Mp = heatTorus d (2 * Real.pi ^ 2 * σ) 0)
+    (hδp : δp = Real.sqrt (Mp * Real.log N / N))
+    (hrange : kernelC1 d * δp * Real.sqrt K ≤ 1) :
+    1 ≤ Mp ∧ 1152 * Mp ≤ N ∧ 0 ≤ δp ∧ δp ^ 2 = Mp * Real.log N / N
+      ∧ (1 / 2 : ℝ) ≤ Real.log N := by
+  have hpi := Real.pi_pos
+  have hM1 : 1 ≤ Mp := by
+    rw [hMp]; exact heatTorus_zero_ge_one (by positivity) d
+  have hN : (2 : ℝ) ≤ N := by exact_mod_cast hN2
+  have hNpos : (0 : ℝ) < N := by linarith
+  have hlog : (1 / 2 : ℝ) ≤ Real.log N := by
+    have h1 : Real.log 2 ≤ Real.log N := Real.log_le_log (by norm_num) hN
+    have h2 := Real.log_two_gt_d9
+    linarith
+  have hδ0 : 0 ≤ δp := by rw [hδp]; exact Real.sqrt_nonneg _
+  have hnn : 0 ≤ Mp * Real.log N / N :=
+    div_nonneg (mul_nonneg (by linarith) (by linarith)) hNpos.le
+  have hsq : δp ^ 2 = Mp * Real.log N / N := by rw [hδp]; exact Real.sq_sqrt hnn
+  have hr : (48 : ℝ) ≤ rateCfin3 d := by
+    have h := (rateCfin3_ge d).1
+    have h1 : (1 : ℝ) ≤ Real.sqrt (3 * (d : ℝ) + 5) := by
+      calc (1 : ℝ) = Real.sqrt 1 := Real.sqrt_one.symm
+        _ ≤ Real.sqrt (3 * (d : ℝ) + 5) :=
+          Real.sqrt_le_sqrt (by linarith [Nat.cast_nonneg (α := ℝ) d])
+    linarith
+  have hC : (48 : ℝ) ≤ kernelC1 d := by
+    unfold kernelC1
+    have hA : (1 : ℝ) ≤ ((1 + Real.sqrt (2 * Real.pi)) ^ d) ^ 2 :=
+      one_le_pow₀ (one_le_pow₀ (by linarith [Real.sqrt_nonneg (2 * Real.pi)]))
+    calc (48 : ℝ) = 48 * 1 := by norm_num
+      _ ≤ rateCfin3 d * ((1 + Real.sqrt (2 * Real.pi)) ^ d) ^ 2 :=
+        mul_le_mul hr hA zero_le_one (by linarith)
+  have hK1 : (1 : ℝ) ≤ (K : ℝ) := by exact_mod_cast Nat.succ_le_of_lt hK
+  have hsK : (1 : ℝ) ≤ Real.sqrt K := by
+    calc (1 : ℝ) = Real.sqrt 1 := Real.sqrt_one.symm
+      _ ≤ Real.sqrt K := Real.sqrt_le_sqrt hK1
+  have hδ48 : δp ≤ 1 / 48 := by
+    have h1 : 48 * δp ≤ kernelC1 d * δp := mul_le_mul_of_nonneg_right hC hδ0
+    have h2 : kernelC1 d * δp * 1 ≤ kernelC1 d * δp * Real.sqrt K :=
+      mul_le_mul_of_nonneg_left hsK (mul_nonneg (by linarith) hδ0)
+    linarith
+  have hmm : δp * δp ≤ 1 / 48 * (1 / 48) := mul_le_mul hδ48 hδ48 hδ0 (by norm_num)
+  have hsq48 : δp ^ 2 ≤ 1 / 2304 := by
+    calc δp ^ 2 = δp * δp := pow_two δp
+      _ ≤ 1 / 48 * (1 / 48) := hmm
+      _ = 1 / 2304 := by norm_num
+  rw [hsq] at hsq48
+  have h3 : Mp * Real.log N ≤ 1 / 2304 * N := (div_le_iff₀ hNpos).mp hsq48
+  have h4 : Mp * (1 / 2) ≤ Mp * Real.log N := mul_le_mul_of_nonneg_left hlog (by linarith)
+  refine ⟨hM1, by linarith, hδ0, hsq, hlog⟩
+
+/-- Markov's inequality for `Π_k` at the threshold `s · (M/N) · k · m_k`: probability `≤ C_Π/s`. -/
+theorem pi_markov_scaled {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {d : ℕ} (X : ℕ → Ω → FlatTorus d)
+    (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) {σ : ℝ} (hσ : 0 < σ) (k : ℕ) (hk : 1 ≤ k)
+    (N : ℕ) (hN : 1 ≤ N) {Mp : ℝ} (hMp : Mp = heatTorus d (2 * Real.pi ^ 2 * σ) 0)
+    (hMN : Mp ≤ N) (s : ℝ) (hs : 0 < s) :
+    μ.real {ω | s * (Mp / N * k * torusM d σ k)
+        ≤ |torusPi d σ N (fun j => X j ω) k (torusHhat d σ N (fun j => X j ω))|}
+      ≤ piC d / s := by
+  have hpi := Real.pi_pos
+  have hM1e : torusM d σ 1 = Mp := by rw [hMp]; unfold torusM; simp
+  have hM1 : 1 ≤ Mp := by rw [hMp]; exact heatTorus_zero_ge_one (by positivity) d
+  have hNpos : (0 : ℝ) < N := by exact_mod_cast hN
+  have hkpos : (0 : ℝ) < k := by exact_mod_cast hk
+  have hmk : 1 ≤ torusM d σ k := by
+    unfold torusM
+    exact heatTorus_zero_ge_one (mul_pos (by positivity) (mul_pos hkpos hσ)) d
+  have hu : 0 < Mp / N * k * torusM d σ k :=
+    mul_pos (mul_pos (div_pos (by linarith) hNpos) hkpos) (by linarith)
+  have h := pi_markov X h_indep hX hlaw hσ k hk N hN (by rw [hM1e]; exact hMN)
+    (s * (Mp / N * k * torusM d σ k)) (mul_pos hs hu)
+  rw [hM1e] at h
+  have e : piC d * (Mp / N) * k * torusM d σ k / (s * (Mp / N * k * torusM d σ k))
+      = piC d / s := by
+    rw [show piC d * (Mp / N) * k * torusM d σ k = piC d * (Mp / N * k * torusM d σ k) by ring]
+    exact mul_div_mul_right _ _ hu.ne'
+  rw [e] at h
+  exact h
+
+/-- Arithmetic: the Markov threshold against `δ'² k m_{k+1}`. -/
+theorem ss_term {s u δ2 κ mk m1 A : ℝ} (hs : 0 ≤ s) (hu2 : u ≤ 2 * δ2) (hκ : 0 ≤ κ)
+    (hmk : 0 ≤ mk) (hr : mk ≤ A * m1) (hδ2 : 0 ≤ δ2) :
+    s * (u * κ * mk) ≤ 2 * s * A * δ2 * κ * m1 := by
+  have a1 : u * κ * mk ≤ 2 * δ2 * κ * (A * m1) :=
+    mul_le_mul (mul_le_mul_of_nonneg_right hu2 hκ) hr hmk
+      (mul_nonneg (mul_nonneg (by norm_num) hδ2) hκ)
+  calc s * (u * κ * mk) ≤ s * (2 * δ2 * κ * (A * m1)) := mul_le_mul_of_nonneg_left a1 hs
+    _ = 2 * s * A * δ2 * κ * m1 := by ring
+
+/-- The threshold `B_k + t_k` of the scaled form is at most `(C_red + 2 s (√2)^d) δ'² k m_{k+1}`. -/
+theorem ss_threshold {σ : ℝ} (hσ : 0 < σ) (d N K : ℕ) (hN2 : 2 ≤ N) (hK : 0 < K) {Mp δp : ℝ}
+    (hMp : Mp = heatTorus d (2 * Real.pi ^ 2 * σ) 0)
+    (hδp : δp = Real.sqrt (Mp * Real.log N / N))
+    (hrange : kernelC1 d * δp * Real.sqrt K ≤ 1) (k : ℕ) (hk : 1 ≤ k) (s : ℝ) (hs : 0 < s) :
+    redC d * δp ^ 2 * k * torusM d σ (k + 1) + s * (Mp / N * k * torusM d σ k)
+      ≤ (redC d + 2 * s * (Real.sqrt 2) ^ d) * δp ^ 2 * k * torusM d σ (k + 1) := by
+  obtain ⟨hM1, hMN, hδ0, hsq, hlog⟩ := ss_setup hσ d N K hN2 hK hMp hδp hrange
+  have hpi := Real.pi_pos
+  have hNpos : (0 : ℝ) < N := by
+    have : (2 : ℝ) ≤ N := by exact_mod_cast hN2
+    linarith
+  have hkpos : (0 : ℝ) < k := by exact_mod_cast hk
+  have hmk : 1 ≤ torusM d σ k := by
+    unfold torusM
+    exact heatTorus_zero_ge_one (mul_pos (by positivity) (mul_pos hkpos hσ)) d
+  have hMN0 : 0 ≤ Mp / N := div_nonneg (by linarith) hNpos.le
+  have e1 : Mp / N ≤ 2 * δp ^ 2 := by
+    rw [hsq]
+    have h1 : Mp / N * (1 / 2) ≤ Mp / N * Real.log N := mul_le_mul_of_nonneg_left hlog hMN0
+    have h2 : Mp * Real.log N / N = Mp / N * Real.log N := by ring
+    rw [h2]; linarith
+  have hratio : torusM d σ k ≤ (Real.sqrt 2) ^ d * torusM d σ (k + 1) :=
+    torusM_ratio hσ d hk (Nat.le_succ k) (by omega)
+  have h := ss_term (s := s) (u := Mp / N) (δ2 := δp ^ 2) (κ := (k : ℝ))
+    (mk := torusM d σ k) (m1 := torusM d σ (k + 1)) (A := (Real.sqrt 2) ^ d)
+    hs.le e1 hkpos.le (by linarith) hratio (pow_nonneg hδ0 2)
+  have e : (redC d + 2 * s * (Real.sqrt 2) ^ d) * δp ^ 2 * k * torusM d σ (k + 1)
+      = redC d * δp ^ 2 * k * torusM d σ (k + 1)
+        + 2 * s * (Real.sqrt 2) ^ d * δp ^ 2 * k * torusM d σ (k + 1) := by ring
+  rw [e]; linarith
+
+/-- **The second stage for one `k`, finite form.** Under the hypotheses of
+    `H5.torus_reduction_paper` (those of `kernel_theorem_G28`), for fixed `1 ≤ k ≤ K` and `t > 0`:
+    `P(|Tr P^{k+1} - m_{k+1}| > C_red δ'² k m_{k+1} + t) ≤ 8/N³ + C_Π (M/N) k m_k / t`.
+    (`M ≤ N`, needed by `pi_markov`, follows from the smallness hypothesis: `ss_setup`.) -/
+theorem second_stage_k {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {σ : ℝ} (hσ : 0 < σ) (hσ1 : σ ≤ 1) (d : ℕ) (hd : 1 ≤ d)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (N K : ℕ) (hN2 : 2 ≤ N) (hK : 0 < K)
+    {Mp δp : ℝ} (hMp : Mp = heatTorus d (2 * Real.pi ^ 2 * σ) 0)
+    (hδp : δp = Real.sqrt (Mp * Real.log N / N))
+    (hrange : kernelC1 d * δp * Real.sqrt K ≤ 1)
+    (k : ℕ) (hk : 1 ≤ k) (hkK : k ≤ K) (t : ℝ) (ht : 0 < t) :
+    μ.real {ω | redC d * δp ^ 2 * k * torusM d σ (k + 1) + t
+        < |((torusWalk d σ N (fun j => X j ω)) ^ (k + 1)).trace - torusM d σ (k + 1)|}
+      ≤ 8 / (N : ℝ) ^ 3 + piC d * (Mp / N) * k * torusM d σ k / t := by
+  obtain ⟨hM1, hMN, hδ0, hsq, hlog⟩ := ss_setup hσ d N K hN2 hK hMp hδp hrange
+  have hM1e : torusM d σ 1 = Mp := by rw [hMp]; unfold torusM; simp
+  have h0 := torus_reduction_redC hσ hσ1 d hd X h_indep hX hlaw N K hN2 hK hMp hδp hrange
+  have h1 : μ.real {ω | ¬ |(((torusWalk d σ N (fun j => X j ω)) ^ (k + 1)).trace
+          - torusM d σ (k + 1))
+          - torusPi d σ N (fun j => X j ω) k (torusHhat d σ N (fun j => X j ω))|
+        ≤ redC d * δp ^ 2 * k * torusM d σ (k + 1)} ≤ 8 / (N : ℝ) ^ 3 := by
+    refine le_trans (measureReal_mono ?_ (measure_ne_top μ _)) h0
+    intro ω hω hall
+    exact hω (hall k hk hkK)
+  have h2 := pi_markov X h_indep hX hlaw hσ k hk N (by omega)
+    (by rw [hM1e]; linarith) t ht
+  rw [hM1e] at h2
+  exact union_markov (μ := μ)
+    (fun ω => ((torusWalk d σ N (fun j => X j ω)) ^ (k + 1)).trace - torusM d σ (k + 1))
+    (fun ω => torusPi d σ N (fun j => X j ω) k (torusHhat d σ N (fun j => X j ω))) h1 h2
+
+/-- **The second stage for one `k`, scaled threshold** `t = s (M/N) k m_k`: probability
+    `≤ 8/N³ + C_Π/s`. -/
+theorem second_stage_k_scaled {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {σ : ℝ} (hσ : 0 < σ) (hσ1 : σ ≤ 1) (d : ℕ) (hd : 1 ≤ d)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (N K : ℕ) (hN2 : 2 ≤ N) (hK : 0 < K)
+    {Mp δp : ℝ} (hMp : Mp = heatTorus d (2 * Real.pi ^ 2 * σ) 0)
+    (hδp : δp = Real.sqrt (Mp * Real.log N / N))
+    (hrange : kernelC1 d * δp * Real.sqrt K ≤ 1)
+    (k : ℕ) (hk : 1 ≤ k) (hkK : k ≤ K) (s : ℝ) (hs : 0 < s) :
+    μ.real {ω | redC d * δp ^ 2 * k * torusM d σ (k + 1) + s * (Mp / N * k * torusM d σ k)
+        < |((torusWalk d σ N (fun j => X j ω)) ^ (k + 1)).trace - torusM d σ (k + 1)|}
+      ≤ 8 / (N : ℝ) ^ 3 + piC d / s := by
+  obtain ⟨hM1, hMN, hδ0, hsq, hlog⟩ := ss_setup hσ d N K hN2 hK hMp hδp hrange
+  have h0 := torus_reduction_redC hσ hσ1 d hd X h_indep hX hlaw N K hN2 hK hMp hδp hrange
+  have h1 : μ.real {ω | ¬ |(((torusWalk d σ N (fun j => X j ω)) ^ (k + 1)).trace
+          - torusM d σ (k + 1))
+          - torusPi d σ N (fun j => X j ω) k (torusHhat d σ N (fun j => X j ω))|
+        ≤ redC d * δp ^ 2 * k * torusM d σ (k + 1)} ≤ 8 / (N : ℝ) ^ 3 := by
+    refine le_trans (measureReal_mono ?_ (measure_ne_top μ _)) h0
+    intro ω hω hall
+    exact hω (hall k hk hkK)
+  have h2 := pi_markov_scaled X h_indep hX hlaw hσ k hk N (by omega) hMp (by linarith) s hs
+  exact union_markov (μ := μ)
+    (fun ω => ((torusWalk d σ N (fun j => X j ω)) ^ (k + 1)).trace - torusM d σ (k + 1))
+    (fun ω => torusPi d σ N (fun j => X j ω) k (torusHhat d σ N (fun j => X j ω))) h1 h2
+
+/-- **The second stage for one `k`, relative form:** for `s > 0`,
+    `P(|Tr P^{k+1} - m_{k+1}| > (C_red + 2 s (√2)^d) δ'² k m_{k+1}) ≤ 8/N³ + C_Π/s`,
+    with `δ'² = M log N / N`. -/
+theorem second_stage_k_rel {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {σ : ℝ} (hσ : 0 < σ) (hσ1 : σ ≤ 1) (d : ℕ) (hd : 1 ≤ d)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (N K : ℕ) (hN2 : 2 ≤ N) (hK : 0 < K)
+    {Mp δp : ℝ} (hMp : Mp = heatTorus d (2 * Real.pi ^ 2 * σ) 0)
+    (hδp : δp = Real.sqrt (Mp * Real.log N / N))
+    (hrange : kernelC1 d * δp * Real.sqrt K ≤ 1)
+    (k : ℕ) (hk : 1 ≤ k) (hkK : k ≤ K) (s : ℝ) (hs : 0 < s) :
+    μ.real {ω | (redC d + 2 * s * (Real.sqrt 2) ^ d) * δp ^ 2 * k * torusM d σ (k + 1)
+        < |((torusWalk d σ N (fun j => X j ω)) ^ (k + 1)).trace - torusM d σ (k + 1)|}
+      ≤ 8 / (N : ℝ) ^ 3 + piC d / s := by
+  have h := second_stage_k_scaled hσ hσ1 d hd X h_indep hX hlaw N K hN2 hK hMp hδp hrange
+    k hk hkK s hs
+  have hle := ss_threshold hσ d N K hN2 hK hMp hδp hrange k hk s hs
+  refine le_trans (measureReal_mono ?_ (measure_ne_top μ _)) h
+  intro ω hω
+  have hω' : (redC d + 2 * s * (Real.sqrt 2) ^ d) * δp ^ 2 * k * torusM d σ (k + 1)
+      < |((torusWalk d σ N (fun j => X j ω)) ^ (k + 1)).trace - torusM d σ (k + 1)| := hω
+  exact lt_of_le_of_lt hle hω'
+
+/-- **The second stage for all `1 ≤ k ≤ K` on one event, general thresholds:** the reduction
+    event is paid once (`8/N³`), the Markov terms are summed over `k`. -/
+theorem second_stage_all {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {σ : ℝ} (hσ : 0 < σ) (hσ1 : σ ≤ 1) (d : ℕ) (hd : 1 ≤ d)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (N K : ℕ) (hN2 : 2 ≤ N) (hK : 0 < K)
+    {Mp δp : ℝ} (hMp : Mp = heatTorus d (2 * Real.pi ^ 2 * σ) 0)
+    (hδp : δp = Real.sqrt (Mp * Real.log N / N))
+    (hrange : kernelC1 d * δp * Real.sqrt K ≤ 1)
+    (t : ℕ → ℝ) (ht : ∀ k, 1 ≤ k → k ≤ K → 0 < t k) :
+    μ.real {ω | ¬ ∀ k, 1 ≤ k → k ≤ K →
+        |((torusWalk d σ N (fun j => X j ω)) ^ (k + 1)).trace - torusM d σ (k + 1)|
+          ≤ redC d * δp ^ 2 * k * torusM d σ (k + 1) + t k}
+      ≤ 8 / (N : ℝ) ^ 3
+        + ∑ k ∈ Finset.Icc 1 K, piC d * (Mp / N) * k * torusM d σ k / t k := by
+  obtain ⟨hM1, hMN, hδ0, hsq, hlog⟩ := ss_setup hσ d N K hN2 hK hMp hδp hrange
+  have hM1e : torusM d σ 1 = Mp := by rw [hMp]; unfold torusM; simp
+  have h0 := torus_reduction_redC hσ hσ1 d hd X h_indep hX hlaw N K hN2 hK hMp hδp hrange
+  have h2 : ∀ k, 1 ≤ k → k ≤ K →
+      μ.real {ω | t k ≤ |torusPi d σ N (fun j => X j ω) k (torusHhat d σ N (fun j => X j ω))|}
+        ≤ piC d * (Mp / N) * k * torusM d σ k / t k := by
+    intro k hk hkK
+    have h := pi_markov X h_indep hX hlaw hσ k hk N (by omega)
+      (by rw [hM1e]; linarith) (t k) (ht k hk hkK)
+    rw [hM1e] at h
+    exact h
+  exact union_markov_fin (μ := μ) K
+    (fun k ω => ((torusWalk d σ N (fun j => X j ω)) ^ (k + 1)).trace - torusM d σ (k + 1))
+    (fun k ω => torusPi d σ N (fun j => X j ω) k (torusHhat d σ N (fun j => X j ω)))
+    (fun k => redC d * δp ^ 2 * k * torusM d σ (k + 1)) t
+    (fun k => piC d * (Mp / N) * k * torusM d σ k / t k) h0 h2
+
+/-- **The second stage for all `1 ≤ k ≤ K` on one event, relative form** (the form used by
+    `cor:secondstage-alld` before the Poisson summation): for `s > 0`,
+    `P(∃ 1 ≤ k ≤ K: |Tr P^{k+1} - m_{k+1}| > (C_red + 2 s (√2)^d) δ'² k m_{k+1}) ≤ 8/N³ + K C_Π/s`. -/
+theorem second_stage_all_rel {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {σ : ℝ} (hσ : 0 < σ) (hσ1 : σ ≤ 1) (d : ℕ) (hd : 1 ≤ d)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (N K : ℕ) (hN2 : 2 ≤ N) (hK : 0 < K)
+    {Mp δp : ℝ} (hMp : Mp = heatTorus d (2 * Real.pi ^ 2 * σ) 0)
+    (hδp : δp = Real.sqrt (Mp * Real.log N / N))
+    (hrange : kernelC1 d * δp * Real.sqrt K ≤ 1) (s : ℝ) (hs : 0 < s) :
+    μ.real {ω | ¬ ∀ k, 1 ≤ k → k ≤ K →
+        |((torusWalk d σ N (fun j => X j ω)) ^ (k + 1)).trace - torusM d σ (k + 1)|
+          ≤ (redC d + 2 * s * (Real.sqrt 2) ^ d) * δp ^ 2 * k * torusM d σ (k + 1)}
+      ≤ 8 / (N : ℝ) ^ 3 + K * (piC d / s) := by
+  obtain ⟨hM1, hMN, hδ0, hsq, hlog⟩ := ss_setup hσ d N K hN2 hK hMp hδp hrange
+  have h0 := torus_reduction_redC hσ hσ1 d hd X h_indep hX hlaw N K hN2 hK hMp hδp hrange
+  have h2 : ∀ k, 1 ≤ k → k ≤ K →
+      μ.real {ω | s * (Mp / N * k * torusM d σ k)
+          ≤ |torusPi d σ N (fun j => X j ω) k (torusHhat d σ N (fun j => X j ω))|}
+        ≤ piC d / s := fun k hk _ =>
+    pi_markov_scaled X h_indep hX hlaw hσ k hk N (by omega) hMp (by linarith) s hs
+  have h := union_markov_fin (μ := μ) K
+    (fun k ω => ((torusWalk d σ N (fun j => X j ω)) ^ (k + 1)).trace - torusM d σ (k + 1))
+    (fun k ω => torusPi d σ N (fun j => X j ω) k (torusHhat d σ N (fun j => X j ω)))
+    (fun k => redC d * δp ^ 2 * k * torusM d σ (k + 1))
+    (fun k => s * (Mp / N * k * torusM d σ k))
+    (fun _ => piC d / s) h0 h2
+  have hsum : ∑ _k ∈ Finset.Icc 1 K, piC d / s = K * (piC d / s) := by
+    rw [Finset.sum_const, Nat.card_Icc, nsmul_eq_mul, Nat.add_sub_cancel]
+  rw [hsum] at h
+  refine le_trans (measureReal_mono ?_ (measure_ne_top μ _)) h
+  intro ω hω hall
+  apply hω
+  intro k hk hkK
+  exact (hall k hk hkK).trans
+    (ss_threshold hσ d N K hN2 hK hMp hδp hrange k hk s hs)
+
+end SecondStage
+
 end CTG.Reals2
