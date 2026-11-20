@@ -18696,6 +18696,673 @@ theorem heat_trace_G29_ratio {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measu
 
 end TraceG29
 
+/-! ### Assembled forms: the reduction with its closed form, part (i) for all indices, the trace uniformly in τ -/
+
+namespace Assembled
+
+/-! ### (1) The reduction with the closed right-hand side -/
+
+/-- `reduction_abstract` followed by `closed_rhs`. The hypotheses are those of the two
+    statements; the three sign hypotheses `0 ≤ aθ`, `0 ≤ bθ`, `0 ≤ mm l` of `closed_rhs`
+    are derived (from `H1a`, `H1b`, and `hq0`/`hqm`). -/
+theorem reduction_abstract_closed {n : Type} [Fintype n] [DecidableEq n] [Nonempty n]
+    (P : Matrix n n ℝ) (hP0 : ∀ a b, 0 ≤ P a b) (hrow : ∀ a, ∑ b, P a b = 1)
+    (k : ℕ) (hk : 1 ≤ k)
+    (q : ℕ → n → n → ℝ) (mm : ℕ → ℝ)
+    (hq0 : ∀ s, 1 ≤ s → s ≤ k + 1 → ∀ a b, 0 ≤ q s a b)
+    (hqm : ∀ s, 1 ≤ s → s ≤ k + 1 → ∀ a b, q s a b ≤ mm s)
+    (hqd : ∀ a, q (k + 1) a a = mm (k + 1))
+    (θ θ1 : n → n → ℝ) (hh : ℕ → n → n → ℝ) {δ aθ bθ : ℝ} (d e α αb β βb m6 : ℕ → ℝ)
+    (H1 : ∀ b i, (Fintype.card n : ℝ) * P b i = q 1 b i * (1 + θ b i))
+    (H1a : ∀ b i, |θ b i| ≤ aθ) (H1b : ∀ b i, |θ b i - θ1 b i| ≤ bθ)
+    (H2 : ∀ i, ∑ b, q 1 b i ≤ (Fintype.card n : ℝ) * (1 + δ))
+    (H3 : ∀ l, 1 ≤ l → l ≤ k → ∀ a i,
+      |(Fintype.card n : ℝ) * (P ^ l) a i - q l a i| ≤ d l)
+    (H4 : ∀ l, 1 ≤ l → l ≤ k → ∀ b,
+      ∑ i, |(Fintype.card n : ℝ) * (P ^ l) i b - q l i b| ≤ (Fintype.card n : ℝ) * e l)
+    (H5a : ∀ m, 1 ≤ m → m ≤ k → ∀ i b,
+      |((∑ j, P b j * q m j i) - q (m + 1) b i) - hh m i b| ≤ α m)
+    (H5b : ∀ m, 1 ≤ m → m ≤ k → ∀ i,
+      ∑ b, |((∑ j, P b j * q m j i) - q (m + 1) b i) - hh m i b|
+        ≤ (Fintype.card n : ℝ) * αb m)
+    (H5c : ∀ m, 1 ≤ m → m ≤ k → ∀ i b, |hh m i b| ≤ β m)
+    (H5d : ∀ m, 1 ≤ m → m ≤ k → ∀ i,
+      ∑ b, |hh m i b| ≤ (Fintype.card n : ℝ) * βb m)
+    {A cα cβ cD cE cθ cθ' η : ℝ}
+    (hA : 1 ≤ A) (hcα : 0 ≤ cα) (hcβ : 0 ≤ cβ) (hcD : 0 ≤ cD) (hcE : 0 ≤ cE)
+    (hcθ : 0 ≤ cθ) (hcθ' : 0 ≤ cθ') (hη : 0 ≤ η)
+    (hα : ∀ m, 1 ≤ m → m ≤ k → α m = cα * η ^ 2 * (1 / Real.sqrt m) * m6 m)
+    (hαb : ∀ m, 1 ≤ m → m ≤ k → αb m = cα * η ^ 2 * (1 / Real.sqrt m))
+    (hβ : ∀ m, 1 ≤ m → m ≤ k → β m = cβ * η * (1 / Real.sqrt m) * m6 m)
+    (hβb : ∀ m, 1 ≤ m → m ≤ k → βb m = cβ * η * (1 / Real.sqrt m))
+    (hd : ∀ l, 1 ≤ l → l ≤ k → d l = cD * η * Real.sqrt l * mm l)
+    (hdle : ∀ l, 1 ≤ l → l ≤ k → d l ≤ mm l)
+    (he : ∀ l, 1 ≤ l → l ≤ k → e l = cE * η * Real.sqrt l)
+    (hm6 : ∀ m, 1 ≤ m → m ≤ k → k ≤ 2 * m → m6 m ≤ mm k)
+    (hmA : ∀ l, 1 ≤ l → l ≤ k → k < 2 * l → mm l ≤ A * mm k)
+    (hmk1 : mm k ≤ A * mm (k + 1))
+    (haθ : aθ ≤ cθ * η) (hbθ : bθ ≤ cθ' * η ^ 2) (hδ : δ ≤ 1) :
+    |(P ^ (k + 1)).trace - mm (k + 1)
+        - (1 / (Fintype.card n : ℝ) ^ 2 * ∑ i, ∑ b, q k i b * q 1 b i * θ1 b i
+           + ∑ m ∈ Finset.Icc 1 (k - 1),
+               1 / (Fintype.card n : ℝ) ^ 2 * ∑ i, ∑ b, q (k - m) i b * hh m i b
+           + 1 / (Fintype.card n : ℝ) * ∑ i, hh k i i)|
+      ≤ A * (2 * cθ * cD + 2 * cθ' + cα + 2 * (2 * A * cα + cα + A * cD * cβ + cE * cβ))
+          * η ^ 2 * k * mm (k + 1) := by
+  have a : n := Classical.arbitrary n
+  have haθ0 : 0 ≤ aθ := (abs_nonneg _).trans (H1a a a)
+  have hbθ0 : 0 ≤ bθ := (abs_nonneg _).trans (H1b a a)
+  have hmm0 : ∀ l, 1 ≤ l → l ≤ k → 0 ≤ mm l := fun l hl hlk =>
+    (hq0 l hl (by omega) a a).trans (hqm l hl (by omega) a a)
+  exact (reduction_abstract P hP0 hrow k hk q mm hq0 hqm hqd θ θ1 hh d e α αb β βb
+      H1 H1a H1b H2 H3 H4 H5a H5b H5c H5d).trans
+    (closed_rhs k hk mm d e α αb β βb m6 hA hcα hcβ hcD hcE hcθ hcθ' hη haθ0 hbθ0 hmm0
+      hα hαb hβ hβb hd hdle he hm6 hmA hmk1 haθ hbθ hδ)
+
+/-! ### (2) Part (i) of the eigenvalue theorem for all indices -/
+
+/-- Two different shells cannot both contain the index `j`. -/
+theorem shell_lt_absurd {d : ℕ} {j q q' : ℕ} (hqq : q < q')
+    {Hle Hlt' : Finset (Fin d → ℤ)}
+    (hle : ∀ n, n ∈ Hle ↔ lexPos d n ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 ≤ (q : ℝ))
+    (hlt' : ∀ n, n ∈ Hlt' ↔ lexPos d n ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 < (q' : ℝ))
+    (h2 : j ≤ 2 * Hle.card) (h1' : 1 + 2 * Hlt'.card ≤ j) : False := by
+  have hsub : Hle ⊆ Hlt' := by
+    intro n hn
+    rw [hle] at hn
+    rw [hlt']
+    have hc : (q : ℝ) < (q' : ℝ) := by exact_mod_cast hqq
+    exact ⟨hn.1, lt_of_le_of_lt hn.2 hc⟩
+  have := Finset.card_le_card hsub
+  omega
+
+/-- **The shell of an index is unique.** If `j` lies in the index range of the shell `|n|² = q`
+    and in that of the shell `|n|² = q'`, then `q = q'`. -/
+theorem shell_unique {d : ℕ} {j q q' : ℕ}
+    {Hlt Hle Hlt' Hle' : Finset (Fin d → ℤ)}
+    (hlt : ∀ n, n ∈ Hlt ↔ lexPos d n ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 < (q : ℝ))
+    (hle : ∀ n, n ∈ Hle ↔ lexPos d n ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 ≤ (q : ℝ))
+    (h1 : 1 + 2 * Hlt.card ≤ j) (h2 : j ≤ 2 * Hle.card)
+    (hlt' : ∀ n, n ∈ Hlt' ↔ lexPos d n ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 < (q' : ℝ))
+    (hle' : ∀ n, n ∈ Hle' ↔ lexPos d n ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 ≤ (q' : ℝ))
+    (h1' : 1 + 2 * Hlt'.card ≤ j) (h2' : j ≤ 2 * Hle'.card) : q = q' := by
+  rcases Nat.lt_trichotomy q q' with h | h | h
+  · exact (shell_lt_absurd h hle hlt' h2 h1').elim
+  · exact h
+  · exact (shell_lt_absurd h hle' hlt h2' h1).elim
+
+/-- The shell of the index `j` (zero for `d = 0` or `j = 0`): the integer given by
+    `shell_cover`. -/
+noncomputable def shellIndex (d j : ℕ) : ℕ :=
+  if h : 1 ≤ d ∧ 1 ≤ j then Classical.choose (shell_cover h.1 j h.2) else 0
+
+theorem shellIndex_spec {d : ℕ} (hd : 1 ≤ d) (j : ℕ) (hj : 1 ≤ j) :
+    0 < shellIndex d j ∧ ∃ Hlt Hle : Finset (Fin d → ℤ),
+      (∀ n, n ∈ Hlt ↔ lexPos d n ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 < (shellIndex d j : ℝ)) ∧
+      (∀ n, n ∈ Hle ↔ lexPos d n ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 ≤ (shellIndex d j : ℝ)) ∧
+      1 + 2 * Hlt.card ≤ j ∧ j ≤ 2 * Hle.card := by
+  have e : shellIndex d j = Classical.choose (shell_cover hd j hj) := by
+    unfold shellIndex
+    exact dif_pos (⟨hd, hj⟩ : 1 ≤ d ∧ 1 ≤ j)
+  rw [e]
+  exact Classical.choose_spec (shell_cover hd j hj)
+
+/-- `shellIndex d j` is the only natural number whose shell index range contains `j`. -/
+theorem shellIndex_eq {d : ℕ} (hd : 1 ≤ d) {j q : ℕ} (hj : 1 ≤ j)
+    {Hlt Hle : Finset (Fin d → ℤ)}
+    (hlt : ∀ n, n ∈ Hlt ↔ lexPos d n ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 < (q : ℝ))
+    (hle : ∀ n, n ∈ Hle ↔ lexPos d n ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 ≤ (q : ℝ))
+    (h1 : 1 + 2 * Hlt.card ≤ j) (h2 : j ≤ 2 * Hle.card) : q = shellIndex d j := by
+  obtain ⟨_, Hlt', Hle', hlt', hle', h1', h2'⟩ := shellIndex_spec hd j hj
+  exact shell_unique hlt hle h1 h2 hlt' hle' h1' h2'
+
+/-- **Part (i) for all indices, with the shell named.** On the event of `eig_theorem_G38_i`
+    (probability of the complement at most `6/N³`), for all `1 ≤ k ≤ K` and all indices `j`
+    (counted from zero): `s_0 = 1`, and for `j ≥ 1`, with `q = shellIndex d j`,
+    `|s_j^k - e^{-k 2π²σ q}| ≤ C₃ δ' √k m_k`. -/
+theorem eig_theorem_G38_i_all_shell {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {σ : ℝ} (hσ : 0 < σ) (hσ1 : σ ≤ 1) (d N K : ℕ) [NeZero N] (hd : 1 ≤ d)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (hN2 : 2 ≤ N) (hK : 0 < K)
+    {Mp δp : ℝ} (hMp : Mp = heatTorus d (2 * Real.pi ^ 2 * σ) 0)
+    (hδp : δp = Real.sqrt (Mp * Real.log N / N))
+    (hrange : kernelC1 d * δp * Real.sqrt K ≤ 1) :
+    μ.real {ω | ¬ ∀ k, 1 ≤ k → k ≤ K →
+        ∀ (hS : (symGraph
+            (fun i j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X j ω))
+            (fun i : Fin N =>
+              (∑ l : Fin N, heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X l ω)) / N)).IsHermitian)
+          (j : Fin (Fintype.card (Fin N))),
+          (j.val = 0 → hS.eigenvalues₀ j = 1)
+          ∧ (1 ≤ j.val →
+            |hS.eigenvalues₀ j ^ k
+                - Real.exp (-(2 * Real.pi ^ 2 * σ) * (shellIndex d j.val : ℝ)) ^ k|
+              ≤ eigC3 d * δp * Real.sqrt k
+                * heatTorus d (2 * Real.pi ^ 2 * ((k : ℝ) * σ)) 0)}
+      ≤ 6 / (N : ℝ) ^ 3 := by
+  have h := eig_theorem_G38_i hσ hσ1 d N K hd X h_indep hX hlaw hN2 hK hMp hδp hrange
+  refine le_trans (measureReal_mono ?_ (measure_ne_top μ _)) h
+  intro ω hω hgood
+  apply hω
+  intro k hk hkK hS j
+  obtain ⟨h0, hr⟩ := hgood k hk hkK hS j
+  refine ⟨h0, fun hj => ?_⟩
+  obtain ⟨hq, Hlt, Hle, hlt, hle, h1, h2⟩ := shellIndex_spec hd j.val hj
+  exact hr (shellIndex d j.val : ℝ) (by exact_mod_cast hq) Hlt Hle hlt hle h1 h2
+
+/-- **Part (i) for all indices, existential form.** As before; for `j ≥ 1` there is a natural
+    number `q ≥ 1` such that `j` lies in the index range of the shell `|n|² = q` and
+    `|s_j^k - e^{-k 2π²σ q}| ≤ C₃ δ' √k m_k`. (By `shell_unique` this `q` is unique.) -/
+theorem eig_theorem_G38_i_all {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {σ : ℝ} (hσ : 0 < σ) (hσ1 : σ ≤ 1) (d N K : ℕ) [NeZero N] (hd : 1 ≤ d)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (hN2 : 2 ≤ N) (hK : 0 < K)
+    {Mp δp : ℝ} (hMp : Mp = heatTorus d (2 * Real.pi ^ 2 * σ) 0)
+    (hδp : δp = Real.sqrt (Mp * Real.log N / N))
+    (hrange : kernelC1 d * δp * Real.sqrt K ≤ 1) :
+    μ.real {ω | ¬ ∀ k, 1 ≤ k → k ≤ K →
+        ∀ (hS : (symGraph
+            (fun i j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X j ω))
+            (fun i : Fin N =>
+              (∑ l : Fin N, heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X l ω)) / N)).IsHermitian)
+          (j : Fin (Fintype.card (Fin N))),
+          (j.val = 0 → hS.eigenvalues₀ j = 1)
+          ∧ (1 ≤ j.val → ∃ q : ℕ, 1 ≤ q
+            ∧ (∃ Hlt Hle : Finset (Fin d → ℤ),
+                (∀ n, n ∈ Hlt ↔ lexPos d n ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 < (q : ℝ)) ∧
+                (∀ n, n ∈ Hle ↔ lexPos d n ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 ≤ (q : ℝ)) ∧
+                1 + 2 * Hlt.card ≤ j.val ∧ j.val ≤ 2 * Hle.card)
+            ∧ |hS.eigenvalues₀ j ^ k - Real.exp (-(2 * Real.pi ^ 2 * σ) * (q : ℝ)) ^ k|
+              ≤ eigC3 d * δp * Real.sqrt k
+                * heatTorus d (2 * Real.pi ^ 2 * ((k : ℝ) * σ)) 0)}
+      ≤ 6 / (N : ℝ) ^ 3 := by
+  have h := eig_theorem_G38_i_all_shell hσ hσ1 d N K hd X h_indep hX hlaw hN2 hK hMp hδp hrange
+  refine le_trans (measureReal_mono ?_ (measure_ne_top μ _)) h
+  intro ω hω hgood
+  apply hω
+  intro k hk hkK hS j
+  obtain ⟨h0, hr⟩ := hgood k hk hkK hS j
+  refine ⟨h0, fun hj => ?_⟩
+  obtain ⟨hq, hsh⟩ := shellIndex_spec hd j.val hj
+  exact ⟨shellIndex d j.val, hq, hsh, hr hj⟩
+
+/-! ### (3) The subtracted heat trace, uniformly in `τ` -/
+
+open CTG.Reals.TraceG29 in
+/-- **The relative form of the trace estimate, uniformly in `τ` on one event.** In the situation
+    of `heat_trace_G29_ratio`: except on an event of probability at most `3/N³`, for ALL `τ ≥ 2`
+    with `3τ + 2 log N ≤ J + 1`,
+    `|(Tr exp(τ(S-1)) - N e^{-τ}) / T(τ) - 1| ≤ C₁ δ' √J + 4 M / N²`. -/
+theorem heat_trace_G29_uniform {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {σ : ℝ} (hσ : 0 < σ) (hσ1 : σ ≤ 1) (d : ℕ) (hd : 1 ≤ d)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (N J : ℕ) (hN2 : 2 ≤ N) (hJ : 2 ≤ J)
+    {Mp δp : ℝ} (hMp : Mp = heatTorus d (2 * Real.pi ^ 2 * σ) 0)
+    (hδp : δp = Real.sqrt (Mp * Real.log N / N))
+    (hrange : kernelC1 d * δp * Real.sqrt J ≤ 1) :
+    μ.real {ω | ¬ ∀ τ : ℝ, 2 ≤ τ → 3 * τ + 2 * Real.log N ≤ (J : ℝ) + 1 →
+        |((NormedSpace.exp (τ • (symGraph
+              (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X a ω - X j ω))
+              (fun a : Fin N => heatRho d σ N (fun j => X j ω) a) - 1))).trace
+            - (N : ℝ) * Real.exp (-τ)) / poissonMean d σ τ - 1|
+          ≤ kernelC1 d * δp * Real.sqrt J + 4 * Mp / (N : ℝ) ^ 2}
+      ≤ 3 / (N : ℝ) ^ 3 := by
+  have h := kernel_trace_G28 hσ hσ1 d hd X h_indep hX hlaw N J hN2 (by omega) hMp hδp hrange
+  refine le_trans (measureReal_mono ?_ (measure_ne_top μ _)) h
+  intro ω hω hgood
+  apply hω
+  intro τ hτ hJτ
+  have hτ0 : 0 ≤ τ := by linarith
+  have hc : 0 ≤ kernelC1 d * δp := by
+    rw [hδp]; exact mul_nonneg (kernelC1_nonneg d) (Real.sqrt_nonneg _)
+  have hdet : |(NormedSpace.exp (τ • (symGraph
+            (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X a ω - X j ω))
+            (fun a : Fin N => heatRho d σ N (fun j => X j ω) a) - 1))).trace
+        - (N : ℝ) * Real.exp (-τ) - poissonMean d σ τ|
+      ≤ kernelC1 d * δp * Real.sqrt J * poissonMean d σ τ + 3 * Mp * ptail τ J := by
+    rw [hMp]
+    exact heat_trace_det hσ d N J (by omega) hJ (fun j => X j ω) hτ0 hc hrange
+      (fun k hk hkJ => hgood k hk hkJ)
+  have hpi := Real.pi_pos
+  have hNpos : (0 : ℝ) < N := by exact_mod_cast (by omega : 0 < N)
+  have hT : 3 / 4 ≤ poissonMean d σ τ := by
+    have h1 := poissonMean_ge hσ d hτ0
+    have h2 := exp_neg_le_quarter hτ
+    linarith
+  have hMp0 : 0 ≤ Mp := by
+    rw [hMp]; exact le_trans zero_le_one (heatTorus_zero_ge_one (by positivity) d)
+  exact ratio_form hT hdet hMp0 (ptail_le_inv_sq hτ0 J N (by omega) hJτ) (by positivity)
+
+end Assembled
+
+/-! ### Measurability of the exceptional sets of the trace and eigenvalue statements -/
+
+namespace ExceptionalSets
+
+open Filter Topology
+
+/-! ### Generic measurability lemmas for matrix-valued functions with measurable entries -/
+
+/-- Entries of powers of a matrix with measurable entries are measurable. -/
+theorem pow_entry_measurable {Ω : Type*} {mΩ : MeasurableSpace Ω} {N : ℕ}
+    (M : Ω → Matrix (Fin N) (Fin N) ℝ) (hM : ∀ a b, Measurable fun ω => M ω a b)
+    (k : ℕ) (a b : Fin N) : Measurable fun ω => (M ω ^ k) a b := by
+  induction k generalizing a b with
+  | zero =>
+    simp only [pow_zero, Matrix.one_apply]
+    exact measurable_const
+  | succ k ih =>
+    simp only [pow_succ, Matrix.mul_apply]
+    exact Finset.measurable_sum _ fun j _ => (ih a j).mul (hM j b)
+
+/-- The trace of a power of a matrix with measurable entries is measurable. -/
+theorem pow_trace_measurable {Ω : Type*} {mΩ : MeasurableSpace Ω} {N : ℕ}
+    (M : Ω → Matrix (Fin N) (Fin N) ℝ) (hM : ∀ a b, Measurable fun ω => M ω a b)
+    (k : ℕ) : Measurable fun ω => (M ω ^ k).trace := by
+  simp only [Matrix.trace, Matrix.diag_apply]
+  exact Finset.measurable_sum _ fun a _ => pow_entry_measurable M hM k a a
+
+/-- The entries of `symGraph` are measurable when kernel and normalisation are. -/
+theorem symGraph_entry_measurable {Ω : Type*} {mΩ : MeasurableSpace Ω} {N : ℕ}
+    (K : Ω → Fin N → Fin N → ℝ) (rho : Ω → Fin N → ℝ)
+    (hK : ∀ a b, Measurable fun ω => K ω a b) (hR : ∀ a, Measurable fun ω => rho ω a)
+    (a b : Fin N) : Measurable fun ω => symGraph (K ω) (rho ω) a b := by
+  have hD : ∀ a, Measurable fun ω => Real.sqrt (∑ l, K ω a l / (rho ω a * rho ω l)) := fun a =>
+    (Finset.measurable_sum _ fun l _ => (hK a l).div ((hR a).mul (hR l))).sqrt
+  simp only [symGraph, Matrix.of_apply]
+  exact ((hK a b).div ((hR a).mul (hR b))).div ((hD a).mul (hD b))
+
+/-- The trace of `exp(τ(M - 1))` is measurable for a symmetric matrix with measurable entries
+    (limit of the measurable partial sums of the Poisson series). -/
+theorem trace_exp_measurable {Ω : Type*} {mΩ : MeasurableSpace Ω} {N : ℕ}
+    (M : Ω → Matrix (Fin N) (Fin N) ℝ) (hM : ∀ a b, Measurable fun ω => M ω a b)
+    (hH : ∀ ω, (M ω).IsHermitian) (τ : ℝ) :
+    Measurable fun ω => (NormedSpace.exp (τ • (M ω - 1))).trace := by
+  have hpart : ∀ n : ℕ, Measurable fun ω =>
+      ∑ j ∈ Finset.range n, TraceG29.pw τ (j + 1) * (M ω ^ (j + 1)).trace := fun n =>
+    Finset.measurable_sum _ fun j _ => (pow_trace_measurable M hM (j + 1)).const_mul _
+  have hlim : Tendsto
+      (fun (n : ℕ) (ω : Ω) => ∑ j ∈ Finset.range n, TraceG29.pw τ (j + 1) * (M ω ^ (j + 1)).trace)
+      atTop (𝓝 fun ω => (NormedSpace.exp (τ • (M ω - 1))).trace
+        - (Fintype.card (Fin N) : ℝ) * Real.exp (-τ)) :=
+    tendsto_pi_nhds.2 fun ω =>
+      (TraceG29.subtracted_trace_hasSum (M ω) (hH ω) τ).tendsto_sum_nat
+  have h := (measurable_of_tendsto_metrizable hpart hlim).add_const
+    ((Fintype.card (Fin N) : ℝ) * Real.exp (-τ))
+  have he : (fun ω => (NormedSpace.exp (τ • (M ω - 1))).trace
+        - (Fintype.card (Fin N) : ℝ) * Real.exp (-τ)
+        + (Fintype.card (Fin N) : ℝ) * Real.exp (-τ))
+      = fun ω => (NormedSpace.exp (τ • (M ω - 1))).trace := by
+    funext ω; ring
+  rw [he] at h
+  exact h
+
+/-! ### (1) The exceptional set of `kernel_trace_G28` -/
+
+/-- The exceptional set of `kernel_trace_G28`, verbatim, is measurable. -/
+theorem kernel_trace_G28_set_measurable {Ω : Type*} {mΩ : MeasurableSpace Ω} {σ : ℝ}
+    (hσ : 0 < σ) (d : ℕ) (X : ℕ → Ω → FlatTorus d) (hX : ∀ j, Measurable (X j)) (N K : ℕ)
+    (δp : ℝ) :
+    MeasurableSet {ω | ¬ ∀ k, 1 ≤ k → k ≤ K →
+        |((walkMatrix
+              (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X a ω - X j ω))
+              (fun a : Fin N => heatRho d σ N (fun j => X j ω) a)) ^ k).trace
+            - heatTorus d (2 * Real.pi ^ 2 * ((k : ℝ) * σ)) 0|
+          ≤ kernelC1 d * δp * Real.sqrt k * heatTorus d (2 * Real.pi ^ 2 * ((k : ℝ) * σ)) 0} := by
+  have hgood : MeasurableSet {ω | ∀ k, 1 ≤ k → k ≤ K →
+        |((walkMatrix
+              (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X a ω - X j ω))
+              (fun a : Fin N => heatRho d σ N (fun j => X j ω) a)) ^ k).trace
+            - heatTorus d (2 * Real.pi ^ 2 * ((k : ℝ) * σ)) 0|
+          ≤ kernelC1 d * δp * Real.sqrt k
+            * heatTorus d (2 * Real.pi ^ 2 * ((k : ℝ) * σ)) 0} := by
+    simp only [Set.setOf_forall]
+    refine MeasurableSet.iInter fun k => MeasurableSet.iInter fun _ =>
+      MeasurableSet.iInter fun _ => ?_
+    have htr : Measurable fun ω => ((walkMatrix
+        (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X a ω - X j ω))
+        (fun a : Fin N => heatRho d σ N (fun j => X j ω) a)) ^ k).trace :=
+      pow_trace_measurable
+        (fun ω => walkMatrix
+          (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X a ω - X j ω))
+          (fun a : Fin N => heatRho d σ N (fun j => X j ω) a))
+        (fun a b => walk_entry_measurable hσ d X hX N a b) k
+    exact measurableSet_le ((htr.sub measurable_const).abs) measurable_const
+  exact hgood.compl
+
+/-! ### (2) The exceptional sets of `heat_trace_G29` and `heat_trace_G29_ratio` -/
+
+/-- The heat trace of the sampled graph (normalisation `heatRho`) is a measurable function. -/
+theorem heat_trace_sample_measurable {Ω : Type*} {mΩ : MeasurableSpace Ω} {σ : ℝ}
+    (hσ : 0 < σ) (d : ℕ) (X : ℕ → Ω → FlatTorus d) (hX : ∀ j, Measurable (X j)) (N : ℕ)
+    (τ : ℝ) :
+    Measurable fun ω => (NormedSpace.exp (τ • (symGraph
+        (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X a ω - X j ω))
+        (fun a : Fin N => heatRho d σ N (fun j => X j ω) a) - 1))).trace := by
+  have hc : 0 < 2 * Real.pi ^ 2 * σ := by
+    have := Real.pi_pos; positivity
+  refine trace_exp_measurable
+    (fun ω => symGraph
+      (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X a ω - X j ω))
+      (fun a : Fin N => heatRho d σ N (fun j => X j ω) a)) ?_ ?_ τ
+  · intro a b
+    exact symGraph_entry_measurable
+      (fun ω (a j : Fin N) => heatTorus d (2 * Real.pi ^ 2 * σ) (X a ω - X j ω))
+      (fun ω (a : Fin N) => heatRho d σ N (fun j => X j ω) a)
+      (fun a b => heatTorus_sample_measurable hc d X hX a b)
+      (fun a => heatRho_sample_measurable hσ d X hX N a) a b
+  · intro ω
+    refine symGraph_isHermitian _ _ fun i j => ?_
+    rw [← heatTorus_even d (2 * Real.pi ^ 2 * σ) (X j ω - X i ω), neg_sub]
+
+/-- The exceptional set of `TraceG29.heat_trace_G29`, verbatim, is measurable. -/
+theorem heat_trace_G29_set_measurable {Ω : Type*} {mΩ : MeasurableSpace Ω} {σ : ℝ}
+    (hσ : 0 < σ) (d : ℕ) (X : ℕ → Ω → FlatTorus d) (hX : ∀ j, Measurable (X j)) (N J : ℕ)
+    (Mp δp τ : ℝ) :
+    MeasurableSet {ω | ¬ |(NormedSpace.exp (τ • (symGraph
+              (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X a ω - X j ω))
+              (fun a : Fin N => heatRho d σ N (fun j => X j ω) a) - 1))).trace
+            - (N : ℝ) * Real.exp (-τ) - TraceG29.poissonMean d σ τ|
+          ≤ kernelC1 d * δp * Real.sqrt J * TraceG29.poissonMean d σ τ
+            + 3 * Mp * TraceG29.ptail τ J} := by
+  refine MeasurableSet.compl ?_
+  exact measurableSet_le
+    ((((heat_trace_sample_measurable hσ d X hX N τ).sub measurable_const).sub
+      measurable_const).abs) measurable_const
+
+/-- The exceptional set of `TraceG29.heat_trace_G29_ratio`, verbatim, is measurable. -/
+theorem heat_trace_G29_ratio_set_measurable {Ω : Type*} {mΩ : MeasurableSpace Ω} {σ : ℝ}
+    (hσ : 0 < σ) (d : ℕ) (X : ℕ → Ω → FlatTorus d) (hX : ∀ j, Measurable (X j)) (N J : ℕ)
+    (Mp δp τ : ℝ) :
+    MeasurableSet {ω | ¬ |((NormedSpace.exp (τ • (symGraph
+              (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X a ω - X j ω))
+              (fun a : Fin N => heatRho d σ N (fun j => X j ω) a) - 1))).trace
+            - (N : ℝ) * Real.exp (-τ)) / TraceG29.poissonMean d σ τ - 1|
+          ≤ kernelC1 d * δp * Real.sqrt J + 4 * Mp / (N : ℝ) ^ 2} := by
+  refine MeasurableSet.compl ?_
+  exact measurableSet_le
+    (((((heat_trace_sample_measurable hσ d X hX N τ).sub measurable_const).div_const _).sub
+      measurable_const).abs) measurable_const
+
+/-! ### (3) Ordered eigenvalues as a measurable function of the sample -/
+
+/-- The `j`-th ordered eigenvalue as a total function on arrays (zero off the symmetric ones). -/
+noncomputable def eigTot (N : ℕ) (j : Fin (Fintype.card (Fin N))) (A : Fin N → Fin N → ℝ) : ℝ :=
+  if h : (Matrix.of A).IsHermitian then h.eigenvalues₀ j else 0
+
+theorem eigTot_eq {N : ℕ} (M : Matrix (Fin N) (Fin N) ℝ) (h : M.IsHermitian)
+    (j : Fin (Fintype.card (Fin N))) : eigTot N j (fun a b => M a b) = h.eigenvalues₀ j := by
+  unfold eigTot
+  exact dif_pos h
+
+/-- On the set of symmetric arrays the `j`-th ordered eigenvalue is continuous
+    (Weyl's inequality `weyl_row_sums`). -/
+theorem eigTot_continuousOn {N : ℕ} (j : Fin (Fintype.card (Fin N))) :
+    ContinuousOn (eigTot N j) {A | (Matrix.of A).IsHermitian} := by
+  rw [Metric.continuousOn_iff]
+  intro B hB ε hε
+  have hN1 : (0 : ℝ) < (N : ℝ) + 1 := by positivity
+  have hδ : 0 < ε / ((N : ℝ) + 1) := div_pos hε hN1
+  refine ⟨ε / ((N : ℝ) + 1), hδ, fun A hA hd => ?_⟩
+  have hent : ∀ a b, |A a b - B a b| ≤ ε / ((N : ℝ) + 1) := by
+    intro a b
+    have h1 := (dist_pi_lt_iff hδ).1 hd a
+    have h2 := (dist_pi_lt_iff hδ).1 h1 b
+    rw [Real.dist_eq] at h2
+    exact h2.le
+  have hrow : ∀ i, ∑ l, |(Matrix.of A) i l - (Matrix.of B) i l| ≤ (N : ℝ) * (ε / ((N : ℝ) + 1)) := by
+    intro i
+    have h1 : ∑ l, |(Matrix.of A) i l - (Matrix.of B) i l| ≤ ∑ _l : Fin N, ε / ((N : ℝ) + 1) :=
+      Finset.sum_le_sum fun l _ => hent i l
+    have h2 : ∑ _l : Fin N, ε / ((N : ℝ) + 1) = (N : ℝ) * (ε / ((N : ℝ) + 1)) := by
+      simp
+    linarith
+  have hA' : (Matrix.of A).IsHermitian := hA
+  have hB' : (Matrix.of B).IsHermitian := hB
+  have hw := weyl_row_sums (Matrix.of A) (Matrix.of B) hA' hB' hrow j
+  have eA : eigTot N j A = hA'.eigenvalues₀ j := dif_pos hA'
+  have eB : eigTot N j B = hB'.eigenvalues₀ j := dif_pos hB'
+  rw [Real.dist_eq, eA, eB]
+  have h3 : (N : ℝ) * (ε / ((N : ℝ) + 1)) < ε := by
+    have h4 : (N : ℝ) * (ε / ((N : ℝ) + 1)) = ε * ((N : ℝ) / ((N : ℝ) + 1)) := by
+      field_simp
+    have h5 : (N : ℝ) / ((N : ℝ) + 1) < 1 := by
+      rw [div_lt_one hN1]; linarith
+    rw [h4]
+    nlinarith
+  linarith
+
+/-- The ordered eigenvalue of a measurable family of symmetric arrays is measurable. -/
+theorem eigTot_measurable_comp {Ω : Type*} {mΩ : MeasurableSpace Ω} {N : ℕ}
+    (j : Fin (Fintype.card (Fin N))) (F : Ω → Fin N → Fin N → ℝ) (hF : Measurable F)
+    (hH : ∀ ω, (Matrix.of (F ω)).IsHermitian) : Measurable fun ω => eigTot N j (F ω) := by
+  have h1 : Continuous (Set.restrict {A : Fin N → Fin N → ℝ | (Matrix.of A).IsHermitian}
+      (eigTot N j)) :=
+    continuousOn_iff_continuous_restrict.1 (eigTot_continuousOn j)
+  have h2 : Measurable (fun ω =>
+      (⟨F ω, hH ω⟩ : {A : Fin N → Fin N → ℝ | (Matrix.of A).IsHermitian})) :=
+    hF.subtype_mk
+  exact h1.measurable.comp h2
+
+/-- A statement about all proofs of symmetry and all indices is a statement about `eigTot`. -/
+theorem forall_herm_iff {N : ℕ} (M : Matrix (Fin N) (Fin N) ℝ) (hM : M.IsHermitian)
+    (Φ : Fin (Fintype.card (Fin N)) → ℝ → Prop) :
+    (∀ (hS : M.IsHermitian) (j : Fin (Fintype.card (Fin N))), Φ j (hS.eigenvalues₀ j))
+      ↔ ∀ j, Φ j (eigTot N j (fun a b => M a b)) := by
+  constructor
+  · intro h j
+    rw [eigTot_eq M hM j]
+    exact h hM j
+  · intro h hS j
+    rw [← eigTot_eq M hS j]
+    exact h j
+
+theorem isClosed_forall {ι : Sort*} {p : ι → ℝ → Prop} (h : ∀ i, IsClosed {x | p i x}) :
+    IsClosed {x | ∀ i, p i x} := by
+  rw [Set.setOf_forall]
+  exact isClosed_iInter h
+
+/-- The matrix `S` of the eigenvalue theorems (normalisation as a sum over `Fin N`) is symmetric. -/
+theorem symGraph_sample_isHermitian {Ω : Type*} {σ : ℝ} (d N : ℕ) (X : ℕ → Ω → FlatTorus d)
+    (ω : Ω) :
+    (symGraph
+      (fun i j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X j ω))
+      (fun i : Fin N =>
+        (∑ l : Fin N, heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X l ω)) / N)).IsHermitian := by
+  refine symGraph_isHermitian _ _ fun i j => ?_
+  rw [← heatTorus_even d (2 * Real.pi ^ 2 * σ) (X j ω - X i ω), neg_sub]
+
+/-- The `j`-th ordered eigenvalue of the sampled `S` is a measurable function of the sample. -/
+theorem eig_sample_measurable {Ω : Type*} {mΩ : MeasurableSpace Ω} {σ : ℝ} (hσ : 0 < σ)
+    (d N : ℕ) (X : ℕ → Ω → FlatTorus d) (hX : ∀ j, Measurable (X j))
+    (j : Fin (Fintype.card (Fin N))) :
+    Measurable fun ω => eigTot N j (fun a b => symGraph
+      (fun i j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X j ω))
+      (fun i : Fin N =>
+        (∑ l : Fin N, heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X l ω)) / N) a b) := by
+  have hc : 0 < 2 * Real.pi ^ 2 * σ := by
+    have := Real.pi_pos; positivity
+  have hR : ∀ a : Fin N, Measurable fun ω =>
+      (∑ l : Fin N, heatTorus d (2 * Real.pi ^ 2 * σ) (X a ω - X l ω)) / (N : ℝ) := fun a =>
+    (Finset.measurable_sum Finset.univ fun (l : Fin N) _ =>
+      heatTorus_sample_measurable hc d X hX a l).div_const _
+  refine eigTot_measurable_comp j
+    (fun ω a b => symGraph
+      (fun i j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X j ω))
+      (fun i : Fin N =>
+        (∑ l : Fin N, heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X l ω)) / N) a b) ?_ ?_
+  · refine measurable_pi_lambda _ fun a => measurable_pi_lambda _ fun b => ?_
+    exact symGraph_entry_measurable
+      (fun ω (i j : Fin N) => heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X j ω))
+      (fun ω (i : Fin N) =>
+        (∑ l : Fin N, heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X l ω)) / N)
+      (fun a b => heatTorus_sample_measurable hc d X hX a b)
+      hR a b
+  · intro ω
+    exact symGraph_sample_isHermitian d N X ω
+
+/-- The exceptional set of `eig_theorem_G38_i`, verbatim, is measurable. -/
+theorem eig_theorem_G38_i_set_measurable {Ω : Type*} {mΩ : MeasurableSpace Ω} {σ : ℝ}
+    (hσ : 0 < σ) (d N K : ℕ) (X : ℕ → Ω → FlatTorus d) (hX : ∀ j, Measurable (X j))
+    (δp : ℝ) :
+    MeasurableSet {ω | ¬ ∀ k, 1 ≤ k → k ≤ K →
+        ∀ (hS : (symGraph
+            (fun i j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X j ω))
+            (fun i : Fin N =>
+              (∑ l : Fin N, heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X l ω)) / N)).IsHermitian)
+          (j : Fin (Fintype.card (Fin N))),
+          (j.val = 0 → hS.eigenvalues₀ j = 1)
+          ∧ ∀ r : ℝ, 0 < r → ∀ Hlt Hle : Finset (Fin d → ℤ),
+            (∀ n, n ∈ Hlt ↔ lexPos d n ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 < r) →
+            (∀ n, n ∈ Hle ↔ lexPos d n ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 ≤ r) →
+            1 + 2 * Hlt.card ≤ j.val → j.val ≤ 2 * Hle.card →
+            |hS.eigenvalues₀ j ^ k - Real.exp (-(2 * Real.pi ^ 2 * σ) * r) ^ k|
+              ≤ eigC3 d * δp * Real.sqrt k
+                * heatTorus d (2 * Real.pi ^ 2 * ((k : ℝ) * σ)) 0} := by
+  -- the closed sets of admissible eigenvalues
+  obtain ⟨T, hT⟩ : ∃ T : ℕ → Fin (Fintype.card (Fin N)) → Set ℝ, T = fun (k : ℕ) (j : Fin (Fintype.card (Fin N))) => {x : ℝ |
+      (j.val = 0 → x = 1)
+      ∧ ∀ r : ℝ, 0 < r → ∀ Hlt Hle : Finset (Fin d → ℤ),
+        (∀ n, n ∈ Hlt ↔ lexPos d n ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 < r) →
+        (∀ n, n ∈ Hle ↔ lexPos d n ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 ≤ r) →
+        1 + 2 * Hlt.card ≤ j.val → j.val ≤ 2 * Hle.card →
+        |x ^ k - Real.exp (-(2 * Real.pi ^ 2 * σ) * r) ^ k|
+          ≤ eigC3 d * δp * Real.sqrt k
+            * heatTorus d (2 * Real.pi ^ 2 * ((k : ℝ) * σ)) 0} := ⟨_, rfl⟩
+  have hTc : ∀ k j, IsClosed (T k j) := by
+    intro k j
+    rw [hT]
+    refine IsClosed.inter ?_ ?_
+    · exact isClosed_forall fun _ => isClosed_eq continuous_id continuous_const
+    · refine isClosed_forall fun r => isClosed_forall fun _ => isClosed_forall fun Hlt =>
+        isClosed_forall fun Hle => isClosed_forall fun _ => isClosed_forall fun _ =>
+        isClosed_forall fun _ => isClosed_forall fun _ => ?_
+      exact isClosed_le (by fun_prop) continuous_const
+  have hset : {ω | ¬ ∀ k, 1 ≤ k → k ≤ K →
+        ∀ (hS : (symGraph
+            (fun i j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X j ω))
+            (fun i : Fin N =>
+              (∑ l : Fin N, heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X l ω)) / N)).IsHermitian)
+          (j : Fin (Fintype.card (Fin N))),
+          (j.val = 0 → hS.eigenvalues₀ j = 1)
+          ∧ ∀ r : ℝ, 0 < r → ∀ Hlt Hle : Finset (Fin d → ℤ),
+            (∀ n, n ∈ Hlt ↔ lexPos d n ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 < r) →
+            (∀ n, n ∈ Hle ↔ lexPos d n ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 ≤ r) →
+            1 + 2 * Hlt.card ≤ j.val → j.val ≤ 2 * Hle.card →
+            |hS.eigenvalues₀ j ^ k - Real.exp (-(2 * Real.pi ^ 2 * σ) * r) ^ k|
+              ≤ eigC3 d * δp * Real.sqrt k
+                * heatTorus d (2 * Real.pi ^ 2 * ((k : ℝ) * σ)) 0}
+      = {ω | ∀ k, 1 ≤ k → k ≤ K → ∀ j : Fin (Fintype.card (Fin N)),
+          eigTot N j (fun a b => symGraph
+            (fun i j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X j ω))
+            (fun i : Fin N =>
+              (∑ l : Fin N, heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X l ω)) / N) a b)
+            ∈ T k j}ᶜ := by
+    ext ω
+    refine not_congr (forall_congr' fun k => imp_congr_right fun _ => imp_congr_right fun _ => ?_)
+    rw [hT]
+    exact forall_herm_iff (symGraph
+        (fun i j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X j ω))
+        (fun i : Fin N =>
+          (∑ l : Fin N, heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X l ω)) / N))
+      (symGraph_sample_isHermitian (σ := σ) d N X ω)
+      (fun j x => (j.val = 0 → x = 1)
+        ∧ ∀ r : ℝ, 0 < r → ∀ Hlt Hle : Finset (Fin d → ℤ),
+          (∀ n, n ∈ Hlt ↔ lexPos d n ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 < r) →
+          (∀ n, n ∈ Hle ↔ lexPos d n ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 ≤ r) →
+          1 + 2 * Hlt.card ≤ j.val → j.val ≤ 2 * Hle.card →
+          |x ^ k - Real.exp (-(2 * Real.pi ^ 2 * σ) * r) ^ k|
+            ≤ eigC3 d * δp * Real.sqrt k
+              * heatTorus d (2 * Real.pi ^ 2 * ((k : ℝ) * σ)) 0)
+  rw [hset]
+  refine MeasurableSet.compl ?_
+  simp only [Set.setOf_forall]
+  refine MeasurableSet.iInter fun k => MeasurableSet.iInter fun _ => MeasurableSet.iInter fun _ =>
+    MeasurableSet.iInter fun j => ?_
+  exact (eig_sample_measurable hσ d N X hX j) (hTc k j).measurableSet
+
+/-- The exceptional set of `eig_theorem_G38`, verbatim, is measurable. -/
+theorem eig_theorem_G38_set_measurable {Ω : Type*} {mΩ : MeasurableSpace Ω} {σ : ℝ}
+    (hσ : 0 < σ) (d N : ℕ) (X : ℕ → Ω → FlatTorus d) (hX : ∀ j, Measurable (X j))
+    (δp : ℝ) :
+    MeasurableSet {ω | ¬ ∀ r : ℝ, 1 ≤ r → (2 * Real.pi ^ 2 * σ) * r ≤ 1 / 2 →
+        eigC4 d * δp / Real.sqrt σ * (2 * Real.pi * Real.sqrt r) ^ (d - 1) ≤ 1 →
+        ∀ (hS : (symGraph
+            (fun i j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X j ω))
+            (fun i : Fin N =>
+              (∑ l : Fin N, heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X l ω)) / N)).IsHermitian)
+          (j : Fin (Fintype.card (Fin N))) (Hlt Hle : Finset (Fin d → ℤ)),
+          (∀ n, n ∈ Hlt ↔ lexPos d n ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 < r) →
+          (∀ n, n ∈ Hle ↔ lexPos d n ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 ≤ r) →
+          1 + 2 * Hlt.card ≤ j.val → j.val ≤ 2 * Hle.card →
+          |(1 - hS.eigenvalues₀ j) / (σ / 2)
+              - (1 - Real.exp (-(2 * Real.pi ^ 2 * σ) * r)) / (σ / 2)|
+            ≤ eigC4 d * δp / Real.sqrt σ * (2 * Real.pi * Real.sqrt r) ^ (d + 1)} := by
+  obtain ⟨T, hT⟩ : ∃ T : Fin (Fintype.card (Fin N)) → Set ℝ, T = fun (j : Fin (Fintype.card (Fin N))) => {x : ℝ |
+      ∀ r : ℝ, 1 ≤ r → (2 * Real.pi ^ 2 * σ) * r ≤ 1 / 2 →
+        eigC4 d * δp / Real.sqrt σ * (2 * Real.pi * Real.sqrt r) ^ (d - 1) ≤ 1 →
+        ∀ Hlt Hle : Finset (Fin d → ℤ),
+        (∀ n, n ∈ Hlt ↔ lexPos d n ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 < r) →
+        (∀ n, n ∈ Hle ↔ lexPos d n ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 ≤ r) →
+        1 + 2 * Hlt.card ≤ j.val → j.val ≤ 2 * Hle.card →
+        |(1 - x) / (σ / 2)
+            - (1 - Real.exp (-(2 * Real.pi ^ 2 * σ) * r)) / (σ / 2)|
+          ≤ eigC4 d * δp / Real.sqrt σ * (2 * Real.pi * Real.sqrt r) ^ (d + 1)} := ⟨_, rfl⟩
+  have hTc : ∀ j, IsClosed (T j) := by
+    intro j
+    rw [hT]
+    refine isClosed_forall fun r => isClosed_forall fun _ => isClosed_forall fun _ =>
+      isClosed_forall fun _ => isClosed_forall fun Hlt =>
+      isClosed_forall fun Hle => isClosed_forall fun _ => isClosed_forall fun _ =>
+      isClosed_forall fun _ => isClosed_forall fun _ => ?_
+    exact isClosed_le (by fun_prop) continuous_const
+  have hset : {ω | ¬ ∀ r : ℝ, 1 ≤ r → (2 * Real.pi ^ 2 * σ) * r ≤ 1 / 2 →
+        eigC4 d * δp / Real.sqrt σ * (2 * Real.pi * Real.sqrt r) ^ (d - 1) ≤ 1 →
+        ∀ (hS : (symGraph
+            (fun i j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X j ω))
+            (fun i : Fin N =>
+              (∑ l : Fin N, heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X l ω)) / N)).IsHermitian)
+          (j : Fin (Fintype.card (Fin N))) (Hlt Hle : Finset (Fin d → ℤ)),
+          (∀ n, n ∈ Hlt ↔ lexPos d n ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 < r) →
+          (∀ n, n ∈ Hle ↔ lexPos d n ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 ≤ r) →
+          1 + 2 * Hlt.card ≤ j.val → j.val ≤ 2 * Hle.card →
+          |(1 - hS.eigenvalues₀ j) / (σ / 2)
+              - (1 - Real.exp (-(2 * Real.pi ^ 2 * σ) * r)) / (σ / 2)|
+            ≤ eigC4 d * δp / Real.sqrt σ * (2 * Real.pi * Real.sqrt r) ^ (d + 1)}
+      = {ω | ∀ j : Fin (Fintype.card (Fin N)),
+          eigTot N j (fun a b => symGraph
+            (fun i j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X j ω))
+            (fun i : Fin N =>
+              (∑ l : Fin N, heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X l ω)) / N) a b)
+            ∈ T j}ᶜ := by
+    ext ω
+    have key := fun r : ℝ => forall_herm_iff (symGraph
+        (fun i j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X j ω))
+        (fun i : Fin N =>
+          (∑ l : Fin N, heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X l ω)) / N))
+      (symGraph_sample_isHermitian (σ := σ) d N X ω)
+      (fun j x => ∀ Hlt Hle : Finset (Fin d → ℤ),
+        (∀ n, n ∈ Hlt ↔ lexPos d n ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 < r) →
+        (∀ n, n ∈ Hle ↔ lexPos d n ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 ≤ r) →
+        1 + 2 * Hlt.card ≤ j.val → j.val ≤ 2 * Hle.card →
+        |(1 - x) / (σ / 2)
+            - (1 - Real.exp (-(2 * Real.pi ^ 2 * σ) * r)) / (σ / 2)|
+          ≤ eigC4 d * δp / Real.sqrt σ * (2 * Real.pi * Real.sqrt r) ^ (d + 1))
+    refine not_congr ?_
+    rw [hT]
+    constructor
+    · intro h j r h1 h2 h3
+      exact (key r).1 (h r h1 h2 h3) j
+    · intro h r h1 h2 h3
+      exact (key r).2 fun j => h j r h1 h2 h3
+  rw [hset]
+  refine MeasurableSet.compl ?_
+  simp only [Set.setOf_forall]
+  refine MeasurableSet.iInter fun j => ?_
+  exact (eig_sample_measurable hσ d N X hX j) (hTc j).measurableSet
+
+end ExceptionalSets
+
 end KernelL1
 
 end Probability
