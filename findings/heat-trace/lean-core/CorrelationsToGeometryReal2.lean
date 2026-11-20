@@ -9224,7 +9224,8 @@ theorem pk_integral {σ : ℝ} (hσ : 0 < σ) (d k : ℕ) (hk : 1 ≤ k) (x : Fl
   rw [sub_self, hc]
   rfl
 
-/-- `‖Ψ‖₁ ≤ 2 m_{k+1} ≤ 2 m_k` (entry of the table of `lem:pibound`). -/
+/-- `‖Ψ‖₁ ≤ 2 m_k`. (The entry of the table of `lem:pibound` is the sharper `2 m_{k+1}`; only the
+    weaker bound is proved here.) -/
 theorem psi_l1 {σ : ℝ} (hσ : 0 < σ) (d k : ℕ) (hk : 1 ≤ k) (x : FlatTorus d) :
     ∫ z, |psiK d σ k (x - z)| ∂flatTorusMeasure d ≤ 2 * torusM d σ k := by
   have hcσ : 0 < 2 * Real.pi ^ 2 * σ := by positivity
@@ -9462,6 +9463,409 @@ theorem last_term_bound [IsProbabilityMeasure μ] {d : ℕ} (X : ℕ → Ω → 
     (abs_nonneg _) hp (abs_nonneg _) hc hA hZ)
 
 end Sample2
+
+/-! # NEW (A24) from here on
+
+## The first summand of `Π_k`: `Z¹[F_A,1]`, `Z¹[F_A,2]` by centring `F_A`
+
+`F_A(y₁,y₂) = φ(u)`, `φ = p_k p`, is not degenerate, but `φ⁰ = φ - m_{k+1}` is (`∫ p p_k = m_{k+1}`),
+and `Z¹[F_A,a] = Z¹[φ⁰,a] + m_{k+1} Z⁰[c]`. This is NOT the argument of `lem:degenerate`(b). -/
+
+/-- `φ⁰(u) = p_k(u) p(u) - m_{k+1}`. -/
+noncomputable def phi0 (d : ℕ) (σ : ℝ) (k : ℕ) (u : FlatTorus d) : ℝ :=
+  heatP d σ k u * pker d σ u - torusM d σ (k + 1)
+
+theorem phi0_even (d : ℕ) (σ : ℝ) (k : ℕ) (u : FlatTorus d) : phi0 d σ k (-u) = phi0 d σ k u := by
+  unfold phi0 pker
+  rw [heatTorus_even, heatP_even]
+
+theorem phi0_continuous {σ : ℝ} (hσ : 0 < σ) (d k : ℕ) (hk : 1 ≤ k) :
+    Continuous (phi0 d σ k) := by
+  have hk' : (0 : ℝ) < (k : ℝ) := Nat.cast_pos.mpr (by omega)
+  have hck : 0 < 2 * Real.pi ^ 2 * ((k : ℝ) * σ) := mul_pos (by positivity) (mul_pos hk' hσ)
+  have hP : heatP d σ k = heatTorus d (2 * Real.pi ^ 2 * ((k : ℝ) * σ)) :=
+    funext fun u => heatP_of_ne d σ (by omega : k ≠ 0) u
+  unfold phi0
+  rw [hP]
+  exact ((heatTorus_continuous hck d).mul (pker_continuous hσ d)).sub continuous_const
+
+/-- `0 ≤ φ ≤ M m_k`, `0 ≤ m_{k+1} ≤ m_k`. -/
+theorem phi_facts {σ : ℝ} (hσ : 0 < σ) (d k : ℕ) (hk : 1 ≤ k) (u : FlatTorus d) :
+    0 ≤ heatP d σ k u * pker d σ u
+      ∧ heatP d σ k u * pker d σ u ≤ torusM d σ 1 * torusM d σ k
+      ∧ 0 ≤ torusM d σ (k + 1) ∧ torusM d σ (k + 1) ≤ torusM d σ k := by
+  have hk' : (0 : ℝ) < (k : ℝ) := Nat.cast_pos.mpr (by omega)
+  have hck : 0 < 2 * Real.pi ^ 2 * ((k : ℝ) * σ) := mul_pos (by positivity) (mul_pos hk' hσ)
+  have hk1 : (0 : ℝ) < ((k + 1 : ℕ) : ℝ) := Nat.cast_pos.mpr (by omega)
+  have hck1 : 0 < 2 * Real.pi ^ 2 * (((k + 1 : ℕ) : ℝ) * σ) :=
+    mul_pos (by positivity) (mul_pos hk1 hσ)
+  obtain ⟨p0, p1, -⟩ := psiK_facts hσ d k hk u
+  have h1 : 0 ≤ heatP d σ k u := heatP_nonneg hσ d k u
+  have h2 : heatP d σ k u ≤ torusM d σ k := by
+    rw [heatP_of_ne d σ (by omega : k ≠ 0)]; exact heatTorus_le_zero hck d u
+  refine ⟨mul_nonneg h1 p0, ?_, heatTorus_nonneg hck1 d 0, torusM_anti hσ d hk (Nat.le_succ k)⟩
+  calc heatP d σ k u * pker d σ u ≤ torusM d σ k * torusM d σ 1 :=
+        mul_le_mul h2 p1 p0 (h1.trans h2)
+    _ = torusM d σ 1 * torusM d σ k := mul_comm _ _
+
+theorem phi0_bound {σ : ℝ} (hσ : 0 < σ) (d k : ℕ) (hk : 1 ≤ k) (u : FlatTorus d) :
+    |phi0 d σ k u| ≤ torusM d σ 1 * torusM d σ k := by
+  obtain ⟨f0, f1, f2, f3⟩ := phi_facts hσ d k hk u
+  have hM := torusM_one_ge hσ d
+  have hm0 : 0 ≤ torusM d σ k := f2.trans f3
+  have h := mul_nonneg (by linarith : (0 : ℝ) ≤ torusM d σ 1 - 1) hm0
+  unfold phi0
+  exact abs_le.mpr ⟨by nlinarith, by linarith⟩
+
+theorem phi0_split (d : ℕ) (σ : ℝ) (k : ℕ) (hk : 1 ≤ k) (x z : FlatTorus d) :
+    phi0 d σ k (x - z)
+      = pker d σ (x - z) * heatTorus d (2 * Real.pi ^ 2 * ((k : ℝ) * σ)) (z - x)
+        - torusM d σ (k + 1) := by
+  have h1 : heatP d σ k (x - z) = heatTorus d (2 * Real.pi ^ 2 * ((k : ℝ) * σ)) (z - x) := by
+    rw [heatP_of_ne d σ (by omega : k ≠ 0), ← neg_sub z x, heatTorus_even]
+  unfold phi0
+  rw [h1]; ring
+
+theorem phi_integrable {σ : ℝ} (hσ : 0 < σ) (d k : ℕ) (hk : 1 ≤ k) (x : FlatTorus d) :
+    Integrable (fun z : FlatTorus d =>
+      pker d σ (x - z) * heatTorus d (2 * Real.pi ^ 2 * ((k : ℝ) * σ)) (z - x))
+      (flatTorusMeasure d) := by
+  have hk' : (0 : ℝ) < (k : ℝ) := Nat.cast_pos.mpr (by omega)
+  have hck : 0 < 2 * Real.pi ^ 2 * ((k : ℝ) * σ) := mul_pos (by positivity) (mul_pos hk' hσ)
+  have hKc : Continuous fun z : FlatTorus d => pker d σ (x - z) :=
+    (pker_continuous hσ d).comp (continuous_const.sub continuous_id)
+  have hGc : Continuous fun z : FlatTorus d =>
+      heatTorus d (2 * Real.pi ^ 2 * ((k : ℝ) * σ)) (z - x) :=
+    (heatTorus_continuous hck d).comp (continuous_id.sub continuous_const)
+  exact flat_integrable d _ (hKc.mul hGc)
+
+/-- `φ⁰` is degenerate. -/
+theorem phi0_mean {σ : ℝ} (hσ : 0 < σ) (d k : ℕ) (hk : 1 ≤ k) (x : FlatTorus d) :
+    ∫ z, phi0 d σ k (x - z) ∂flatTorusMeasure d = 0 := by
+  simp_rw [phi0_split d σ k hk x]
+  rw [integral_sub (phi_integrable hσ d k hk x) (integrable_const _), pk_integral hσ d k hk x,
+    integral_const, probReal_univ, one_smul, sub_self]
+
+/-- The value `φ(x - z)` in the two forms. -/
+theorem phi_value (d : ℕ) (σ : ℝ) (k : ℕ) (hk : 1 ≤ k) (x z : FlatTorus d) :
+    pker d σ (x - z) * heatTorus d (2 * Real.pi ^ 2 * ((k : ℝ) * σ)) (z - x)
+      = heatP d σ k (x - z) * pker d σ (x - z) := by
+  have e := phi0_split d σ k hk x z
+  unfold phi0 at e
+  linarith
+
+theorem phi0_var {σ : ℝ} (hσ : 0 < σ) (d k : ℕ) (hk : 1 ≤ k) (x : FlatTorus d) :
+    ∫ z, phi0 d σ k (x - z) ^ 2 ∂flatTorusMeasure d ≤ torusM d σ 1 * torusM d σ k ^ 2 := by
+  have hc : Continuous fun z : FlatTorus d => phi0 d σ k (x - z) :=
+    (phi0_continuous hσ d k hk).comp (continuous_const.sub continuous_id)
+  have i1 := phi_integrable hσ d k hk x
+  have i2 : Integrable (fun z : FlatTorus d =>
+      (torusM d σ 1 * torusM d σ k - 2 * torusM d σ (k + 1))
+        * (pker d σ (x - z) * heatTorus d (2 * Real.pi ^ 2 * ((k : ℝ) * σ)) (z - x)))
+      (flatTorusMeasure d) := i1.const_mul _
+  have i3 : Integrable (fun z : FlatTorus d =>
+      (torusM d σ 1 * torusM d σ k - 2 * torusM d σ (k + 1))
+        * (pker d σ (x - z) * heatTorus d (2 * Real.pi ^ 2 * ((k : ℝ) * σ)) (z - x))
+      + torusM d σ (k + 1) ^ 2) (flatTorusMeasure d) := i2.add (integrable_const _)
+  obtain ⟨-, -, f2, f3⟩ := phi_facts hσ d k hk 0
+  have hM := torusM_one_ge hσ d
+  have hpt : ∀ z, phi0 d σ k (x - z) ^ 2
+      ≤ (torusM d σ 1 * torusM d σ k - 2 * torusM d σ (k + 1))
+          * (pker d σ (x - z) * heatTorus d (2 * Real.pi ^ 2 * ((k : ℝ) * σ)) (z - x))
+        + torusM d σ (k + 1) ^ 2 := by
+    intro z
+    obtain ⟨g0, g1, -, -⟩ := phi_facts hσ d k hk (x - z)
+    rw [← phi_value d σ k hk x z] at g0 g1
+    have h := mul_nonneg g0 (sub_nonneg.mpr g1)
+    rw [phi0_split d σ k hk x z]
+    nlinarith
+  calc ∫ z, phi0 d σ k (x - z) ^ 2 ∂flatTorusMeasure d
+      ≤ ∫ z, ((torusM d σ 1 * torusM d σ k - 2 * torusM d σ (k + 1))
+          * (pker d σ (x - z) * heatTorus d (2 * Real.pi ^ 2 * ((k : ℝ) * σ)) (z - x))
+        + torusM d σ (k + 1) ^ 2) ∂flatTorusMeasure d :=
+        integral_mono (flat_integrable d _ (hc.pow 2)) i3 hpt
+    _ = (torusM d σ 1 * torusM d σ k - 2 * torusM d σ (k + 1)) * torusM d σ (k + 1)
+          + torusM d σ (k + 1) ^ 2 := by
+        rw [integral_add i2 (integrable_const _), integral_const_mul, pk_integral hσ d k hk x,
+          integral_const, probReal_univ, one_smul]
+    _ ≤ torusM d σ 1 * torusM d σ k ^ 2 := by
+        have h1 := mul_le_mul_of_nonneg_left f3
+          (mul_nonneg (by linarith : (0 : ℝ) ≤ torusM d σ 1) (f2.trans f3))
+        nlinarith [_root_.sq_nonneg (torusM d σ (k + 1))]
+
+theorem phi0_l1 {σ : ℝ} (hσ : 0 < σ) (d k : ℕ) (hk : 1 ≤ k) (x : FlatTorus d) :
+    ∫ z, |phi0 d σ k (x - z)| ∂flatTorusMeasure d ≤ 2 * torusM d σ k := by
+  have hc : Continuous fun z : FlatTorus d => phi0 d σ k (x - z) :=
+    (phi0_continuous hσ d k hk).comp (continuous_const.sub continuous_id)
+  have i1 := phi_integrable hσ d k hk x
+  have i3 : Integrable (fun z : FlatTorus d =>
+      pker d σ (x - z) * heatTorus d (2 * Real.pi ^ 2 * ((k : ℝ) * σ)) (z - x)
+        + torusM d σ (k + 1)) (flatTorusMeasure d) := i1.add (integrable_const _)
+  obtain ⟨-, -, f2, f3⟩ := phi_facts hσ d k hk 0
+  have hpt : ∀ z, |phi0 d σ k (x - z)|
+      ≤ pker d σ (x - z) * heatTorus d (2 * Real.pi ^ 2 * ((k : ℝ) * σ)) (z - x)
+        + torusM d σ (k + 1) := by
+    intro z
+    obtain ⟨g0, -, -, -⟩ := phi_facts hσ d k hk (x - z)
+    rw [← phi_value d σ k hk x z] at g0
+    rw [phi0_split d σ k hk x z]
+    exact abs_le.mpr ⟨by linarith, by linarith⟩
+  calc ∫ z, |phi0 d σ k (x - z)| ∂flatTorusMeasure d
+      ≤ ∫ z, (pker d σ (x - z) * heatTorus d (2 * Real.pi ^ 2 * ((k : ℝ) * σ)) (z - x)
+          + torusM d σ (k + 1)) ∂flatTorusMeasure d :=
+        integral_mono (flat_integrable d _ hc.abs) i3 hpt
+    _ = torusM d σ (k + 1) + torusM d σ (k + 1) := by
+        rw [integral_add i1 (integrable_const _), pk_integral hσ d k hk x, integral_const,
+          probReal_univ, one_smul]
+    _ ≤ 2 * torusM d σ k := by linarith
+
+theorem FA_eq (d : ℕ) (σ : ℝ) (k : ℕ) (y1 y2 : FlatTorus d) :
+    FA d σ k y1 y2 = phi0 d σ k (y1 - y2) + torusM d σ (k + 1) := by
+  unfold FA phi0; ring
+
+theorem FA_symm (d : ℕ) (σ : ℝ) (k : ℕ) (y1 y2 : FlatTorus d) :
+    FA d σ k y1 y2 = FA d σ k y2 y1 := by
+  rw [FA_eq, FA_eq, ← neg_sub y2 y1, phi0_even]
+
+/-- Pure arithmetic: the bound of `triple_abs_le` with the torus constants is `≤ 10 (M/N) m`. -/
+theorem Z_arith {M m N Z s1 s2 s3 p0 c0 : ℝ} (hM1 : 1 ≤ M) (hMN : M ≤ N) (hm : 0 ≤ m)
+    (hs1 : s1 ≤ 2 * M * m) (hs2 : s2 ≤ 3 * M * m) (hs3 : s3 ≤ 2 * M)
+    (hs1' : 0 ≤ s1) (hs3' : 0 ≤ s3) (hp : p0 ≤ M * m) (hc0 : 0 ≤ c0) (hc : c0 ≤ M)
+    (hZ : Z ≤ 1 / N ^ 3 * (N ^ 2 * s2 + p0 * (N * s3 + N * c0) + c0 * (N * s1)
+      + N ^ 2 * (M * (2 * m)))) :
+    Z ≤ 10 * (M / N) * m := by
+  have hN : 0 < N := by linarith
+  have hM0 : 0 ≤ M := by linarith
+  have hMm : 0 ≤ M * m := mul_nonneg hM0 hm
+  have t1 : N ^ 2 * s2 ≤ N ^ 2 * (3 * M * m) := mul_le_mul_of_nonneg_left hs2 (pow_pos hN 2).le
+  have t2a : N * s3 + N * c0 ≤ N * (2 * M) + N * M := by
+    have := mul_le_mul_of_nonneg_left hs3 hN.le
+    have := mul_le_mul_of_nonneg_left hc hN.le
+    linarith
+  have t2 : p0 * (N * s3 + N * c0) ≤ M * m * (N * (2 * M) + N * M) :=
+    mul_le_mul hp t2a (add_nonneg (mul_nonneg hN.le hs3') (mul_nonneg hN.le hc0)) hMm
+  have t3a : N * s1 ≤ N * (2 * M * m) := mul_le_mul_of_nonneg_left hs1 hN.le
+  have t3 : c0 * (N * s1) ≤ M * (N * (2 * M * m)) :=
+    mul_le_mul hc t3a (mul_nonneg hN.le hs1') hM0
+  have hZ' : Z ≤ 1 / N ^ 3 * (5 * M * m * N ^ 2 + 5 * M ^ 2 * m * N) := by
+    refine hZ.trans (mul_le_mul_of_nonneg_left ?_ (div_nonneg zero_le_one (pow_pos hN 3).le))
+    nlinarith
+  have key : 1 / N ^ 3 * (5 * M * m * N ^ 2 + 5 * M ^ 2 * m * N)
+      = 5 * M * m / N + 5 * M ^ 2 * m / N ^ 2 := by
+    have hN' : N ≠ 0 := hN.ne'
+    first | (field_simp; ring) | field_simp
+  have h5 : 5 * M ^ 2 * m / N ^ 2 ≤ 5 * M * m / N := by
+    rw [div_le_div_iff₀ (pow_pos hN 2) hN]
+    nlinarith [mul_nonneg (mul_nonneg hMm hN.le) (sub_nonneg.mpr hMN)]
+  have e10 : 10 * (M / N) * m = 5 * M * m / N + 5 * M * m / N := by
+    have hN' : N ≠ 0 := hN.ne'
+    first | (field_simp; ring) | field_simp
+  linarith
+
+section SampleFA
+
+variable {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+
+/-- The hypotheses `Deg3` hold for `φ⁰` and `c`. -/
+theorem torus_deg3F [IsProbabilityMeasure μ] {d : ℕ} (X : ℕ → Ω → FlatTorus d)
+    (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) {σ : ℝ} (hσ : 0 < σ) (k : ℕ) (hk : 1 ≤ k) :
+    Deg3 μ (flatTorusMeasure d) X (phi0 d σ k) (cK d σ) (torusM d σ 1 * torusM d σ k)
+      (torusM d σ 1) (torusM d σ 1 * torusM d σ k ^ 2) (torusM d σ 1) :=
+  { hψ :=
+      { indep := h_indep
+        meas := hX
+        law := hlaw
+        psi_meas := (phi0_continuous hσ d k hk).measurable
+        bound := phi0_bound hσ d k hk
+        even := phi0_even d σ k
+        mean := phi0_mean hσ d k hk
+        var := phi0_var hσ d k hk
+        V_nonneg := (torus_deg3 X h_indep hX hlaw hσ k hk).hψ.V_nonneg }
+    hc := (torus_deg3 X h_indep hX hlaw hσ k hk).hc }
+
+/-- `∑_{i,b,v} F_A(x_i,x_b) c(x_b - x_v) = ∑ φ⁰ c + m_{k+1} N ∑_{b,v} c(x_b - x_v)`. -/
+theorem FA_sum2 {d : ℕ} (σ : ℝ) (k N : ℕ) (x : ℕ → FlatTorus d) :
+    ∑ i ∈ Finset.range N, ∑ b ∈ Finset.range N, ∑ v ∈ Finset.range N,
+        FA d σ k (x i) (x b) * cK d σ (x b - x v)
+      = ∑ i ∈ Finset.range N, ∑ b ∈ Finset.range N, ∑ v ∈ Finset.range N,
+          phi0 d σ k (x i - x b) * cK d σ (x b - x v)
+        + torusM d σ (k + 1)
+          * (N * ∑ b ∈ Finset.range N, ∑ v ∈ Finset.range N, cK d σ (x b - x v)) := by
+  simp only [FA_eq, add_mul, Finset.sum_add_distrib, ← Finset.mul_sum, Finset.sum_const,
+    Finset.card_range, nsmul_eq_mul]
+
+/-- The sum for `a = 1` equals the sum for `a = 2` (`F_A` is symmetric). -/
+theorem FA_sum1 {d : ℕ} (σ : ℝ) (k N : ℕ) (x : ℕ → FlatTorus d) :
+    ∑ i ∈ Finset.range N, ∑ b ∈ Finset.range N, ∑ v ∈ Finset.range N,
+        FA d σ k (x i) (x b) * cK d σ (x i - x v)
+      = ∑ i ∈ Finset.range N, ∑ b ∈ Finset.range N, ∑ v ∈ Finset.range N,
+          FA d σ k (x i) (x b) * cK d σ (x b - x v) :=
+  Finset.sum_comm.trans (Finset.sum_congr rfl fun b _ => Finset.sum_congr rfl fun i _ =>
+    Finset.sum_congr rfl fun v _ => by rw [FA_symm])
+
+/-- `E|∑_{i,b,v} F_A(X_i,X_b) c(X_b - X_v)|`. -/
+theorem FA_triple_abs_le [IsProbabilityMeasure μ] {d : ℕ} (X : ℕ → Ω → FlatTorus d)
+    (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) {σ : ℝ} (hσ : 0 < σ) (k : ℕ) (hk : 1 ≤ k)
+    (N : ℕ) :
+    ∫ ω, |∑ i ∈ Finset.range N, ∑ b ∈ Finset.range N, ∑ v ∈ Finset.range N,
+        FA d σ k (X i ω) (X b ω) * cK d σ (X b ω - X v ω)| ∂μ
+      ≤ ((N : ℝ) ^ 2 * Real.sqrt (6 * (torusM d σ 1 * torusM d σ k ^ 2 * torusM d σ 1))
+          + |phi0 d σ k 0| * (N * Real.sqrt (2 * torusM d σ 1) + N * |cK d σ 0|)
+          + |cK d σ 0| * (N * Real.sqrt (2 * (torusM d σ 1 * torusM d σ k ^ 2)))
+          + (N : ℝ) ^ 2 * (torusM d σ 1 * (2 * torusM d σ k)))
+        + torusM d σ (k + 1)
+          * (N * (N * Real.sqrt (2 * torusM d σ 1) + N * |cK d σ 0|)) := by
+  have H := torus_deg3F X h_indep hX hlaw hσ k hk
+  obtain ⟨-, -, f2, -⟩ := phi_facts hσ d k hk 0
+  have hT := H.triple_abs_le (phi0_l1 hσ d k hk) N
+  have hC := H.hc.full_abs_le N
+  have iT : Integrable (fun ω => |∑ i ∈ Finset.range N, ∑ b ∈ Finset.range N,
+      ∑ v ∈ Finset.range N, phi0 d σ k (X i ω - X b ω) * cK d σ (X b ω - X v ω)|) μ :=
+    (H.triple_integrable N).abs
+  have iC : Integrable (fun ω => torusM d σ (k + 1) * (N * |∑ b ∈ Finset.range N,
+      ∑ v ∈ Finset.range N, cK d σ (X b ω - X v ω)|)) μ :=
+    (((H.hc.full_integrable N).abs).const_mul _).const_mul _
+  have iTC : Integrable (fun ω => |∑ i ∈ Finset.range N, ∑ b ∈ Finset.range N,
+      ∑ v ∈ Finset.range N, phi0 d σ k (X i ω - X b ω) * cK d σ (X b ω - X v ω)|
+      + torusM d σ (k + 1) * (N * |∑ b ∈ Finset.range N,
+        ∑ v ∈ Finset.range N, cK d σ (X b ω - X v ω)|)) μ := iT.add iC
+  have hpt : ∀ ω, |∑ i ∈ Finset.range N, ∑ b ∈ Finset.range N, ∑ v ∈ Finset.range N,
+        FA d σ k (X i ω) (X b ω) * cK d σ (X b ω - X v ω)|
+      ≤ |∑ i ∈ Finset.range N, ∑ b ∈ Finset.range N,
+          ∑ v ∈ Finset.range N, phi0 d σ k (X i ω - X b ω) * cK d σ (X b ω - X v ω)|
+        + torusM d σ (k + 1) * (N * |∑ b ∈ Finset.range N,
+          ∑ v ∈ Finset.range N, cK d σ (X b ω - X v ω)|) := by
+    intro ω
+    rw [FA_sum2 σ k N (fun j => X j ω)]
+    refine (abs_add_le _ _).trans (add_le_add le_rfl (le_of_eq ?_))
+    rw [abs_mul, abs_mul, abs_of_nonneg f2, abs_of_nonneg (Nat.cast_nonneg N : (0 : ℝ) ≤ (N : ℝ))]
+  calc ∫ ω, |∑ i ∈ Finset.range N, ∑ b ∈ Finset.range N, ∑ v ∈ Finset.range N,
+          FA d σ k (X i ω) (X b ω) * cK d σ (X b ω - X v ω)| ∂μ
+      ≤ ∫ ω, (|∑ i ∈ Finset.range N, ∑ b ∈ Finset.range N,
+            ∑ v ∈ Finset.range N, phi0 d σ k (X i ω - X b ω) * cK d σ (X b ω - X v ω)|
+          + torusM d σ (k + 1) * (N * |∑ b ∈ Finset.range N,
+            ∑ v ∈ Finset.range N, cK d σ (X b ω - X v ω)|)) ∂μ :=
+        integral_mono_of_nonneg (Filter.Eventually.of_forall fun ω => abs_nonneg _) iTC
+          (Filter.Eventually.of_forall hpt)
+    _ = ∫ ω, |∑ i ∈ Finset.range N, ∑ b ∈ Finset.range N,
+            ∑ v ∈ Finset.range N, phi0 d σ k (X i ω - X b ω) * cK d σ (X b ω - X v ω)| ∂μ
+          + torusM d σ (k + 1) * (N * ∫ ω, |∑ b ∈ Finset.range N,
+            ∑ v ∈ Finset.range N, cK d σ (X b ω - X v ω)| ∂μ) := by
+        rw [integral_add iT iC, integral_const_mul, integral_const_mul]
+    _ ≤ _ := by
+        have h1 := mul_le_mul_of_nonneg_left
+          (mul_le_mul_of_nonneg_left hC (Nat.cast_nonneg N : (0 : ℝ) ≤ (N : ℝ))) f2
+        linarith
+
+theorem Z1_FA2_conv {d : ℕ} (σ : ℝ) (k N : ℕ) (x : ℕ → FlatTorus d) :
+    Zs1two2 N (fun i b : Fin N => FA d σ k (x i) (x b)) (cmat d σ N x)
+      = 1 / (N : ℝ) ^ 3 * ∑ i ∈ Finset.range N, ∑ b ∈ Finset.range N, ∑ v ∈ Finset.range N,
+          FA d σ k (x i) (x b) * cK d σ (x b - x v) :=
+  congrArg (fun t => 1 / (N : ℝ) ^ 3 * t)
+    ((Fin.sum_univ_eq_sum_range (fun i => ∑ j : Fin N, ∑ v : Fin N,
+        FA d σ k (x i) (x j) * (pker d σ (x j - x v) - 1)) N).trans
+      (Finset.sum_congr rfl fun i _ =>
+        (Fin.sum_univ_eq_sum_range (fun j => ∑ v : Fin N,
+          FA d σ k (x i) (x j) * (pker d σ (x j - x v) - 1)) N).trans
+        (Finset.sum_congr rfl fun j _ =>
+          Fin.sum_univ_eq_sum_range (fun v => FA d σ k (x i) (x j) * cK d σ (x j - x v)) N)))
+
+theorem Z1_FA1_conv {d : ℕ} (σ : ℝ) (k N : ℕ) (x : ℕ → FlatTorus d) :
+    Zs1two1 N (fun i b : Fin N => FA d σ k (x i) (x b)) (cmat d σ N x)
+      = 1 / (N : ℝ) ^ 3 * ∑ i ∈ Finset.range N, ∑ b ∈ Finset.range N, ∑ v ∈ Finset.range N,
+          FA d σ k (x i) (x b) * cK d σ (x i - x v) :=
+  congrArg (fun t => 1 / (N : ℝ) ^ 3 * t)
+    ((Fin.sum_univ_eq_sum_range (fun i => ∑ j : Fin N, ∑ v : Fin N,
+        FA d σ k (x i) (x j) * (pker d σ (x i - x v) - 1)) N).trans
+      (Finset.sum_congr rfl fun i _ =>
+        (Fin.sum_univ_eq_sum_range (fun j => ∑ v : Fin N,
+          FA d σ k (x i) (x j) * (pker d σ (x i - x v) - 1)) N).trans
+        (Finset.sum_congr rfl fun j _ =>
+          Fin.sum_univ_eq_sum_range (fun v => FA d σ k (x i) (x j) * cK d σ (x i - x v)) N)))
+
+/-- **`E|Z¹[F_A, a = 2]| ≤ 13 (M/N) m_k`** for `M ≤ N`. -/
+theorem Z1_FA2_bound [IsProbabilityMeasure μ] {d : ℕ} (X : ℕ → Ω → FlatTorus d)
+    (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) {σ : ℝ} (hσ : 0 < σ) (k : ℕ) (hk : 1 ≤ k)
+    (N : ℕ) (hN : 1 ≤ N) (hMN : torusM d σ 1 ≤ N) :
+    ∫ ω, |Zs1two2 N (fun i b : Fin N => FA d σ k (X i ω) (X b ω))
+        (cmat d σ N (fun j => X j ω))| ∂μ
+      ≤ 13 * (torusM d σ 1 / N) * torusM d σ k := by
+  have hNpos : (0 : ℝ) < N := by exact_mod_cast hN
+  have hpos : (0 : ℝ) ≤ 1 / (N : ℝ) ^ 3 := by positivity
+  have hM1 := torusM_one_ge hσ d
+  have hM0 : 0 ≤ torusM d σ 1 := by linarith
+  obtain ⟨-, -, f2, f3⟩ := phi_facts hσ d k hk 0
+  have hm0 : 0 ≤ torusM d σ k := f2.trans f3
+  have hMm : 0 ≤ torusM d σ 1 * torusM d σ k := mul_nonneg hM0 hm0
+  have hfun : (fun ω => |Zs1two2 N (fun i b : Fin N => FA d σ k (X i ω) (X b ω))
+        (cmat d σ N (fun j => X j ω))|)
+      = fun ω => 1 / (N : ℝ) ^ 3 * |∑ i ∈ Finset.range N, ∑ b ∈ Finset.range N,
+          ∑ v ∈ Finset.range N, FA d σ k (X i ω) (X b ω) * cK d σ (X b ω - X v ω)| := by
+    funext ω
+    rw [Z1_FA2_conv σ k N (fun j => X j ω), abs_mul, abs_of_nonneg hpos]
+  have hB := FA_triple_abs_le X h_indep hX hlaw hσ k hk N
+  have hp := phi0_bound hσ d k hk 0
+  have hc := (cK_facts hσ d 0).1
+  have hs1 : Real.sqrt (2 * (torusM d σ 1 * torusM d σ k ^ 2))
+      ≤ 2 * torusM d σ 1 * torusM d σ k :=
+    sqrt_le_of_sq (mul_nonneg (mul_nonneg zero_le_two hM0) hm0) (by
+      nlinarith [mul_nonneg (mul_nonneg hM0 (_root_.sq_nonneg (torusM d σ k)))
+        (by linarith : (0 : ℝ) ≤ 2 * torusM d σ 1 - 1)])
+  have hs2 : Real.sqrt (6 * (torusM d σ 1 * torusM d σ k ^ 2 * torusM d σ 1))
+      ≤ 3 * torusM d σ 1 * torusM d σ k :=
+    sqrt_le_of_sq (mul_nonneg (mul_nonneg (by norm_num) hM0) hm0) (by
+      nlinarith [_root_.sq_nonneg (torusM d σ 1 * torusM d σ k)])
+  have hs3 : Real.sqrt (2 * torusM d σ 1) ≤ 2 * torusM d σ 1 :=
+    sqrt_le_of_sq (mul_nonneg zero_le_two hM0) (by
+      nlinarith [mul_nonneg hM0 (by linarith : (0 : ℝ) ≤ 2 * torusM d σ 1 - 1)])
+  have hZ := Z_arith hM1 hMN hm0 hs1 hs2 hs3 (Real.sqrt_nonneg _) (Real.sqrt_nonneg _) hp
+    (abs_nonneg (cK d σ 0)) hc (le_refl (1 / (N : ℝ) ^ 3 * ((N : ℝ) ^ 2
+      * Real.sqrt (6 * (torusM d σ 1 * torusM d σ k ^ 2 * torusM d σ 1))
+      + |phi0 d σ k 0| * (N * Real.sqrt (2 * torusM d σ 1) + N * |cK d σ 0|)
+      + |cK d σ 0| * (N * Real.sqrt (2 * (torusM d σ 1 * torusM d σ k ^ 2)))
+      + (N : ℝ) ^ 2 * (torusM d σ 1 * (2 * torusM d σ k)))))
+  -- the extra term `m_{k+1} (√(2M) + |c(0)|)/N ≤ 3 (M/N) m_k`
+  have hE : 1 / (N : ℝ) ^ 3 * (torusM d σ (k + 1)
+        * (N * (N * Real.sqrt (2 * torusM d σ 1) + N * |cK d σ 0|)))
+      ≤ 3 * (torusM d σ 1 / N) * torusM d σ k := by
+    have e1 : 1 / (N : ℝ) ^ 3 * (torusM d σ (k + 1)
+          * (N * (N * Real.sqrt (2 * torusM d σ 1) + N * |cK d σ 0|)))
+        = torusM d σ (k + 1) * (Real.sqrt (2 * torusM d σ 1) + |cK d σ 0|) / N := by
+      have hN' : (N : ℝ) ≠ 0 := hNpos.ne'
+      first | (field_simp; ring) | field_simp
+    have e2 : 3 * (torusM d σ 1 / N) * torusM d σ k
+        = torusM d σ k * (3 * torusM d σ 1) / N := by ring
+    rw [e1, e2]
+    refine div_le_div_of_nonneg_right ?_ hNpos.le
+    exact mul_le_mul f3 (by linarith) (add_nonneg (Real.sqrt_nonneg _) (abs_nonneg _)) hm0
+  rw [hfun, integral_const_mul]
+  have h1 := mul_le_mul_of_nonneg_left hB hpos
+  rw [mul_add] at h1
+  linarith
+
+/-- **`E|Z¹[F_A, a = 1]| ≤ 13 (M/N) m_k`** for `M ≤ N` (it equals `Z¹[F_A, 2]`). -/
+theorem Z1_FA1_bound [IsProbabilityMeasure μ] {d : ℕ} (X : ℕ → Ω → FlatTorus d)
+    (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) {σ : ℝ} (hσ : 0 < σ) (k : ℕ) (hk : 1 ≤ k)
+    (N : ℕ) (hN : 1 ≤ N) (hMN : torusM d σ 1 ≤ N) :
+    ∫ ω, |Zs1two1 N (fun i b : Fin N => FA d σ k (X i ω) (X b ω))
+        (cmat d σ N (fun j => X j ω))| ∂μ
+      ≤ 13 * (torusM d σ 1 / N) * torusM d σ k := by
+  have e : (fun ω => |Zs1two1 N (fun i b : Fin N => FA d σ k (X i ω) (X b ω))
+        (cmat d σ N (fun j => X j ω))|)
+      = fun ω => |Zs1two2 N (fun i b : Fin N => FA d σ k (X i ω) (X b ω))
+        (cmat d σ N (fun j => X j ω))| := by
+    funext ω
+    rw [Z1_FA1_conv σ k N (fun j => X j ω), Z1_FA2_conv σ k N (fun j => X j ω),
+      FA_sum1 σ k N (fun j => X j ω)]
+  rw [e]
+  exact Z1_FA2_bound X h_indep hX hlaw hσ k hk N hN hMN
+
+end SampleFA
+
 
 end PiBound
 
