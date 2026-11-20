@@ -19363,6 +19363,554 @@ theorem eig_theorem_G38_set_measurable {Ω : Type*} {mΩ : MeasurableSpace Ω} {
 
 end ExceptionalSets
 
+/-! ### The shell of an index as a position in the enumeration of the lattice; hypothesis (H1) of the reduction for the sampled walk -/
+
+namespace ShellAndWalk
+
+/-! ## (1) Counting on the lattice: lexicographically positive frequencies against all nonzero ones -/
+
+/-- The squared length is invariant under `n ↦ -n`. -/
+theorem sumsq_neg {d : ℕ} (n : Fin d → ℤ) :
+    ∑ i, (((-n) i : ℤ) : ℝ) ^ 2 = ∑ i, ((n i : ℤ) : ℝ) ^ 2 :=
+  Finset.sum_congr rfl fun i _ => by
+    rw [Pi.neg_apply]
+    push_cast
+    ring
+
+/-- For a predicate `P` on frequencies that is invariant under `n ↦ -n`: if `H` is the set of
+    lexicographically positive `n` with `P n`, then `H ∪ (-H)` is the set of nonzero `n` with
+    `P n`, and it has `2 |H|` elements. -/
+theorem nonzero_finset {d : ℕ} {P : (Fin d → ℤ) → Prop} (hP : ∀ n, P n → P (-n))
+    {H : Finset (Fin d → ℤ)} (hH : ∀ n, n ∈ H ↔ lexPos d n ∧ P n) :
+    (∀ n, n ∈ H ∪ H.image (fun n => -n) ↔ n ≠ 0 ∧ P n) ∧
+      (H ∪ H.image (fun n => -n)).card = 2 * H.card := by
+  constructor
+  · intro n
+    rw [Finset.mem_union, Finset.mem_image]
+    constructor
+    · rintro (h | ⟨m, hm, hmn⟩)
+      · have h' := (hH n).mp h
+        exact ⟨lexPos_ne_zero h'.1, h'.2⟩
+      · have h' := (hH m).mp hm
+        have hmn' : -m = n := hmn
+        rw [← hmn']
+        refine ⟨?_, hP m h'.2⟩
+        intro h0
+        exact lexPos_ne_zero h'.1 (neg_eq_zero.mp h0)
+    · rintro ⟨h0, hp⟩
+      rcases lexPos_or_neg h0 with h | h
+      · exact Or.inl ((hH n).mpr ⟨h, hp⟩)
+      · exact Or.inr ⟨-n, (hH (-n)).mpr ⟨h, hP n hp⟩, neg_neg n⟩
+  · have hdisj : Disjoint H (H.image (fun n => -n)) := by
+      rw [Finset.disjoint_left]
+      intro n hn hn'
+      obtain ⟨m, hm, hmn⟩ := Finset.mem_image.mp hn'
+      have hmn' : -m = n := hmn
+      rw [← hmn'] at hn
+      exact lexPos_neg_not ((hH m).mp hm).1 ((hH (-m)).mp hn).1
+    have hc : (H.image (fun n => -n)).card = H.card :=
+      Finset.card_image_of_injective H (fun a b h => neg_injective h)
+    rw [Finset.card_union_of_disjoint hdisj, hc]
+    omega
+
+/-- The same with the zero frequency included (when `P 0` holds): `1 + 2 |H|` elements. -/
+theorem full_finset {d : ℕ} {P : (Fin d → ℤ) → Prop} (hP : ∀ n, P n → P (-n)) (h0 : P 0)
+    {H : Finset (Fin d → ℤ)} (hH : ∀ n, n ∈ H ↔ lexPos d n ∧ P n) :
+    (∀ n, n ∈ insert (0 : Fin d → ℤ) (H ∪ H.image (fun n => -n)) ↔ P n) ∧
+      (insert (0 : Fin d → ℤ) (H ∪ H.image (fun n => -n))).card = 1 + 2 * H.card := by
+  obtain ⟨hm, hc⟩ := nonzero_finset hP hH
+  constructor
+  · intro n
+    rw [Finset.mem_insert, hm]
+    constructor
+    · rintro (h | h)
+      · rw [h]; exact h0
+      · exact h.2
+    · intro hp
+      by_cases hn : n = 0
+      · exact Or.inl hn
+      · exact Or.inr ⟨hn, hp⟩
+  · have hnot : (0 : Fin d → ℤ) ∉ H ∪ H.image (fun n => -n) := by
+      intro h
+      exact ((hm 0).mp h).1 rfl
+    rw [Finset.card_insert_of_notMem hnot, hc]
+    omega
+
+/-- Any finite set described as "nonzero and `P`" has `2 |H|` elements. -/
+theorem card_nonzero_eq {d : ℕ} {P : (Fin d → ℤ) → Prop} (hP : ∀ n, P n → P (-n))
+    {H B : Finset (Fin d → ℤ)} (hH : ∀ n, n ∈ H ↔ lexPos d n ∧ P n)
+    (hB : ∀ n, n ∈ B ↔ n ≠ 0 ∧ P n) : B.card = 2 * H.card := by
+  obtain ⟨hm, hc⟩ := nonzero_finset hP hH
+  have hBe : B = H ∪ H.image (fun n => -n) := Finset.ext fun n => by rw [hB, hm]
+  rw [hBe, hc]
+
+/-- Any finite set described as "`P`" (with `P 0`) has `1 + 2 |H|` elements. -/
+theorem card_full_eq {d : ℕ} {P : (Fin d → ℤ) → Prop} (hP : ∀ n, P n → P (-n)) (h0 : P 0)
+    {H Z : Finset (Fin d → ℤ)} (hH : ∀ n, n ∈ H ↔ lexPos d n ∧ P n)
+    (hZ : ∀ n, n ∈ Z ↔ P n) : Z.card = 1 + 2 * H.card := by
+  obtain ⟨hm, hc⟩ := full_finset hP h0 hH
+  have hZe : Z = insert (0 : Fin d → ℤ) (H ∪ H.image (fun n => -n)) :=
+    Finset.ext fun n => by rw [hZ, hm]
+  rw [hZe, hc]
+
+/-- **Nonzero frequencies with `|n|² ≤ r`: twice the lexicographically positive ones.** -/
+theorem card_nonzero_le {d : ℕ} {r : ℝ} {Hle B : Finset (Fin d → ℤ)}
+    (hle : ∀ n, n ∈ Hle ↔ lexPos d n ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 ≤ r)
+    (hB : ∀ n, n ∈ B ↔ n ≠ 0 ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 ≤ r) :
+    B.card = 2 * Hle.card :=
+  card_nonzero_eq (P := fun n : Fin d → ℤ => ∑ i, ((n i : ℤ) : ℝ) ^ 2 ≤ r)
+    (fun n h => by
+      show ∑ i, (((-n) i : ℤ) : ℝ) ^ 2 ≤ r
+      rw [sumsq_neg]; exact h) hle hB
+
+/-- **Nonzero frequencies with `|n|² < r`: twice the lexicographically positive ones.** -/
+theorem card_nonzero_lt {d : ℕ} {r : ℝ} {Hlt B : Finset (Fin d → ℤ)}
+    (hlt : ∀ n, n ∈ Hlt ↔ lexPos d n ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 < r)
+    (hB : ∀ n, n ∈ B ↔ n ≠ 0 ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 < r) :
+    B.card = 2 * Hlt.card :=
+  card_nonzero_eq (P := fun n : Fin d → ℤ => ∑ i, ((n i : ℤ) : ℝ) ^ 2 < r)
+    (fun n h => by
+      show ∑ i, (((-n) i : ℤ) : ℝ) ^ 2 < r
+      rw [sumsq_neg]; exact h) hlt hB
+
+/-- All frequencies with `|n|² ≤ r` (`r ≥ 0`): one more than twice the lexicographically
+    positive ones. -/
+theorem card_all_le {d : ℕ} {r : ℝ} (hr : 0 ≤ r) {Hle Z : Finset (Fin d → ℤ)}
+    (hle : ∀ n, n ∈ Hle ↔ lexPos d n ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 ≤ r)
+    (hZ : ∀ n, n ∈ Z ↔ ∑ i, ((n i : ℤ) : ℝ) ^ 2 ≤ r) :
+    Z.card = 1 + 2 * Hle.card :=
+  card_full_eq (P := fun n : Fin d → ℤ => ∑ i, ((n i : ℤ) : ℝ) ^ 2 ≤ r)
+    (fun n h => by
+      show ∑ i, (((-n) i : ℤ) : ℝ) ^ 2 ≤ r
+      rw [sumsq_neg]; exact h)
+    (by
+      show ∑ i, (((0 : Fin d → ℤ) i : ℤ) : ℝ) ^ 2 ≤ r
+      simpa using hr) hle hZ
+
+/-- All frequencies with `|n|² < r` (`r > 0`): one more than twice the lexicographically
+    positive ones. -/
+theorem card_all_lt {d : ℕ} {r : ℝ} (hr : 0 < r) {Hlt Z : Finset (Fin d → ℤ)}
+    (hlt : ∀ n, n ∈ Hlt ↔ lexPos d n ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 < r)
+    (hZ : ∀ n, n ∈ Z ↔ ∑ i, ((n i : ℤ) : ℝ) ^ 2 < r) :
+    Z.card = 1 + 2 * Hlt.card :=
+  card_full_eq (P := fun n : Fin d → ℤ => ∑ i, ((n i : ℤ) : ℝ) ^ 2 < r)
+    (fun n h => by
+      show ∑ i, (((-n) i : ℤ) : ℝ) ^ 2 < r
+      rw [sumsq_neg]; exact h)
+    (by
+      show ∑ i, (((0 : Fin d → ℤ) i : ℤ) : ℝ) ^ 2 < r
+      simpa using hr) hlt hZ
+
+/-- **The shell condition as a statement about counts of nonzero frequencies.** The index
+    condition `1 + 2 #Hlt ≤ j ≤ 2 #Hle` of the eigenvalue theorems is
+    `#{n ≠ 0 : |n|² < r} < j ≤ #{n ≠ 0 : |n|² ≤ r}`. -/
+theorem shell_count_iff {d : ℕ} {r : ℝ} {Hlt Hle Blt Ble : Finset (Fin d → ℤ)}
+    (hlt : ∀ n, n ∈ Hlt ↔ lexPos d n ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 < r)
+    (hle : ∀ n, n ∈ Hle ↔ lexPos d n ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 ≤ r)
+    (hBlt : ∀ n, n ∈ Blt ↔ n ≠ 0 ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 < r)
+    (hBle : ∀ n, n ∈ Ble ↔ n ≠ 0 ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 ≤ r) (j : ℕ) :
+    (1 + 2 * Hlt.card ≤ j ∧ j ≤ 2 * Hle.card) ↔ (Blt.card < j ∧ j ≤ Ble.card) := by
+  rw [card_nonzero_lt hlt hBlt, card_nonzero_le hle hBle]
+  omega
+
+/-- **The shell condition as a statement about counts of all frequencies** (`r > 0`): with the
+    index `j` counted from zero, `#{n : |n|² < r} ≤ j < #{n : |n|² ≤ r}`. -/
+theorem shell_count_all_iff {d : ℕ} {r : ℝ} (hr : 0 < r) {Hlt Hle Zlt Zle : Finset (Fin d → ℤ)}
+    (hlt : ∀ n, n ∈ Hlt ↔ lexPos d n ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 < r)
+    (hle : ∀ n, n ∈ Hle ↔ lexPos d n ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 ≤ r)
+    (hZlt : ∀ n, n ∈ Zlt ↔ ∑ i, ((n i : ℤ) : ℝ) ^ 2 < r)
+    (hZle : ∀ n, n ∈ Zle ↔ ∑ i, ((n i : ℤ) : ℝ) ^ 2 ≤ r) (j : ℕ) :
+    (1 + 2 * Hlt.card ≤ j ∧ j ≤ 2 * Hle.card) ↔ (Zlt.card ≤ j ∧ j < Zle.card) := by
+  rw [card_all_lt hr hlt hZlt, card_all_le hr.le hle hZle]
+  omega
+
+/-- Abstract enumeration fact: if `e : ℕ → α` is a bijection and `Q` is closed downwards along
+    `e`, and `Z` is the finite set of all `a` with `Q a`, then `Q (e j) ↔ j < #Z`. -/
+theorem enum_mem_iff {α : Type*} [DecidableEq α] (e : ℕ → α) (he : Function.Bijective e)
+    {Q : α → Prop} (hQ : ∀ i j, i ≤ j → Q (e j) → Q (e i)) {Z : Finset α}
+    (hZ : ∀ a, a ∈ Z ↔ Q a) (j : ℕ) : Q (e j) ↔ j < Z.card := by
+  constructor
+  · intro h
+    have hc : (Finset.range (j + 1)).card ≤ Z.card := by
+      refine Finset.card_le_card_of_injOn (s := Finset.range (j + 1)) (t := Z) e ?_ ?_
+      · intro i hi
+        have hi' : i < j + 1 := Finset.mem_range.mp hi
+        exact (hZ (e i)).mpr (hQ i j (by omega) h)
+      · intro a _ b _ hab
+        exact he.1 hab
+    rw [Finset.card_range] at hc
+    omega
+  · intro h
+    by_contra hn
+    have hsub : Z ⊆ (Finset.range j).image e := by
+      intro a ha
+      obtain ⟨i, hi⟩ := he.2 a
+      have hq : Q (e i) := by rw [hi]; exact (hZ a).mp ha
+      have hij : i < j := by
+        by_contra hge
+        exact hn (hQ j i (by omega) hq)
+      exact Finset.mem_image.mpr ⟨i, Finset.mem_range.mpr hij, hi⟩
+    have h1 := Finset.card_le_card hsub
+    have h2 : ((Finset.range j).image e).card ≤ (Finset.range j).card := Finset.card_image_le
+    rw [Finset.card_range] at h2
+    omega
+
+/-- **The shell of an index is the value of `|n|²` at that position.** Let `e` be ANY
+    enumeration of `ℤ^d` (a bijection `ℕ → ℤ^d`, index counted from zero) along which `|n|²` is
+    non-decreasing. Then for `r > 0` the index condition `1 + 2 #Hlt ≤ j ≤ 2 #Hle` of the
+    eigenvalue theorems holds if and only if `|e j|² = r`. -/
+theorem shell_position {d : ℕ} (e : ℕ → (Fin d → ℤ)) (he : Function.Bijective e)
+    (hmono : ∀ i j, i ≤ j → ∑ t, ((e i t : ℤ) : ℝ) ^ 2 ≤ ∑ t, ((e j t : ℤ) : ℝ) ^ 2)
+    {r : ℝ} (hr : 0 < r) {Hlt Hle : Finset (Fin d → ℤ)}
+    (hlt : ∀ n, n ∈ Hlt ↔ lexPos d n ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 < r)
+    (hle : ∀ n, n ∈ Hle ↔ lexPos d n ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 ≤ r) (j : ℕ) :
+    (1 + 2 * Hlt.card ≤ j ∧ j ≤ 2 * Hle.card) ↔ ∑ t, ((e j t : ℤ) : ℝ) ^ 2 = r := by
+  obtain ⟨hmlt, hclt⟩ := full_finset (P := fun n : Fin d → ℤ => ∑ i, ((n i : ℤ) : ℝ) ^ 2 < r)
+    (fun n h => by
+      show ∑ i, (((-n) i : ℤ) : ℝ) ^ 2 < r
+      rw [sumsq_neg]; exact h)
+    (by
+      show ∑ i, (((0 : Fin d → ℤ) i : ℤ) : ℝ) ^ 2 < r
+      simpa using hr) hlt
+  obtain ⟨hmle, hcle⟩ := full_finset (P := fun n : Fin d → ℤ => ∑ i, ((n i : ℤ) : ℝ) ^ 2 ≤ r)
+    (fun n h => by
+      show ∑ i, (((-n) i : ℤ) : ℝ) ^ 2 ≤ r
+      rw [sumsq_neg]; exact h)
+    (by
+      show ∑ i, (((0 : Fin d → ℤ) i : ℤ) : ℝ) ^ 2 ≤ r
+      simpa using hr.le) hle
+  have a1 : (∑ t, ((e j t : ℤ) : ℝ) ^ 2 < r) ↔ j < 1 + 2 * Hlt.card := by
+    have h := enum_mem_iff e he (Q := fun n : Fin d → ℤ => ∑ i, ((n i : ℤ) : ℝ) ^ 2 < r)
+      (fun i j hij h => lt_of_le_of_lt (hmono i j hij) h) hmlt j
+    rw [hclt] at h
+    exact h
+  have a2 : (∑ t, ((e j t : ℤ) : ℝ) ^ 2 ≤ r) ↔ j < 1 + 2 * Hle.card := by
+    have h := enum_mem_iff e he (Q := fun n : Fin d → ℤ => ∑ i, ((n i : ℤ) : ℝ) ^ 2 ≤ r)
+      (fun i j hij h => le_trans (hmono i j hij) h) hmle j
+    rw [hcle] at h
+    exact h
+  constructor
+  · rintro ⟨h1, h2⟩
+    have b1 : ¬ (∑ t, ((e j t : ℤ) : ℝ) ^ 2 < r) := fun h => by
+      have := a1.mp h
+      omega
+    have b2 : ∑ t, ((e j t : ℤ) : ℝ) ^ 2 ≤ r := a2.mpr (by omega)
+    exact le_antisymm b2 (not_lt.mp b1)
+  · intro h
+    have b1 : ¬ (j < 1 + 2 * Hlt.card) := fun hh => by
+      have h3 : ∑ t, ((e j t : ℤ) : ℝ) ^ 2 < r := a1.mpr hh
+      rw [h] at h3
+      exact lt_irrefl _ h3
+    have b2 : j < 1 + 2 * Hle.card := a2.mp (le_of_eq h)
+    exact ⟨by omega, by omega⟩
+
+/-! ## (2) Hypothesis (H1) of the reduction for the sampled walk, deterministic -/
+
+/-- Scalar fact behind `|θ| ≤ 4δ`. -/
+theorem ratio_near_one {δ u r : ℝ} (hδ0 : 0 ≤ δ) (hδ : δ ≤ 1 / 8)
+    (hu1 : 1 ≤ u * (1 + δ)) (hu2 : u * (1 - δ) ≤ 1)
+    (hr1 : 1 - δ ≤ r * (1 + δ)) (hr2 : r * (1 - δ) ≤ 1 + δ) :
+    0 < r ∧ |u / r - 1| ≤ 4 * δ := by
+  have hpos2 : 0 < (1 - δ) * (1 + δ) := mul_pos (by linarith) (by linarith)
+  have hr : 0 < r := by
+    have h1 : 0 < r * (1 + δ) := lt_of_lt_of_le (by linarith) hr1
+    exact (mul_pos_iff_of_pos_right (by linarith)).mp h1
+  have hup : u ≤ (1 + 4 * δ) * r := by
+    refine le_of_mul_le_mul_right ?_ hpos2
+    have a1 : (1 + δ) * (u * (1 - δ)) ≤ (1 + δ) * 1 :=
+      mul_le_mul_of_nonneg_left hu2 (by linarith)
+    have a2 : (1 + 4 * δ) * (1 - δ) * (1 - δ) ≤ (1 + 4 * δ) * (1 - δ) * (r * (1 + δ)) :=
+      mul_le_mul_of_nonneg_left hr1 (mul_nonneg (by linarith) (by linarith))
+    have hpoly : 0 ≤ δ * (1 - 7 * δ + 4 * δ ^ 2) :=
+      mul_nonneg hδ0 (by nlinarith [_root_.sq_nonneg δ])
+    nlinarith [a1, a2, hpoly]
+  have hlow : (1 - 4 * δ) * r ≤ u := by
+    refine le_of_mul_le_mul_right ?_ hpos2
+    have b1 : (1 - 4 * δ) * (1 + δ) * (r * (1 - δ)) ≤ (1 - 4 * δ) * (1 + δ) * (1 + δ) :=
+      mul_le_mul_of_nonneg_left hr2 (mul_nonneg (by linarith) (by linarith))
+    have b2 : (1 - δ) * 1 ≤ (1 - δ) * (u * (1 + δ)) :=
+      mul_le_mul_of_nonneg_left hu1 (by linarith)
+    have hpoly : 0 ≤ δ * (1 + 7 * δ + 4 * δ ^ 2) :=
+      mul_nonneg hδ0 (by nlinarith [_root_.sq_nonneg δ])
+    nlinarith [b1, b2, hpoly]
+  refine ⟨hr, abs_le.mpr ⟨?_, ?_⟩⟩
+  · have h : 1 - 4 * δ ≤ u / r := by
+      rw [le_div_iff₀ hr]; exact hlow
+    linarith
+  · have h : u / r ≤ 1 + 4 * δ := by
+      rw [div_le_iff₀ hr]; exact hup
+    linarith
+
+/-- Scalar fact behind `|θ - θ¹| ≤ 14 δ²`. -/
+theorem second_order_scalar {δ x ϱ T : ℝ} (hδ0 : 0 ≤ δ) (hδ : δ ≤ 1 / 8) (hx : |x| ≤ δ)
+    (hϱ : |ϱ| ≤ 16 / 7 * δ) (hT0 : 0 ≤ T) (hT : T ≤ 9 / 7 * δ ^ 2) :
+    |1 / ((1 + x) * (1 + ϱ)) - 1 - (-x - ϱ + T)| ≤ 14 * δ ^ 2 := by
+  obtain ⟨hx1, hx2⟩ := abs_le.mp hx
+  obtain ⟨hr1, hr2⟩ := abs_le.mp hϱ
+  have h1x : 0 < 1 + x := by linarith
+  have h1r : 0 < 1 + ϱ := by linarith
+  have hden : 0 < (1 + x) * (1 + ϱ) := mul_pos h1x h1r
+  have hδ2 : 0 ≤ δ ^ 2 := _root_.sq_nonneg δ
+  have hδ64 : δ ^ 2 ≤ 1 / 64 := by
+    have := mul_nonneg hδ0 (by linarith : (0 : ℝ) ≤ 1 / 8 - δ)
+    nlinarith
+  have hc0 : 0 ≤ 1 + x + ϱ := by linarith
+  have hc2 : 0 ≤ 2 - (1 + x + ϱ) := by linarith
+  have hc33 : 0 ≤ (1 + x + ϱ) - 33 / 56 := by linarith
+  have hid : 1 / ((1 + x) * (1 + ϱ)) - 1 - (-x - ϱ + T)
+      = (x ^ 2 + ϱ ^ 2 + x * ϱ * (1 + x + ϱ)) / ((1 + x) * (1 + ϱ)) - T := by
+    have e1 : (1 : ℝ) / ((1 + x) * (1 + ϱ)) - 1 + x + ϱ
+        = (x ^ 2 + ϱ ^ 2 + x * ϱ * (1 + x + ϱ)) / ((1 + x) * (1 + ϱ)) := by
+      rw [eq_div_iff hden.ne']
+      have e2 : (1 : ℝ) / ((1 + x) * (1 + ϱ)) * ((1 + x) * (1 + ϱ)) = 1 :=
+        div_mul_cancel₀ 1 hden.ne'
+      linear_combination e2
+    linarith
+  have hnum0 : 0 ≤ x ^ 2 + ϱ ^ 2 + x * ϱ * (1 + x + ϱ) := by
+    have p1 := mul_nonneg hc0 (_root_.sq_nonneg (x + ϱ))
+    have p2 := mul_nonneg hc2 (add_nonneg (_root_.sq_nonneg x) (_root_.sq_nonneg ϱ))
+    nlinarith [p1, p2]
+  have hx2' : x ^ 2 ≤ δ ^ 2 := by
+    have := mul_nonneg (by linarith : (0 : ℝ) ≤ δ - x) (by linarith : (0 : ℝ) ≤ δ + x)
+    nlinarith
+  have hr2' : ϱ ^ 2 ≤ 256 / 49 * δ ^ 2 := by
+    have := mul_nonneg (by linarith : (0 : ℝ) ≤ 16 / 7 * δ - ϱ)
+      (by linarith : (0 : ℝ) ≤ 16 / 7 * δ + ϱ)
+    nlinarith
+  have hxr : x * ϱ ≤ 16 / 7 * δ ^ 2 :=
+    calc x * ϱ ≤ |x * ϱ| := le_abs_self _
+      _ = |x| * |ϱ| := abs_mul x ϱ
+      _ ≤ δ * (16 / 7 * δ) := mul_le_mul hx hϱ (abs_nonneg _) hδ0
+      _ = 16 / 7 * δ ^ 2 := by ring
+  have he : 0 ≤ (1 + x + ϱ) - 14 * δ ^ 2 := by linarith
+  have hxre : x * ϱ * ((1 + x + ϱ) - 14 * δ ^ 2)
+      ≤ 16 / 7 * δ ^ 2 * ((1 + x + ϱ) - 14 * δ ^ 2) := mul_le_mul_of_nonneg_right hxr he
+  have h33 : 0 ≤ δ ^ 2 * ((1 + x + ϱ) - 33 / 56) := mul_nonneg hδ2 hc33
+  have h4 : 0 ≤ δ ^ 2 * δ ^ 2 := mul_nonneg hδ2 hδ2
+  have hnum : x ^ 2 + ϱ ^ 2 + x * ϱ * (1 + x + ϱ) ≤ 14 * δ ^ 2 * ((1 + x) * (1 + ϱ)) := by
+    nlinarith [hx2', hr2', hxre, h33, h4]
+  have hq0 : 0 ≤ (x ^ 2 + ϱ ^ 2 + x * ϱ * (1 + x + ϱ)) / ((1 + x) * (1 + ϱ)) :=
+    div_nonneg hnum0 hden.le
+  have hq1 : (x ^ 2 + ϱ ^ 2 + x * ϱ * (1 + x + ϱ)) / ((1 + x) * (1 + ϱ)) ≤ 14 * δ ^ 2 := by
+    rw [div_le_iff₀ hden]; exact hnum
+  rw [hid, abs_le]
+  constructor
+  · linarith
+  · linarith
+
+/-- The row quantity `r_b = (1/N) ∑_j K_{bj}/ρ_j = ∑_j P̃_{bj} u_j`. -/
+noncomputable def walkR {n : Type} [Fintype n] (K : n → n → ℝ) (ρ : n → ℝ) (b : n) : ℝ :=
+  (∑ l, K b l / ρ l) / (Fintype.card n : ℝ)
+
+/-- The second-order term `(P̃ϑ)_b = (1/N) ∑_j K_{bj} ε_j²/(1+ε_j)`, `ε_j = ρ_j - 1`. -/
+noncomputable def walkT {n : Type} [Fintype n] (K : n → n → ℝ) (ρ : n → ℝ) (b : n) : ℝ :=
+  (∑ j, K b j * ((ρ j - 1) ^ 2 / ρ j)) / (Fintype.card n : ℝ)
+
+/-- `θ_{bi} = u_i/r_b - 1 = 1/(ρ_i r_b) - 1`. -/
+noncomputable def walkTheta {n : Type} [Fintype n] (K : n → n → ℝ) (ρ : n → ℝ) (b i : n) : ℝ :=
+  1 / (ρ i * walkR K ρ b) - 1
+
+/-- The linearisation of the paper: `θ¹_{bi} = -ε_i - ε_b + (P̃ε)_b`, with `ε_j = ρ_j - 1` and
+    `P̃_{bj} = K_{bj}/N`. -/
+noncomputable def walkTheta1 {n : Type} [Fintype n] (K : n → n → ℝ) (ρ : n → ℝ) (b i : n) : ℝ :=
+  -(ρ i - 1) - (ρ b - 1) + (∑ j, K b j * (ρ j - 1)) / (Fintype.card n : ℝ)
+
+/-- Bounds for the row quantity: `(1-δ)/(1+δ) ≤ r_b ≤ (1+δ)/(1-δ)`, in multiplied form. -/
+theorem walkR_bounds {n : Type} [Fintype n] [Nonempty n] (K : n → n → ℝ) (ρ : n → ℝ) {δ : ℝ}
+    (hK : ∀ a j, 0 ≤ K a j) (hsum : ∀ a, ∑ l, K a l = (Fintype.card n : ℝ) * ρ a)
+    (hδ0 : 0 ≤ δ) (hδ : δ ≤ 1 / 8) (hρ : ∀ a, |ρ a - 1| ≤ δ) (b : n) :
+    1 - δ ≤ walkR K ρ b * (1 + δ) ∧ walkR K ρ b * (1 - δ) ≤ 1 + δ := by
+  have hN : 0 < (Fintype.card n : ℝ) := by exact_mod_cast Fintype.card_pos
+  have hρb := fun a => abs_le.mp (hρ a)
+  have hρpos : ∀ a, 0 < ρ a := fun a => by linarith [(hρb a).1]
+  obtain ⟨S, hSdef⟩ : ∃ S, S = ∑ l, K b l / ρ l := ⟨_, rfl⟩
+  have hS1 : (Fintype.card n : ℝ) * (1 - δ) ≤ S * (1 + δ) := by
+    calc (Fintype.card n : ℝ) * (1 - δ) ≤ (Fintype.card n : ℝ) * ρ b :=
+          mul_le_mul_of_nonneg_left (by linarith [(hρb b).1]) hN.le
+      _ = ∑ l, K b l := (hsum b).symm
+      _ ≤ ∑ l, K b l / ρ l * (1 + δ) := Finset.sum_le_sum fun l _ => by
+          rw [div_mul_eq_mul_div, le_div_iff₀ (hρpos l)]
+          exact mul_le_mul_of_nonneg_left (by linarith [(hρb l).2]) (hK b l)
+      _ = S * (1 + δ) := by rw [hSdef, Finset.sum_mul]
+  have hS2 : S * (1 - δ) ≤ (Fintype.card n : ℝ) * (1 + δ) := by
+    calc S * (1 - δ) = ∑ l, K b l / ρ l * (1 - δ) := by rw [hSdef, Finset.sum_mul]
+      _ ≤ ∑ l, K b l := Finset.sum_le_sum fun l _ => by
+          rw [div_mul_eq_mul_div, div_le_iff₀ (hρpos l)]
+          exact mul_le_mul_of_nonneg_left (by linarith [(hρb l).1]) (hK b l)
+      _ = (Fintype.card n : ℝ) * ρ b := hsum b
+      _ ≤ (Fintype.card n : ℝ) * (1 + δ) :=
+          mul_le_mul_of_nonneg_left (by linarith [(hρb b).2]) hN.le
+  have hR : walkR K ρ b = S / (Fintype.card n : ℝ) := by rw [hSdef]; rfl
+  rw [hR]
+  constructor
+  · rw [div_mul_eq_mul_div, le_div_iff₀ hN]
+    linarith
+  · rw [div_mul_eq_mul_div, div_le_iff₀ hN]
+    linarith
+
+/-- The exact expansion `r_b - 1 = ε_b - (P̃ε)_b + (P̃ϑ)_b`. -/
+theorem walkR_expansion {n : Type} [Fintype n] [Nonempty n] (K : n → n → ℝ) (ρ : n → ℝ)
+    (hsum : ∀ a, ∑ l, K a l = (Fintype.card n : ℝ) * ρ a) (hρpos : ∀ a, 0 < ρ a) (b : n) :
+    walkR K ρ b - 1
+      = (ρ b - 1) - (∑ j, K b j * (ρ j - 1)) / (Fintype.card n : ℝ) + walkT K ρ b := by
+  have hN : 0 < (Fintype.card n : ℝ) := by exact_mod_cast Fintype.card_pos
+  have e : ∑ l, K b l / ρ l
+      = (Fintype.card n : ℝ) * ρ b - ∑ l, K b l * (ρ l - 1)
+        + ∑ l, K b l * ((ρ l - 1) ^ 2 / ρ l) := by
+    rw [← hsum b, ← Finset.sum_sub_distrib, ← Finset.sum_add_distrib]
+    refine Finset.sum_congr rfl fun l _ => ?_
+    have h := (hρpos l).ne'
+    rw [div_eq_iff h]
+    have h2 : K b l * ((ρ l - 1) ^ 2 / ρ l) * ρ l = K b l * (ρ l - 1) ^ 2 := by
+      rw [mul_assoc, div_mul_cancel₀ _ h]
+    linear_combination (-1 : ℝ) * h2
+  unfold walkR walkT
+  rw [e, add_div, sub_div, mul_div_cancel_left₀ _ hN.ne']
+  ring
+
+/-- Bounds for the second-order term: `0 ≤ (P̃ϑ)_b ≤ (9/7) δ²`. -/
+theorem walkT_bounds {n : Type} [Fintype n] [Nonempty n] (K : n → n → ℝ) (ρ : n → ℝ) {δ : ℝ}
+    (hK : ∀ a j, 0 ≤ K a j) (hsum : ∀ a, ∑ l, K a l = (Fintype.card n : ℝ) * ρ a)
+    (hδ0 : 0 ≤ δ) (hδ : δ ≤ 1 / 8) (hρ : ∀ a, |ρ a - 1| ≤ δ) (b : n) :
+    0 ≤ walkT K ρ b ∧ walkT K ρ b ≤ 9 / 7 * δ ^ 2 := by
+  have hN : 0 < (Fintype.card n : ℝ) := by exact_mod_cast Fintype.card_pos
+  have hρb := fun a => abs_le.mp (hρ a)
+  have hρpos : ∀ a, 0 < ρ a := fun a => by linarith [(hρb a).1]
+  have hδ2 : 0 ≤ δ ^ 2 := _root_.sq_nonneg δ
+  have hterm0 : ∀ j, 0 ≤ K b j * ((ρ j - 1) ^ 2 / ρ j) := fun j =>
+    mul_nonneg (hK b j) (div_nonneg (_root_.sq_nonneg _) (hρpos j).le)
+  have hterm : ∀ j, K b j * ((ρ j - 1) ^ 2 / ρ j) ≤ K b j * (8 / 7 * δ ^ 2) := fun j => by
+    refine mul_le_mul_of_nonneg_left ?_ (hK b j)
+    rw [div_le_iff₀ (hρpos j)]
+    have h1 := mul_nonneg (by linarith [(hρb j).2] : (0 : ℝ) ≤ δ - (ρ j - 1))
+      (by linarith [(hρb j).1] : (0 : ℝ) ≤ δ + (ρ j - 1))
+    have h2 := mul_nonneg hδ2 (by linarith [(hρb j).1] : (0 : ℝ) ≤ ρ j - 7 / 8)
+    nlinarith [h1, h2]
+  unfold walkT
+  constructor
+  · exact div_nonneg (Finset.sum_nonneg fun j _ => hterm0 j) hN.le
+  · rw [div_le_iff₀ hN]
+    calc ∑ j, K b j * ((ρ j - 1) ^ 2 / ρ j) ≤ ∑ j, K b j * (8 / 7 * δ ^ 2) :=
+          Finset.sum_le_sum fun j _ => hterm j
+      _ = (Fintype.card n : ℝ) * ρ b * (8 / 7 * δ ^ 2) := by rw [← Finset.sum_mul, hsum b]
+      _ ≤ 9 / 7 * δ ^ 2 * (Fintype.card n : ℝ) := by
+          have h3 := mul_nonneg (mul_nonneg hN.le hδ2)
+            (by linarith [(hρb b).2] : (0 : ℝ) ≤ 9 / 8 - ρ b)
+          nlinarith [h3]
+
+/-- `|r_b - 1| ≤ (16/7) δ`. -/
+theorem walkR_near_one {n : Type} [Fintype n] [Nonempty n] (K : n → n → ℝ) (ρ : n → ℝ) {δ : ℝ}
+    (hK : ∀ a j, 0 ≤ K a j) (hsum : ∀ a, ∑ l, K a l = (Fintype.card n : ℝ) * ρ a)
+    (hδ0 : 0 ≤ δ) (hδ : δ ≤ 1 / 8) (hρ : ∀ a, |ρ a - 1| ≤ δ) (b : n) :
+    |walkR K ρ b - 1| ≤ 16 / 7 * δ := by
+  obtain ⟨hr1, hr2⟩ := walkR_bounds K ρ hK hsum hδ0 hδ hρ b
+  have h18 : 0 ≤ δ * (1 / 8 - δ) := mul_nonneg hδ0 (by linarith)
+  have hδ2 : 0 ≤ δ * δ := mul_nonneg hδ0 hδ0
+  rw [abs_le]
+  constructor
+  · refine le_of_mul_le_mul_right ?_ (by linarith : (0 : ℝ) < 1 + δ)
+    nlinarith [hr1, hδ2, hδ0]
+  · refine le_of_mul_le_mul_right ?_ (by linarith : (0 : ℝ) < 1 - δ)
+    nlinarith [hr2, h18]
+
+/-- **(H1) for the sampled walk: the identity.** `N P_{bi} = K_{bi} (1 + θ_{bi})`. -/
+theorem walk_H1_identity {n : Type} [Fintype n] [Nonempty n] (K : n → n → ℝ) (ρ : n → ℝ) {δ : ℝ}
+    (hK : ∀ a j, 0 ≤ K a j) (hsum : ∀ a, ∑ l, K a l = (Fintype.card n : ℝ) * ρ a)
+    (hδ0 : 0 ≤ δ) (hδ : δ ≤ 1 / 8) (hρ : ∀ a, |ρ a - 1| ≤ δ) (b i : n) :
+    (Fintype.card n : ℝ) * walkMatrix K ρ b i = K b i * (1 + walkTheta K ρ b i) := by
+  have hN : 0 < (Fintype.card n : ℝ) := by exact_mod_cast Fintype.card_pos
+  have hρb := fun a => abs_le.mp (hρ a)
+  have hρpos : ∀ a, 0 < ρ a := fun a => by linarith [(hρb a).1]
+  obtain ⟨hr1, -⟩ := walkR_bounds K ρ hK hsum hδ0 hδ hρ b
+  have hRpos : 0 < walkR K ρ b := by
+    have h1 : 0 < walkR K ρ b * (1 + δ) := lt_of_lt_of_le (by linarith) hr1
+    exact (mul_pos_iff_of_pos_right (by linarith)).mp h1
+  obtain ⟨S, hSdef⟩ : ∃ S, S = ∑ l, K b l / ρ l := ⟨_, rfl⟩
+  have hR : walkR K ρ b = S / (Fintype.card n : ℝ) := by rw [hSdef]; rfl
+  have hSpos : 0 < S := by
+    have h2 : S = walkR K ρ b * (Fintype.card n : ℝ) := by
+      rw [hR, div_mul_cancel₀ _ hN.ne']
+    rw [h2]; exact mul_pos hRpos hN
+  have e1 : 1 + walkTheta K ρ b i = 1 / (ρ i * (S / (Fintype.card n : ℝ))) := by
+    unfold walkTheta
+    rw [hR]; ring
+  rw [walkMatrix_apply' K ρ b i (hρpos b).ne', ← hSdef, e1]
+  have h1 := (hρpos i).ne'
+  have h2 := hSpos.ne'
+  have h3 := hN.ne'
+  rw [mul_one_div, eq_div_iff (mul_ne_zero h1 (div_ne_zero h2 h3))]
+  have c1 : K b i / ρ i * ρ i = K b i := div_mul_cancel₀ _ h1
+  have c2 : K b i / ρ i / S * S = K b i / ρ i := div_mul_cancel₀ _ h2
+  have c3 : S / (Fintype.card n : ℝ) * (Fintype.card n : ℝ) = S := div_mul_cancel₀ _ h3
+  calc (Fintype.card n : ℝ) * (K b i / ρ i / S) * (ρ i * (S / (Fintype.card n : ℝ)))
+      = (K b i / ρ i / S) * (S / (Fintype.card n : ℝ) * (Fintype.card n : ℝ)) * ρ i := by ring
+    _ = K b i := by rw [c3, c2, c1]
+
+/-- **(H1a) for the sampled walk:** `|θ_{bi}| ≤ 4δ`. -/
+theorem walk_H1a {n : Type} [Fintype n] [Nonempty n] (K : n → n → ℝ) (ρ : n → ℝ) {δ : ℝ}
+    (hK : ∀ a j, 0 ≤ K a j) (hsum : ∀ a, ∑ l, K a l = (Fintype.card n : ℝ) * ρ a)
+    (hδ0 : 0 ≤ δ) (hδ : δ ≤ 1 / 8) (hρ : ∀ a, |ρ a - 1| ≤ δ) (b i : n) :
+    |walkTheta K ρ b i| ≤ 4 * δ := by
+  have hρb := fun a => abs_le.mp (hρ a)
+  have hρpos : ∀ a, 0 < ρ a := fun a => by linarith [(hρb a).1]
+  obtain ⟨hr1, hr2⟩ := walkR_bounds K ρ hK hsum hδ0 hδ hρ b
+  have hu1 : 1 ≤ 1 / ρ i * (1 + δ) := by
+    rw [one_div_mul_eq_div, le_div_iff₀ (hρpos i)]; linarith [(hρb i).2]
+  have hu2 : 1 / ρ i * (1 - δ) ≤ 1 := by
+    rw [one_div_mul_eq_div, div_le_iff₀ (hρpos i)]; linarith [(hρb i).1]
+  have h := (ratio_near_one hδ0 hδ hu1 hu2 hr1 hr2).2
+  have e : walkTheta K ρ b i = 1 / ρ i / walkR K ρ b - 1 := by
+    unfold walkTheta
+    rw [div_div]
+  rw [e]
+  exact h
+
+/-- **(H1b) for the sampled walk:** `|θ_{bi} - θ¹_{bi}| ≤ 14 δ²`, with
+    `θ¹_{bi} = -ε_i - ε_b + (P̃ε)_b`. -/
+theorem walk_H1b {n : Type} [Fintype n] [Nonempty n] (K : n → n → ℝ) (ρ : n → ℝ) {δ : ℝ}
+    (hK : ∀ a j, 0 ≤ K a j) (hsum : ∀ a, ∑ l, K a l = (Fintype.card n : ℝ) * ρ a)
+    (hδ0 : 0 ≤ δ) (hδ : δ ≤ 1 / 8) (hρ : ∀ a, |ρ a - 1| ≤ δ) (b i : n) :
+    |walkTheta K ρ b i - walkTheta1 K ρ b i| ≤ 14 * δ ^ 2 := by
+  have hρb := fun a => abs_le.mp (hρ a)
+  have hρpos : ∀ a, 0 < ρ a := fun a => by linarith [(hρb a).1]
+  obtain ⟨hT0, hT⟩ := walkT_bounds K ρ hK hsum hδ0 hδ hρ b
+  have hϱ := walkR_near_one K ρ hK hsum hδ0 hδ hρ b
+  have hexp := walkR_expansion K ρ hsum hρpos b
+  have key := second_order_scalar hδ0 hδ (hρ i) hϱ hT0 hT
+  have e1 : (1 + (ρ i - 1)) * (1 + (walkR K ρ b - 1)) = ρ i * walkR K ρ b := by ring
+  have e2 : -(ρ i - 1) - (walkR K ρ b - 1) + walkT K ρ b = walkTheta1 K ρ b i := by
+    unfold walkTheta1
+    linarith [hexp]
+  rw [e1, e2] at key
+  exact key
+
+/-- Variant with the row quantity itself: `|θ_{bi} - (-ε_i - (r_b - 1))| ≤ 14 δ²`. -/
+theorem walk_H1b_row {n : Type} [Fintype n] [Nonempty n] (K : n → n → ℝ) (ρ : n → ℝ) {δ : ℝ}
+    (hK : ∀ a j, 0 ≤ K a j) (hsum : ∀ a, ∑ l, K a l = (Fintype.card n : ℝ) * ρ a)
+    (hδ0 : 0 ≤ δ) (hδ : δ ≤ 1 / 8) (hρ : ∀ a, |ρ a - 1| ≤ δ) (b i : n) :
+    |walkTheta K ρ b i - (-(ρ i - 1) - (walkR K ρ b - 1))| ≤ 14 * δ ^ 2 := by
+  have hϱ := walkR_near_one K ρ hK hsum hδ0 hδ hρ b
+  have key := second_order_scalar (T := 0) hδ0 hδ (hρ i) hϱ le_rfl
+    (by have := _root_.sq_nonneg δ; linarith)
+  have e1 : (1 + (ρ i - 1)) * (1 + (walkR K ρ b - 1)) = ρ i * walkR K ρ b := by ring
+  have e2 : -(ρ i - 1) - (walkR K ρ b - 1) + 0 = -(ρ i - 1) - (walkR K ρ b - 1) := by ring
+  rw [e1, e2] at key
+  exact key
+
+/-- **Hypotheses (H1), (H1a), (H1b) of `reduction_abstract` for the sampled walk**, with
+    `q 1 = K`, `a_θ = 4δ`, `b_θ = 14δ²` (the constants of Step 2 of `prop:reduction`). -/
+theorem walk_H1 {n : Type} [Fintype n] [Nonempty n] (K : n → n → ℝ) (ρ : n → ℝ) {δ : ℝ}
+    (hK : ∀ a j, 0 ≤ K a j) (hsum : ∀ a, ∑ l, K a l = (Fintype.card n : ℝ) * ρ a)
+    (hδ0 : 0 ≤ δ) (hδ : δ ≤ 1 / 8) (hρ : ∀ a, |ρ a - 1| ≤ δ) :
+    (∀ b i, (Fintype.card n : ℝ) * walkMatrix K ρ b i = K b i * (1 + walkTheta K ρ b i)) ∧
+    (∀ b i, |walkTheta K ρ b i| ≤ 4 * δ) ∧
+    (∀ b i, |walkTheta K ρ b i - walkTheta1 K ρ b i| ≤ 14 * δ ^ 2) :=
+  ⟨fun b i => walk_H1_identity K ρ hK hsum hδ0 hδ hρ b i,
+   fun b i => walk_H1a K ρ hK hsum hδ0 hδ hρ b i,
+   fun b i => walk_H1b K ρ hK hsum hδ0 hδ hρ b i⟩
+
+end ShellAndWalk
+
 end KernelL1
 
 end Probability
