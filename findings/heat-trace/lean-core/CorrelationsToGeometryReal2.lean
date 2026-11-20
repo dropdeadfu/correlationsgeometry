@@ -2303,4 +2303,680 @@ theorem eig_theorem_G38_i_enum_exists {Ω : Type*} {mΩ : MeasurableSpace Ω} {�
 
 end LatticeEnumeration
 
+/-! ### Deterministic steps of `cor:eigspace`: spectral step, Schur test, approximate eigenvectors -/
+
+namespace EigenspaceSteps
+
+/-- The `i`-th eigenvector of the orthonormal eigenbasis of Mathlib, as a function `n → ℝ`. -/
+noncomputable def evec {n : Type} [Fintype n] [DecidableEq n] {A : Matrix n n ℝ}
+    (hA : A.IsHermitian) (i : n) : n → ℝ := ⇑(hA.eigenvectorBasis i)
+
+theorem mulVec_evec {n : Type} [Fintype n] [DecidableEq n] (A : Matrix n n ℝ)
+    (hA : A.IsHermitian) (i : n) : A *ᵥ evec hA i = hA.eigenvalues i • evec hA i :=
+  hA.mulVec_eigenvectorBasis i
+
+theorem unitary_apply {n : Type} [Fintype n] [DecidableEq n] (A : Matrix n n ℝ)
+    (hA : A.IsHermitian) (a i : n) :
+    (hA.eigenvectorUnitary : Matrix n n ℝ) a i = evec hA i a := rfl
+
+/-- The coordinate `v_i · x` is the `i`-th entry of `Uᵀ x`. -/
+theorem coord_eq {n : Type} [Fintype n] [DecidableEq n] (A : Matrix n n ℝ) (hA : A.IsHermitian)
+    (x : n → ℝ) (i : n) :
+    evec hA i ⬝ᵥ x = ((star (hA.eigenvectorUnitary : Matrix n n ℝ)) *ᵥ x) i := by
+  rw [star_eq_conjTranspose, conjTranspose_eq_transpose_of_trivial]
+  simp only [mulVec, dotProduct, transpose_apply, unitary_apply]
+
+/-- Parseval in the eigenbasis: `x · x = ∑_i (v_i · x)^2`. -/
+theorem parseval {n : Type} [Fintype n] [DecidableEq n] (A : Matrix n n ℝ) (hA : A.IsHermitian)
+    (x : n → ℝ) : x ⬝ᵥ x = ∑ i, (evec hA i ⬝ᵥ x) ^ 2 := by
+  rw [(quad_form_eig A hA x).2]
+  exact Finset.sum_congr rfl (fun i _ => by rw [coord_eq A hA x i])
+
+/-- The eigenvectors are orthonormal for the dot product. -/
+theorem evec_orthonormal {n : Type} [Fintype n] [DecidableEq n] (A : Matrix n n ℝ)
+    (hA : A.IsHermitian) (i j : n) : evec hA i ⬝ᵥ evec hA j = if i = j then 1 else 0 := by
+  have h1 : star (hA.eigenvectorUnitary : Matrix n n ℝ) * (hA.eigenvectorUnitary : Matrix n n ℝ)
+      = 1 := Unitary.coe_star_mul_self _
+  have h2 := congrFun (congrFun h1 i) j
+  rw [Matrix.one_apply] at h2
+  rw [← h2, star_eq_conjTranspose, conjTranspose_eq_transpose_of_trivial]
+  simp only [Matrix.mul_apply, dotProduct, transpose_apply, unitary_apply]
+
+/-- Every eigenvector of `S` is an eigenvector of `S^k` for the `k`-th power of the eigenvalue. -/
+theorem pow_mulVec_evec {n : Type} [Fintype n] [DecidableEq n] (S : Matrix n n ℝ)
+    (hS : S.IsHermitian) (k : ℕ) (i : n) :
+    (S ^ k) *ᵥ evec hS i = hS.eigenvalues i ^ k • evec hS i := by
+  induction k with
+  | zero => simp
+  | succ k ih =>
+    rw [pow_succ S k, ← mulVec_mulVec, mulVec_evec S hS i, mulVec_smul, ih, smul_smul,
+      ← pow_succ']
+
+/-- The coordinates of `S^k w` in the eigenbasis of `S`. -/
+theorem coord_pow {n : Type} [Fintype n] [DecidableEq n] (S : Matrix n n ℝ)
+    (hS : S.IsHermitian) (k : ℕ) (w : n → ℝ) (i : n) :
+    evec hS i ⬝ᵥ ((S ^ k) *ᵥ w) = hS.eigenvalues i ^ k * (evec hS i ⬝ᵥ w) := by
+  have hT : (S ^ k)ᵀ = S ^ k := by
+    have h := (hS.pow k).eq
+    rwa [conjTranspose_eq_transpose_of_trivial] at h
+  rw [dotProduct_mulVec, ← mulVec_transpose, hT, pow_mulVec_evec S hS k i, smul_dotProduct,
+    smul_eq_mul]
+
+/-- **Spectral step for a power of a real symmetric matrix, over a set of indices.** `S` real
+    symmetric with the orthonormal eigenbasis `v_i` and eigenvalues `s_i` of Mathlib. If
+    `‖S^k w - α w‖² ≤ ε²` (Euclidean norm) and `|s_i^k - α| ≥ g > 0` for all `i` in a set `T` of
+    indices, then `∑_{i ∈ T} (v_i · w)² ≤ ε²/g²`. -/
+theorem spectral_step_pow_set {n : Type} [Fintype n] [DecidableEq n] (S : Matrix n n ℝ)
+    (hS : S.IsHermitian) (k : ℕ) (w : n → ℝ) {α ε g : ℝ} (hg : 0 < g)
+    (hres : ∑ a, (((S ^ k) *ᵥ w) a - α * w a) ^ 2 ≤ ε ^ 2)
+    (T : Finset n) (hT : ∀ i ∈ T, g ≤ |hS.eigenvalues i ^ k - α|) :
+    ∑ i ∈ T, (evec hS i ⬝ᵥ w) ^ 2 ≤ ε ^ 2 / g ^ 2 := by
+  obtain ⟨z, hz⟩ : ∃ z : n → ℝ, z = (S ^ k) *ᵥ w - α • w := ⟨_, rfl⟩
+  have hcz : ∀ i, evec hS i ⬝ᵥ z = (hS.eigenvalues i ^ k - α) * (evec hS i ⬝ᵥ w) := by
+    intro i
+    rw [hz, dotProduct_sub, coord_pow S hS k w i, dotProduct_smul, smul_eq_mul]
+    ring
+  have hpz : z ⬝ᵥ z = ∑ i, ((hS.eigenvalues i ^ k - α) * (evec hS i ⬝ᵥ w)) ^ 2 := by
+    rw [parseval S hS z]
+    exact Finset.sum_congr rfl (fun i _ => by rw [hcz i])
+  have hzz : z ⬝ᵥ z = ∑ a, (((S ^ k) *ᵥ w) a - α * w a) ^ 2 := by
+    simp only [hz, dotProduct, Pi.sub_apply, Pi.smul_apply, smul_eq_mul]
+    exact Finset.sum_congr rfl (fun a _ => by ring)
+  have h1 : ∑ i ∈ T, g ^ 2 * (evec hS i ⬝ᵥ w) ^ 2
+      ≤ ∑ i, ((hS.eigenvalues i ^ k - α) * (evec hS i ⬝ᵥ w)) ^ 2 := by
+    calc ∑ i ∈ T, g ^ 2 * (evec hS i ⬝ᵥ w) ^ 2
+        ≤ ∑ i ∈ T, ((hS.eigenvalues i ^ k - α) * (evec hS i ⬝ᵥ w)) ^ 2 := by
+          refine Finset.sum_le_sum (fun i hi => ?_)
+          have h2 := pow_le_pow_left₀ hg.le (hT i hi) 2
+          rw [sq_abs] at h2
+          rw [mul_pow]
+          exact mul_le_mul_of_nonneg_right h2 (_root_.sq_nonneg _)
+      _ ≤ ∑ i, ((hS.eigenvalues i ^ k - α) * (evec hS i ⬝ᵥ w)) ^ 2 :=
+          Finset.sum_le_sum_of_subset_of_nonneg (Finset.subset_univ _)
+            (fun i _ _ => _root_.sq_nonneg _)
+  have h3 : (∑ i ∈ T, (evec hS i ⬝ᵥ w) ^ 2) * g ^ 2
+      = ∑ i ∈ T, g ^ 2 * (evec hS i ⬝ᵥ w) ^ 2 := by
+    rw [Finset.sum_mul]
+    exact Finset.sum_congr rfl (fun i _ => by ring)
+  rw [le_div_iff₀ (pow_pos hg 2), h3]
+  linarith [hpz, hzz]
+
+/-- **(1) Spectral step for a real symmetric matrix.** If `∑_a ((A w)_a - α w_a)² ≤ ε²` and
+    `g > 0`, then the squared norm of the component of `w` in the span of the eigenvectors with
+    `|eigenvalue - α| ≥ g` is at most `ε²/g²`. -/
+theorem spectral_step {n : Type} [Fintype n] [DecidableEq n] (A : Matrix n n ℝ)
+    (hA : A.IsHermitian) (w : n → ℝ) {α ε g : ℝ} (hg : 0 < g)
+    (hres : ∑ a, ((A *ᵥ w) a - α * w a) ^ 2 ≤ ε ^ 2) :
+    ∑ i ∈ Finset.univ.filter (fun i => g ≤ |hA.eigenvalues i - α|), (evec hA i ⬝ᵥ w) ^ 2
+      ≤ ε ^ 2 / g ^ 2 := by
+  have hres' : ∑ a, (((A ^ 1) *ᵥ w) a - α * w a) ^ 2 ≤ ε ^ 2 := by
+    rw [pow_one]; exact hres
+  refine spectral_step_pow_set A hA 1 w hg hres' _ (fun i hi => ?_)
+  rw [pow_one]
+  exact (Finset.mem_filter.mp hi).2
+
+/-- **(2) Spectral step for `S^k` in the eigenbasis of `S`**, with the set of all indices whose
+    `k`-th power of the eigenvalue is at a distance at least `g` from `α`. -/
+theorem spectral_step_pow {n : Type} [Fintype n] [DecidableEq n] (S : Matrix n n ℝ)
+    (hS : S.IsHermitian) (k : ℕ) (w : n → ℝ) {α ε g : ℝ} (hg : 0 < g)
+    (hres : ∑ a, (((S ^ k) *ᵥ w) a - α * w a) ^ 2 ≤ ε ^ 2) :
+    ∑ i ∈ Finset.univ.filter (fun i => g ≤ |hS.eigenvalues i ^ k - α|), (evec hS i ⬝ᵥ w) ^ 2
+      ≤ ε ^ 2 / g ^ 2 :=
+  spectral_step_pow_set S hS k w hg hres _ (fun i hi => (Finset.mem_filter.mp hi).2)
+
+/-! ### The orthogonal projection onto the span of the eigenvectors of a set `J` of indices -/
+
+/-- `Π_J w = ∑_{i ∈ J} (v_i · w) v_i`. -/
+noncomputable def specProj {n : Type} [Fintype n] [DecidableEq n] {A : Matrix n n ℝ}
+    (hA : A.IsHermitian) (J : Finset n) (w : n → ℝ) : n → ℝ :=
+  fun a => ∑ i ∈ J, (evec hA i ⬝ᵥ w) * evec hA i a
+
+theorem coord_comb {n : Type} [Fintype n] [DecidableEq n] (A : Matrix n n ℝ)
+    (hA : A.IsHermitian) (J : Finset n) (c : n → ℝ) (j : n) :
+    (evec hA j ⬝ᵥ fun a => ∑ i ∈ J, c i * evec hA i a) = if j ∈ J then c j else 0 := by
+  have h : (evec hA j ⬝ᵥ fun a => ∑ i ∈ J, c i * evec hA i a)
+      = ∑ i ∈ J, c i * (evec hA j ⬝ᵥ evec hA i) := by
+    simp only [dotProduct, Finset.mul_sum]
+    rw [Finset.sum_comm]
+    exact Finset.sum_congr rfl (fun i _ => Finset.sum_congr rfl (fun a _ => by ring))
+  rw [h]
+  simp only [evec_orthonormal, mul_ite, mul_one, mul_zero]
+  rw [Finset.sum_ite_eq]
+
+theorem coord_specProj {n : Type} [Fintype n] [DecidableEq n] (A : Matrix n n ℝ)
+    (hA : A.IsHermitian) (J : Finset n) (w : n → ℝ) (j : n) :
+    evec hA j ⬝ᵥ specProj hA J w = if j ∈ J then evec hA j ⬝ᵥ w else 0 :=
+  coord_comb A hA J (fun i => evec hA i ⬝ᵥ w) j
+
+/-- `‖(1 - Π_J) w‖² = ∑_{i ∉ J} (v_i · w)²`. -/
+theorem residual_norm {n : Type} [Fintype n] [DecidableEq n] (A : Matrix n n ℝ)
+    (hA : A.IsHermitian) (J : Finset n) (w : n → ℝ) :
+    (w - specProj hA J w) ⬝ᵥ (w - specProj hA J w) = ∑ i ∈ Jᶜ, (evec hA i ⬝ᵥ w) ^ 2 := by
+  rw [parseval A hA]
+  have hc : ∀ j, evec hA j ⬝ᵥ (w - specProj hA J w)
+      = if j ∈ J then 0 else evec hA j ⬝ᵥ w := by
+    intro j
+    rw [dotProduct_sub, coord_specProj A hA J w j]
+    split_ifs <;> simp
+  have hs : ∑ j ∈ Jᶜ, (if j ∈ J then (0 : ℝ) else evec hA j ⬝ᵥ w) ^ 2
+      = ∑ j, (if j ∈ J then (0 : ℝ) else evec hA j ⬝ᵥ w) ^ 2 := by
+    apply Finset.sum_subset (Finset.subset_univ _)
+    intro j _ hj
+    have hjJ : j ∈ J := by simpa using hj
+    simp [hjJ]
+  have he : ∑ j, (evec hA j ⬝ᵥ (w - specProj hA J w)) ^ 2
+      = ∑ j, (if j ∈ J then (0 : ℝ) else evec hA j ⬝ᵥ w) ^ 2 :=
+    Finset.sum_congr rfl (fun j _ => by rw [hc j])
+  rw [he, ← hs]
+  refine Finset.sum_congr rfl (fun j hj => ?_)
+  have hjJ : j ∉ J := Finset.mem_compl.mp hj
+  simp [hjJ]
+
+/-- **Spectral step in the form of the corollary.** `S` real symmetric, `J` a set of indices of
+    its eigenbasis (the cluster). HYPOTHESES: `‖S^k w - α w‖² ≤ ε²` and every eigenvalue outside
+    the cluster has `|s_i^k - α| ≥ g > 0`. Then `‖(1 - Π_J) w‖² ≤ ε²/g²`, where `Π_J` is the
+    orthogonal projection onto the span of the eigenvectors `v_i`, `i ∈ J`. -/
+theorem spectral_proj {n : Type} [Fintype n] [DecidableEq n] (S : Matrix n n ℝ)
+    (hS : S.IsHermitian) (k : ℕ) (w : n → ℝ) {α ε g : ℝ} (hg : 0 < g)
+    (hres : ∑ a, (((S ^ k) *ᵥ w) a - α * w a) ^ 2 ≤ ε ^ 2)
+    (J : Finset n) (hJ : ∀ i, i ∉ J → g ≤ |hS.eigenvalues i ^ k - α|) :
+    (w - specProj hS J w) ⬝ᵥ (w - specProj hS J w) ≤ ε ^ 2 / g ^ 2 := by
+  rw [residual_norm S hS J w]
+  exact spectral_step_pow_set S hS k w hg hres Jᶜ (fun i hi => hJ i (Finset.mem_compl.mp hi))
+
+/-! ### (3) Schur test in the Euclidean norm and the approximate eigenvector -/
+
+/-- Schur test: if all absolute row sums and all absolute column sums of `E` are at most `η`,
+    then `‖E w‖² ≤ η² ‖w‖²`. -/
+theorem schur_l2 {n : Type} [Fintype n] (E : Matrix n n ℝ) {η : ℝ} (hη : 0 ≤ η)
+    (hrow : ∀ i, ∑ j, |E i j| ≤ η) (hcol : ∀ j, ∑ i, |E i j| ≤ η) (w : n → ℝ) :
+    ∑ a, ((E *ᵥ w) a) ^ 2 ≤ η ^ 2 * (w ⬝ᵥ w) := by
+  have hrowsq : ∀ a, ((E *ᵥ w) a) ^ 2 ≤ η * ∑ j, |E a j| * w j ^ 2 := by
+    intro a
+    have hcs := Finset.sum_sq_le_sum_mul_sum_of_sq_eq_mul (Finset.univ : Finset n)
+      (r := fun j => E a j * w j) (f := fun j => |E a j|) (g := fun j => |E a j| * w j ^ 2)
+      (fun j _ => abs_nonneg _) (fun j _ => mul_nonneg (abs_nonneg _) (_root_.sq_nonneg _))
+      (fun j _ => by
+        show (E a j * w j) ^ 2 = |E a j| * (|E a j| * w j ^ 2)
+        rw [mul_pow, ← sq_abs (E a j)]; ring)
+    have hnn : 0 ≤ ∑ j, |E a j| * w j ^ 2 :=
+      Finset.sum_nonneg (fun j _ => mul_nonneg (abs_nonneg _) (_root_.sq_nonneg _))
+    calc ((E *ᵥ w) a) ^ 2 = (∑ j, E a j * w j) ^ 2 := by simp only [mulVec, dotProduct]
+      _ ≤ (∑ j, |E a j|) * ∑ j, |E a j| * w j ^ 2 := hcs
+      _ ≤ η * ∑ j, |E a j| * w j ^ 2 := mul_le_mul_of_nonneg_right (hrow a) hnn
+  have hww : ∑ j, w j ^ 2 = w ⬝ᵥ w := by
+    simp only [dotProduct]
+    exact Finset.sum_congr rfl (fun j _ => by ring)
+  calc ∑ a, ((E *ᵥ w) a) ^ 2 ≤ ∑ a, η * ∑ j, |E a j| * w j ^ 2 :=
+        Finset.sum_le_sum (fun a _ => hrowsq a)
+    _ = η * ∑ j, (∑ a, |E a j|) * w j ^ 2 := by
+        rw [← Finset.mul_sum Finset.univ (fun a => ∑ j, |E a j| * w j ^ 2) η]
+        congr 1
+        rw [Finset.sum_comm]
+        exact Finset.sum_congr rfl (fun j _ => by rw [Finset.sum_mul])
+    _ ≤ η * ∑ j, η * w j ^ 2 :=
+        mul_le_mul_of_nonneg_left (Finset.sum_le_sum (fun j _ =>
+          mul_le_mul_of_nonneg_right (hcol j) (_root_.sq_nonneg _))) hη
+    _ = η ^ 2 * (w ⬝ᵥ w) := by
+        rw [← Finset.mul_sum Finset.univ (fun j => w j ^ 2) η, hww]; ring
+
+/-- The triangle inequality of the Euclidean norm, in squared form. -/
+theorem l2_triangle {n : Type} [Fintype n] (x y : n → ℝ) {X Y : ℝ} (hX : 0 ≤ X) (hY : 0 ≤ Y)
+    (hx : ∑ a, x a ^ 2 ≤ X ^ 2) (hy : ∑ a, y a ^ 2 ≤ Y ^ 2) :
+    ∑ a, (x a + y a) ^ 2 ≤ (X + Y) ^ 2 := by
+  have hcs := Finset.sum_mul_sq_le_sq_mul_sq (Finset.univ : Finset n) x y
+  have hyn : 0 ≤ ∑ a, y a ^ 2 := Finset.sum_nonneg (fun a _ => _root_.sq_nonneg _)
+  have h1 : (∑ a, x a * y a) ^ 2 ≤ (X * Y) ^ 2 := by
+    calc (∑ a, x a * y a) ^ 2 ≤ (∑ a, x a ^ 2) * ∑ a, y a ^ 2 := hcs
+      _ ≤ X ^ 2 * Y ^ 2 := mul_le_mul hx hy hyn (_root_.sq_nonneg X)
+      _ = (X * Y) ^ 2 := by ring
+  have h2 : ∑ a, x a * y a ≤ X * Y := (abs_le_of_sq_le_sq' h1 (mul_nonneg hX hY)).2
+  have h3 : ∑ a, (x a + y a) ^ 2 = ∑ a, x a ^ 2 + 2 * ∑ a, x a * y a + ∑ a, y a ^ 2 := by
+    rw [Finset.mul_sum, ← Finset.sum_add_distrib, ← Finset.sum_add_distrib]
+    exact Finset.sum_congr rfl (fun a _ => by ring)
+  rw [h3]
+  nlinarith [h2, hx, hy]
+
+/-- **(3) Approximate eigenvector from a bound for the row and column sums.** If all absolute
+    row and column sums of `S^k - Q` are at most `η`, `‖w‖² ≤ W²` and `‖Q w - α w‖² ≤ εQ²`, then
+    `‖S^k w - α w‖² ≤ (η W + εQ)²`. No symmetry is used. -/
+theorem approx_eigvec {n : Type} [Fintype n] [DecidableEq n] (S Q : Matrix n n ℝ) (k : ℕ)
+    (w : n → ℝ) {α η εQ W : ℝ} (hη : 0 ≤ η) (hεQ : 0 ≤ εQ) (hW : 0 ≤ W)
+    (hrow : ∀ i, ∑ l, |(S ^ k) i l - Q i l| ≤ η)
+    (hcol : ∀ l, ∑ i, |(S ^ k) i l - Q i l| ≤ η)
+    (hw : w ⬝ᵥ w ≤ W ^ 2)
+    (hQ : ∑ a, ((Q *ᵥ w) a - α * w a) ^ 2 ≤ εQ ^ 2) :
+    ∑ a, (((S ^ k) *ᵥ w) a - α * w a) ^ 2 ≤ (η * W + εQ) ^ 2 := by
+  have h1 := schur_l2 (S ^ k - Q) hη (fun i => by simpa using hrow i)
+    (fun l => by simpa using hcol l) w
+  have h1' : ∑ a, (((S ^ k - Q) *ᵥ w) a) ^ 2 ≤ (η * W) ^ 2 := by
+    calc ∑ a, (((S ^ k - Q) *ᵥ w) a) ^ 2 ≤ η ^ 2 * (w ⬝ᵥ w) := h1
+      _ ≤ η ^ 2 * W ^ 2 := mul_le_mul_of_nonneg_left hw (_root_.sq_nonneg η)
+      _ = (η * W) ^ 2 := by ring
+  have h := l2_triangle (fun a => ((S ^ k - Q) *ᵥ w) a) (fun a => (Q *ᵥ w) a - α * w a)
+    (mul_nonneg hη hW) hεQ h1' hQ
+  refine le_trans (le_of_eq ?_) h
+  refine Finset.sum_congr rfl (fun a _ => ?_)
+  simp only [sub_mulVec, Pi.sub_apply]
+  ring
+
+/-- The same for symmetric `S` and `Q`, where the column sums follow from the row sums. -/
+theorem approx_eigvec_sym {n : Type} [Fintype n] [DecidableEq n] (S Q : Matrix n n ℝ)
+    (hS : S.IsHermitian) (hQs : ∀ i j, Q i j = Q j i) (k : ℕ)
+    (w : n → ℝ) {α η εQ W : ℝ} (hη : 0 ≤ η) (hεQ : 0 ≤ εQ) (hW : 0 ≤ W)
+    (hrow : ∀ i, ∑ l, |(S ^ k) i l - Q i l| ≤ η)
+    (hw : w ⬝ᵥ w ≤ W ^ 2)
+    (hQ : ∑ a, ((Q *ᵥ w) a - α * w a) ^ 2 ≤ εQ ^ 2) :
+    ∑ a, (((S ^ k) *ᵥ w) a - α * w a) ^ 2 ≤ (η * W + εQ) ^ 2 := by
+  have hsym : ∀ i l, (S ^ k) i l = (S ^ k) l i := by
+    intro i l
+    have := congrFun (congrFun (hS.pow k) l) i
+    simpa using this
+  have hcol : ∀ l, ∑ i, |(S ^ k) i l - Q i l| ≤ η := fun l => by
+    have e : ∑ i, |(S ^ k) i l - Q i l| = ∑ i, |(S ^ k) l i - Q l i| :=
+      Finset.sum_congr rfl (fun i _ => by rw [hsym i l, hQs i l])
+    rw [e]; exact hrow l
+  exact approx_eigvec S Q k w hη hεQ hW hrow hcol hw hQ
+
+/-- **Deterministic core of the corollary for a general comparison matrix.** `S`, `Q` real
+    symmetric. HYPOTHESES: absolute row sums of `S^k - Q` at most `η`; `‖w‖² ≤ W²`;
+    `‖Q w - α w‖² ≤ εQ²`; all eigenvalues of `S` outside the cluster `J` have
+    `|s_i^k - α| ≥ g > 0`. Then `‖(1 - Π_J) w‖² ≤ (η W + εQ)²/g²`. -/
+theorem eigspace_det {n : Type} [Fintype n] [DecidableEq n] (S Q : Matrix n n ℝ)
+    (hS : S.IsHermitian) (hQs : ∀ i j, Q i j = Q j i) (k : ℕ)
+    (w : n → ℝ) {α η εQ W g : ℝ} (hη : 0 ≤ η) (hεQ : 0 ≤ εQ) (hW : 0 ≤ W) (hg : 0 < g)
+    (hrow : ∀ i, ∑ l, |(S ^ k) i l - Q i l| ≤ η)
+    (hw : w ⬝ᵥ w ≤ W ^ 2)
+    (hQ : ∑ a, ((Q *ᵥ w) a - α * w a) ^ 2 ≤ εQ ^ 2)
+    (J : Finset n) (hJ : ∀ i, i ∉ J → g ≤ |hS.eigenvalues i ^ k - α|) :
+    (w - specProj hS J w) ⬝ᵥ (w - specProj hS J w) ≤ (η * W + εQ) ^ 2 / g ^ 2 :=
+  spectral_proj S hS k w hg (approx_eigvec_sym S Q hS hQs k w hη hεQ hW hrow hw hQ) J hJ
+
+/-! ### (3b) The sampled mode and a finite-rank kernel matrix -/
+
+/-- **A column of `v` is an approximate eigenvector of the finite-rank kernel matrix.**
+    `Q_ij = ∑_f a_f v_if v_jf`. HYPOTHESIS: the Gram matrix `vᵀ v` is entrywise within `γ` of the
+    identity. Then for the column `w = v_{·f0}`:
+    `‖Q w - a_{f0} w‖² ≤ (1 + γ) (γ ∑_f |a_f|)²`. -/
+theorem finite_rank_approx_eigvec {n F : Type} [Fintype n] [Fintype F] [DecidableEq F]
+    (v : Matrix n F ℝ) (a : F → ℝ) (Q : Matrix n n ℝ)
+    (hQ : ∀ i j, Q i j = ∑ f, a f * v i f * v j f) (f0 : F) {γ : ℝ}
+    (hG : ∀ f g, |∑ i, v i f * v i g - (if f = g then 1 else 0)| ≤ γ) :
+    ∑ i, ((Q *ᵥ fun j => v j f0) i - a f0 * v i f0) ^ 2 ≤ (1 + γ) * (γ * ∑ f, |a f|) ^ 2 := by
+  have hγ : 0 ≤ γ := le_trans (abs_nonneg _) (hG f0 f0)
+  obtain ⟨G, hGd⟩ : ∃ G : F → F → ℝ, ∀ f g, G f g = ∑ i, v i f * v i g := ⟨_, fun _ _ => rfl⟩
+  have hG' : ∀ f g, |G f g - (if f = g then 1 else 0)| ≤ γ := fun f g => by
+    rw [hGd]; exact hG f g
+  obtain ⟨b, hbd⟩ : ∃ b : F → ℝ, ∀ f, b f = a f * (G f f0 - (if f = f0 then 1 else 0)) :=
+    ⟨_, fun _ => rfl⟩
+  have hres : ∀ i, (Q *ᵥ fun j => v j f0) i - a f0 * v i f0 = ∑ f, b f * v i f := by
+    intro i
+    have e1 : (Q *ᵥ fun j => v j f0) i = ∑ f, a f * G f f0 * v i f := by
+      have e0 : (Q *ᵥ fun j => v j f0) i = ∑ j, ∑ f, a f * v i f * v j f * v j f0 := by
+        simp only [mulVec, dotProduct, hQ, Finset.sum_mul]
+      rw [e0, Finset.sum_comm]
+      refine Finset.sum_congr rfl (fun f _ => ?_)
+      rw [hGd, Finset.mul_sum, Finset.sum_mul]
+      exact Finset.sum_congr rfl (fun j _ => by ring)
+    have e2 : a f0 * v i f0 = ∑ f, a f * (if f = f0 then 1 else 0) * v i f := by
+      rw [Finset.sum_eq_single f0]
+      · simp
+      · intro f _ hf; simp [hf]
+      · intro h; exact absurd (Finset.mem_univ _) h
+    rw [e1, e2, ← Finset.sum_sub_distrib]
+    exact Finset.sum_congr rfl (fun f _ => by rw [hbd]; ring)
+  have hi : ∀ i, (∑ f, b f * v i f) ^ 2 = ∑ f, ∑ g, b f * b g * (v i f * v i g) := by
+    intro i
+    rw [pow_two, Finset.sum_mul_sum]
+    exact Finset.sum_congr rfl (fun f _ => Finset.sum_congr rfl (fun g _ => by ring))
+  have hsq : ∑ i, (∑ f, b f * v i f) ^ 2 = ∑ f, ∑ g, b f * b g * G f g := by
+    calc ∑ i, (∑ f, b f * v i f) ^ 2
+        = ∑ i, ∑ f, ∑ g, b f * b g * (v i f * v i g) := Finset.sum_congr rfl (fun i _ => hi i)
+      _ = ∑ f, ∑ i, ∑ g, b f * b g * (v i f * v i g) := Finset.sum_comm
+      _ = ∑ f, ∑ g, ∑ i, b f * b g * (v i f * v i g) :=
+          Finset.sum_congr rfl (fun f _ => Finset.sum_comm)
+      _ = ∑ f, ∑ g, b f * b g * G f g :=
+          Finset.sum_congr rfl (fun f _ => Finset.sum_congr rfl (fun g _ => by
+            rw [hGd, Finset.mul_sum]))
+  have hGb : ∀ f g, |G f g| ≤ 1 + γ := by
+    intro f g
+    have h := hG' f g
+    split_ifs at h <;> (rw [abs_le] at h ⊢; constructor <;> linarith [h.1, h.2])
+  have hbb : ∀ f, |b f| ≤ γ * |a f| := by
+    intro f
+    rw [hbd, abs_mul, mul_comm]
+    exact mul_le_mul_of_nonneg_right (hG' f f0) (abs_nonneg _)
+  have hterm : ∀ f g, b f * b g * G f g ≤ (1 + γ) * (|b f| * |b g|) := by
+    intro f g
+    calc b f * b g * G f g ≤ |b f * b g * G f g| := le_abs_self _
+      _ = |b f| * |b g| * |G f g| := by rw [abs_mul, abs_mul]
+      _ ≤ |b f| * |b g| * (1 + γ) :=
+          mul_le_mul_of_nonneg_left (hGb f g) (mul_nonneg (abs_nonneg _) (abs_nonneg _))
+      _ = (1 + γ) * (|b f| * |b g|) := by ring
+  have hsumb : ∑ f, |b f| ≤ γ * ∑ f, |a f| := by
+    rw [Finset.mul_sum]
+    exact Finset.sum_le_sum (fun f _ => hbb f)
+  have hbn : 0 ≤ ∑ f, |b f| := Finset.sum_nonneg (fun f _ => abs_nonneg _)
+  calc ∑ i, ((Q *ᵥ fun j => v j f0) i - a f0 * v i f0) ^ 2
+      = ∑ i, (∑ f, b f * v i f) ^ 2 := Finset.sum_congr rfl (fun i _ => by rw [hres i])
+    _ = ∑ f, ∑ g, b f * b g * G f g := hsq
+    _ ≤ ∑ f, ∑ g, (1 + γ) * (|b f| * |b g|) :=
+        Finset.sum_le_sum (fun f _ => Finset.sum_le_sum (fun g _ => hterm f g))
+    _ = (1 + γ) * (∑ f, |b f|) ^ 2 := by
+        rw [pow_two, Finset.sum_mul_sum, Finset.mul_sum]
+        exact Finset.sum_congr rfl (fun f _ => by rw [Finset.mul_sum])
+    _ ≤ (1 + γ) * (γ * ∑ f, |a f|) ^ 2 :=
+        mul_le_mul_of_nonneg_left (pow_le_pow_left₀ hbn hsumb 2) (by linarith)
+
+/-- **Deterministic steps of Corollary "Eigenspaces on a flat torus", combined.** `S` real
+    symmetric with eigenbasis `v_i` and eigenvalues `s_i`; `Q_ij = ∑_f a_f v_if v_jf` a
+    finite-rank kernel matrix; `w = v_{·f0}` a sampled mode. HYPOTHESES: (`hG`) the Gram matrix
+    of the sampled modes is entrywise within `γ` of the identity; (`hrow`) every absolute row sum
+    of `S^k - Q` is at most `η`; (`hJ`) every eigenvalue of `S` outside the cluster `J` has
+    `|s_i^k - a_{f0}| ≥ g > 0`. CONCLUSION:
+    `‖(1 - Π_J) w‖² ≤ ((1 + γ) (η + γ ∑_f |a_f|))² / g²`. -/
+theorem eigspace_from_gram {n F : Type} [Fintype n] [DecidableEq n] [Fintype F] [DecidableEq F]
+    (S Q : Matrix n n ℝ) (hS : S.IsHermitian) (k : ℕ) (v : Matrix n F ℝ) (a : F → ℝ)
+    (hQ : ∀ i j, Q i j = ∑ f, a f * v i f * v j f) (f0 : F) {γ η g : ℝ} (hη : 0 ≤ η)
+    (hg : 0 < g)
+    (hG : ∀ f g, |∑ i, v i f * v i g - (if f = g then 1 else 0)| ≤ γ)
+    (hrow : ∀ i, ∑ l, |(S ^ k) i l - Q i l| ≤ η)
+    (J : Finset n) (hJ : ∀ i, i ∉ J → g ≤ |hS.eigenvalues i ^ k - a f0|) :
+    ((fun j => v j f0) - specProj hS J (fun j => v j f0))
+        ⬝ᵥ ((fun j => v j f0) - specProj hS J (fun j => v j f0))
+      ≤ ((1 + γ) * (η + γ * ∑ f, |a f|)) ^ 2 / g ^ 2 := by
+  have hγ : 0 ≤ γ := le_trans (abs_nonneg _) (hG f0 f0)
+  have hsa : 0 ≤ ∑ f, |a f| := Finset.sum_nonneg (fun f _ => abs_nonneg _)
+  have hQs : ∀ i j, Q i j = Q j i := by
+    intro i j
+    rw [hQ, hQ]
+    exact Finset.sum_congr rfl (fun f _ => by ring)
+  have hw : (fun j => v j f0) ⬝ᵥ (fun j => v j f0) ≤ (1 + γ) ^ 2 := by
+    have h := hG f0 f0
+    rw [if_pos rfl, abs_le] at h
+    have e : (fun j => v j f0) ⬝ᵥ (fun j => v j f0) = ∑ i, v i f0 * v i f0 := by
+      simp only [dotProduct]
+    rw [e]
+    nlinarith [h.2]
+  have hεQ : 0 ≤ (1 + γ) * (γ * ∑ f, |a f|) :=
+    mul_nonneg (by linarith) (mul_nonneg hγ hsa)
+  have hQw : ∑ i, ((Q *ᵥ fun j => v j f0) i - a f0 * v i f0) ^ 2
+      ≤ ((1 + γ) * (γ * ∑ f, |a f|)) ^ 2 := by
+    refine le_trans (finite_rank_approx_eigvec v a Q hQ f0 hG) ?_
+    have hx : 0 ≤ (γ * ∑ f, |a f|) ^ 2 := _root_.sq_nonneg _
+    nlinarith [mul_nonneg hγ hx, mul_nonneg (mul_nonneg hγ hγ) hx]
+  have h := eigspace_det S Q hS hQs k (fun j => v j f0) hη hεQ (by linarith : (0 : ℝ) ≤ 1 + γ)
+    hg hrow hw hQw J hJ
+  have e : η * (1 + γ) + (1 + γ) * (γ * ∑ f, |a f|) = (1 + γ) * (η + γ * ∑ f, |a f|) := by ring
+  rw [e] at h
+  exact h
+
+end EigenspaceSteps
+
+/-! ### Eigenvalues through column sums (`thm:eigtorus-l1`, first half of part (i): comparison with the kernel matrix) -/
+
+namespace EigenvaluesL1
+
+open CTG.Reals.TorusReduction TorusReductionL1
+
+/-! ### New material -/
+
+/-- Powers of a matrix with row sums one have row sums one. -/
+theorem pow_row_sum {n : Type} [Fintype n] [DecidableEq n] (P : Matrix n n ℝ)
+    (hrow : ∀ i, ∑ l, P i l = 1) (k : ℕ) (i : n) : ∑ l, (P ^ k) i l = 1 := by
+  induction k generalizing i with
+  | zero => simp [Matrix.one_apply]
+  | succ k ih =>
+    simp only [pow_succ, Matrix.mul_apply]
+    rw [Finset.sum_comm]
+    simp only [← Finset.mul_sum, hrow, mul_one]
+    exact ih i
+
+/-- **Target (1): absolute row sums of `S^k - G/N` from the `ℓ¹` kernel bound (deterministic).**
+    `S i l = r i · P i l / r l` symmetric, `P ≥ 0` row-stochastic, `|r i / r l - 1| ≤ θ`, `G` symmetric.
+    HYPOTHESIS `hL1`: `∑_a |N (P^k) a i - G a i| ≤ N e` for every `i` (sum over the FIRST index).
+    Then (a) every column sum of `P^k` is at most `(1 + θ)²` (reversibility, read off from the
+    symmetry of `S^k`), and (b) every absolute row sum of `S^k - G/N` is at most `θ (1 + θ)² + e`.
+    The row sum at `i` is rewritten as the column sum at `i` by the symmetry of `S^k` and `G`. -/
+theorem l1_row_sums {n : Type} [Fintype n] [DecidableEq n] (S P G : Matrix n n ℝ) (r : n → ℝ)
+    {N θ e : ℝ} (hN : 0 < N) (hr : ∀ i, 0 < r i)
+    (hSP : ∀ i l, S i l = r i * P i l / r l) (hS : S.IsHermitian)
+    (hP0 : ∀ i l, 0 ≤ P i l) (hrow : ∀ i, ∑ l, P i l = 1)
+    (hθ : ∀ i l, |r i / r l - 1| ≤ θ) (hG : ∀ i l, G i l = G l i) (k : ℕ)
+    (hL1 : ∀ i, ∑ a, |N * (P ^ k) a i - G a i| ≤ N * e) (i : n) :
+    (∑ l, (P ^ k) l i ≤ (1 + θ) ^ 2) ∧
+    ∑ l, |(S ^ k) i l - G i l / N| ≤ θ * (1 + θ) ^ 2 + e := by
+  have hθ0 : 0 ≤ θ := (abs_nonneg _).trans (hθ i i)
+  have hSk : (S ^ k).IsHermitian := hS.pow k
+  have hsym : ∀ a b, (S ^ k) a b = (S ^ k) b a := by
+    intro a b
+    have := congrFun (congrFun hSk b) a
+    simpa using this
+  have hconj := conj_pow_entry S P r hr hSP k
+  have hPk0 := pow_entries_nonneg P hP0 k
+  have hPkrow := pow_row_sum P hrow k
+  have hrev : ∀ l, (P ^ k) l i = (r i / r l) ^ 2 * (P ^ k) i l := by
+    intro l
+    have h := hsym l i
+    rw [hconj l i, hconj i l, div_eq_div_iff (hr i).ne' (hr l).ne'] at h
+    rw [div_pow, div_mul_eq_mul_div, eq_div_iff (pow_pos (hr l) 2).ne']
+    linear_combination h
+  have hratio : ∀ l, (r i / r l) ^ 2 ≤ (1 + θ) ^ 2 := by
+    intro l
+    have h1 := (abs_le.mp (hθ i l)).2
+    exact pow_le_pow_left₀ (div_pos (hr i) (hr l)).le (by linarith) 2
+  have hcol : ∑ l, (P ^ k) l i ≤ (1 + θ) ^ 2 := by
+    calc ∑ l, (P ^ k) l i = ∑ l, (r i / r l) ^ 2 * (P ^ k) i l :=
+          Finset.sum_congr rfl fun l _ => hrev l
+      _ ≤ ∑ l, (1 + θ) ^ 2 * (P ^ k) i l :=
+          Finset.sum_le_sum fun l _ => mul_le_mul_of_nonneg_right (hratio l) (hPk0 i l)
+      _ = (1 + θ) ^ 2 := by rw [← Finset.mul_sum, hPkrow i, mul_one]
+  refine ⟨hcol, ?_⟩
+  have hterm : ∀ l, |(S ^ k) i l - G i l / N|
+      ≤ θ * (P ^ k) l i + |N * (P ^ k) l i - G l i| / N := by
+    intro l
+    rw [hsym i l, hG i l, hconj l i]
+    have e1 : r l * (P ^ k) l i / r i - G l i / N
+        = (r l / r i - 1) * (P ^ k) l i + (N * (P ^ k) l i - G l i) / N := by
+      rw [sub_div, mul_div_cancel_left₀ _ hN.ne']
+      ring
+    rw [e1]
+    refine (abs_add_le _ _).trans ?_
+    rw [abs_mul, abs_div, abs_of_pos hN, abs_of_nonneg (hPk0 l i)]
+    have := mul_le_mul_of_nonneg_right (hθ l i) (hPk0 l i)
+    linarith
+  calc ∑ l, |(S ^ k) i l - G i l / N|
+      ≤ ∑ l, (θ * (P ^ k) l i + |N * (P ^ k) l i - G l i| / N) :=
+        Finset.sum_le_sum fun l _ => hterm l
+    _ = θ * ∑ l, (P ^ k) l i + (∑ l, |N * (P ^ k) l i - G l i|) / N := by
+        rw [Finset.sum_add_distrib, ← Finset.mul_sum, ← Finset.sum_div]
+    _ ≤ θ * (1 + θ) ^ 2 + e := by
+        have h1 := mul_le_mul_of_nonneg_left hcol hθ0
+        have h2 : (∑ l, |N * (P ^ k) l i - G l i|) / N ≤ e := by
+          rw [div_le_iff₀ hN]; linarith [hL1 i]
+        linarith
+
+/-- **Target (2): Weyl (deterministic).** In the situation of `l1_row_sums`, with `Q = G/N` and
+    nonnegative eigenvalues of `S`: the `k`-th power of the `j`-th ordered eigenvalue of `S` is
+    within `θ (1 + θ)² + e` of the `j`-th ordered eigenvalue of `Q`. No factor `m_k`. -/
+theorem l1_eig {n : Type} [Fintype n] [DecidableEq n] (S P G Q : Matrix n n ℝ) (r : n → ℝ)
+    {N θ e : ℝ} (hN : 0 < N) (hr : ∀ i, 0 < r i)
+    (hSP : ∀ i l, S i l = r i * P i l / r l) (hS : S.IsHermitian)
+    (hP0 : ∀ i l, 0 ≤ P i l) (hrow : ∀ i, ∑ l, P i l = 1)
+    (hθ : ∀ i l, |r i / r l - 1| ≤ θ) (hG : ∀ i l, G i l = G l i)
+    (hQ : Q.IsHermitian) (hQG : ∀ i l, Q i l = G i l / N)
+    (hnn : ∀ j, 0 ≤ hS.eigenvalues₀ j) (k : ℕ)
+    (hL1 : ∀ i, ∑ a, |N * (P ^ k) a i - G a i| ≤ N * e) (j : Fin (Fintype.card n)) :
+    |hS.eigenvalues₀ j ^ k - hQ.eigenvalues₀ j| ≤ θ * (1 + θ) ^ 2 + e := by
+  have hSk : (S ^ k).IsHermitian := hS.pow k
+  have hw := weyl_row_sums (S ^ k) Q hSk hQ (fun i => by
+    simp only [hQG]
+    exact (l1_row_sums S P G r hN hr hSP hS hP0 hrow hθ hG k hL1 i).2) j
+  rwa [eigenvalues₀_pow S hS hnn k hSk j] at hw
+
+/-- The kernel after `k` steps is even. -/
+theorem heatP_even (d : ℕ) (σ : ℝ) (k : ℕ) (u : FlatTorus d) :
+    heatP d σ k (-u) = heatP d σ k u := by
+  unfold heatP
+  split_ifs
+  · rfl
+  · exact heatTorus_even d _ u
+
+/-- The kernel matrix `Q_k = (p_{kσ}(x_a - x_i)/N)` is symmetric. -/
+theorem kernelQ_isHermitian (d : ℕ) (σ : ℝ) (N k : ℕ) (x : ℕ → FlatTorus d) :
+    (Matrix.of fun a i : Fin N => heatP d σ k (x a - x i) / (N : ℝ)).IsHermitian := by
+  ext a i
+  simp only [conjTranspose_apply, of_apply, star_trivial]
+  rw [← heatP_even, neg_sub]
+
+/-- **Targets (1)+(2) for the sampled graph on the torus (deterministic).** Points `x_0, …, x_{N-1}`,
+    kernel `p_σ` (variance `σ`), self-loops, `ρ = heatRho`, `P = walkMatrix`, `S = symGraph`.
+    HYPOTHESES: the normalisation `|ρ_a - 1| ≤ δ ≤ 1/8` and the `ℓ¹` kernel bound
+    `∑_a |N (P^k) a i - p_{kσ}(x_a - x_i)| ≤ N e` for every `i`. Then for every `j`
+    `|s_j^k - μ_j(Q_k)| ≤ 3δ (1 + 3δ)² + e`, where `μ_j(Q_k)` are the ordered eigenvalues of the
+    kernel matrix `Q_k = (p_{kσ}(x_a - x_i)/N)` (indices from `0`, decreasing order). -/
+theorem torus_eig_l1_det {σ δ e : ℝ} (hσ : 0 < σ) (d N : ℕ) [NeZero N] (x : ℕ → FlatTorus d)
+    (hδ : δ ≤ 1 / 8) (hρ : ∀ a : Fin N, |heatRho d σ N x a - 1| ≤ δ) (k : ℕ)
+    (hL1 : ∀ i : Fin N, ∑ a : Fin N, |(N : ℝ) * ((walkMatrix
+          (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (x a - x j))
+          (fun a : Fin N => heatRho d σ N x a)) ^ k) a i
+        - heatP d σ k (x a - x i)| ≤ (N : ℝ) * e)
+    (hS : (symGraph (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (x a - x j))
+        (fun a : Fin N => heatRho d σ N x a)).IsHermitian)
+    (hQ : (Matrix.of fun a i : Fin N => heatP d σ k (x a - x i) / (N : ℝ)).IsHermitian)
+    (j : Fin (Fintype.card (Fin N))) :
+    |hS.eigenvalues₀ j ^ k - hQ.eigenvalues₀ j| ≤ 3 * δ * (1 + 3 * δ) ^ 2 + e := by
+  have hN0 : 0 < N := Nat.pos_of_ne_zero (NeZero.ne N)
+  have hNpos : (0 : ℝ) < N := by exact_mod_cast hN0
+  have hcard : (Fintype.card (Fin N) : ℝ) = N := by simp
+  have hc : 0 < 2 * Real.pi ^ 2 * σ := by have := Real.pi_pos; positivity
+  have hδ0 : 0 ≤ δ := (abs_nonneg _).trans (hρ ⟨0, hN0⟩)
+  set Kf : Fin N → Fin N → ℝ := fun a j => heatTorus d (2 * Real.pi ^ 2 * σ) (x a - x j)
+    with hKdef
+  set rho : Fin N → ℝ := fun a => heatRho d σ N x a with hrhodef
+  have hK0 : ∀ a j, 0 ≤ Kf a j := fun a j => heatTorus_nonneg hc d _
+  have hKsym : ∀ a j, Kf a j = Kf j a := fun a j => by
+    simp only [hKdef]; rw [← heatTorus_even, neg_sub]
+  have hrho1 : ∀ b, |rho b - 1| ≤ δ := hρ
+  have hrhopos : ∀ b, 0 < rho b := fun b => by
+    have := abs_le.mp (hrho1 b); linarith [this.1]
+  have hrhoeq : ∀ b, (Fintype.card (Fin N) : ℝ) * rho b = ∑ l, Kf b l := fun b => by
+    rw [hcard]
+    have h1 : (∑ l : Fin N, Kf b l)
+        = ∑ l ∈ Finset.range N, heatTorus d (2 * Real.pi ^ 2 * σ) (x b - x l) :=
+      Fin.sum_univ_eq_sum_range (fun l => heatTorus d (2 * Real.pi ^ 2 * σ) (x b - x l)) N
+    rw [h1]
+    show (N : ℝ) * ((∑ l ∈ Finset.range N, heatTorus d (2 * Real.pi ^ 2 * σ) (x b - x l)) / N) = _
+    rw [← mul_div_assoc, mul_div_cancel_left₀ _ hNpos.ne']
+  have hDb := fun i => graph_degree_bounds Kf hK0 rho hδ0 hδ hrhoeq hrho1 i
+  have hcardpos : (0 : ℝ) < (Fintype.card (Fin N) : ℝ) := by rw [hcard]; exact hNpos
+  have hDpos : ∀ i, 0 < ∑ l, Kf i l / (rho i * rho l) := fun i =>
+    lt_of_lt_of_le (div_pos hcardpos (by linarith)) (hDb i).1
+  have hθ : ∀ i l, |Real.sqrt (∑ m, Kf i m / (rho i * rho m))
+      / Real.sqrt (∑ m, Kf l m / (rho l * rho m)) - 1| ≤ 3 * δ :=
+    fun i l => sqrt_ratio_bound hcardpos hδ0 hδ (hDb i) (hDb l)
+  have hP0 : ∀ i l, 0 ≤ walkMatrix Kf rho i l := fun i l => by
+    simp only [walkMatrix, Matrix.of_apply]
+    exact div_nonneg (div_nonneg (hK0 i l) (mul_pos (hrhopos i) (hrhopos l)).le) (hDpos i).le
+  have hrow : ∀ i, ∑ l, walkMatrix Kf rho i l = 1 := fun i =>
+    walkMatrix_row_sum Kf rho i (hDpos i).ne'
+  have hnn : ∀ j, 0 ≤ hS.eigenvalues₀ j := fun j =>
+    symGraph_eig_nonneg Kf rho
+      (fun y => heatTorus_quadform_nonneg hc d (fun a : Fin N => x a) y) hS j
+  exact l1_eig (symGraph Kf rho) (walkMatrix Kf rho)
+    (Matrix.of fun a i : Fin N => heatP d σ k (x a - x i))
+    (Matrix.of fun a i : Fin N => heatP d σ k (x a - x i) / (N : ℝ))
+    (fun i => Real.sqrt (∑ m, Kf i m / (rho i * rho m))) hNpos
+    (fun i => Real.sqrt_pos.mpr (hDpos i)) (fun i l => symGraph_conj Kf rho hDpos i l) hS hP0 hrow
+    hθ (fun i l => by simp only [Matrix.of_apply]; rw [← heatP_even, neg_sub]) hQ
+    (fun i l => rfl) hnn k hL1 j
+
+/-- A measure bound from an inclusion in a union of two sets. -/
+theorem real_le_of_subset2 {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {S A B : Set Ω} {a b t : ℝ} (hA : μ.real A ≤ a)
+    (hB : μ.real B ≤ b) (hsub : S ⊆ A ∪ B) (ht : a + b = t) :
+    μ.real S ≤ t := by
+  have h0 : μ.real S ≤ μ.real (A ∪ B) := measureReal_mono hsub (measure_ne_top μ _)
+  have h1 : μ.real (A ∪ B) ≤ μ.real A + μ.real B := measureReal_union_le _ _
+  linarith
+
+/-- The constant of the sample statement: `6 · normC d + h4C d` (depends on `d` only). -/
+noncomputable def eigL1C (d : ℕ) : ℝ := 6 * normC d + h4C d
+
+/-- **Target (3): eigenvalues of the sampled graph against those of the kernel matrix, from the
+    `ℓ¹` kernel bound, for a random sample.** Hypotheses of `kernel_theorem_G28` (independent
+    uniform points on the flat torus, kernel of variance `σ ≤ 1`, self-loops, `M = p_σ(0)`,
+    `δ' = √(M log N/N)`, `kernelC1 d · δ' √K ≤ 1`). Except on an event of probability at most
+    `3/N³` (normalisation event and `ℓ¹` event of `good_events`): for all `1 ≤ k ≤ K` and all `j`
+    `|s_j^k - μ_j(Q_k)| ≤ eigL1C d · δ' √k`,
+    where `s_j` are the ordered eigenvalues of `S = symGraph` and `μ_j(Q_k)` the ordered eigenvalues
+    of the KERNEL MATRIX `Q_k = (p_{kσ}(x_a - x_i)/N)` (not `e^{-kσλ_j}`). No factor `m_k`. -/
+theorem eig_l1_sample {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {σ : ℝ} (hσ : 0 < σ) (hσ1 : σ ≤ 1) (d : ℕ) (hd : 1 ≤ d)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (N K : ℕ) (hN2 : 2 ≤ N) (hK : 0 < K)
+    {Mp δp : ℝ} (hMp : Mp = heatTorus d (2 * Real.pi ^ 2 * σ) 0)
+    (hδp : δp = Real.sqrt (Mp * Real.log N / N))
+    (hrange : kernelC1 d * δp * Real.sqrt K ≤ 1) :
+    μ.real {ω | ¬ ∀ k, 1 ≤ k → k ≤ K →
+        ∀ (hS : (symGraph
+              (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X a ω - X j ω))
+              (fun a : Fin N => heatRho d σ N (fun j => X j ω) a)).IsHermitian)
+          (hQ : (Matrix.of fun a i : Fin N =>
+              heatP d σ k (X a ω - X i ω) / (N : ℝ)).IsHermitian)
+          (j : Fin (Fintype.card (Fin N))),
+          |hS.eigenvalues₀ j ^ k - hQ.eigenvalues₀ j| ≤ eigL1C d * δp * Real.sqrt k}
+      ≤ 3 / (N : ℝ) ^ 3 := by
+  obtain ⟨hn8, hPN, hPL⟩ := good_events hσ hσ1 d hd X h_indep hX hlaw N K hN2 hK hMp hδp hrange
+  haveI : NeZero N := ⟨by omega⟩
+  have hN0 : 0 < N := by omega
+  have hNpos : (0 : ℝ) < N := by exact_mod_cast hN0
+  have hη : 0 ≤ δp := by rw [hδp]; exact Real.sqrt_nonneg _
+  have hcδ := normC_nonneg d
+  have hcE := h4C_nonneg d
+  refine real_le_of_subset2 hPN hPL ?_ (by ring)
+  intro ω hbad
+  by_contra hcon
+  simp only [Set.mem_union, Set.mem_setOf_eq, not_or, not_not] at hcon
+  obtain ⟨hgN, hgL⟩ := hcon
+  apply hbad
+  intro k hk1 hkK hS hQ j
+  have hk1r : (1 : ℝ) ≤ Real.sqrt k := by
+    rw [show (1 : ℝ) = Real.sqrt 1 from Real.sqrt_one.symm]
+    exact Real.sqrt_le_sqrt (by exact_mod_cast hk1)
+  have hnd : 0 ≤ normC d * δp := mul_nonneg hcδ hη
+  have hL1 : ∀ i : Fin N, ∑ a : Fin N, |(N : ℝ) * ((walkMatrix
+          (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X a ω - X j ω))
+          (fun a : Fin N => heatRho d σ N (fun j => X j ω) a)) ^ k) a i
+        - heatP d σ k (X a ω - X i ω)| ≤ (N : ℝ) * (h4C d * δp * Real.sqrt k) := by
+    rcases Nat.lt_or_ge k 2 with h2 | h2
+    · have hk : k = 1 := by omega
+      intro i
+      rw [hk]
+      refine (H4_one hσ d N (by omega) (fun j => X j ω) hn8 hgN i).trans ?_
+      simp only [Nat.cast_one, Real.sqrt_one, mul_one]
+      refine mul_le_mul_of_nonneg_left ?_ hNpos.le
+      have h := h4C_ge d
+      have h1 : 4 * (normC d * δp) * (1 + normC d * δp) ≤ 4 * (normC d * δp) * (9 / 8) :=
+        mul_le_mul_of_nonneg_left (by linarith) (by linarith)
+      have h2' := mul_le_mul_of_nonneg_right h hη
+      linarith
+    · exact hgL k h2 hkK
+  have hdet := torus_eig_l1_det hσ d N (fun j => X j ω) hn8 hgN k hL1 hS hQ j
+  refine hdet.trans ?_
+  have ht2 : (normC d * δp) * (normC d * δp) ≤ (normC d * δp) * (1 / 8) :=
+    mul_le_mul_of_nonneg_left hn8 hnd
+  have hs : (1 + 3 * (normC d * δp)) ^ 2 ≤ 2 := by nlinarith [ht2, hn8, hnd]
+  have h1 : 3 * (normC d * δp) * (1 + 3 * (normC d * δp)) ^ 2 ≤ 3 * (normC d * δp) * 2 :=
+    mul_le_mul_of_nonneg_left hs (by linarith)
+  have h2 : 6 * (normC d * δp) * 1 ≤ 6 * (normC d * δp) * Real.sqrt k :=
+    mul_le_mul_of_nonneg_left hk1r (by linarith)
+  have e : eigL1C d * δp * Real.sqrt k
+      = 6 * (normC d * δp) * Real.sqrt k + h4C d * δp * Real.sqrt k := by
+    unfold eigL1C; ring
+  rw [e]
+  linarith
+
+end EigenvaluesL1
+
 end CTG.Reals2
