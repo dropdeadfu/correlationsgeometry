@@ -9,7 +9,9 @@ right-hand side eigC10 [ (delta'/xi) lambda^(1/2) + sqrt(log N/N) lambda^((d+2)/
 shell, the target (1 - exp(-tau lambda))/tau and the bias tau lambda^2/2 (tau = xi^2/2).
 Here delta' = sqrt(M log N/N), M = p(0) for the periodised Gaussian of variance xi^2 (Fourier series).
 Only powers of ten are tried for N, so the thresholds are upper bounds. No sampling; pure arithmetic.
-Written by a reviewing session of the AI system on 20 November 2026.
+Written by a reviewing session of the AI system on 20 November 2026; the last table (constant of
+`torus_reduction_paper`, transcribed from the Lean definitions h5cD, h5cA, h5Ca, h5Cb) added by the author-side
+session on the same day.
 Usage: python lean_third_file_constants.py
 """
 import numpy as np
@@ -34,6 +36,30 @@ def eigC9(d): return 8*(kernelC1(d)+eigL1C(d)+kernelQC(d))
 def eigC10(d): return 16*(eigL1C(d)+kernelQC(d))
 def M(d,sig):
     n=np.arange(-2000,2001); return float(np.sum(np.exp(-2*pi**2*sig*n**2)))**d
+
+# --- constants of H5.torus_reduction_paper (reduction without remaining hypothesis) ---
+def _inner(d): return (5/4)*(16*(rateCK(d)+1)+2*sqrt(7)*rateRA(d))+12*sqrt(3*d+5)*rateRA(d)
+def h5cD(d): return 6*sqrt(3*d+5)
+def h5cA(d): return 3*(9/8)*_inner(d)
+def h5Ca(d): return h5cD(d)*h5cA(d)*A(d)**3*sqrt(6)**d
+def h5Cb(d): return h5cA(d)*A(d)**2*sqrt(6)**d
+def redC(d):
+    """Constant C of |Tr P^(k+1) - m_(k+1) - Pi_k| <= C delta'^2 k m_(k+1) in `torus_reduction_paper`."""
+    s2=sqrt(2)**d
+    return s2*(2*(4*normC(d))*kernelC1(d)+2*(14*normC(d)**2)+h5Ca(d)
+               +2*(2*s2*h5Ca(d)+h5Ca(d)+s2*kernelC1(d)*h5Cb(d)+h4C(d)*h5Cb(d)))
+def reduction_table():
+    print()
+    print("torus_reduction_paper: constant C, and the comparison of C delta'^2 k (reduction) with")
+    print("kernelC1 delta' sqrt(k+1) (first-stage bound from the kernel statement), both relative to m_(k+1);")
+    print("xi = 0.1, smallest power of ten N with kernelC1 delta' <= 1 (K = 1) and with C delta'^2 <= 1")
+    for d in (1,2,3):
+        C=redC(d); Mp=M(d,0.01)
+        n1=next(e for e in range(6,80) if kernelC1(d)*sqrt(Mp*log(10.0**e)/10.0**e)<=1)
+        n2=next(e for e in range(6,120) if C*Mp*log(10.0**e)/10.0**e<=1)
+        n3=next(e for e in range(6,160) if C*Mp*log(10.0**e)/10.0**e<=kernelC1(d)*sqrt(2*Mp*log(10.0**e)/10.0**e))
+        print("d=%d  h5Ca %.4g  h5Cb %.4g  C %.4g  C/kernelC1^2 %.4g | kernel condition from N=1e%d, C delta'^2 <= 1 from N=1e%d, reduction below first stage (k=1) from N=1e%d"
+              %(d,h5Ca(d),h5Cb(d),C,C/kernelC1(d)**2,n1,n2,n3))
 if __name__=="__main__":
     for d in (1,2,3):
         print(d,"kernelC1 %.4g eigL1C %.4g kernelQC %.4g eigC9 %.4g eigC10 %.4g ratio C10/C9 %.4g"%(kernelC1(d),eigL1C(d),kernelQC(d),eigC9(d),eigC10(d),eigC10(d)/eigC9(d)))
@@ -69,3 +95,4 @@ if __name__=="__main__":
                         r=okk[0]; s=2*pi*sqrt(r)
                         print("      N=1e%d: shells ok %d/%d; r=%g rhs=%.4g; r=%g rhs/lam=%.3g"%(e2,len(okk),len(sh),r,eigC10(d)*(dp/xi*s+L*s**(d+2)),okk[-1],eigC10(d)*(dp/xi*(2*pi*sqrt(okk[-1]))+L*(2*pi*sqrt(okk[-1]))**(d+2))/(4*pi**2*okk[-1])))
                     break
+    reduction_table()
