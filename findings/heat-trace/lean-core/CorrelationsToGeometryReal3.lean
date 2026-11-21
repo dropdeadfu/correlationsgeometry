@@ -2194,4 +2194,643 @@ theorem sharp_rate_prob_small_time {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ :
 
 end SharpRate
 
+/-! ### The corrected estimator in the exactly solvable case (`thm:corrected`) and the subtracted
+term of the graph without self-loops (last sentence of `cor:kernel-noloops`) -/
+
+namespace CorrectedRate
+
+/-!
+Conventions. As in `PopulationRate`, `σ` is the `σ` of the PAPER (`P_σ = e^{σΔ}`, `σ = c_h ξ²/2`),
+`t` is the time of the paper and `τ = t/σ`. The `σ` of the second and third Lean files is
+`ξ² = 2σ`; the two statements that connect with those files (`corrected_torus_corrSeries`,
+`noloop_subtraction_lean`) say so explicitly.
+
+Part (A), `thm:corrected`, for an abstract spectrum `lam` (`IsSpectrum`, nothing else):
+* `subTr1 lam σ t`, `subTr2 lam σ t`: the series of the first and second derivatives in `t` of
+  the terms of `T_σ(t) = subTr lam σ t`;
+* `subTr_hasDerivAt`, `subTr1_hasDerivAt`, `subTr_deriv2`: for `σ > 0`, `t > 0` they ARE the
+  derivatives, `deriv (deriv (subTr lam σ)) t = subTr2 lam σ t` ("`T_σ` is twice differentiable");
+* `corrected_series` / `corrected_deriv`: the display of `thm:corrected` with the constants of the
+  paper, for ALL `σ > 0`, `t > 0` (the condition `t ≥ σ` of the paper is not needed);
+* `corrected_simple`: the same with the moments at `t/2` bounded by `Θ(t/4)`.
+For the flat torus `ℝ^d/ℤ^d` (no hypothesis):
+* `heatTr_torus_scale`: `Θ(s) ≤ (t/s)^{d/2} Θ(t)` for `0 < s ≤ t` (constant one, every `t`);
+* `corrected_torus`, `corrected_torus_deriv`: relative error
+  `≤ 1728·2^d (σ/t)² + 4(1+τ)² e^{-τ/2} (τ^{d/2} + 2^{d/2})` for `0 < σ ≤ t`, every `t`
+  (the paper says "for `t ≤ 1` ... `O(τ^{-2})`"; on the torus no upper bound on `t` is needed);
+* `poissonMean_deriv2`, `corrected_torus_corrSeries`: the corrected quantity equals
+  `Corrected.corrSeries (t/σ) (heatMode d (2σ))` of the third file (chain rule
+  `(σt/2) ∂_t² = (τ/2) ∂_τ²`).
+
+Part (B), last sentence of `cor:kernel-noloops`, deterministic, flat torus:
+* `noloop_subtraction`: `τ e^{-τ} M ≤ τ^{1+d/2} e^{-τ} Θ(t)` with `M = Θ(σ) = p_{ξ²}(0)`, for
+  `0 < σ ≤ t`: the constant `C` of the paper is `1`, and `t ≤ 1` is not needed;
+* `noloop_subtraction_rate`: hence `τ e^{-τ} M ≤ (d+3)! (σ/t)² Θ(t)`;
+* `noloop_subtraction_lean`: the same for the term `pw τ 1 * heatTorus d (2π²σ') 0` subtracted in
+  `NoLoopsTrace.noloop_heat_trace_ratio` (there `σ' = ξ²`).
+
+NOT proved here and NOT claimed:
+* nothing about a manifold or an operator; "closed Riemannian manifold" enters only through the
+  list of eigenvalues, as in `PopulationRate`;
+* the sentence "for `t ≤ 1` the relative error is `O(τ^{-2})`" for a general manifold (it needs
+  `Θ(t/4) ≤ C Θ(t)` and `Θ(σ) ≤ C τ^{d/2} Θ(t)`); only the flat torus is treated;
+* nothing about the sampled graph: the corrected estimator of the sample is `Corrected.corrected_G30`
+  (third file), the graph without self-loops is `NoLoopsTrace` (third file); no statement here
+  combines them with the bounds of this block. In particular the comparison of the subtracted
+  term with `T_σ(t)` (the denominator of `noloop_heat_trace_ratio`) instead of `Θ(t)` is not
+  written out, and neither is "the statements of `cor:kernel-trace` on the rate hold for the graph
+  without self-loops".
+-/
+
+open Filter Topology
+open PopulationRate CTG.Reals.TraceG29 Corrected CorrectedPopulation
+
+/-! #### (A) One mode -/
+
+/-- **`thm:corrected` for one mode, low or high** (`u = σλ`, `τu = tλ`), for all `τ ≥ 0`, `u ≥ 0`:
+    `|a(1 - τw²/2) - e^{-τ}(1 - τ/2) - b| ≤ (τu³/2 + (τu²/2)²) e^{-τu/2}
+        + 4(1+τ)² e^{-τ/2} (e^{-u} + e^{-τu/2})`,
+    `w = 1 - e^{-u}`, `a = e^{-τw}`, `b = e^{-τu}`. Low modes: `walk_mode_corrected` of the core
+    file; high modes: `corrected_high_mode` of the core file. -/
+theorem mode_corrected {τ u : ℝ} (hτ : 0 ≤ τ) (hu : 0 ≤ u) :
+    |Real.exp (-(τ * (1 - Real.exp (-u))))
+          * (1 - τ * (1 - Real.exp (-u)) * (1 - Real.exp (-u)) / 2)
+        - Real.exp (-τ) * (1 - τ / 2) - Real.exp (-(τ * u))|
+      ≤ (τ * u * u * u / 2 + τ * u * u / 2 * (τ * u * u / 2)) * Real.exp (-(τ * u / 2))
+        + 4 * (1 + τ) ^ 2 * Real.exp (-(τ / 2)) * (Real.exp (-u) + Real.exp (-(τ * u / 2))) := by
+  have hEu := Real.exp_pos (-u)
+  have hE2 := Real.exp_pos (-(τ / 2))
+  have hEx2 := Real.exp_pos (-(τ * u / 2))
+  have hEt := Real.exp_pos (-τ)
+  have hF : 0 ≤ (τ * u * u * u / 2 + τ * u * u / 2 * (τ * u * u / 2))
+      * Real.exp (-(τ * u / 2)) := by positivity
+  have hq1 : 0 ≤ 4 * (1 + τ) ^ 2 * Real.exp (-(τ / 2)) * Real.exp (-u) := by positivity
+  have hq2 : 0 ≤ 4 * (1 + τ) ^ 2 * Real.exp (-(τ / 2)) * Real.exp (-(τ * u / 2)) := by positivity
+  rcases le_total u 1 with h | h
+  · obtain ⟨l1, l2⟩ := real_walk_mode_corrected hτ hu h
+    have h1 : Real.exp (-τ) ≤ Real.exp (-(τ / 2)) := Real.exp_le_exp.2 (by linarith)
+    have h2 : 1 / 4 ≤ Real.exp (-u) :=
+      le_trans quarter_le_exp_neg_one (Real.exp_le_exp.2 (by linarith))
+    have h3 : Real.exp (-τ) * (1 + τ / 2)
+        ≤ 4 * (1 + τ) ^ 2 * Real.exp (-(τ / 2)) * Real.exp (-u) := by
+      have a1 : Real.exp (-τ) * (1 + τ / 2) ≤ Real.exp (-(τ / 2)) * (1 + τ) ^ 2 :=
+        mul_le_mul h1 (by nlinarith) (by linarith) hE2.le
+      have a2 : Real.exp (-(τ / 2)) * (1 + τ) ^ 2 * 1
+          ≤ Real.exp (-(τ / 2)) * (1 + τ) ^ 2 * (4 * Real.exp (-u)) :=
+        mul_le_mul_of_nonneg_left (by linarith) (by positivity)
+      linarith
+    have h5 : |Real.exp (-τ) * (1 - τ / 2)| ≤ Real.exp (-τ) * (1 + τ / 2) := by
+      rw [abs_mul, abs_of_pos hEt]
+      exact mul_le_mul_of_nonneg_left (by rw [abs_le]; constructor <;> linarith) hEt.le
+    obtain ⟨h6, h7⟩ := abs_le.1 h5
+    rw [abs_le]
+    constructor
+    · linarith
+    · linarith
+  · have hs0 : Real.exp (-u) ≤ Real.exp (-1) := Real.exp_le_exp.2 (by linarith)
+    obtain ⟨k1, k2⟩ := CTG.HeatTrace.corrected_high_mode real_isExp (tau := τ)
+      (s := Real.exp (-u)) (s0 := Real.exp (-1)) hτ hEu.le hs0
+      (by have := exp_neg_one_le_half; linarith)
+    have k3 : Real.exp (-(τ * (1 - Real.exp (-1)))) ≤ Real.exp (-(τ / 2)) :=
+      Real.exp_le_exp.2 (by nlinarith [exp_neg_one_le_half])
+    have ea : Real.exp (-(τ * (1 - Real.exp (-u))))
+        = Real.exp (-τ) * Real.exp (τ * Real.exp (-u)) := by
+      rw [← Real.exp_add]; congr 1; ring
+    have k4 : τ * Real.exp (-u) * (2 + τ / 2) * Real.exp (-(τ * (1 - Real.exp (-1))))
+        ≤ 4 * (1 + τ) ^ 2 * Real.exp (-(τ / 2)) * Real.exp (-u) := by
+      have b1 : τ * Real.exp (-u) * (2 + τ / 2) * Real.exp (-(τ * (1 - Real.exp (-1))))
+          ≤ τ * Real.exp (-u) * (2 + τ / 2) * Real.exp (-(τ / 2)) :=
+        mul_le_mul_of_nonneg_left k3 (by positivity)
+      have b2 : τ * (2 + τ / 2) * (Real.exp (-u) * Real.exp (-(τ / 2)))
+          ≤ 4 * (1 + τ) ^ 2 * (Real.exp (-u) * Real.exp (-(τ / 2))) :=
+        mul_le_mul_of_nonneg_right (by nlinarith) (by positivity)
+      linarith
+    have k5 : Real.exp (-(τ * u)) ≤ Real.exp (-(τ / 2)) * Real.exp (-(τ * u / 2)) := by
+      rw [← Real.exp_add]
+      exact Real.exp_le_exp.2 (by nlinarith [mul_nonneg hτ (sub_nonneg.2 h)])
+    have k6 : Real.exp (-(τ / 2)) * Real.exp (-(τ * u / 2))
+        ≤ 4 * (1 + τ) ^ 2 * Real.exp (-(τ / 2)) * Real.exp (-(τ * u / 2)) := by
+      have c1 : (1 : ℝ) ≤ 4 * (1 + τ) ^ 2 := by nlinarith
+      have c2 := mul_le_mul_of_nonneg_right c1
+        (show 0 ≤ Real.exp (-(τ / 2)) * Real.exp (-(τ * u / 2)) by positivity)
+      linarith
+    have e : Real.exp (-(τ * (1 - Real.exp (-u))))
+          * (1 - τ * (1 - Real.exp (-u)) * (1 - Real.exp (-u)) / 2)
+          - Real.exp (-τ) * (1 - τ / 2)
+        = Real.exp (-τ) * (Real.exp (τ * Real.exp (-u))
+            * (1 - τ * (1 - Real.exp (-u)) * (1 - Real.exp (-u)) / 2) - 1 + τ / 2) := by
+      rw [ea]; ring
+    have hb := Real.exp_pos (-(τ * u))
+    rw [e, abs_le]
+    constructor
+    · linarith
+    · linarith
+
+theorem corr_alg {σ t A E B w : ℝ} :
+    (A - E) - σ * t / 2 * ((w / σ) ^ 2 * A - (1 / σ) ^ 2 * E) - B
+      = A * (1 - t / σ * w * w / 2) - E * (1 - t / σ / 2) - B := by
+  by_cases hσ : σ = 0
+  · subst hσ; simp
+  · field_simp
+    ring
+
+/-- The same in the variables of the paper, `τ = t/σ`, `u = σ l`: the term of
+    `T_σ - (σt/2) T_σ''` minus the heat mode `e^{-t l}`. -/
+theorem mode_corrected_scaled {σ t l : ℝ} (hσ : 0 < σ) (ht : 0 < t) (hl : 0 ≤ l) :
+    |(Real.exp (-(t / σ * (1 - Real.exp (-(σ * l))))) - Real.exp (-(t / σ)))
+        - σ * t / 2 * (((1 - Real.exp (-(σ * l))) / σ) ^ 2
+              * Real.exp (-(t / σ * (1 - Real.exp (-(σ * l)))))
+            - (1 / σ) ^ 2 * Real.exp (-(t / σ)))
+        - Real.exp (-(t * l))|
+      ≤ (σ / t) ^ 2 * (t ^ 3 / 2 * (l ^ 3 * Real.exp (-(t / 2 * l)))
+            + t ^ 4 / 4 * (l ^ 4 * Real.exp (-(t / 2 * l))))
+        + 4 * (1 + t / σ) ^ 2 * Real.exp (-(t / σ / 2))
+            * (Real.exp (-(σ * l)) + Real.exp (-(t / 2 * l))) := by
+  have hσ' : σ ≠ 0 := hσ.ne'
+  have ht' : t ≠ 0 := ht.ne'
+  have key := mode_corrected (τ := t / σ) (u := σ * l) (div_nonneg ht.le hσ.le)
+    (mul_nonneg hσ.le hl)
+  have e1 : t / σ * (σ * l) = t * l := by field_simp
+  have e3 : t / σ * (σ * l) * (σ * l) * (σ * l) / 2 = (σ / t) ^ 2 * (t ^ 3 / 2 * l ^ 3) := by
+    field_simp
+  have e6 : t / σ * (σ * l) * (σ * l) / 2 * (t / σ * (σ * l) * (σ * l) / 2)
+      = (σ / t) ^ 2 * (t ^ 4 / 4 * l ^ 4) := by
+    field_simp; ring
+  have e4 : t * l / 2 = t / 2 * l := by ring
+  rw [e6, e3, e1, e4] at key
+  rw [corr_alg]
+  refine key.trans (le_of_eq ?_)
+  ring
+
+/-- First derivative of a mode, up to the factor `1/σ`: `|-w a + e^{-τ}| ≤ (τ+1) e^{-u}`. -/
+theorem d1_bound {τ u : ℝ} (hτ : 0 ≤ τ) (hu : 0 ≤ u) :
+    |-(1 - Real.exp (-u)) * Real.exp (-(τ * (1 - Real.exp (-u)))) + Real.exp (-τ)|
+      ≤ (τ + 1) * Real.exp (-u) := by
+  have hs0 := (Real.exp_pos (-u)).le
+  have hs1 : Real.exp (-u) ≤ 1 := Real.exp_le_one_iff.2 (by linarith)
+  have ha0 := (Real.exp_pos (-(τ * (1 - Real.exp (-u))))).le
+  have ha1 : Real.exp (-(τ * (1 - Real.exp (-u)))) ≤ 1 :=
+    Real.exp_le_one_iff.2 (by nlinarith [mul_nonneg hτ (sub_nonneg.2 hs1)])
+  obtain ⟨m1, m2⟩ := mode_sub_bounds hτ hu
+  have p1 := mul_nonneg hs0 ha0
+  have p2 := mul_nonneg hs0 (sub_nonneg.2 ha1)
+  rw [abs_le]
+  constructor
+  · nlinarith
+  · nlinarith
+
+/-- Second derivative of a mode, up to the factor `1/σ²`: `|w² a - e^{-τ}| ≤ (τ+2) e^{-u}`. -/
+theorem d2_bound {τ u : ℝ} (hτ : 0 ≤ τ) (hu : 0 ≤ u) :
+    |(1 - Real.exp (-u)) ^ 2 * Real.exp (-(τ * (1 - Real.exp (-u)))) - Real.exp (-τ)|
+      ≤ (τ + 2) * Real.exp (-u) := by
+  have hs0 := (Real.exp_pos (-u)).le
+  have hs1 : Real.exp (-u) ≤ 1 := Real.exp_le_one_iff.2 (by linarith)
+  have ha0 := (Real.exp_pos (-(τ * (1 - Real.exp (-u))))).le
+  have ha1 : Real.exp (-(τ * (1 - Real.exp (-u)))) ≤ 1 :=
+    Real.exp_le_one_iff.2 (by nlinarith [mul_nonneg hτ (sub_nonneg.2 hs1)])
+  obtain ⟨m1, m2⟩ := mode_sub_bounds hτ hu
+  have p1 := mul_nonneg hs0 ha0
+  have p2 := mul_nonneg hs0 (sub_nonneg.2 ha1)
+  have p3 := mul_nonneg p1 (sub_nonneg.2 hs1)
+  have p4 := mul_nonneg hs0 p1
+  rw [abs_le]
+  constructor
+  · nlinarith
+  · nlinarith
+
+/-! #### (A) Summation over a spectrum; the series are the derivatives -/
+
+section Spectrum
+
+variable {ι : Type*} (lam : ι → ℝ)
+
+/-- The series of the first derivatives in `t` of the terms of `T_σ(t)` (`eq:Tsigma`):
+    `∑_k [-μ_k e^{-tμ_k} + σ^{-1} e^{-t/σ}]`, `μ_k = (1 - e^{-σλ_k})/σ`. -/
+noncomputable def subTr1 (σ t : ℝ) : ℝ :=
+  ∑' k, (-((1 - Real.exp (-(σ * lam k))) / σ)
+            * Real.exp (-(t / σ * (1 - Real.exp (-(σ * lam k)))))
+          + 1 / σ * Real.exp (-(t / σ)))
+
+/-- The series of the second derivatives in `t` of the terms of `T_σ(t)`:
+    `∑_k [μ_k² e^{-tμ_k} - σ^{-2} e^{-t/σ}]`. By `subTr_deriv2` this is `T_σ''(t)` for `t > 0`. -/
+noncomputable def subTr2 (σ t : ℝ) : ℝ :=
+  ∑' k, (((1 - Real.exp (-(σ * lam k))) / σ) ^ 2
+            * Real.exp (-(t / σ * (1 - Real.exp (-(σ * lam k)))))
+          - (1 / σ) ^ 2 * Real.exp (-(t / σ)))
+
+variable {lam}
+
+theorem subTr1_term_bound (h : IsSpectrum lam) {σ t : ℝ} (hσ : 0 < σ) (ht : 0 ≤ t) (k : ι) :
+    ‖-((1 - Real.exp (-(σ * lam k))) / σ) * Real.exp (-(t / σ * (1 - Real.exp (-(σ * lam k)))))
+        + 1 / σ * Real.exp (-(t / σ))‖
+      ≤ 1 / σ * (t / σ + 1) * Real.exp (-(σ * lam k)) := by
+  have key := d1_bound (div_nonneg ht hσ.le) (mul_nonneg hσ.le (h.nonneg k))
+  have e : -((1 - Real.exp (-(σ * lam k))) / σ)
+          * Real.exp (-(t / σ * (1 - Real.exp (-(σ * lam k))))) + 1 / σ * Real.exp (-(t / σ))
+      = 1 / σ * (-(1 - Real.exp (-(σ * lam k)))
+          * Real.exp (-(t / σ * (1 - Real.exp (-(σ * lam k))))) + Real.exp (-(t / σ))) := by ring
+  have hpos : (0 : ℝ) ≤ 1 / σ := by positivity
+  rw [Real.norm_eq_abs, e, abs_mul, abs_of_nonneg hpos, mul_assoc]
+  exact mul_le_mul_of_nonneg_left key hpos
+
+theorem subTr2_term_bound (h : IsSpectrum lam) {σ t : ℝ} (hσ : 0 < σ) (ht : 0 ≤ t) (k : ι) :
+    ‖((1 - Real.exp (-(σ * lam k))) / σ) ^ 2
+          * Real.exp (-(t / σ * (1 - Real.exp (-(σ * lam k)))))
+        - (1 / σ) ^ 2 * Real.exp (-(t / σ))‖
+      ≤ (1 / σ) ^ 2 * (t / σ + 2) * Real.exp (-(σ * lam k)) := by
+  have key := d2_bound (div_nonneg ht hσ.le) (mul_nonneg hσ.le (h.nonneg k))
+  have e : ((1 - Real.exp (-(σ * lam k))) / σ) ^ 2
+          * Real.exp (-(t / σ * (1 - Real.exp (-(σ * lam k)))))
+          - (1 / σ) ^ 2 * Real.exp (-(t / σ))
+      = (1 / σ) ^ 2 * ((1 - Real.exp (-(σ * lam k))) ^ 2
+          * Real.exp (-(t / σ * (1 - Real.exp (-(σ * lam k))))) - Real.exp (-(t / σ))) := by ring
+  have hpos : (0 : ℝ) ≤ (1 / σ) ^ 2 := by positivity
+  rw [Real.norm_eq_abs, e, abs_mul, abs_of_nonneg hpos, mul_assoc]
+  exact mul_le_mul_of_nonneg_left key hpos
+
+theorem subTr1_hasSum (h : IsSpectrum lam) {σ t : ℝ} (hσ : 0 < σ) (ht : 0 ≤ t) :
+    HasSum (fun k => -((1 - Real.exp (-(σ * lam k))) / σ)
+            * Real.exp (-(t / σ * (1 - Real.exp (-(σ * lam k)))))
+          + 1 / σ * Real.exp (-(t / σ))) (subTr1 lam σ t) :=
+  (Summable.of_norm_bounded ((h.summable σ hσ).mul_left (1 / σ * (t / σ + 1)))
+    (fun k => subTr1_term_bound h hσ ht k)).hasSum
+
+theorem subTr2_hasSum (h : IsSpectrum lam) {σ t : ℝ} (hσ : 0 < σ) (ht : 0 ≤ t) :
+    HasSum (fun k => ((1 - Real.exp (-(σ * lam k))) / σ) ^ 2
+            * Real.exp (-(t / σ * (1 - Real.exp (-(σ * lam k)))))
+          - (1 / σ) ^ 2 * Real.exp (-(t / σ))) (subTr2 lam σ t) :=
+  (Summable.of_norm_bounded ((h.summable σ hσ).mul_left ((1 / σ) ^ 2 * (t / σ + 2)))
+    (fun k => subTr2_term_bound h hσ ht k)).hasSum
+
+/-- `T_σ` is differentiable in `t` for `t > 0`, with the termwise derivative. -/
+theorem subTr_hasDerivAt (h : IsSpectrum lam) {σ t : ℝ} (hσ : 0 < σ) (ht : 0 < t) :
+    HasDerivAt (subTr lam σ) (subTr1 lam σ t) t := by
+  have hu : Summable fun k => 1 / σ * ((t + 1) / σ + 1) * Real.exp (-(σ * lam k)) :=
+    (h.summable σ hσ).mul_left _
+  have hg : ∀ (k : ι) (y : ℝ), y ∈ Set.Ioo (0 : ℝ) (t + 1) →
+      HasDerivAt (fun y : ℝ => Real.exp (-(y / σ * (1 - Real.exp (-(σ * lam k)))))
+          - Real.exp (-(y / σ)))
+        (-((1 - Real.exp (-(σ * lam k))) / σ)
+            * Real.exp (-(y / σ * (1 - Real.exp (-(σ * lam k)))))
+          + 1 / σ * Real.exp (-(y / σ))) y := by
+    intro k y _
+    have h1 : HasDerivAt (fun y : ℝ => -(y / σ * (1 - Real.exp (-(σ * lam k)))))
+        (-(1 / σ * (1 - Real.exp (-(σ * lam k))))) y :=
+      (((hasDerivAt_id' y).div_const σ).mul_const _).neg
+    have h2 : HasDerivAt (fun y : ℝ => -(y / σ)) (-(1 / σ)) y :=
+      ((hasDerivAt_id' y).div_const σ).neg
+    exact (h1.exp.sub h2.exp).congr_deriv (by ring)
+  have hg' : ∀ (k : ι) (y : ℝ), y ∈ Set.Ioo (0 : ℝ) (t + 1) →
+      ‖-((1 - Real.exp (-(σ * lam k))) / σ)
+            * Real.exp (-(y / σ * (1 - Real.exp (-(σ * lam k)))))
+          + 1 / σ * Real.exp (-(y / σ))‖
+        ≤ 1 / σ * ((t + 1) / σ + 1) * Real.exp (-(σ * lam k)) := by
+    intro k y hy
+    refine (subTr1_term_bound h hσ hy.1.le k).trans ?_
+    have hy2 : y / σ ≤ (t + 1) / σ := div_le_div_of_nonneg_right hy.2.le hσ.le
+    have hpos : (0 : ℝ) ≤ 1 / σ := by positivity
+    exact mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_left (by linarith) hpos)
+      (Real.exp_pos _).le
+  exact hasDerivAt_tsum_of_isPreconnected (y₀ := t) (y := t) hu isOpen_Ioo
+    isPreconnected_Ioo hg hg' ⟨ht, by linarith⟩ (subTr_hasSum h hσ ht.le).summable
+    ⟨ht, by linarith⟩
+
+/-- The termwise first derivative is differentiable in `t` for `t > 0`, with the termwise
+    second derivative. -/
+theorem subTr1_hasDerivAt (h : IsSpectrum lam) {σ t : ℝ} (hσ : 0 < σ) (ht : 0 < t) :
+    HasDerivAt (subTr1 lam σ) (subTr2 lam σ t) t := by
+  have hu : Summable fun k => (1 / σ) ^ 2 * ((t + 1) / σ + 2) * Real.exp (-(σ * lam k)) :=
+    (h.summable σ hσ).mul_left _
+  have hg : ∀ (k : ι) (y : ℝ), y ∈ Set.Ioo (0 : ℝ) (t + 1) →
+      HasDerivAt (fun y : ℝ => -((1 - Real.exp (-(σ * lam k))) / σ)
+            * Real.exp (-(y / σ * (1 - Real.exp (-(σ * lam k)))))
+          + 1 / σ * Real.exp (-(y / σ)))
+        (((1 - Real.exp (-(σ * lam k))) / σ) ^ 2
+            * Real.exp (-(y / σ * (1 - Real.exp (-(σ * lam k)))))
+          - (1 / σ) ^ 2 * Real.exp (-(y / σ))) y := by
+    intro k y _
+    have h1 : HasDerivAt (fun y : ℝ => -(y / σ * (1 - Real.exp (-(σ * lam k)))))
+        (-(1 / σ * (1 - Real.exp (-(σ * lam k))))) y :=
+      (((hasDerivAt_id' y).div_const σ).mul_const _).neg
+    have h2 : HasDerivAt (fun y : ℝ => -(y / σ)) (-(1 / σ)) y :=
+      ((hasDerivAt_id' y).div_const σ).neg
+    exact ((h1.exp.const_mul (-((1 - Real.exp (-(σ * lam k))) / σ))).add
+      (h2.exp.const_mul (1 / σ))).congr_deriv (by ring)
+  have hg' : ∀ (k : ι) (y : ℝ), y ∈ Set.Ioo (0 : ℝ) (t + 1) →
+      ‖((1 - Real.exp (-(σ * lam k))) / σ) ^ 2
+            * Real.exp (-(y / σ * (1 - Real.exp (-(σ * lam k)))))
+          - (1 / σ) ^ 2 * Real.exp (-(y / σ))‖
+        ≤ (1 / σ) ^ 2 * ((t + 1) / σ + 2) * Real.exp (-(σ * lam k)) := by
+    intro k y hy
+    refine (subTr2_term_bound h hσ hy.1.le k).trans ?_
+    have hy2 : y / σ ≤ (t + 1) / σ := div_le_div_of_nonneg_right hy.2.le hσ.le
+    have hpos : (0 : ℝ) ≤ (1 / σ) ^ 2 := by positivity
+    exact mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_left (by linarith) hpos)
+      (Real.exp_pos _).le
+  exact hasDerivAt_tsum_of_isPreconnected (y₀ := t) (y := t) hu isOpen_Ioo
+    isPreconnected_Ioo hg hg' ⟨ht, by linarith⟩ (subTr1_hasSum h hσ ht.le).summable
+    ⟨ht, by linarith⟩
+
+/-- **`T_σ` is twice differentiable in `t`** (first sentence of `thm:corrected`): for `σ > 0`,
+    `t > 0` the second derivative of `t ↦ T_σ(t)` is the series `subTr2`. -/
+theorem subTr_deriv2 (h : IsSpectrum lam) {σ t : ℝ} (hσ : 0 < σ) (ht : 0 < t) :
+    deriv (deriv (subTr lam σ)) t = subTr2 lam σ t := by
+  have h1 : deriv (subTr lam σ) =ᶠ[𝓝 t] subTr1 lam σ := by
+    filter_upwards [Ioi_mem_nhds ht] with y hy
+    exact (subTr_hasDerivAt h hσ hy).deriv
+  rw [Filter.EventuallyEq.deriv_eq h1]
+  exact (subTr1_hasDerivAt h hσ ht).deriv
+
+/-- **`thm:corrected`, the display, with the constants of the paper.** For `σ > 0`, `t > 0`,
+    `τ = t/σ` (the condition `t ≥ σ` of the paper is not needed):
+    `|T_σ(t) - (σt/2) T_σ''(t) - Θ(t)| ≤ (σ/t)² [t³|Θ'''(t/2)|/2 + t⁴ Θ''''(t/2)/4]
+        + 4(1+τ)² e^{-τ/2} [Θ(σ) + Θ(t/2)]`,
+    with `T_σ'' = subTr2` (`subTr_deriv2`), `|Θ'''| = heatMom lam 3`, `Θ'''' = heatMom lam 4`
+    (`heatMom_hasDerivAt`). -/
+theorem corrected_series (h : IsSpectrum lam) {σ t : ℝ} (hσ : 0 < σ) (ht : 0 < t) :
+    |subTr lam σ t - σ * t / 2 * subTr2 lam σ t - heatTr lam t|
+      ≤ (σ / t) ^ 2 * (t ^ 3 / 2 * heatMom lam 3 (t / 2) + t ^ 4 / 4 * heatMom lam 4 (t / 2))
+        + 4 * (1 + t / σ) ^ 2 * Real.exp (-(t / σ / 2)) * (heatTr lam σ + heatTr lam (t / 2)) := by
+  have ht2 : 0 < t / 2 := by linarith
+  have hE := ((subTr_hasSum h hσ ht.le).sub ((subTr2_hasSum h hσ ht.le).mul_left (σ * t / 2))).sub
+    (heatTr_hasSum h ht)
+  have hR := ((((heatMom_hasSum h 3 ht2).mul_left (t ^ 3 / 2)).add
+      ((heatMom_hasSum h 4 ht2).mul_left (t ^ 4 / 4))).mul_left ((σ / t) ^ 2)).add
+    (((heatTr_hasSum h hσ).add (heatTr_hasSum h ht2)).mul_left
+      (4 * (1 + t / σ) ^ 2 * Real.exp (-(t / σ / 2))))
+  have pt := fun k => abs_le.1 (mode_corrected_scaled hσ ht (h.nonneg k))
+  rw [abs_le]
+  constructor
+  · have := hasSum_le (fun k => (pt k).1) hR.neg hE
+    exact this
+  · exact hasSum_le (fun k => (pt k).2) hE hR
+
+/-- `thm:corrected` with the second derivative of the function `t ↦ T_σ(t)` itself. -/
+theorem corrected_deriv (h : IsSpectrum lam) {σ t : ℝ} (hσ : 0 < σ) (ht : 0 < t) :
+    |subTr lam σ t - σ * t / 2 * deriv (deriv (subTr lam σ)) t - heatTr lam t|
+      ≤ (σ / t) ^ 2 * (t ^ 3 / 2 * heatMom lam 3 (t / 2) + t ^ 4 / 4 * heatMom lam 4 (t / 2))
+        + 4 * (1 + t / σ) ^ 2 * Real.exp (-(t / σ / 2)) * (heatTr lam σ + heatTr lam (t / 2)) := by
+  rw [subTr_deriv2 h hσ ht]
+  exact corrected_series h hσ ht
+
+/-- `thm:corrected` with the derivatives at `t/2` bounded by the heat trace at `t/4`
+    (`mom_le_heatTr`): the first term is at most `1728 (σ/t)² Θ(t/4)`. -/
+theorem corrected_simple (h : IsSpectrum lam) {σ t : ℝ} (hσ : 0 < σ) (ht : 0 < t) :
+    |subTr lam σ t - σ * t / 2 * subTr2 lam σ t - heatTr lam t|
+      ≤ 1728 * (σ / t) ^ 2 * heatTr lam (t / 4)
+        + 4 * (1 + t / σ) ^ 2 * Real.exp (-(t / σ / 2)) * (heatTr lam σ + heatTr lam (t / 2)) := by
+  have h3 := mom_le_heatTr h 3 ht
+  have h4 := mom_le_heatTr h 4 ht
+  have e3 : ((Nat.factorial 3 : ℕ) : ℝ) = 6 := by norm_num [Nat.factorial]
+  have e4 : ((Nat.factorial 4 : ℕ) : ℝ) = 24 := by norm_num [Nat.factorial]
+  rw [e3] at h3
+  rw [e4] at h4
+  have hq : 0 ≤ (σ / t) ^ 2 := by positivity
+  have h5 : (σ / t) ^ 2 * (t ^ 3 / 2 * heatMom lam 3 (t / 2) + t ^ 4 / 4 * heatMom lam 4 (t / 2))
+      ≤ (σ / t) ^ 2 * (1728 * heatTr lam (t / 4)) :=
+    mul_le_mul_of_nonneg_left (by linarith) hq
+  have := corrected_series h hσ ht
+  linarith
+
+end Spectrum
+
+/-! #### The flat torus: comparison of heat traces at two times -/
+
+theorem jacA_scale (d : ℕ) {c c' : ℝ} (hc : 0 < c) (hc' : 0 < c') :
+    jacA d c = Real.sqrt (c' / c) ^ d * jacA d c' := by
+  have hpi := Real.pi_pos
+  have h1 : Real.sqrt (c / Real.pi) ≠ 0 := (Real.sqrt_pos.2 (by positivity)).ne'
+  have h2 : Real.sqrt (c' / c) ≠ 0 := (Real.sqrt_pos.2 (by positivity)).ne'
+  have e : c' / Real.pi = c' / c * (c / Real.pi) := by field_simp
+  unfold jacA
+  rw [← Real.sqrt_eq_rpow, ← Real.sqrt_eq_rpow, ← mul_pow]
+  congr 1
+  rw [e, Real.sqrt_mul (by positivity)]
+  field_simp
+
+/-- **On the flat torus `(4πs)^{d/2} Θ(s)` increases with `s`** (Jacobi identity):
+    `Θ(s) ≤ (t/s)^{d/2} Θ(t)` for `0 < s ≤ t`. No upper bound on `t`, constant one. -/
+theorem heatTr_torus_scale (d : ℕ) {s t : ℝ} (hs : 0 < s) (hst : s ≤ t) :
+    heatTr (torusLam d) s ≤ Real.sqrt (t / s) ^ d * heatTr (torusLam d) t := by
+  have hpi := Real.pi_pos
+  have ht : 0 < t := lt_of_lt_of_le hs hst
+  have hcs : 0 < 4 * Real.pi ^ 2 * s := by positivity
+  have hct : 0 < 4 * Real.pi ^ 2 * t := by positivity
+  have e : 4 * Real.pi ^ 2 * t / (4 * Real.pi ^ 2 * s) = t / s := by field_simp
+  have hmono : Real.pi ^ 2 * (4 * Real.pi ^ 2 * t)⁻¹ ≤ Real.pi ^ 2 * (4 * Real.pi ^ 2 * s)⁻¹ :=
+    mul_le_mul_of_nonneg_left
+      (inv_anti₀ hcs (mul_le_mul_of_nonneg_left hst (by positivity))) (by positivity)
+  have hanti := heatTr_anti (lat_isSpectrum d)
+    (show 0 < Real.pi ^ 2 * (4 * Real.pi ^ 2 * t)⁻¹ by positivity) hmono
+  calc heatTr (torusLam d) s
+      = jacA d (4 * Real.pi ^ 2 * s)
+          * heatTr (latLam d) (Real.pi ^ 2 * (4 * Real.pi ^ 2 * s)⁻¹) := by
+        rw [heatTr_torus_lat, jacobi_lat d hcs]
+    _ = Real.sqrt (t / s) ^ d * (jacA d (4 * Real.pi ^ 2 * t)
+          * heatTr (latLam d) (Real.pi ^ 2 * (4 * Real.pi ^ 2 * s)⁻¹)) := by
+        rw [jacA_scale d hcs hct, e, mul_assoc]
+    _ ≤ Real.sqrt (t / s) ^ d * (jacA d (4 * Real.pi ^ 2 * t)
+          * heatTr (latLam d) (Real.pi ^ 2 * (4 * Real.pi ^ 2 * t)⁻¹)) :=
+        mul_le_mul_of_nonneg_left
+          (mul_le_mul_of_nonneg_left hanti (jacA_pos d hct).le) (by positivity)
+    _ = Real.sqrt (t / s) ^ d * heatTr (torusLam d) t := by
+        rw [heatTr_torus_lat d t, jacobi_lat d hct]
+
+theorem heatTr_torus_pos (d : ℕ) {t : ℝ} (ht : 0 < t) : 1 ≤ heatTr (torusLam d) t := by
+  have hpi := Real.pi_pos
+  rw [heatTr_torus]
+  exact heatTorus_zero_ge_one (by positivity) d
+
+/-- **`thm:corrected` on the flat torus, relative to the heat trace.** For `0 < σ ≤ t`
+    (no upper bound on `t`), `τ = t/σ`:
+    `|(T_σ(t) - (σt/2) T_σ''(t))/Θ(t) - 1| ≤ 1728·2^d (σ/t)² + 4(1+τ)² e^{-τ/2} (τ^{d/2} + 2^{d/2})`.
+    The second term is exponentially small in `τ`; that it is `O(τ^{-2})` is not stated as a
+    separate inequality. -/
+theorem corrected_torus (d : ℕ) {σ t : ℝ} (hσ : 0 < σ) (hts : σ ≤ t) :
+    |(subTr (torusLam d) σ t - σ * t / 2 * subTr2 (torusLam d) σ t) / heatTr (torusLam d) t - 1|
+      ≤ 1728 * 2 ^ d * (σ / t) ^ 2
+        + 4 * (1 + t / σ) ^ 2 * Real.exp (-(t / σ / 2))
+            * (Real.sqrt (t / σ) ^ d + Real.sqrt 2 ^ d) := by
+  have ht : 0 < t := lt_of_lt_of_le hσ hts
+  have ht0 : t ≠ 0 := ht.ne'
+  have hpos : 0 < heatTr (torusLam d) t := lt_of_lt_of_le zero_lt_one (heatTr_torus_pos d ht)
+  have key := corrected_simple (torus_isSpectrum d) hσ ht
+  have e4 : t / (t / 4) = 4 := by field_simp
+  have e2 : t / (t / 2) = 2 := by field_simp
+  have s4 : Real.sqrt 4 = 2 := by
+    rw [show (4 : ℝ) = 2 ^ 2 by norm_num]
+    exact Real.sqrt_sq (by norm_num)
+  have g4 := heatTr_torus_scale d (show 0 < t / 4 by linarith) (show t / 4 ≤ t by linarith)
+  have g2 := heatTr_torus_scale d (show 0 < t / 2 by linarith) (show t / 2 ≤ t by linarith)
+  have gσ := heatTr_torus_scale d hσ hts
+  rw [e4, s4] at g4
+  rw [e2] at g2
+  have hq : 0 ≤ 1728 * (σ / t) ^ 2 := by positivity
+  have hK : 0 ≤ 4 * (1 + t / σ) ^ 2 * Real.exp (-(t / σ / 2)) := by positivity
+  have r1 := mul_le_mul_of_nonneg_left g4 hq
+  have r2 := mul_le_mul_of_nonneg_left (add_le_add gσ g2) hK
+  have e : (subTr (torusLam d) σ t - σ * t / 2 * subTr2 (torusLam d) σ t) / heatTr (torusLam d) t
+        - 1
+      = (subTr (torusLam d) σ t - σ * t / 2 * subTr2 (torusLam d) σ t - heatTr (torusLam d) t)
+        / heatTr (torusLam d) t := by
+    field_simp
+  rw [e, abs_div, abs_of_pos hpos, div_le_iff₀ hpos]
+  refine key.trans ?_
+  nlinarith [r1, r2]
+
+/-- The same with the second derivative of the function `t ↦ T_σ(t)`. -/
+theorem corrected_torus_deriv (d : ℕ) {σ t : ℝ} (hσ : 0 < σ) (hts : σ ≤ t) :
+    |(subTr (torusLam d) σ t - σ * t / 2 * deriv (deriv (subTr (torusLam d) σ)) t)
+          / heatTr (torusLam d) t - 1|
+      ≤ 1728 * 2 ^ d * (σ / t) ^ 2
+        + 4 * (1 + t / σ) ^ 2 * Real.exp (-(t / σ / 2))
+            * (Real.sqrt (t / σ) ^ d + Real.sqrt 2 ^ d) := by
+  rw [subTr_deriv2 (torus_isSpectrum d) hσ (lt_of_lt_of_le hσ hts)]
+  exact corrected_torus d hσ hts
+
+/-! #### Connection with the Poisson mean of the other files (`σ' = 2σ`, derivatives in `τ`) -/
+
+/-- Chain rule: the second derivative in `τ` of `τ ↦ poissonMean d (2σ) τ` (`= T_σ(στ)`,
+    `subTr_torus`) is `σ² T_σ''(στ)`, for `σ > 0`, `τ > 0`. -/
+theorem poissonMean_deriv2 (d : ℕ) {σ τ : ℝ} (hσ : 0 < σ) (hτ : 0 < τ) :
+    deriv (deriv (fun x : ℝ => poissonMean d (2 * σ) x)) τ
+      = σ ^ 2 * subTr2 (torusLam d) σ (σ * τ) := by
+  have hZ := torus_isSpectrum d
+  have hE : ∀ x : ℝ, 0 < x → poissonMean d (2 * σ) x = subTr (torusLam d) σ (σ * x) := by
+    intro x hx
+    rw [subTr_torus d hσ (mul_pos hσ hx).le]
+    congr 1
+    field_simp
+  have hD1 : ∀ x : ℝ, 0 < x → HasDerivAt (fun x : ℝ => poissonMean d (2 * σ) x)
+      (σ * subTr1 (torusLam d) σ (σ * x)) x := by
+    intro x hx
+    have hin : HasDerivAt (fun y : ℝ => σ * y) σ x := by
+      simpa using (hasDerivAt_id' x).const_mul σ
+    have hc := HasDerivAt.comp x (subTr_hasDerivAt hZ hσ (mul_pos hσ hx)) hin
+    refine (hc.congr_of_eventuallyEq ?_).congr_deriv (by ring)
+    filter_upwards [Ioi_mem_nhds hx] with y hy
+    exact hE y hy
+  have hD2 : HasDerivAt (fun x : ℝ => σ * subTr1 (torusLam d) σ (σ * x))
+      (σ ^ 2 * subTr2 (torusLam d) σ (σ * τ)) τ := by
+    have hin : HasDerivAt (fun y : ℝ => σ * y) σ τ := by
+      simpa using (hasDerivAt_id' τ).const_mul σ
+    have hc := HasDerivAt.comp τ (subTr1_hasDerivAt hZ hσ (mul_pos hσ hτ)) hin
+    exact (hc.const_mul σ).congr_deriv (by ring)
+  have h1 : deriv (fun x : ℝ => poissonMean d (2 * σ) x)
+      =ᶠ[𝓝 τ] fun x : ℝ => σ * subTr1 (torusLam d) σ (σ * x) := by
+    filter_upwards [Ioi_mem_nhds hτ] with y hy
+    exact (hD1 y hy).deriv
+  rw [Filter.EventuallyEq.deriv_eq h1]
+  exact hD2.deriv
+
+/-- **Connection with the third file.** On the torus, for `σ > 0`, `t > 0`, the corrected
+    quantity `T_σ(t) - (σt/2) T_σ''(t)` of the paper is the series
+    `Corrected.corrSeries (t/σ) (heatMode d (2σ))` of `Corrected.corrected_G30` (whose `σ` is
+    `ξ² = 2σ`): `(σt/2) ∂_t² = (τ/2) ∂_τ²` at `τ = t/σ`. -/
+theorem corrected_torus_corrSeries (d : ℕ) {σ t : ℝ} (hσ : 0 < σ) (ht : 0 < t) :
+    subTr (torusLam d) σ t - σ * t / 2 * subTr2 (torusLam d) σ t
+      = corrSeries (t / σ) (heatMode d (2 * σ)) := by
+  have hτ : 0 < t / σ := div_pos ht hσ
+  have h := corrected_population (show 0 < 2 * σ by linarith) d (t / σ)
+  rw [poissonMean_deriv2 d hσ hτ, ← subTr_torus d hσ ht.le] at h
+  have e : σ * (t / σ) = t := by field_simp
+  rw [e] at h
+  rw [← h]
+  field_simp
+
+/-- Hence the population side of `Corrected.corrected_G30` is within the bound of `thm:corrected`
+    of the heat trace: for `0 < σ ≤ t`, `τ = t/σ`,
+    `|corrSeries τ (heatMode d (2σ))/Θ(t) - 1| ≤ 1728·2^d/τ² + 4(1+τ)² e^{-τ/2}(τ^{d/2} + 2^{d/2})`. -/
+theorem corrSeries_torus (d : ℕ) {σ t : ℝ} (hσ : 0 < σ) (hts : σ ≤ t) :
+    |corrSeries (t / σ) (heatMode d (2 * σ)) / heatTr (torusLam d) t - 1|
+      ≤ 1728 * 2 ^ d * (σ / t) ^ 2
+        + 4 * (1 + t / σ) ^ 2 * Real.exp (-(t / σ / 2))
+            * (Real.sqrt (t / σ) ^ d + Real.sqrt 2 ^ d) := by
+  rw [← corrected_torus_corrSeries d hσ (lt_of_lt_of_le hσ hts)]
+  exact corrected_torus d hσ hts
+
+/-! #### (B) The subtracted term of the graph without self-loops -/
+
+/-- **Last sentence of `cor:kernel-noloops`, with `C = 1`.** On the flat torus, with
+    `M = p_{ξ²}(0) = Θ(σ)` (`σ = ξ²/2` the `σ` of the paper, `heatTr_torus`), `τ = t/σ` and
+    `0 < σ ≤ t` (no upper bound on `t`):
+    `τ e^{-τ} M ≤ τ · τ^{d/2} · e^{-τ} · Θ(t)`. -/
+theorem noloop_subtraction (d : ℕ) {σ t : ℝ} (hσ : 0 < σ) (hts : σ ≤ t) :
+    t / σ * Real.exp (-(t / σ)) * heatTr (torusLam d) σ
+      ≤ t / σ * Real.sqrt (t / σ) ^ d * Real.exp (-(t / σ)) * heatTr (torusLam d) t := by
+  have ht : 0 < t := lt_of_lt_of_le hσ hts
+  have h := mul_le_mul_of_nonneg_left (heatTr_torus_scale d hσ hts)
+    (show 0 ≤ t / σ * Real.exp (-(t / σ)) by positivity)
+  refine h.trans (le_of_eq ?_)
+  ring
+
+/-- Hence the subtracted term is of relative order `τ^{-2}`:
+    `τ e^{-τ} M ≤ (d+3)! (σ/t)² Θ(t)` for `0 < σ ≤ t`. -/
+theorem noloop_subtraction_rate (d : ℕ) {σ t : ℝ} (hσ : 0 < σ) (hts : σ ≤ t) :
+    t / σ * Real.exp (-(t / σ)) * heatTr (torusLam d) σ
+      ≤ ((d + 3).factorial : ℝ) * (σ / t) ^ 2 * heatTr (torusLam d) t := by
+  have ht : 0 < t := lt_of_lt_of_le hσ hts
+  have hτ1 : 1 ≤ t / σ := by rw [le_div_iff₀ hσ]; linarith
+  have hτ0 : 0 < t / σ := by linarith
+  have hΘ : 0 ≤ heatTr (torusLam d) t := heatTr_nonneg _
+  have hsq : Real.sqrt (t / σ) ≤ t / σ := Real.sqrt_le_iff.2 ⟨hτ0.le, by nlinarith⟩
+  have hsqd : Real.sqrt (t / σ) ^ d ≤ (t / σ) ^ d :=
+    pow_le_pow_left₀ (Real.sqrt_nonneg _) hsq d
+  have hf : (0 : ℝ) < ((d + 3).factorial : ℝ) := by exact_mod_cast Nat.factorial_pos (d + 3)
+  have h1 : (t / σ) ^ (d + 3) ≤ ((d + 3).factorial : ℝ) * Real.exp (t / σ) := by
+    have := Real.pow_div_factorial_le_exp (x := t / σ) hτ0.le (d + 3)
+    rwa [div_le_iff₀ hf, mul_comm] at this
+  have h2 : (t / σ) ^ (d + 1) * Real.exp (-(t / σ)) ≤ ((d + 3).factorial : ℝ) * (σ / t) ^ 2 := by
+    have e : ((d + 3).factorial : ℝ) * (σ / t) ^ 2 = ((d + 3).factorial : ℝ) / (t / σ) ^ 2 := by
+      field_simp
+    rw [e, le_div_iff₀ (by positivity)]
+    calc (t / σ) ^ (d + 1) * Real.exp (-(t / σ)) * (t / σ) ^ 2
+        = (t / σ) ^ (d + 3) * Real.exp (-(t / σ)) := by ring
+      _ ≤ ((d + 3).factorial : ℝ) * Real.exp (t / σ) * Real.exp (-(t / σ)) :=
+          mul_le_mul_of_nonneg_right h1 (Real.exp_pos _).le
+      _ = ((d + 3).factorial : ℝ) := by
+          rw [mul_assoc, ← Real.exp_add]; simp
+  have h3 : t / σ * Real.sqrt (t / σ) ^ d * Real.exp (-(t / σ))
+      ≤ (t / σ) ^ (d + 1) * Real.exp (-(t / σ)) := by
+    have := mul_le_mul_of_nonneg_left hsqd hτ0.le
+    have e : t / σ * (t / σ) ^ d = (t / σ) ^ (d + 1) := by ring
+    rw [e] at this
+    exact mul_le_mul_of_nonneg_right this (Real.exp_pos _).le
+  calc t / σ * Real.exp (-(t / σ)) * heatTr (torusLam d) σ
+      ≤ t / σ * Real.sqrt (t / σ) ^ d * Real.exp (-(t / σ)) * heatTr (torusLam d) t :=
+        noloop_subtraction d hσ hts
+    _ ≤ ((d + 3).factorial : ℝ) * (σ / t) ^ 2 * heatTr (torusLam d) t :=
+        mul_le_mul_of_nonneg_right (h3.trans h2) hΘ
+
+/-- The same for the term subtracted in `NoLoopsTrace.noloop_heat_trace_ratio` of the third file,
+    in the convention of that file (`σ' = ξ²`, `M = heatTorus d (2π²σ') 0`, `w_1 = pw τ 1`): for
+    `σ' > 0`, `τ ≥ 1`, with `Θ` at the time `t = τσ'/2` of the paper,
+    `w_1(τ) M ≤ τ · τ^{d/2} e^{-τ} Θ(τσ'/2)` and `w_1(τ) M ≤ (d+3)!/τ² · Θ(τσ'/2)`. -/
+theorem noloop_subtraction_lean (d : ℕ) {σ' τ : ℝ} (hσ : 0 < σ') (hτ : 1 ≤ τ) :
+    pw τ 1 * heatTorus d (2 * Real.pi ^ 2 * σ') 0
+        ≤ τ * Real.sqrt τ ^ d * Real.exp (-τ) * heatTr (torusLam d) (τ * σ' / 2) ∧
+    pw τ 1 * heatTorus d (2 * Real.pi ^ 2 * σ') 0
+        ≤ ((d + 3).factorial : ℝ) * (1 / τ) ^ 2 * heatTr (torusLam d) (τ * σ' / 2) := by
+  have hτ0 : 0 < τ := by linarith
+  have hs : 0 < σ' / 2 := by linarith
+  have hts : σ' / 2 ≤ τ * σ' / 2 := by nlinarith
+  have eτ : τ * σ' / 2 / (σ' / 2) = τ := by field_simp
+  have eM : heatTr (torusLam d) (σ' / 2) = heatTorus d (2 * Real.pi ^ 2 * σ') 0 := by
+    rw [heatTr_torus]
+    congr 1
+    ring
+  have ew : pw τ 1 = τ * Real.exp (-τ) := by
+    unfold pw
+    simp
+    ring
+  have a1 := noloop_subtraction d hs hts
+  have a2 := noloop_subtraction_rate d hs hts
+  have eq2 : σ' / 2 / (τ * σ' / 2) = 1 / τ := by field_simp
+  rw [eτ, eM] at a1
+  rw [eτ, eM, eq2] at a2
+  rw [ew]
+  exact ⟨a1, a2⟩
+
+end CorrectedRate
+
 end CTG.Reals2
