@@ -12,6 +12,10 @@ space for `4π² q` is the span of the characters `e_n` with `|n|² = q`, and it
 of lattice points of that shell (`eigenvalue_mem_lattice`, `eigenspace_ne_bot_iff`, `eigenspace_eq_span`,
 `finrank_eigenspace`, `finrank_eigenspace_enum`).
 
+The eigenfunctions are complex-valued and `finrank` is the dimension over `ℂ`; the real eigenfunctions
+(real and imaginary parts) span a real space of the same dimension, but that sentence is not a theorem of
+this file. `finrank_eigenspace_enum` is vacuous for `d = 0` (there is no bijection `ℕ → ℤ^0`).
+
 What this is NOT: a statement on an unbounded self-adjoint operator on `L²`, on its spectrum, or on weak
 eigenfunctions; "function on the torus" means a periodic function on `ℝ^d`. The eigenvalue statements of
 the other files are not linked to these statements in one theorem.
