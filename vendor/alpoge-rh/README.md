@@ -64,7 +64,11 @@ published:
 |---|---|
 | Lean `v4.33.1` with the archive's Mathlib (upstream) | not built here; a public report by a third party says all modules of the archive compile |
 | Lean `v4.36.0-rc2`, Mathlib `v4.36.0-rc2` (root project) | `HilbertSchmidt.lean` compiles unchanged; `TraceClass.lean` stops with one error (line 28); `TraceNormComp.lean` imports it and was not reached |
-| Lean `v4.29.0`, Mathlib `v4.29.0` (`findings/heat-trace/lean-core`) | not yet measured |
+| Lean `v4.29.0`, Mathlib `v4.29.0` (`findings/heat-trace/lean-core`) | measured on the paper side's build, files as published: `HilbertSchmidt.lean` 2 errors (both "No goals to be solved", lines 203 and 224: a trailing `simp` after `convert`); `TraceClass.lean` 5 errors (instance search for `NonnegSpectrumClass ℝ (H →L[ℂ] H)` runs out of time, lines 47, 50, 53/54, 122), built against a port of the first file; `TraceNormComp.lean` not measured (needs `TraceClass`) |
+
+So no toolchain of this repository builds all three files unchanged. Ports for Lean `v4.29.0` are
+being written; each is added under `findings/heat-trace/lean-core/` as a separate file with a header,
+once the proof that imports it is accepted.
 
 ## Changes made to the files
 
