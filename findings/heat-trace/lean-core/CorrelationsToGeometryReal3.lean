@@ -2833,4 +2833,1391 @@ theorem noloop_subtraction_lean (d : ℕ) {σ' τ : ℝ} (hσ : 0 < σ') (hτ : 
 
 end CorrectedRate
 
+/-! ## Measurability of further exceptional sets (seventh file and third file)
+
+For the theorems named below the set `{ω | …}` whose `μ.real` is bounded (or tends to zero) is
+shown to be measurable, VERBATIM as in the statement (the set expressions were copied by a script
+from the statements and compared token by token). Hypotheses: only `σ > 0` (resp. `0 < σ N`) and
+measurability of the `X j`.
+
+* seventh file, `SharpRate`: `sharp_rate_prob`, `sharp_rate_prob_small_time`,
+  `sharp_rate_prob_explicit` (for each `N` with `σ_N > 0`);
+* third file: `SecondStageLimit.second_stage_ceil`, `second_stage_OP`, `second_stage_tight`,
+  `second_stage_limit_eventually`; `SecondStageTrace.second_stage_trace`,
+  `second_stage_trace_scaled`; `SecondStageTrace2.second_stage_trace2`;
+  `NoLoopsTrace.noloop_heat_trace_sample`, `noloop_heat_trace_ratio_small`;
+  `Corrected.corrected_G30_tail`; `EigenvaluesL1.eig_l1_sample`;
+  `TorusReductionL1.torus_reduction_sample_l1` (quantifier over arbitrary families `ĥ`);
+  `EigenspaceFinal.eigspace_final_sample`, `eigspace_final_sample'`, `eigspace_final_sample''`
+  (statements about the eigenbasis chosen by Mathlib; measurable because the separation of the
+  cluster is part of the statement).
+
+Not covered: `EigenspaceSample.eigspace_sample` (there the cluster need not be separated and the
+projection `specProj` depends on the chosen basis); the sets of intermediate theorems. -/
+
+namespace Reals3Sets
+
+open Filter Topology
+
+open CTG.Reals.ExceptionalSets AssembledSets Reals2Sets
+
+/-! ### (1) The sharp rate in probability (seventh file, `SharpRate`) -/
+
+section SharpRateSets
+
+open CTG.Reals.TraceG29 TraceRates PopulationRate SecondStageLimit SharpRate
+
+/-- The set in `SharpRate.sharp_rate_prob` (for each `N` with `σ_N > 0`), verbatim, is
+    measurable. -/
+theorem sharp_rate_prob_set_measurable {Ω : Type*} {mΩ : MeasurableSpace Ω} (d : ℕ)
+    (X : ℕ → Ω → FlatTorus d) (hX : ∀ j, Measurable (X j)) (σ t : ℕ → ℝ) (η : ℝ) (N : ℕ)
+    (hσ : 0 < σ N) :
+    MeasurableSet {ω | sharpC2 d * (σ N / 2 / t N) ^ 2 + sharpC1 d * (σ N / 2) + η * σ N
+        < |((NormedSpace.exp ((2 * t N / σ N) • (symGraph
+              (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ N) (X a ω - X j ω))
+              (fun a : Fin N => heatRho d (σ N) N (fun j => X j ω) a) - 1))).trace
+            - (N : ℝ) * Real.exp (-(2 * t N / σ N))) / heatTr (torusLam d) (t N) - 1
+          - (d : ℝ) * ((d : ℝ) + 2) / 8 * (σ N / 2 / t N)|} := by
+  exact measurableSet_lt measurable_const
+    ((((((heat_trace_sample_measurable hσ d X hX N (2 * t N / σ N)).sub
+      measurable_const).div_const _).sub measurable_const).sub measurable_const).abs)
+
+/-- The set in `SharpRate.sharp_rate_prob_small_time` (for each `N` with `σ_N > 0`), verbatim,
+    is measurable. -/
+theorem sharp_rate_prob_small_time_set_measurable {Ω : Type*} {mΩ : MeasurableSpace Ω} (d : ℕ)
+    (X : ℕ → Ω → FlatTorus d) (hX : ∀ j, Measurable (X j)) (σ t : ℕ → ℝ) (η : ℝ) (N : ℕ)
+    (hσ : 0 < σ N) :
+    MeasurableSet {ω | sharpC2 d * (σ N / 2 / t N) ^ 2 + η * (σ N / 2 / t N)
+        < |((NormedSpace.exp ((2 * t N / σ N) • (symGraph
+              (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ N) (X a ω - X j ω))
+              (fun a : Fin N => heatRho d (σ N) N (fun j => X j ω) a) - 1))).trace
+            - (N : ℝ) * Real.exp (-(2 * t N / σ N))) / heatTr (torusLam d) (t N) - 1
+          - (d : ℝ) * ((d : ℝ) + 2) / 8 * (σ N / 2 / t N)|} := by
+  exact measurableSet_lt measurable_const
+    ((((((heat_trace_sample_measurable hσ d X hX N (2 * t N / σ N)).sub
+      measurable_const).div_const _).sub measurable_const).sub measurable_const).abs)
+
+/-- The set in `SharpRate.sharp_rate_prob_explicit` (for each `N` with `σ_N > 0`), verbatim, is
+    measurable. -/
+theorem sharp_rate_prob_explicit_set_measurable {Ω : Type*} {mΩ : MeasurableSpace Ω} (d : ℕ)
+    (X : ℕ → Ω → FlatTorus d) (hX : ∀ j, Measurable (X j)) (σ t : ℕ → ℝ) (η : ℝ) (N : ℕ)
+    (hσ : 0 < σ N) :
+    MeasurableSet {ω | η * σ N * (1 + (d : ℝ) * ((d : ℝ) + 2) / 8 * (σ N / 2 / t N)
+            + popRem d (σ N / 2) (t N)) + popRem d (σ N / 2) (t N)
+        < |((NormedSpace.exp ((2 * t N / σ N) • (symGraph
+              (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ N) (X a ω - X j ω))
+              (fun a : Fin N => heatRho d (σ N) N (fun j => X j ω) a) - 1))).trace
+            - (N : ℝ) * Real.exp (-(2 * t N / σ N))) / heatTr (torusLam d) (t N) - 1
+          - (d : ℝ) * ((d : ℝ) + 2) / 8 * (σ N / 2 / t N)|} := by
+  exact measurableSet_lt measurable_const
+    ((((((heat_trace_sample_measurable hσ d X hX N (2 * t N / σ N)).sub
+      measurable_const).div_const _).sub measurable_const).sub measurable_const).abs)
+
+end SharpRateSets
+
+/-! ### (2a) The second stage: limit forms and the unscaled trace forms (third file) -/
+
+section SecondStageSets3
+
+open CTG.Reals.TorusReduction CTG.Reals.TraceG29 TorusReductionL1 H5 PiBound SecondStage
+
+/-- The set in `SecondStageLimit.second_stage_ceil` (for each `N` with `σ_N > 0` and each `s`),
+    verbatim, is measurable. -/
+theorem second_stage_ceil_set_measurable {Ω : Type*} {mΩ : MeasurableSpace Ω} (d : ℕ)
+    (X : ℕ → Ω → FlatTorus d) (hX : ∀ j, Measurable (X j)) (σ τ : ℕ → ℝ) (s : ℝ) (N : ℕ)
+    (hσ : 0 < σ N) :
+    MeasurableSet {ω | (redC d
+              * Real.sqrt (heatTorus d (2 * Real.pi ^ 2 * σ N) 0 * Real.log N / N) ^ 2
+            + s * piC d * (heatTorus d (2 * Real.pi ^ 2 * σ N) 0 / N)) * τ N
+          + 14 * (normC d
+              * Real.sqrt (heatTorus d (2 * Real.pi ^ 2 * σ N) 0 * Real.log N / N)) ^ 2
+          + 7 * s * (heatTorus d (2 * Real.pi ^ 2 * σ N) 0 / N)
+          + 4 * (heatTorus d (2 * Real.pi ^ 2 * σ N) 0 / (N : ℝ) ^ 2)
+        < |((NormedSpace.exp (τ N • (symGraph
+              (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ N) (X a ω - X j ω))
+              (fun a : Fin N => heatRho d (σ N) N (fun j => X j ω) a) - 1))).trace
+            - (N : ℝ) * Real.exp (-τ N)) / poissonMean d (σ N) (τ N) - 1|} := by
+  exact measurableSet_lt measurable_const
+    (((((heat_trace_sample_measurable hσ d X hX N (τ N)).sub measurable_const).div_const _).sub
+      measurable_const).abs)
+
+/-- The set in `SecondStageLimit.second_stage_OP` (for each `N` with `σ_N > 0`), verbatim, is
+    measurable. -/
+theorem second_stage_OP_set_measurable {Ω : Type*} {mΩ : MeasurableSpace Ω} (d : ℕ)
+    (X : ℕ → Ω → FlatTorus d) (hX : ∀ j, Measurable (X j)) (σ τ : ℕ → ℝ) (s : ℝ) (N : ℕ)
+    (hσ : 0 < σ N) :
+    MeasurableSet {ω | (redC d + 14 * normC d ^ 2 + 4 + s * (piC d + 7))
+            * (heatTorus d (2 * Real.pi ^ 2 * σ N) 0 * Real.log N / N) * τ N
+        < |((NormedSpace.exp (τ N • (symGraph
+              (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ N) (X a ω - X j ω))
+              (fun a : Fin N => heatRho d (σ N) N (fun j => X j ω) a) - 1))).trace
+            - (N : ℝ) * Real.exp (-τ N)) / poissonMean d (σ N) (τ N) - 1|} := by
+  exact measurableSet_lt measurable_const
+    (((((heat_trace_sample_measurable hσ d X hX N (τ N)).sub measurable_const).div_const _).sub
+      measurable_const).abs)
+
+/-- The set in `SecondStageLimit.second_stage_tight` (for each `N` with `σ_N > 0` and each
+    constant `C`), verbatim, is measurable. -/
+theorem second_stage_tight_set_measurable {Ω : Type*} {mΩ : MeasurableSpace Ω} (d : ℕ)
+    (X : ℕ → Ω → FlatTorus d) (hX : ∀ j, Measurable (X j)) (σ τ : ℕ → ℝ) (C : ℝ) (N : ℕ)
+    (hσ : 0 < σ N) :
+    MeasurableSet {ω | C * (heatTorus d (2 * Real.pi ^ 2 * σ N) 0 * Real.log N / N) * τ N
+        < |((NormedSpace.exp (τ N • (symGraph
+              (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ N) (X a ω - X j ω))
+              (fun a : Fin N => heatRho d (σ N) N (fun j => X j ω) a) - 1))).trace
+            - (N : ℝ) * Real.exp (-τ N)) / poissonMean d (σ N) (τ N) - 1|} := by
+  exact measurableSet_lt measurable_const
+    (((((heat_trace_sample_measurable hσ d X hX N (τ N)).sub measurable_const).div_const _).sub
+      measurable_const).abs)
+
+/-- The set in `SecondStageLimit.second_stage_limit_eventually` (for each `N` with `σ_N > 0`),
+    verbatim, is measurable. (It is the same expression as the set of `second_stage_limit`.) -/
+theorem second_stage_limit_eventually_set_measurable {Ω : Type*} {mΩ : MeasurableSpace Ω} (d : ℕ)
+    (X : ℕ → Ω → FlatTorus d) (hX : ∀ j, Measurable (X j)) (σ τ : ℕ → ℝ) (η : ℝ) (N : ℕ)
+    (hσ : 0 < σ N) :
+    MeasurableSet {ω | η * σ N
+        < |((NormedSpace.exp (τ N • (symGraph
+              (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ N) (X a ω - X j ω))
+              (fun a : Fin N => heatRho d (σ N) N (fun j => X j ω) a) - 1))).trace
+            - (N : ℝ) * Real.exp (-τ N)) / poissonMean d (σ N) (τ N) - 1|} := by
+  exact measurableSet_lt measurable_const
+    (((((heat_trace_sample_measurable hσ d X hX N (τ N)).sub measurable_const).div_const _).sub
+      measurable_const).abs)
+
+/-- The exceptional set of `SecondStageTrace.second_stage_trace`, verbatim, is measurable. -/
+theorem second_stage_trace_set_measurable {Ω : Type*} {mΩ : MeasurableSpace Ω} {σ : ℝ}
+    (hσ : 0 < σ) (d : ℕ) (X : ℕ → Ω → FlatTorus d) (hX : ∀ j, Measurable (X j)) (N J : ℕ)
+    (Mp δp τ t : ℝ) :
+    MeasurableSet {ω | kernelC1 d * δp * (pw τ 1 * Mp)
+          + redC d * δp ^ 2 * ∑ k ∈ Finset.Icc 1 J, pw τ (k + 1) * ((k : ℝ) * torusM d σ (k + 1))
+          + 3 * Mp * ptail τ (J + 1) + t
+        < |(NormedSpace.exp (τ • (symGraph
+              (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X a ω - X j ω))
+              (fun a : Fin N => heatRho d σ N (fun j => X j ω) a) - 1))).trace
+            - (N : ℝ) * Real.exp (-τ) - poissonMean d σ τ|} := by
+  exact measurableSet_lt measurable_const
+    ((((heat_trace_sample_measurable hσ d X hX N τ).sub measurable_const).sub
+      measurable_const).abs)
+
+/-- The exceptional set of `SecondStageTrace.second_stage_trace_scaled`, verbatim, is
+    measurable. -/
+theorem second_stage_trace_scaled_set_measurable {Ω : Type*} {mΩ : MeasurableSpace Ω} {σ : ℝ}
+    (hσ : 0 < σ) (d : ℕ) (X : ℕ → Ω → FlatTorus d) (hX : ∀ j, Measurable (X j)) (N J : ℕ)
+    (Mp δp τ s : ℝ) :
+    MeasurableSet {ω | kernelC1 d * δp * (pw τ 1 * Mp)
+          + redC d * δp ^ 2 * ∑ k ∈ Finset.Icc 1 J, pw τ (k + 1) * ((k : ℝ) * torusM d σ (k + 1))
+          + 3 * Mp * ptail τ (J + 1)
+          + s * (piC d * (Mp / N)
+              * ∑ k ∈ Finset.Icc 1 J, pw τ (k + 1) * ((k : ℝ) * torusM d σ k))
+        < |(NormedSpace.exp (τ • (symGraph
+              (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X a ω - X j ω))
+              (fun a : Fin N => heatRho d σ N (fun j => X j ω) a) - 1))).trace
+            - (N : ℝ) * Real.exp (-τ) - poissonMean d σ τ|} := by
+  exact measurableSet_lt measurable_const
+    ((((heat_trace_sample_measurable hσ d X hX N τ).sub measurable_const).sub
+      measurable_const).abs)
+
+/-- The exceptional set of `SecondStageTrace2.second_stage_trace2`, verbatim, is measurable. -/
+theorem second_stage_trace2_set_measurable {Ω : Type*} {mΩ : MeasurableSpace Ω} {σ : ℝ}
+    (hσ : 0 < σ) (d : ℕ) (X : ℕ → Ω → FlatTorus d) (hX : ∀ j, Measurable (X j)) (N J : ℕ)
+    (Mp δp τ t : ℝ) :
+    MeasurableSet {ω | 14 * (normC d * δp) ^ 2 * (pw τ 1 * Mp)
+          + redC d * δp ^ 2 * ∑ k ∈ Finset.Icc 1 J, pw τ (k + 1) * ((k : ℝ) * torusM d σ (k + 1))
+          + 3 * Mp * ptail τ (J + 1) + t
+        < |(NormedSpace.exp (τ • (symGraph
+              (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X a ω - X j ω))
+              (fun a : Fin N => heatRho d σ N (fun j => X j ω) a) - 1))).trace
+            - (N : ℝ) * Real.exp (-τ) - poissonMean d σ τ|} := by
+  exact measurableSet_lt measurable_const
+    ((((heat_trace_sample_measurable hσ d X hX N τ).sub measurable_const).sub
+      measurable_const).abs)
+
+end SecondStageSets3
+
+/-! ### (2b) The graph without self-loops: heat trace -/
+
+section NoLoopsTraceSets3
+
+open NoLoopsTrace CTG.Reals.TraceG29
+
+/-- The trace of the heat operator of the graph without self-loops is a measurable function of
+    the sample. -/
+theorem noloop_trace_exp_measurable {Ω : Type*} {mΩ : MeasurableSpace Ω} {σ : ℝ}
+    (hσ : 0 < σ) (d : ℕ) (X : ℕ → Ω → FlatTorus d) (hX : ∀ j, Measurable (X j)) (N : ℕ)
+    (τ : ℝ) :
+    Measurable fun ω =>
+      (NormedSpace.exp (τ • (noloopSym d σ N (fun j => X j ω) - 1))).trace := by
+  have hc : 0 < 2 * Real.pi ^ 2 * σ := by
+    have := Real.pi_pos; positivity
+  have hK : ∀ a b : Fin N, Measurable fun ω => noloopK d σ N (fun j => X j ω) a b := by
+    intro a b
+    show Measurable fun ω =>
+      (if a = b then (0 : ℝ) else heatTorus d (2 * Real.pi ^ 2 * σ) (X a ω - X b ω))
+    by_cases h : a = b
+    · simp only [if_pos h]
+      exact measurable_const
+    · simp only [if_neg h]
+      exact heatTorus_sample_measurable hc d X hX a b
+  have hR : ∀ a : Fin N, Measurable fun ω => noloopRho d σ N (fun j => X j ω) a := by
+    intro a
+    show Measurable fun ω =>
+      heatRho d σ N (fun j => X j ω) a - heatTorus d (2 * Real.pi ^ 2 * σ) 0 / N
+    exact (heatRho_sample_measurable hσ d X hX N a).sub_const _
+  have hsym : ∀ (ω : Ω) (i j : Fin N),
+      noloopK d σ N (fun j => X j ω) i j = noloopK d σ N (fun j => X j ω) j i := by
+    intro ω i j
+    show (if i = j then (0 : ℝ) else heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X j ω))
+      = (if j = i then (0 : ℝ) else heatTorus d (2 * Real.pi ^ 2 * σ) (X j ω - X i ω))
+    by_cases h : i = j
+    · rw [if_pos h, if_pos h.symm]
+    · rw [if_neg h, if_neg (Ne.symm h), ← heatTorus_even d _ (X j ω - X i ω), neg_sub]
+  exact trace_exp_measurable (fun ω => noloopSym d σ N (fun j => X j ω))
+    (fun a b => symGraph_entry_measurable
+      (fun ω => noloopK d σ N (fun j => X j ω)) (fun ω => noloopRho d σ N (fun j => X j ω))
+      hK hR a b)
+    (fun ω => symGraph_isHermitian _ _ (hsym ω)) τ
+
+/-- The exceptional set of `NoLoopsTrace.noloop_heat_trace_sample`, verbatim, is measurable. -/
+theorem noloop_heat_trace_sample_set_measurable {Ω : Type*} {mΩ : MeasurableSpace Ω} {σ : ℝ}
+    (hσ : 0 < σ) (d : ℕ) (X : ℕ → Ω → FlatTorus d) (hX : ∀ j, Measurable (X j)) (N J : ℕ)
+    (Mp δp τ : ℝ) :
+    MeasurableSet {ω | ¬ |(NormedSpace.exp (τ • (noloopSym d σ N (fun j => X j ω) - 1))).trace
+            - (N : ℝ) * Real.exp (-τ) - (poissonMean d σ τ - pw τ 1 * Mp)|
+          ≤ kernelC1 d * δp * Real.sqrt J * (poissonMean d σ τ - pw τ 1 * Mp)
+            + 96 * (Mp / N) * Mp * (τ * (1 - Real.exp (-τ)))
+            + (3 * Mp + 192 * (Mp / N) * Mp) * ptail τ J} := by
+  refine MeasurableSet.compl ?_
+  exact measurableSet_le
+    ((((noloop_trace_exp_measurable hσ d X hX N τ).sub measurable_const).sub
+      measurable_const).abs) measurable_const
+
+/-- The exceptional set of `NoLoopsTrace.noloop_heat_trace_ratio_small`, verbatim, is
+    measurable. -/
+theorem noloop_heat_trace_ratio_small_set_measurable {Ω : Type*} {mΩ : MeasurableSpace Ω}
+    {σ : ℝ} (hσ : 0 < σ) (d : ℕ) (X : ℕ → Ω → FlatTorus d) (hX : ∀ j, Measurable (X j))
+    (N J : ℕ) (Mp δp τ : ℝ) :
+    MeasurableSet {ω | ¬ |((NormedSpace.exp (τ • (noloopSym d σ N (fun j => X j ω) - 1))).trace
+            - (N : ℝ) * Real.exp (-τ) - (poissonMean d σ τ - pw τ 1 * Mp)) / poissonMean d σ τ|
+          ≤ (kernelC1 d + 96) * δp * Real.sqrt J + 5 * Mp / (N : ℝ) ^ 2} := by
+  refine MeasurableSet.compl ?_
+  exact measurableSet_le
+    (((((noloop_trace_exp_measurable hσ d X hX N τ).sub measurable_const).sub
+      measurable_const).div_const _).abs) measurable_const
+
+end NoLoopsTraceSets3
+
+/-! ### (2c) The corrected estimator with the explicit tail: `Corrected.corrected_G30_tail` -/
+
+section CorrectedSets3
+
+open Corrected CTG.Reals.TraceG29
+
+/-- The exceptional set of `Corrected.corrected_G30_tail`, verbatim, is measurable. -/
+theorem corrected_G30_tail_set_measurable {Ω : Type*} {mΩ : MeasurableSpace Ω} {σ : ℝ}
+    (hσ : 0 < σ) (d : ℕ) (X : ℕ → Ω → FlatTorus d) (hX : ∀ j, Measurable (X j)) (N J : ℕ)
+    (Mp δp : ℝ) :
+    MeasurableSet {ω | ¬ ∀ τ : ℝ, 2 ≤ τ → 3 * τ + 2 * Real.log N ≤ (J : ℝ) + 1 →
+        |corrSeries τ (fun k : ℕ => ((symGraph
+              (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X a ω - X j ω))
+              (fun a : Fin N => heatRho d σ N (fun j => X j ω) a)) ^ k).trace)
+            - corrSeries τ (heatMode d σ)|
+          ≤ (1 + 3 * τ) * (kernelC1 d * δp * Real.sqrt ((J + 2 : ℕ) : ℝ)) * poissonMean d σ τ
+            + (3 + 6 * τ) * Mp / (N : ℝ) ^ 2} := by
+  refine MeasurableSet.compl ?_
+  refine MeasurableSet.congr (forall_param_measurable'
+    (p := fun τ : ℝ => 2 ≤ τ ∧ 3 * τ + 2 * Real.log N ≤ (J : ℝ) + 1)
+    (h := fun ω τ => |corrSeries τ (fun k : ℕ => ((symGraph
+              (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X a ω - X j ω))
+              (fun a : Fin N => heatRho d σ N (fun j => X j ω) a)) ^ k).trace)
+            - corrSeries τ (heatMode d σ)|)
+    (g := fun τ => (1 + 3 * τ) * (kernelC1 d * δp * Real.sqrt ((J + 2 : ℕ) : ℝ))
+            * poissonMean d σ τ
+            + (3 + 6 * τ) * Mp / (N : ℝ) ^ 2) ?_ ?_ ?_) ?_
+  · intro τ
+    exact ((corrSeries_trace_measurable
+      (fun ω => symGraph
+        (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X a ω - X j ω))
+        (fun a : Fin N => heatRho d σ N (fun j => X j ω) a))
+      (fun a b => symGraph_rho_entry_measurable hσ d X hX N a b)
+      (fun ω => symGraph_rho_isHermitian d N X ω) τ).sub measurable_const).abs
+  · intro ω B
+    have hsub : {τ : ℝ | (2 ≤ τ ∧ 3 * τ + 2 * Real.log N ≤ (J : ℝ) + 1) ∧ τ ≤ B}
+        ⊆ Set.Icc 0 B := fun τ hτ => ⟨le_trans (by norm_num) hτ.1.1, hτ.2⟩
+    have hS : Continuous fun τ : ℝ => corrSeries τ (fun k : ℕ => ((symGraph
+          (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X a ω - X j ω))
+          (fun a : Fin N => heatRho d σ N (fun j => X j ω) a)) ^ k).trace) := by
+      have e := fun τ : ℝ => corrSeries_matrix (symGraph
+          (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X a ω - X j ω))
+          (fun a : Fin N => heatRho d σ N (fun j => X j ω) a))
+        (symGraph_rho_isHermitian d N X ω) τ
+      rw [funext e]
+      fun_prop
+    exact (hS.continuousOn.sub ((corrSeries_heatMode_continuousOn hσ d B).mono hsub)).abs
+  · intro B
+    have hsub : {τ : ℝ | (2 ≤ τ ∧ 3 * τ + 2 * Real.log N ≤ (J : ℝ) + 1) ∧ τ ≤ B}
+        ⊆ Set.Icc 0 B := fun τ hτ => ⟨le_trans (by norm_num) hτ.1.1, hτ.2⟩
+    have hT := (poissonMean_continuousOn hσ d B).mono hsub
+    have h1 : Continuous fun τ : ℝ =>
+        (1 + 3 * τ) * (kernelC1 d * δp * Real.sqrt ((J + 2 : ℕ) : ℝ)) := by fun_prop
+    have h2 : Continuous fun τ : ℝ => (3 + 6 * τ) * Mp / (N : ℝ) ^ 2 := by fun_prop
+    exact (h1.continuousOn.mul hT).add h2.continuousOn
+  · exact Set.ext fun ω => ⟨fun H τ h1 h2 => H τ ⟨h1, h2⟩, fun H τ h => H τ h.1 h.2⟩
+
+end CorrectedSets3
+
+/-! ### (2d) Eigenvalues against the kernel matrix: `EigenvaluesL1.eig_l1_sample` -/
+
+section EigL1Sets
+
+open EigenvaluesL1
+
+theorem eigTot_eq' {N : ℕ} (A : Fin N → Fin N → ℝ) (h : (Matrix.of A).IsHermitian)
+    (j : Fin (Fintype.card (Fin N))) : eigTot N j A = h.eigenvalues₀ j := by
+  unfold eigTot
+  exact dif_pos h
+
+/-- The exceptional set of `EigenvaluesL1.eig_l1_sample`, verbatim, is measurable (two symmetric
+    matrices: the graph matrix and the kernel matrix). -/
+theorem eig_l1_sample_set_measurable {Ω : Type*} {mΩ : MeasurableSpace Ω} {σ : ℝ}
+    (hσ : 0 < σ) (d : ℕ) (X : ℕ → Ω → FlatTorus d) (hX : ∀ j, Measurable (X j)) (N K : ℕ)
+    (δp : ℝ) :
+    MeasurableSet {ω | ¬ ∀ k, 1 ≤ k → k ≤ K →
+        ∀ (hS : (symGraph
+              (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X a ω - X j ω))
+              (fun a : Fin N => heatRho d σ N (fun j => X j ω) a)).IsHermitian)
+          (hQ : (Matrix.of fun a i : Fin N =>
+              heatP d σ k (X a ω - X i ω) / (N : ℝ)).IsHermitian)
+          (j : Fin (Fintype.card (Fin N))),
+          |hS.eigenvalues₀ j ^ k - hQ.eigenvalues₀ j| ≤ eigL1C d * δp * Real.sqrt k} := by
+  refine MeasurableSet.compl ?_
+  refine ms_forall fun k => ms_imp (ms_imp ?_)
+  have hS0 : ∀ ω, (Matrix.of fun a b : Fin N => symGraph
+      (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X a ω - X j ω))
+      (fun a : Fin N => heatRho d σ N (fun j => X j ω) a) a b).IsHermitian := fun ω =>
+    symGraph_rho_isHermitian d N X ω
+  have hQ0 : ∀ ω, (Matrix.of fun a i : Fin N =>
+      heatP d σ k (X a ω - X i ω) / (N : ℝ)).IsHermitian := by
+    intro ω
+    refine Matrix.IsHermitian.ext fun a i => ?_
+    show star (heatP d σ k (X i ω - X a ω) / (N : ℝ)) = heatP d σ k (X a ω - X i ω) / (N : ℝ)
+    rw [star_trivial, ← heatP_neg_eq d σ k (X a ω - X i ω), neg_sub]
+  have hmS : Measurable fun ω => (fun a b : Fin N => symGraph
+      (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X a ω - X j ω))
+      (fun a : Fin N => heatRho d σ N (fun j => X j ω) a) a b) :=
+    measurable_pi_lambda _ fun a => measurable_pi_lambda _ fun b =>
+      symGraph_rho_entry_measurable hσ d X hX N a b
+  have hmQ : Measurable fun ω => (fun a i : Fin N =>
+      heatP d σ k (X a ω - X i ω) / (N : ℝ)) :=
+    measurable_pi_lambda _ fun a => measurable_pi_lambda _ fun i =>
+      (heatP_sample_measurable hσ d X hX k a i).div_const _
+  refine MeasurableSet.congr (ms_forall fun j : Fin (Fintype.card (Fin N)) => measurableSet_le
+    ((((eigTot_measurable_comp j _ hmS hS0).pow_const k).sub
+      (eigTot_measurable_comp j _ hmQ hQ0)).abs)
+    (measurable_const (a := eigL1C d * δp * Real.sqrt k))) ?_
+  ext ω
+  simp only [Set.mem_setOf_eq]
+  constructor
+  · intro h hS hQ j
+    have h1 := h j
+    rw [eigTot_eq' _ (hS0 ω) j, eigTot_eq' _ (hQ0 ω) j] at h1
+    exact h1
+  · intro h j
+    rw [eigTot_eq' _ (hS0 ω) j, eigTot_eq' _ (hQ0 ω) j]
+    exact h (hS0 ω) (hQ0 ω) j
+
+end EigL1Sets
+
+/-! ### (2e) The reduction with an arbitrary family `ĥ`: `TorusReductionL1.torus_reduction_sample_l1`
+
+The set quantifies over all constants `cα, cβ ≥ 0` and ALL families `hh : ℕ → Fin N → Fin N → ℝ`.
+Only the members `hh m`, `m ≤ k`, enter, so the quantifier runs over a finite-dimensional
+(`σ`-compact) parameter space; the hypotheses (H5a)--(H5d) are closed conditions and the failure
+of the conclusion is an open condition in (data, parameters), all depending continuously on
+finitely many measurable real functions of the sample. The bad set is therefore the preimage of
+a projection of `closed ∩ open` along a `σ`-compact factor (`proj_measurable`). -/
+
+section ReductionL1Sets
+
+open CTG.Reals.TorusReduction TorusReductionL1
+
+/-- Extension by zero of a family indexed by `Fin n` to all of `ℕ`. -/
+def ext0 {α : Type*} [Zero α] (n : ℕ) (p : Fin n → α) (m : ℕ) : α :=
+  if h : m < n then p ⟨m, h⟩ else 0
+
+theorem ext0_restrict {α : Type*} [Zero α] {n : ℕ} (f : ℕ → α) {m : ℕ} (h : m < n) :
+    ext0 n (fun m' : Fin n => f m') m = f m := by
+  unfold ext0
+  exact dif_pos h
+
+theorem ext0_continuous {n N : ℕ} (m : ℕ) (i b : Fin N) :
+    Continuous fun p : Fin n → Fin N → Fin N → ℝ => ext0 n p m i b := by
+  unfold ext0
+  by_cases h : m < n
+  · simp only [dif_pos h]
+    fun_prop
+  · simp only [dif_neg h]
+    exact continuous_const
+
+/-- The four hypotheses (H5a)--(H5d) with abstract defect `D` and abstract bounds. -/
+def H5Like (N k : ℕ) (D hh : ℕ → Fin N → Fin N → ℝ) (b1 b2 b3 b4 : ℕ → ℝ) : Prop :=
+  (∀ m, 1 ≤ m → m ≤ k → ∀ i b : Fin N, |D m i b - hh m i b| ≤ b1 m) ∧
+  (∀ m, 1 ≤ m → m ≤ k → ∀ i : Fin N, ∑ b : Fin N, |D m i b - hh m i b| ≤ b2 m) ∧
+  (∀ m, 1 ≤ m → m ≤ k → ∀ i b : Fin N, |hh m i b| ≤ b3 m) ∧
+  (∀ m, 1 ≤ m → m ≤ k → ∀ i : Fin N, ∑ b : Fin N, |hh m i b| ≤ b4 m)
+
+theorem H5Like_of_congr {N k : ℕ} {D D' hh hh' : ℕ → Fin N → Fin N → ℝ} {b1 b2 b3 b4 : ℕ → ℝ}
+    (hD : ∀ m, m ≤ k → D m = D' m) (hh0 : ∀ m, m ≤ k → hh m = hh' m)
+    (H : H5Like N k D hh b1 b2 b3 b4) : H5Like N k D' hh' b1 b2 b3 b4 := by
+  obtain ⟨a, b, c, e⟩ := H
+  refine ⟨fun m h1 h2 => ?_, fun m h1 h2 => ?_, fun m h1 h2 => ?_, fun m h1 h2 => ?_⟩
+  · rw [← hD m h2, ← hh0 m h2]
+    exact a m h1 h2
+  · rw [← hD m h2, ← hh0 m h2]
+    exact b m h1 h2
+  · rw [← hh0 m h2]
+    exact c m h1 h2
+  · rw [← hh0 m h2]
+    exact e m h1 h2
+
+/-- The statistic `Π_k` with abstract first term `A` and abstract kernels `Q`. -/
+noncomputable def piLike (N k : ℕ) (A : ℝ) (Q hh : ℕ → Fin N → Fin N → ℝ) : ℝ :=
+  A + ∑ m ∈ Finset.Icc 1 (k - 1),
+        1 / (N : ℝ) ^ 2 * ∑ i : Fin N, ∑ b : Fin N, Q (k - m) i b * hh m i b
+    + 1 / (N : ℝ) * ∑ i : Fin N, hh k i i
+
+theorem piLike_congr {N k : ℕ} {A : ℝ} {Q Q' hh hh' : ℕ → Fin N → Fin N → ℝ}
+    (hQ : ∀ m, m ≤ k → Q m = Q' m) (hh0 : ∀ m, m ≤ k → hh m = hh' m) :
+    piLike N k A Q hh = piLike N k A Q' hh' := by
+  unfold piLike
+  rw [hh0 k le_rfl]
+  congr 2
+  refine Finset.sum_congr rfl fun m hm => ?_
+  rw [Finset.mem_Icc] at hm
+  rw [hQ (k - m) (Nat.sub_le _ _), hh0 m (by omega)]
+
+/-- Data space and parameter space of the projection argument. -/
+abbrev RedY (N k : ℕ) : Type :=
+  ℝ × ℝ × (Fin (k + 1) → Fin N → Fin N → ℝ) × (Fin (k + 1) → Fin N → Fin N → ℝ)
+
+abbrev RedP (N k : ℕ) : Type := ℝ × ℝ × (Fin (k + 1) → Fin N → Fin N → ℝ)
+
+/-- A bound for `|T - Π_k(hh)|` for ALL constants `cα, cβ ≥ 0` and ALL families `hh` satisfying
+    (H5a)--(H5d) is a measurable condition, if the data `T`, `A`, `D`, `Q` are measurable and
+    the bounds are continuous in the constants. -/
+theorem reduction_param_measurable {Ω : Type*} {mΩ : MeasurableSpace Ω} {N : ℕ} (k : ℕ)
+    (T A : Ω → ℝ) (D Q : Ω → ℕ → Fin N → Fin N → ℝ) (hT : Measurable T) (hA : Measurable A)
+    (hD : ∀ (m : ℕ) (i b : Fin N), Measurable fun ω => D ω m i b)
+    (hQ : ∀ (m : ℕ) (i b : Fin N), Measurable fun ω => Q ω m i b)
+    (b1 b2 b3 b4 : ℝ → ℕ → ℝ) (hb1 : ∀ m, Continuous fun c => b1 c m)
+    (hb2 : ∀ m, Continuous fun c => b2 c m) (hb3 : ∀ m, Continuous fun c => b3 c m)
+    (hb4 : ∀ m, Continuous fun c => b4 c m) (F : ℝ → ℝ → ℝ)
+    (hF : Continuous fun q : ℝ × ℝ => F q.1 q.2) :
+    MeasurableSet {ω | ∀ (cα cβ : ℝ) (hh : ℕ → Fin N → Fin N → ℝ), 0 ≤ cα → 0 ≤ cβ →
+      H5Like N k (D ω) hh (b1 cα) (b2 cα) (b3 cβ) (b4 cβ) →
+      |T ω - piLike N k (A ω) (Q ω) hh| ≤ F cα cβ} := by
+  have cT : Continuous fun q : RedY N k × RedP N k => q.1.1 := by fun_prop
+  have cA : Continuous fun q : RedY N k × RedP N k => q.1.2.1 := by fun_prop
+  have cα : Continuous fun q : RedY N k × RedP N k => q.2.1 := by fun_prop
+  have cβ : Continuous fun q : RedY N k × RedP N k => q.2.2.1 := by fun_prop
+  have cD : ∀ (m : ℕ) (i b : Fin N), Continuous fun q : RedY N k × RedP N k =>
+      ext0 (k + 1) q.1.2.2.1 m i b := fun m i b =>
+    (ext0_continuous m i b).comp (by fun_prop)
+  have cQ : ∀ (m : ℕ) (i b : Fin N), Continuous fun q : RedY N k × RedP N k =>
+      ext0 (k + 1) q.1.2.2.2 m i b := fun m i b =>
+    (ext0_continuous m i b).comp (by fun_prop)
+  have cH : ∀ (m : ℕ) (i b : Fin N), Continuous fun q : RedY N k × RedP N k =>
+      ext0 (k + 1) q.2.2.2 m i b := fun m i b =>
+    (ext0_continuous m i b).comp (by fun_prop)
+  have hC : IsClosed {q : RedY N k × RedP N k | 0 ≤ q.2.1 ∧ 0 ≤ q.2.2.1 ∧
+      H5Like N k (ext0 (k + 1) q.1.2.2.1) (ext0 (k + 1) q.2.2.2)
+        (b1 q.2.1) (b2 q.2.1) (b3 q.2.2.1) (b4 q.2.2.1)} := by
+    unfold H5Like
+    refine IsClosed.inter (isClosed_le continuous_const cα) ?_
+    refine IsClosed.inter (isClosed_le continuous_const cβ) ?_
+    refine IsClosed.inter ?_ (IsClosed.inter ?_ (IsClosed.inter ?_ ?_))
+    · exact isClosed_setOf_forall fun m => isClosed_setOf_forall fun _ =>
+        isClosed_setOf_forall fun _ => isClosed_setOf_forall fun i =>
+        isClosed_setOf_forall fun b =>
+          isClosed_le ((cD m i b).sub (cH m i b)).abs ((hb1 m).comp cα)
+    · exact isClosed_setOf_forall fun m => isClosed_setOf_forall fun _ =>
+        isClosed_setOf_forall fun _ => isClosed_setOf_forall fun i =>
+          isClosed_le (continuous_finset_sum _ fun b _ => ((cD m i b).sub (cH m i b)).abs)
+            ((hb2 m).comp cα)
+    · exact isClosed_setOf_forall fun m => isClosed_setOf_forall fun _ =>
+        isClosed_setOf_forall fun _ => isClosed_setOf_forall fun i =>
+        isClosed_setOf_forall fun b => isClosed_le (cH m i b).abs ((hb3 m).comp cβ)
+    · exact isClosed_setOf_forall fun m => isClosed_setOf_forall fun _ =>
+        isClosed_setOf_forall fun _ => isClosed_setOf_forall fun i =>
+          isClosed_le (continuous_finset_sum _ fun b _ => (cH m i b).abs) ((hb4 m).comp cβ)
+  have hU : IsOpen {q : RedY N k × RedP N k | F q.2.1 q.2.2.1
+      < |q.1.1 - piLike N k q.1.2.1 (ext0 (k + 1) q.1.2.2.2) (ext0 (k + 1) q.2.2.2)|} := by
+    unfold piLike
+    refine isOpen_lt (hF.comp (cα.prodMk cβ)) ?_
+    exact (cT.sub ((cA.add (continuous_finset_sum _ fun m _ => continuous_const.mul
+      (continuous_finset_sum _ fun i _ => continuous_finset_sum _ fun b _ =>
+        (cQ (k - m) i b).mul (cH m i b)))).add
+      (continuous_const.mul (continuous_finset_sum _ fun i _ => cH k i i)))).abs
+  have hD' : Measurable fun ω => (fun (m : Fin (k + 1)) => D ω m) :=
+    measurable_pi_lambda _ fun m => measurable_pi_lambda _ fun i =>
+      measurable_pi_lambda _ fun b => hD m i b
+  have hQ' : Measurable fun ω => (fun (m : Fin (k + 1)) => Q ω m) :=
+    measurable_pi_lambda _ fun m => measurable_pi_lambda _ fun i =>
+      measurable_pi_lambda _ fun b => hQ m i b
+  have hΦ : Measurable fun ω => ((T ω, A ω, (fun (m : Fin (k + 1)) => D ω m),
+      (fun (m : Fin (k + 1)) => Q ω m)) : RedY N k) :=
+    hT.prodMk (hA.prodMk (hD'.prodMk hQ'))
+  haveI i1 : OpensMeasurableSpace
+      ((Fin (k + 1) → Fin N → Fin N → ℝ) × (Fin (k + 1) → Fin N → Fin N → ℝ)) := inferInstance
+  haveI i2 : OpensMeasurableSpace
+      (ℝ × (Fin (k + 1) → Fin N → Fin N → ℝ) × (Fin (k + 1) → Fin N → Fin N → ℝ)) :=
+    inferInstance
+  haveI i3 : OpensMeasurableSpace (RedY N k) := Prod.opensMeasurableSpace
+  refine (MeasurableSet.compl (hΦ (proj_measurable hC hU))).congr ?_
+  ext ω
+  simp only [Set.mem_setOf_eq, Set.mem_compl_iff, Set.mem_preimage]
+  constructor
+  · intro h cα' cβ' hh h0 h1 hR
+    by_contra hcon
+    refine h ⟨(cα', cβ', fun (m : Fin (k + 1)) => hh m), ⟨h0, h1, ?_⟩, ?_⟩
+    · exact H5Like_of_congr (fun m hm => (ext0_restrict (D ω) (by omega)).symm)
+        (fun m hm => (ext0_restrict hh (by omega)).symm) hR
+    · rw [piLike_congr (Q' := Q ω) (hh' := hh)
+        (fun m hm => ext0_restrict (Q ω) (by omega))
+        (fun m hm => ext0_restrict hh (by omega))]
+      exact not_le.1 hcon
+  · rintro h ⟨⟨cα', cβ', p⟩, ⟨h0, h1, hR⟩, hu⟩
+    have hb := h cα' cβ' (ext0 (k + 1) p) h0 h1
+      (H5Like_of_congr (fun m hm => ext0_restrict (D ω) (by omega)) (fun m hm => rfl) hR)
+    rw [piLike_congr (Q' := Q ω) (hh' := ext0 (k + 1) p)
+      (fun m hm => ext0_restrict (Q ω) (by omega)) (fun m hm => rfl)] at hu
+    exact absurd hu (not_lt.2 hb)
+
+/-- The exceptional set of `TorusReductionL1.torus_reduction_sample_l1`, verbatim (with the
+    quantifier over arbitrary families `hh`), is measurable. -/
+theorem torus_reduction_sample_l1_set_measurable {Ω : Type*} {mΩ : MeasurableSpace Ω} {σ : ℝ}
+    (hσ : 0 < σ) (d : ℕ) (X : ℕ → Ω → FlatTorus d) (hX : ∀ j, Measurable (X j)) (N K : ℕ)
+    (δp : ℝ) :
+    MeasurableSet {ω | ¬ ∀ k, 1 ≤ k → k ≤ K →
+        ∀ (cα cβ : ℝ) (hh : ℕ → Fin N → Fin N → ℝ),
+          0 ≤ cα → 0 ≤ cβ →
+          RemainingH5 d σ N (fun j => X j ω) k hh cα cβ δp →
+          |((torusWalk d σ N (fun j => X j ω)) ^ (k + 1)).trace - torusM d σ (k + 1)
+              - torusPi d σ N (fun j => X j ω) k hh|
+            ≤ (Real.sqrt 2) ^ d
+                * (2 * (4 * normC d) * kernelC1 d + 2 * (14 * normC d ^ 2) + cα
+                    + 2 * (2 * (Real.sqrt 2) ^ d * cα + cα
+                        + (Real.sqrt 2) ^ d * kernelC1 d * cβ + h4C d * cβ))
+                * δp ^ 2 * k * torusM d σ (k + 1)} := by
+  have hc : 0 < 2 * Real.pi ^ 2 * σ := by
+    have := Real.pi_pos; positivity
+  have hK : ∀ a j : Fin N, Measurable fun ω => torusK d σ N (fun j => X j ω) a j := fun a j =>
+    heatTorus_sample_measurable hc d X hX a j
+  have hR : ∀ a : Fin N, Measurable fun ω => torusRho d σ N (fun j => X j ω) a := fun a =>
+    heatRho_sample_measurable hσ d X hX N a
+  have hQ : ∀ (s : ℕ) (a b : Fin N), Measurable fun ω => torusQ d σ N (fun j => X j ω) s a b :=
+    fun s a b => heatP_sample_measurable hσ d X hX s a b
+  have hTh : ∀ b i : Fin N, Measurable fun ω => torusTheta1 d σ N (fun j => X j ω) b i := by
+    intro b i
+    unfold torusTheta1 ShellAndWalk.walkTheta1
+    exact ((((hR i).sub_const 1).neg).sub ((hR b).sub_const 1)).add
+      ((Finset.measurable_sum _ fun j _ => (hK b j).mul ((hR j).sub_const 1)).div_const _)
+  have hW : ∀ a b : Fin N, Measurable fun ω => torusWalk d σ N (fun j => X j ω) a b :=
+    fun a b => walk_entry_measurable hσ d X hX N a b
+  refine MeasurableSet.compl ?_
+  refine ms_forall fun k => ms_imp (ms_imp ?_)
+  exact reduction_param_measurable k
+    (fun ω => ((torusWalk d σ N (fun j => X j ω)) ^ (k + 1)).trace - torusM d σ (k + 1))
+    (fun ω => 1 / (N : ℝ) ^ 2 * ∑ i : Fin N, ∑ b : Fin N,
+      torusQ d σ N (fun j => X j ω) k i b * torusQ d σ N (fun j => X j ω) 1 b i
+        * torusTheta1 d σ N (fun j => X j ω) b i)
+    (fun ω m i b => (∑ j : Fin N, torusWalk d σ N (fun j => X j ω) b j
+        * torusQ d σ N (fun j => X j ω) m j i) - torusQ d σ N (fun j => X j ω) (m + 1) b i)
+    (fun ω => torusQ d σ N (fun j => X j ω))
+    ((pow_trace_measurable (fun ω => torusWalk d σ N (fun j => X j ω)) hW (k + 1)).sub
+      measurable_const)
+    ((Finset.measurable_sum _ fun i _ => Finset.measurable_sum _ fun b _ =>
+      ((hQ k i b).mul (hQ 1 b i)).mul (hTh b i)).const_mul _)
+    (fun m i b => (Finset.measurable_sum _ fun j _ => (hW b j).mul (hQ m j i)).sub
+      (hQ (m + 1) b i))
+    (fun m i b => hQ m i b)
+    (fun c m => c * δp ^ 2 * (1 / Real.sqrt m) * torusM d σ (6 * m))
+    (fun c m => (N : ℝ) * (c * δp ^ 2 * (1 / Real.sqrt m)))
+    (fun c m => c * δp * (1 / Real.sqrt m) * torusM d σ (6 * m))
+    (fun c m => (N : ℝ) * (c * δp * (1 / Real.sqrt m)))
+    (fun m => by fun_prop) (fun m => by fun_prop) (fun m => by fun_prop) (fun m => by fun_prop)
+    (fun cα cβ => (Real.sqrt 2) ^ d
+                * (2 * (4 * normC d) * kernelC1 d + 2 * (14 * normC d ^ 2) + cα
+                    + 2 * (2 * (Real.sqrt 2) ^ d * cα + cα
+                        + (Real.sqrt 2) ^ d * kernelC1 d * cβ + h4C d * cβ))
+                * δp ^ 2 * k * torusM d σ (k + 1))
+    (by fun_prop)
+
+end ReductionL1Sets
+
+/-! ### (3) Eigenspaces: `EigenspaceFinal.eigspace_final_sample`, `'`, `''`
+
+The sets contain `specProj` and `evec`, i.e. vectors of the eigenbasis chosen by Mathlib. For
+`EigenspaceSample.eigspace_sample` this was an obstacle, because there the projection may split
+an eigenspace. Here the first clause of `EigspaceConcl` is the separation of the cluster, and
+where the cluster is separated the matrix `Π_J = ∑_{i∈J} v_i v_iᵀ` is the spectral projection,
+a function of the matrix alone. Its entries are obtained as the limit of entries of polynomials
+of the matrix with measurable coefficients: with `g(x) = ∏_{i'∉J} (x - λ_{i'})²` and
+`c = 1 + ∑_i g(λ_i)`, `1 - (1 - g(λ_i)/c)^n → 1_{i∈J}` on the separated set. -/
+
+section SpectralProjection
+
+open EigenspaceSteps EigenspaceSample
+
+/-- `∑_i β_i v_i(a) v_i(b)`: the entries of `β(A)` in the eigenbasis of Mathlib. -/
+noncomputable def funMat {N : ℕ} {A : Matrix (Fin N) (Fin N) ℝ} (hA : A.IsHermitian)
+    (β : Fin N → ℝ) (a b : Fin N) : ℝ := ∑ i, β i * evec hA i a * evec hA i b
+
+theorem evec_complete {N : ℕ} (A : Matrix (Fin N) (Fin N) ℝ) (hA : A.IsHermitian)
+    (a b : Fin N) : ∑ i, evec hA i a * evec hA i b = if a = b then 1 else 0 := by
+  have h1 : (hA.eigenvectorUnitary : Matrix (Fin N) (Fin N) ℝ)
+      * star (hA.eigenvectorUnitary : Matrix (Fin N) (Fin N) ℝ) = 1 :=
+    Unitary.coe_mul_star_self _
+  have h2 := congrFun (congrFun h1 a) b
+  rw [Matrix.one_apply] at h2
+  rw [← h2, star_eq_conjTranspose, conjTranspose_eq_transpose_of_trivial]
+  simp only [Matrix.mul_apply, transpose_apply, unitary_apply]
+
+theorem funMat_one {N : ℕ} (A : Matrix (Fin N) (Fin N) ℝ) (hA : A.IsHermitian) (a b : Fin N) :
+    funMat hA (fun _ => 1) a b = if a = b then 1 else 0 := by
+  unfold funMat
+  simp only [one_mul]
+  exact evec_complete A hA a b
+
+theorem funMat_eig {N : ℕ} (A : Matrix (Fin N) (Fin N) ℝ) (hA : A.IsHermitian) (a b : Fin N) :
+    funMat hA hA.eigenvalues a b = A a b := by
+  have h1 : A a b = ∑ c, A a c * ∑ i, evec hA i c * evec hA i b := by
+    simp only [evec_complete A hA, mul_ite, mul_one, mul_zero, Finset.sum_ite_eq',
+      Finset.mem_univ, if_true]
+  rw [h1]
+  simp only [Finset.mul_sum]
+  rw [Finset.sum_comm]
+  unfold funMat
+  refine Finset.sum_congr rfl fun i _ => ?_
+  have h2 : ∑ c, A a c * evec hA i c = hA.eigenvalues i * evec hA i a := by
+    have := congrFun (mulVec_evec A hA i) a
+    simpa [mulVec, dotProduct] using this
+  rw [← h2, Finset.sum_mul]
+  exact Finset.sum_congr rfl fun c _ => by ring
+
+theorem funMat_mul {N : ℕ} (A : Matrix (Fin N) (Fin N) ℝ) (hA : A.IsHermitian)
+    (β γ : Fin N → ℝ) (a b : Fin N) :
+    ∑ c, funMat hA β a c * funMat hA γ c b = funMat hA (fun i => β i * γ i) a b := by
+  unfold funMat
+  simp only [Finset.sum_mul_sum]
+  rw [Finset.sum_comm]
+  refine Finset.sum_congr rfl fun i _ => ?_
+  rw [Finset.sum_comm]
+  have h : ∀ j, ∑ c, β i * evec hA i a * evec hA i c * (γ j * evec hA j c * evec hA j b)
+      = β i * evec hA i a * (γ j * evec hA j b) * (if i = j then 1 else 0) := by
+    intro j
+    rw [← evec_orthonormal A hA i j]
+    simp only [dotProduct, Finset.mul_sum]
+    exact Finset.sum_congr rfl fun c _ => by ring
+  simp only [h, mul_ite, mul_one, mul_zero, Finset.sum_ite_eq, Finset.mem_univ, if_true]
+  ring
+
+/-- `Π_J w` through the entries `∑_{i∈J} v_i(a) v_i(b)`. -/
+theorem specProj_eq_funMat {N : ℕ} (A : Matrix (Fin N) (Fin N) ℝ) (hA : A.IsHermitian)
+    (J : Finset (Fin N)) (w : Fin N → ℝ) (a : Fin N) :
+    specProj hA J w a = ∑ b, funMat hA (fun i => if i ∈ J then (1 : ℝ) else 0) a b * w b := by
+  have h : ∀ i, ∑ b, (if i ∈ J then (1 : ℝ) else 0) * evec hA i a * evec hA i b * w b
+      = if i ∈ J then (evec hA i ⬝ᵥ w) * evec hA i a else 0 := by
+    intro i
+    by_cases hi : i ∈ J
+    · simp only [if_pos hi, one_mul, dotProduct]
+      rw [Finset.sum_mul]
+      exact Finset.sum_congr rfl fun b _ => by ring
+    · simp only [if_neg hi, zero_mul, Finset.sum_const_zero]
+  unfold specProj funMat
+  simp only [Finset.sum_mul]
+  rw [Finset.sum_comm]
+  simp only [h]
+  rw [Finset.sum_ite_mem, Finset.univ_inter]
+
+/-- The eigenvalues (in the indexing of the eigenbasis) of a measurable family of symmetric
+    matrices are measurable. -/
+theorem eigenvalue_measurable {Ω : Type*} {mΩ : MeasurableSpace Ω} {N : ℕ}
+    (M : Ω → Matrix (Fin N) (Fin N) ℝ) (hM : ∀ a b, Measurable fun ω => M ω a b)
+    (hH : ∀ ω, (M ω).IsHermitian) (i : Fin N) :
+    Measurable fun ω => (hH ω).eigenvalues i := by
+  have e : (fun ω => (hH ω).eigenvalues i)
+      = fun ω => eigTot N (ord N i) (fun a b => M ω a b) := by
+    funext ω
+    rw [eigTot_eq (M ω) (hH ω)]
+    rfl
+  rw [e]
+  exact eigTot_measurable_comp _ (fun ω a b => M ω a b)
+    (measurable_pi_lambda _ fun a => measurable_pi_lambda _ fun b => hM a b) (fun ω => hH ω)
+
+/-- A family of spectral weights `β_i(ω)` for which the entries of `β(M ω)` are measurable. -/
+def GoodFam {Ω : Type*} [MeasurableSpace Ω] {N : ℕ} (M : Ω → Matrix (Fin N) (Fin N) ℝ)
+    (hH : ∀ ω, (M ω).IsHermitian) (β : Ω → Fin N → ℝ) : Prop :=
+  ∀ a b, Measurable fun ω => funMat (hH ω) (β ω) a b
+
+theorem good_const {Ω : Type*} [MeasurableSpace Ω] {N : ℕ} (M : Ω → Matrix (Fin N) (Fin N) ℝ)
+    (hH : ∀ ω, (M ω).IsHermitian) (c : Ω → ℝ) (hc : Measurable c) :
+    GoodFam M hH (fun ω _ => c ω) := by
+  intro a b
+  have e : (fun ω => funMat (hH ω) (fun _ => c ω) a b)
+      = fun ω => c ω * (if a = b then 1 else 0) := by
+    funext ω
+    rw [← funMat_one (M ω) (hH ω) a b]
+    unfold funMat
+    rw [Finset.mul_sum]
+    exact Finset.sum_congr rfl fun i _ => by ring
+  rw [e]
+  exact hc.mul_const _
+
+theorem good_eig {Ω : Type*} [MeasurableSpace Ω] {N : ℕ} (M : Ω → Matrix (Fin N) (Fin N) ℝ)
+    (hM : ∀ a b, Measurable fun ω => M ω a b) (hH : ∀ ω, (M ω).IsHermitian) :
+    GoodFam M hH (fun ω => (hH ω).eigenvalues) := by
+  intro a b
+  have e : (fun ω => funMat (hH ω) (hH ω).eigenvalues a b) = fun ω => M ω a b :=
+    funext fun ω => funMat_eig (M ω) (hH ω) a b
+  rw [e]
+  exact hM a b
+
+theorem good_sub {Ω : Type*} [MeasurableSpace Ω] {N : ℕ} (M : Ω → Matrix (Fin N) (Fin N) ℝ)
+    (hH : ∀ ω, (M ω).IsHermitian) {β γ : Ω → Fin N → ℝ} (hβ : GoodFam M hH β)
+    (hγ : GoodFam M hH γ) : GoodFam M hH (fun ω i => β ω i - γ ω i) := by
+  intro a b
+  have e : (fun ω => funMat (hH ω) (fun i => β ω i - γ ω i) a b)
+      = fun ω => funMat (hH ω) (β ω) a b - funMat (hH ω) (γ ω) a b := by
+    funext ω
+    unfold funMat
+    rw [← Finset.sum_sub_distrib]
+    exact Finset.sum_congr rfl fun i _ => by ring
+  rw [e]
+  exact (hβ a b).sub (hγ a b)
+
+theorem good_mul {Ω : Type*} [MeasurableSpace Ω] {N : ℕ} (M : Ω → Matrix (Fin N) (Fin N) ℝ)
+    (hH : ∀ ω, (M ω).IsHermitian) {β γ : Ω → Fin N → ℝ} (hβ : GoodFam M hH β)
+    (hγ : GoodFam M hH γ) : GoodFam M hH (fun ω i => β ω i * γ ω i) := by
+  intro a b
+  have e : (fun ω => funMat (hH ω) (fun i => β ω i * γ ω i) a b)
+      = fun ω => ∑ c, funMat (hH ω) (β ω) a c * funMat (hH ω) (γ ω) c b :=
+    funext fun ω => (funMat_mul (M ω) (hH ω) (β ω) (γ ω) a b).symm
+  rw [e]
+  exact Finset.measurable_sum _ fun c _ => (hβ a c).mul (hγ c b)
+
+theorem good_pow {Ω : Type*} [MeasurableSpace Ω] {N : ℕ} (M : Ω → Matrix (Fin N) (Fin N) ℝ)
+    (hH : ∀ ω, (M ω).IsHermitian) {β : Ω → Fin N → ℝ} (hβ : GoodFam M hH β) (n : ℕ) :
+    GoodFam M hH (fun ω i => β ω i ^ n) := by
+  induction n with
+  | zero =>
+    simp only [pow_zero]
+    exact good_const M hH (fun _ => 1) measurable_const
+  | succ n ih =>
+    simp only [pow_succ]
+    exact good_mul M hH ih hβ
+
+theorem good_prod {Ω : Type*} [MeasurableSpace Ω] {N : ℕ} (M : Ω → Matrix (Fin N) (Fin N) ℝ)
+    (hH : ∀ ω, (M ω).IsHermitian) {κ : Type*} (s : Finset κ) (β : κ → Ω → Fin N → ℝ)
+    (hβ : ∀ j ∈ s, GoodFam M hH (β j)) : GoodFam M hH (fun ω i => ∏ j ∈ s, β j ω i) := by
+  classical
+  induction s using Finset.induction_on with
+  | empty =>
+    simp only [Finset.prod_empty]
+    exact good_const M hH (fun _ => 1) measurable_const
+  | insert j s hj ih =>
+    simp only [Finset.prod_insert hj]
+    exact good_mul M hH (hβ j (Finset.mem_insert_self j s))
+      (ih fun j' hj' => hβ j' (Finset.mem_insert_of_mem hj'))
+
+/-- `g(λ_i) = ∏_{i' ∉ J} (λ_i - λ_{i'})²`. -/
+noncomputable def clusterG {N : ℕ} {A : Matrix (Fin N) (Fin N) ℝ} (hA : A.IsHermitian)
+    (J : Finset (Fin N)) (i : Fin N) : ℝ :=
+  ∏ i' ∈ Jᶜ, (hA.eigenvalues i - hA.eigenvalues i') ^ 2
+
+/-- `1/c`, `c = 1 + ∑_i g(λ_i)`. -/
+noncomputable def clusterC {N : ℕ} {A : Matrix (Fin N) (Fin N) ℝ} (hA : A.IsHermitian)
+    (J : Finset (Fin N)) : ℝ := (1 + ∑ i, clusterG hA J i)⁻¹
+
+/-- Separation of a cluster `J` of indices of the eigenbasis: the eigenvalues with index in `J`
+    differ from all others (the first clause of `EigspaceConcl`). -/
+def Sep {N : ℕ} {A : Matrix (Fin N) (Fin N) ℝ} (hA : A.IsHermitian) (J : Finset (Fin N)) :
+    Prop := ∀ i ∈ J, ∀ i', i' ∉ J → hA.eigenvalues i ≠ hA.eigenvalues i'
+
+theorem cluster_tendsto {N : ℕ} (A : Matrix (Fin N) (Fin N) ℝ) (hA : A.IsHermitian)
+    (J : Finset (Fin N)) (hsep : Sep hA J) (i : Fin N) :
+    Tendsto (fun n : ℕ => 1 - (1 - clusterC hA J * clusterG hA J i) ^ n) atTop
+      (𝓝 (if i ∈ J then 1 else 0)) := by
+  have hG0 : ∀ i, 0 ≤ clusterG hA J i := fun i => Finset.prod_nonneg fun i' _ => sq_nonneg _
+  have hS0 : 0 ≤ ∑ i, clusterG hA J i := Finset.sum_nonneg fun i _ => hG0 i
+  have hpos : 0 < 1 + ∑ i, clusterG hA J i := by linarith
+  have hle : clusterG hA J i ≤ ∑ i, clusterG hA J i :=
+    Finset.single_le_sum (fun i _ => hG0 i) (Finset.mem_univ i)
+  by_cases hi : i ∈ J
+  · rw [if_pos hi]
+    have hGi : 0 < clusterG hA J i := Finset.prod_pos fun i' hi' => by
+      have hne := hsep i hi i' (Finset.mem_compl.1 hi')
+      have : hA.eigenvalues i - hA.eigenvalues i' ≠ 0 := sub_ne_zero.2 hne
+      positivity
+    have hx0 : 0 < clusterC hA J * clusterG hA J i := mul_pos (inv_pos.2 hpos) hGi
+    have hx1 : clusterC hA J * clusterG hA J i < 1 := by
+      unfold clusterC
+      rw [inv_mul_lt_iff₀ hpos, mul_one]
+      linarith
+    have ht := tendsto_pow_atTop_nhds_zero_of_lt_one
+      (r := 1 - clusterC hA J * clusterG hA J i) (by linarith) (by linarith)
+    have h2 := (tendsto_const_nhds (x := (1 : ℝ)) (f := (atTop : Filter ℕ))).sub ht
+    rw [sub_zero] at h2
+    exact h2
+  · rw [if_neg hi]
+    have hGi : clusterG hA J i = 0 :=
+      Finset.prod_eq_zero (Finset.mem_compl.2 hi) (by simp)
+    simp only [hGi, mul_zero, sub_zero, one_pow, sub_self]
+    exact tendsto_const_nhds
+
+/-- **The spectral projection of a separated cluster is measurable.** For a measurable family of
+    symmetric matrices and a set `J` of indices of the eigenbasis: the set where the cluster is
+    separated is measurable, and on it the entries `∑_{i∈J} v_i(a) v_i(b)` are measurable
+    (indicator form). -/
+theorem specProj_entry_measurable {Ω : Type*} {mΩ : MeasurableSpace Ω} {N : ℕ}
+    (M : Ω → Matrix (Fin N) (Fin N) ℝ) (hM : ∀ a b, Measurable fun ω => M ω a b)
+    (hH : ∀ ω, (M ω).IsHermitian) (J : Finset (Fin N)) :
+    MeasurableSet {ω | Sep (hH ω) J} ∧ ∀ a b : Fin N,
+      Measurable (Set.indicator {ω | Sep (hH ω) J}
+        (fun ω => funMat (hH ω) (fun i => if i ∈ J then (1 : ℝ) else 0) a b)) := by
+  classical
+  have hlam := fun i => eigenvalue_measurable M hM hH i
+  have hO : MeasurableSet {ω | Sep (hH ω) J} := by
+    unfold Sep
+    exact ms_forall fun i => ms_imp (ms_forall fun i' => ms_imp
+      ((measurableSet_eq_fun (hlam i) (hlam i')).compl))
+  refine ⟨hO, fun a b => ?_⟩
+  have hGm : ∀ i, Measurable fun ω => clusterG (hH ω) J i := fun i =>
+    Finset.measurable_prod _ fun i' _ => ((hlam i).sub (hlam i')).pow_const 2
+  have hGgood : GoodFam M hH (fun ω => clusterG (hH ω) J) :=
+    good_prod M hH Jᶜ
+      (fun i' ω i => ((hH ω).eigenvalues i - (hH ω).eigenvalues i') ^ 2)
+      (fun i' _ => good_pow M hH
+        (good_sub M hH (good_eig M hM hH) (good_const M hH _ (hlam i'))) 2)
+  have hcm : Measurable fun ω => clusterC (hH ω) J :=
+    (measurable_const.add (Finset.measurable_sum _ fun i _ => hGm i)).inv
+  have hβ : ∀ n : ℕ, GoodFam M hH
+      (fun ω i => 1 - (1 - clusterC (hH ω) J * clusterG (hH ω) J i) ^ n) := fun n =>
+    good_sub M hH (good_const M hH (fun _ => 1) measurable_const)
+      (good_pow M hH (good_sub M hH (good_const M hH (fun _ => 1) measurable_const)
+        (good_mul M hH (good_const M hH _ hcm) hGgood)) n)
+  refine measurable_of_tendsto_metrizable
+    (f := fun (n : ℕ) => Set.indicator {ω | Sep (hH ω) J} (fun ω => funMat (hH ω)
+      (fun i => 1 - (1 - clusterC (hH ω) J * clusterG (hH ω) J i) ^ n) a b))
+    (fun n => (hβ n a b).indicator hO) (tendsto_pi_nhds.2 fun ω => ?_)
+  by_cases hω : ω ∈ {ω | Sep (hH ω) J}
+  · simp only [Set.indicator_of_mem hω]
+    unfold funMat
+    refine tendsto_finset_sum _ fun i _ => ?_
+    exact ((cluster_tendsto (M ω) (hH ω) J hω i).mul_const _).mul_const _
+  · simp only [Set.indicator_of_notMem hω]
+    exact tendsto_const_nhds
+
+end SpectralProjection
+
+section EigspaceSets
+
+open EigenspaceSteps EigenspaceSample EigenspaceFinal
+
+/-- `P w` for an array `P` of matrix entries. -/
+def projAct {N : ℕ} (P : Fin N → Fin N → ℝ) (w : Fin N → ℝ) : Fin N → ℝ :=
+  fun a => ∑ b, P a b * w b
+
+/-- `‖w - P w‖²`. -/
+def resid {N : ℕ} (P : Fin N → Fin N → ℝ) (w : Fin N → ℝ) : ℝ :=
+  (w - projAct P w) ⬝ᵥ (w - projAct P w)
+
+theorem resid_measurable {Ω : Type*} {mΩ : MeasurableSpace Ω} {N : ℕ}
+    (P : Ω → Fin N → Fin N → ℝ) (w : Ω → Fin N → ℝ)
+    (hP : ∀ a b, Measurable fun ω => P ω a b) (hw : ∀ a, Measurable fun ω => w ω a) :
+    Measurable fun ω => resid (P ω) (w ω) := by
+  unfold resid projAct
+  simp only [dotProduct, Pi.sub_apply]
+  exact Finset.measurable_sum _ fun a _ =>
+    ((hw a).sub (Finset.measurable_sum _ fun b _ => (hP a b).mul (hw b))).mul
+      ((hw a).sub (Finset.measurable_sum _ fun b _ => (hP a b).mul (hw b)))
+
+theorem resid_continuous {Y : Type*} [TopologicalSpace Y] {N : ℕ}
+    (P : Y → Fin N → Fin N → ℝ) (w : Y → Fin N → ℝ)
+    (hP : ∀ a b, Continuous fun y => P y a b) (hw : ∀ a, Continuous fun y => w y a) :
+    Continuous fun y => resid (P y) (w y) := by
+  unfold resid projAct
+  simp only [dotProduct, Pi.sub_apply]
+  exact continuous_finset_sum _ fun a _ =>
+    ((hw a).sub (continuous_finset_sum _ fun b _ => (hP a b).mul (hw b))).mul
+      ((hw a).sub (continuous_finset_sum _ fun b _ => (hP a b).mul (hw b)))
+
+theorem ms_imp_dep {α : Type*} [MeasurableSpace α] {P Q : α → Prop}
+    (hP : MeasurableSet {x | P x}) (hQ : MeasurableSet {x | Q x}) :
+    MeasurableSet {x | P x → Q x} := by
+  refine (hP.compl.union hQ).congr ?_
+  ext x
+  simp only [Set.mem_union, Set.mem_compl_iff, Set.mem_setOf_eq]
+  exact ⟨fun h hp => h.resolve_left (not_not.2 hp), fun h => by
+    by_cases hp : P x
+    · exact Or.inr (h hp)
+    · exact Or.inl hp⟩
+
+/-- An upper bound for a measurable real function by all members of an ARBITRARY family of
+    constants (no countability) is a measurable condition. -/
+theorem ms_param_le {Ω : Type*} [MeasurableSpace Ω] {f : Ω → ℝ} (hf : Measurable f)
+    {ι : Sort*} (C : ι → Prop) (t : ι → ℝ) : MeasurableSet {ω | ∀ i, C i → f ω ≤ t i} := by
+  have h : IsClosed {x : ℝ | ∀ i, C i → x ≤ t i} :=
+    isClosed_setOf_forall fun i => isClosed_setOf_forall fun _ => isClosed_Iic
+  exact hf h.measurableSet
+
+/-- Linear independence of a finite measurable family of vectors is a measurable condition. -/
+theorem li_measurable {Ω : Type*} {mΩ : MeasurableSpace Ω} {N : ℕ} {F : Type} [Fintype F]
+    (w : Ω → F → Fin N → ℝ) (hw : ∀ p a, Measurable fun ω => w ω p a) :
+    MeasurableSet {ω | LinearIndependent ℝ (w ω)} := by
+  have hC : IsClosed {q : (F → Fin N → ℝ) × (F → ℝ) | ∀ a, ∑ p, q.2 p * q.1 p a = 0} :=
+    isClosed_setOf_forall fun a => isClosed_eq
+      (continuous_finset_sum _ fun p _ => ((continuous_apply p).comp continuous_snd).mul
+        ((continuous_apply a).comp ((continuous_apply p).comp continuous_fst)))
+      continuous_const
+  have hU : IsOpen {q : (F → Fin N → ℝ) × (F → ℝ) | ∃ p, q.2 p ≠ 0} := by
+    rw [Set.setOf_exists]
+    exact isOpen_iUnion fun p =>
+      isOpen_ne_fun ((continuous_apply p).comp continuous_snd) continuous_const
+  have hF : Measurable fun ω => (fun p a => w ω p a : F → Fin N → ℝ) :=
+    measurable_pi_lambda _ fun p => measurable_pi_lambda _ fun a => hw p a
+  refine (MeasurableSet.compl (hF (proj_measurable hC hU))).congr ?_
+  ext ω
+  simp only [Set.mem_setOf_eq, Set.mem_compl_iff, Set.mem_preimage]
+  rw [Fintype.linearIndependent_iff]
+  constructor
+  · intro h g hg p
+    by_contra hp
+    refine h ⟨g, fun a => ?_, p, hp⟩
+    have h1 := congrFun hg a
+    rw [Finset.sum_apply] at h1
+    simpa [smul_eq_mul] using h1
+  · rintro h ⟨g, hg1, p, hp⟩
+    refine hp (h g ?_ p)
+    funext a
+    rw [Finset.sum_apply]
+    simpa [smul_eq_mul] using hg1 a
+
+/-- A quadratic bound `‖u - P u‖² ≤ κ ‖u‖²` for all `u` in the span of a finite family and all
+    members `κ` of an ARBITRARY family of constants is a measurable condition (closed in the
+    data). -/
+theorem ms_param_quad {Ω : Type*} {mΩ : MeasurableSpace Ω} {N : ℕ} {F : Type} [Fintype F]
+    (P : Ω → Fin N → Fin N → ℝ) (w : Ω → F → Fin N → ℝ)
+    (hP : ∀ a b, Measurable fun ω => P ω a b) (hw : ∀ p a, Measurable fun ω => w ω p a)
+    {ι : Sort*} (C : ι → Prop) (κ : ι → ℝ) :
+    MeasurableSet {ω | ∀ i, C i → ∀ c : F → ℝ,
+      resid (P ω) (comb (w ω) c) ≤ κ i * (comb (w ω) c ⬝ᵥ comb (w ω) c)} := by
+  have hcomb : ∀ (c : F → ℝ) (a : Fin N),
+      Continuous fun y : (Fin N → Fin N → ℝ) × (F → Fin N → ℝ) => comb y.2 c a := by
+    intro c a
+    simp only [comb]
+    exact continuous_finset_sum _ fun f _ => continuous_const.mul
+      ((continuous_apply a).comp ((continuous_apply f).comp continuous_snd))
+  have hdot : ∀ c : F → ℝ,
+      Continuous fun y : (Fin N → Fin N → ℝ) × (F → Fin N → ℝ) =>
+        comb y.2 c ⬝ᵥ comb y.2 c := by
+    intro c
+    simp only [dotProduct]
+    exact continuous_finset_sum _ fun a _ => (hcomb c a).mul (hcomb c a)
+  have hC : IsClosed {y : (Fin N → Fin N → ℝ) × (F → Fin N → ℝ) | ∀ i, C i → ∀ c : F → ℝ,
+      resid y.1 (comb y.2 c) ≤ κ i * (comb y.2 c ⬝ᵥ comb y.2 c)} :=
+    isClosed_setOf_forall fun i => isClosed_setOf_forall fun _ => isClosed_setOf_forall fun c =>
+      isClosed_le
+        (resid_continuous (fun y : (Fin N → Fin N → ℝ) × (F → Fin N → ℝ) => y.1)
+          (fun y => comb y.2 c)
+          (fun a b => (continuous_apply b).comp ((continuous_apply a).comp continuous_fst))
+          (hcomb c))
+        (continuous_const.mul (hdot c))
+  have hΦ : Measurable fun ω => ((fun a b => P ω a b, fun p a => w ω p a) :
+      (Fin N → Fin N → ℝ) × (F → Fin N → ℝ)) :=
+    (measurable_pi_lambda _ fun a => measurable_pi_lambda _ fun b => hP a b).prodMk
+      (measurable_pi_lambda _ fun p => measurable_pi_lambda _ fun a => hw p a)
+  exact hΦ hC.measurableSet
+
+/-- Membership of a column of `P` in the span of the vectors `P w_p` is a measurable
+    condition. -/
+theorem ms_exists_coeff {Ω : Type*} {mΩ : MeasurableSpace Ω} {N : ℕ} {F : Type} [Fintype F]
+    (P : Ω → Fin N → Fin N → ℝ) (w : Ω → F → Fin N → ℝ)
+    (hP : ∀ a b, Measurable fun ω => P ω a b) (hw : ∀ p a, Measurable fun ω => w ω p a)
+    (a : Fin N) :
+    MeasurableSet {ω | ∃ c : F → ℝ, ∀ a' : Fin N,
+      P ω a' a = ∑ p, c p * projAct (P ω) (w ω p) a'} := by
+  have hC : IsClosed {q : ((Fin N → Fin N → ℝ) × (F → Fin N → ℝ)) × (F → ℝ) |
+      ∀ a' : Fin N, q.1.1 a' a = ∑ p, q.2 p * projAct q.1.1 (q.1.2 p) a'} := by
+    refine isClosed_setOf_forall fun a' => isClosed_eq
+      ((continuous_apply a).comp ((continuous_apply a').comp
+        (continuous_fst.comp continuous_fst))) ?_
+    simp only [projAct]
+    have c1 : ∀ b : Fin N, Continuous
+        fun q : ((Fin N → Fin N → ℝ) × (F → Fin N → ℝ)) × (F → ℝ) => q.1.1 a' b :=
+      fun b => by fun_prop
+    have c2 : ∀ (p : F) (b : Fin N), Continuous
+        fun q : ((Fin N → Fin N → ℝ) × (F → Fin N → ℝ)) × (F → ℝ) => q.1.2 p b :=
+      fun p b => by fun_prop
+    have c3 : ∀ p : F, Continuous
+        fun q : ((Fin N → Fin N → ℝ) × (F → Fin N → ℝ)) × (F → ℝ) => q.2 p :=
+      fun p => by fun_prop
+    exact continuous_finset_sum _ fun p _ =>
+      (c3 p).mul (continuous_finset_sum _ fun b _ => (c1 b).mul (c2 p b))
+  have hΦ : Measurable fun ω => ((fun a b => P ω a b, fun p a => w ω p a) :
+      (Fin N → Fin N → ℝ) × (F → Fin N → ℝ)) :=
+    (measurable_pi_lambda _ fun a => measurable_pi_lambda _ fun b => hP a b).prodMk
+      (measurable_pi_lambda _ fun p => measurable_pi_lambda _ fun a => hw p a)
+  refine (hΦ (proj_measurable hC isOpen_univ)).congr ?_
+  ext ω
+  simp only [Set.mem_setOf_eq, Set.mem_preimage, Set.mem_univ, and_true]
+
+theorem sum_ind_mul {N : ℕ} (J : Finset (Fin N)) (f : Fin N → ℝ) :
+    ∑ i, (if i ∈ J then (1 : ℝ) else 0) * f i = ∑ i : J, f i.1 := by
+  have h : ∀ i, (if i ∈ J then (1 : ℝ) else 0) * f i = if i ∈ J then f i else 0 := by
+    intro i
+    by_cases hi : i ∈ J
+    · simp only [if_pos hi, one_mul]
+    · simp only [if_neg hi, zero_mul]
+  simp only [h]
+  rw [Finset.sum_ite_mem, Finset.univ_inter, Finset.sum_coe_sort]
+
+theorem specProj_evec {N : ℕ} (A : Matrix (Fin N) (Fin N) ℝ) (hA : A.IsHermitian)
+    (J : Finset (Fin N)) {i : Fin N} (hi : i ∈ J) : specProj hA J (evec hA i) = evec hA i := by
+  funext a
+  unfold specProj
+  simp only [evec_orthonormal, ite_mul, one_mul, zero_mul]
+  rw [Finset.sum_ite_eq', if_pos hi]
+
+/-- The span clause of `EigspaceConcl` through the entries of `Π_J`: the projected vectors span
+    the span of the eigenvectors of the cluster iff every column of `Π_J` is a combination of
+    them. -/
+theorem specProj_span_iff {N : ℕ} (A : Matrix (Fin N) (Fin N) ℝ) (hA : A.IsHermitian)
+    (J : Finset (Fin N)) {F : Type} [Fintype F] (w : F → Fin N → ℝ) :
+    Submodule.span ℝ (Set.range fun p => specProj hA J (w p))
+        = Submodule.span ℝ (Set.range fun i : J => evec hA i.1)
+      ↔ ∀ a : Fin N, ∃ c : F → ℝ, ∀ a' : Fin N,
+          funMat hA (fun i => if i ∈ J then (1 : ℝ) else 0) a' a
+            = ∑ p, c p * specProj hA J (w p) a' := by
+  classical
+  have hcol : ∀ a : Fin N,
+      (fun a' => funMat hA (fun i => if i ∈ J then (1 : ℝ) else 0) a' a)
+        = ∑ i : J, evec hA i.1 a • evec hA i.1 := by
+    intro a
+    funext a'
+    rw [Finset.sum_apply]
+    simp only [Pi.smul_apply, smul_eq_mul]
+    unfold funMat
+    rw [← sum_ind_mul J (fun i => evec hA i a * evec hA i a')]
+    exact Finset.sum_congr rfl fun i _ => by ring
+  have f1 : ∀ w' : Fin N → ℝ, specProj hA J w'
+      ∈ Submodule.span ℝ (Set.range fun i : J => evec hA i.1) := by
+    intro w'
+    have e : specProj hA J w' = ∑ i : J, (evec hA i.1 ⬝ᵥ w') • evec hA i.1 := by
+      funext a
+      rw [Finset.sum_apply]
+      simp only [Pi.smul_apply, smul_eq_mul]
+      unfold specProj
+      rw [Finset.sum_coe_sort J (fun i => (evec hA i ⬝ᵥ w') * evec hA i a)]
+    rw [e]
+    exact Submodule.sum_mem _ fun i _ =>
+      Submodule.smul_mem _ _ (Submodule.subset_span ⟨i, rfl⟩)
+  have f2 : ∀ a : Fin N, (fun a' => funMat hA (fun i => if i ∈ J then (1 : ℝ) else 0) a' a)
+      ∈ Submodule.span ℝ (Set.range fun i : J => evec hA i.1) := by
+    intro a
+    rw [hcol a]
+    exact Submodule.sum_mem _ fun i _ =>
+      Submodule.smul_mem _ _ (Submodule.subset_span ⟨i, rfl⟩)
+  have f3 : ∀ i ∈ J, evec hA i = ∑ a, evec hA i a
+      • (fun a' => funMat hA (fun i => if i ∈ J then (1 : ℝ) else 0) a' a) := by
+    intro i hi
+    funext a'
+    rw [Finset.sum_apply]
+    simp only [Pi.smul_apply, smul_eq_mul]
+    have h1 := congrFun (specProj_evec A hA J hi) a'
+    rw [specProj_eq_funMat] at h1
+    rw [← h1]
+    exact Finset.sum_congr rfl fun b _ => by ring
+  constructor
+  · intro h a
+    have h1 := f2 a
+    rw [← h, Submodule.mem_span_range_iff_exists_fun] at h1
+    obtain ⟨c, hc⟩ := h1
+    refine ⟨c, fun a' => ?_⟩
+    have h2 := congrFun hc a'
+    rw [Finset.sum_apply] at h2
+    simp only [Pi.smul_apply, smul_eq_mul] at h2
+    exact h2.symm
+  · intro h
+    refine le_antisymm (Submodule.span_le.2 ?_) (Submodule.span_le.2 ?_)
+    · rintro _ ⟨p, rfl⟩
+      exact f1 (w p)
+    · rintro _ ⟨i, rfl⟩
+      show evec hA i.1 ∈ Submodule.span ℝ (Set.range fun p => specProj hA J (w p))
+      rw [f3 i.1 i.2]
+      refine Submodule.sum_mem _ fun a _ => Submodule.smul_mem _ _ ?_
+      obtain ⟨c, hc⟩ := h a
+      have e : (fun a' => funMat hA (fun i => if i ∈ J then (1 : ℝ) else 0) a' a)
+          = ∑ p, c p • specProj hA J (w p) := by
+        funext a'
+        rw [Finset.sum_apply]
+        simp only [Pi.smul_apply, smul_eq_mul]
+        exact hc a'
+      rw [e]
+      exact Submodule.sum_mem _ fun p _ =>
+        Submodule.smul_mem _ _ (Submodule.subset_span ⟨p, rfl⟩)
+
+/-- The matrix of the eigenspace statements is symmetric. -/
+theorem sGraph_herm {Ω : Type*} (d N : ℕ) (σ : ℝ) (X : ℕ → Ω → FlatTorus d) (ω : Ω) :
+    (sGraph d σ N (fun j => X j ω)).IsHermitian :=
+  symGraph_sample_isHermitian d N X ω
+
+/-- The pairs (shell parameter, `ϑ`) admitted by a hypothesis `Hyp` on `(r, r⁻, r⁺, gap)`. -/
+def ParSet (d : ℕ) (σ δp : ℝ)
+    (Hyp : ℝ → ℝ → ℝ → ℝ → Finset (Fin d → ℤ) → Finset (Fin d → ℤ) → Prop)
+    (Hlt Hle : Finset (Fin d → ℤ)) : Set (ℝ × ℝ) :=
+  {q | ∃ rm rp gap : ℝ, Hyp q.1 rm rp gap Hlt Hle ∧ q.2 = eigTheta d σ δp q.1 gap}
+
+/-- **Normal form of the eigenspace statement at a point tuple.** For fixed `Hlt`, `Hle` the
+    statement "`EigspaceConcl` for all admitted `(r, r⁻, r⁺, gap)`" is equivalent to: the cluster
+    is separated (if some parameter is admitted), and then four statements in which the vectors
+    of the eigenbasis enter only through an array `P` that agrees with the entries of the
+    spectral projection on the separated set. -/
+theorem concl_iff (d N : ℕ) (σ : ℝ) (x : ℕ → FlatTorus d) (hS : (sGraph d σ N x).IsHermitian)
+    (H0 : Finset (Fin d → ℤ)) (γ δp : ℝ)
+    (Hyp : ℝ → ℝ → ℝ → ℝ → Finset (Fin d → ℤ) → Finset (Fin d → ℤ) → Prop)
+    (Hlt Hle : Finset (Fin d → ℤ)) (P : Fin N → Fin N → ℝ)
+    (hP : Sep hS (shellSet N (1 + 2 * Hlt.card) (2 * Hle.card)) → ∀ a b, P a b
+      = funMat hS (fun i => if i ∈ shellSet N (1 + 2 * Hlt.card) (2 * Hle.card)
+          then (1 : ℝ) else 0) a b) :
+    (∀ r rm rp gap : ℝ, Hyp r rm rp gap Hlt Hle →
+      EigspaceConcl d N σ x hS H0 γ r (eigTheta d σ δp r gap) Hlt Hle)
+    ↔ ((ParSet d σ δp Hyp Hlt Hle).Nonempty →
+          Sep hS (shellSet N (1 + 2 * Hlt.card) (2 * Hle.card)))
+      ∧ (Sep hS (shellSet N (1 + 2 * Hlt.card) (2 * Hle.card)) →
+        (∀ (n : Fin d → ℤ) (b : Bool) (q : ℝ × ℝ),
+          (q ∈ ParSet d σ δp Hyp Hlt Hle ∧ lexPos d n ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 = q.1) →
+          resid P (sMode d N x (some (n, b))) ≤ q.2 ^ 2)
+        ∧ ((∃ q ∈ ParSet d σ δp Hyp Hlt Hle,
+              (∀ n, lexPos d n → ∑ i, ((n i : ℤ) : ℝ) ^ 2 = q.1 → n ∈ H0)
+              ∧ ((2 * (Hle.card - Hlt.card) : ℕ) : ℝ) * γ ≤ 1 / 2) →
+            LinearIndependent ℝ (shellModes d N x Hlt Hle))
+        ∧ (∀ q : ℝ × ℝ, (q ∈ ParSet d σ δp Hyp Hlt Hle
+              ∧ (∀ n, lexPos d n → ∑ i, ((n i : ℤ) : ℝ) ^ 2 = q.1 → n ∈ H0)
+              ∧ ((2 * (Hle.card - Hlt.card) : ℕ) : ℝ) * γ ≤ 1 / 2) →
+            ∀ c : ↥(Hle \ Hlt) × Bool → ℝ,
+              resid P (comb (shellModes d N x Hlt Hle) c)
+                ≤ 2 * (((2 * (Hle.card - Hlt.card) : ℕ) : ℝ) * q.2 ^ 2)
+                  * (comb (shellModes d N x Hlt Hle) c ⬝ᵥ comb (shellModes d N x Hlt Hle) c))
+        ∧ ((∃ q ∈ ParSet d σ δp Hyp Hlt Hle,
+              (∀ n, lexPos d n → ∑ i, ((n i : ℤ) : ℝ) ^ 2 = q.1 → n ∈ H0)
+              ∧ ((2 * (Hle.card - Hlt.card) : ℕ) : ℝ) * γ ≤ 1 / 2
+              ∧ 2 * (((2 * (Hle.card - Hlt.card) : ℕ) : ℝ) * q.2 ^ 2) < 1) →
+            (shellSet N (1 + 2 * Hlt.card) (2 * Hle.card)).card = 2 * (Hle.card - Hlt.card)
+            ∧ ∀ a : Fin N, ∃ c : ↥(Hle \ Hlt) × Bool → ℝ, ∀ a' : Fin N,
+                P a' a = ∑ p, c p * projAct P (shellModes d N x Hlt Hle p) a')) := by
+  have hrw : Sep hS (shellSet N (1 + 2 * Hlt.card) (2 * Hle.card)) → ∀ w : Fin N → ℝ,
+      specProj hS (shellSet N (1 + 2 * Hlt.card) (2 * Hle.card)) w = projAct P w := by
+    intro hs w
+    funext a
+    rw [specProj_eq_funMat]
+    unfold projAct
+    exact Finset.sum_congr rfl fun b _ => by rw [hP hs a b]
+  constructor
+  · intro H
+    refine ⟨fun ⟨q, rm, rp, gap, hy, _⟩ => (H q.1 rm rp gap hy).1, fun hs => ⟨?_, ?_, ?_, ?_⟩⟩
+    · rintro n b q ⟨⟨rm, rp, gap, hy, hq⟩, hl, hsq⟩
+      have h := (H q.1 rm rp gap hy).2.1 n hl hsq b
+      rw [hrw hs, ← hq] at h
+      exact h
+    · rintro ⟨q, ⟨rm, rp, gap, hy, hq⟩, hh1, hh2⟩
+      exact ((H q.1 rm rp gap hy).2.2 hh1 hh2).1
+    · rintro q ⟨⟨rm, rp, gap, hy, hq⟩, hh1, hh2⟩ c
+      have h := ((H q.1 rm rp gap hy).2.2 hh1 hh2).2.1 c
+      rw [hrw hs, ← hq] at h
+      exact h
+    · rintro ⟨q, ⟨rm, rp, gap, hy, hq⟩, hh1, hh2, hh3⟩
+      have h := ((H q.1 rm rp gap hy).2.2 hh1 hh2).2.2 (by rw [← hq]; exact hh3)
+      refine ⟨h.1, fun a => ?_⟩
+      obtain ⟨c, hc⟩ := (specProj_span_iff (sGraph d σ N x) hS
+        (shellSet N (1 + 2 * Hlt.card) (2 * Hle.card)) (shellModes d N x Hlt Hle)).1 h.2 a
+      refine ⟨c, fun a' => ?_⟩
+      rw [hP hs a' a, hc a']
+      simp only [hrw hs]
+  · rintro ⟨HA, HB⟩ r rm rp gap hy
+    have hq : ((r, eigTheta d σ δp r gap) : ℝ × ℝ) ∈ ParSet d σ δp Hyp Hlt Hle :=
+      ⟨rm, rp, gap, hy, rfl⟩
+    have hs := HA ⟨_, hq⟩
+    obtain ⟨R1, R2, R3, R4⟩ := HB hs
+    refine ⟨hs, fun n hl hsq b => ?_, fun hh1 hh2 =>
+      ⟨R2 ⟨_, hq, hh1, hh2⟩, fun c => ?_, fun hh3 => ?_⟩⟩
+    · have h := R1 n b _ ⟨hq, hl, hsq⟩
+      rw [hrw hs]
+      exact h
+    · have h := R3 _ ⟨hq, hh1, hh2⟩ c
+      rw [hrw hs]
+      exact h
+    · obtain ⟨hc, hsp⟩ := R4 ⟨_, hq, hh1, hh2, hh3⟩
+      refine ⟨hc, (specProj_span_iff (sGraph d σ N x) hS
+        (shellSet N (1 + 2 * Hlt.card) (2 * Hle.card)) (shellModes d N x Hlt Hle)).2 fun a => ?_⟩
+      obtain ⟨c, hcc⟩ := hsp a
+      refine ⟨c, fun a' => ?_⟩
+      rw [← hP hs a' a, hcc a']
+      simp only [hrw hs]
+
+/-- The entries of the spectral projection of the cluster `J` of the sample graph, set to zero
+    where the cluster is not separated. -/
+noncomputable def sPm {Ω : Type*} (d N : ℕ) (σ : ℝ) (X : ℕ → Ω → FlatTorus d)
+    (J : Finset (Fin N)) (ω : Ω) (a b : Fin N) : ℝ :=
+  Set.indicator {ω | Sep (sGraph_herm d N σ X ω) J}
+    (fun ω => funMat (sGraph_herm d N σ X ω) (fun i => if i ∈ J then (1 : ℝ) else 0) a b) ω
+
+/-- The eigenspace statement for fixed `Hlt`, `Hle` and all admitted `(r, r⁻, r⁺, gap)` is a
+    measurable condition on the sample. -/
+theorem eigspace_shell_measurable {Ω : Type*} {mΩ : MeasurableSpace Ω} {σ : ℝ} (hσ : 0 < σ)
+    (d N : ℕ) (X : ℕ → Ω → FlatTorus d) (hX : ∀ j, Measurable (X j))
+    (H0 : Finset (Fin d → ℤ)) (γ δp : ℝ)
+    (Hyp : ℝ → ℝ → ℝ → ℝ → Finset (Fin d → ℤ) → Finset (Fin d → ℤ) → Prop)
+    (Hlt Hle : Finset (Fin d → ℤ)) :
+    MeasurableSet {ω | ∀ r rm rp gap : ℝ, Hyp r rm rp gap Hlt Hle →
+      EigspaceConcl d N σ (fun j => X j ω) (sGraph_herm d N σ X ω) H0 γ r
+        (eigTheta d σ δp r gap) Hlt Hle} := by
+  classical
+  have hM : ∀ a b : Fin N, Measurable fun ω => sGraph d σ N (fun j => X j ω) a b := fun a b =>
+    symGraph_fin_entry_measurable hσ d X hX N a b
+  have hsp := specProj_entry_measurable (fun ω => sGraph d σ N (fun j => X j ω)) hM
+    (fun ω => sGraph_herm d N σ X ω) (shellSet N (1 + 2 * Hlt.card) (2 * Hle.card))
+  have hPm : ∀ a b : Fin N, Measurable fun ω =>
+      sPm d N σ X (shellSet N (1 + 2 * Hlt.card) (2 * Hle.card)) ω a b := fun a b => hsp.2 a b
+  have hmode : ∀ (f : Option ((Fin d → ℤ) × Bool)) (a : Fin N),
+      Measurable fun ω => sMode d N (fun j => X j ω) f a := fun f a =>
+    ((torusMode_measurable d f).comp (hX a)).div_const _
+  have hshell : ∀ (p : ↥(Hle \ Hlt) × Bool) (a : Fin N),
+      Measurable fun ω => shellModes d N (fun j => X j ω) Hlt Hle p a := fun p a =>
+    hmode (some (p.1.1, p.2)) a
+  have key : ∀ ω, _ ↔ _ := fun ω => concl_iff d N σ (fun j => X j ω) (sGraph_herm d N σ X ω)
+    H0 γ δp Hyp Hlt Hle (sPm d N σ X (shellSet N (1 + 2 * Hlt.card) (2 * Hle.card)) ω)
+    (fun hs a b => Set.indicator_of_mem hs _)
+  refine (congrArg MeasurableSet (congrArg setOf (funext fun ω => propext (key ω)))).mpr ?_
+  refine ms_and (ms_imp hsp.1) (ms_imp_dep hsp.1 (ms_and ?_ (ms_and ?_ (ms_and ?_ ?_))))
+  · exact ms_forall fun n => ms_forall fun b => ms_param_le
+      (resid_measurable _ _ hPm (hmode (some (n, b)))) _ _
+  · exact ms_imp (li_measurable (fun ω => shellModes d N (fun j => X j ω) Hlt Hle) hshell)
+  · exact ms_param_quad _ (fun ω => shellModes d N (fun j => X j ω) Hlt Hle) hPm hshell _ _
+  · exact ms_imp (ms_and (MeasurableSet.const _) (ms_forall fun a =>
+      ms_exists_coeff _ (fun ω => shellModes d N (fun j => X j ω) Hlt Hle) hPm hshell a))
+
+/-- The eigenspace statement for ALL shells admitted by a hypothesis `Hyp` is a measurable
+    condition on the sample. -/
+theorem eigspace_concl_measurable {Ω : Type*} {mΩ : MeasurableSpace Ω} {σ : ℝ} (hσ : 0 < σ)
+    (d N : ℕ) (X : ℕ → Ω → FlatTorus d) (hX : ∀ j, Measurable (X j))
+    (H0 : Finset (Fin d → ℤ)) (γ δp : ℝ)
+    (Hyp : ℝ → ℝ → ℝ → ℝ → Finset (Fin d → ℤ) → Finset (Fin d → ℤ) → Prop) :
+    MeasurableSet {ω | ∀ (hS : (sGraph d σ N (fun j => X j ω)).IsHermitian) (r rm rp gap : ℝ)
+        (Hlt Hle : Finset (Fin d → ℤ)), Hyp r rm rp gap Hlt Hle →
+      EigspaceConcl d N σ (fun j => X j ω) hS H0 γ r (eigTheta d σ δp r gap) Hlt Hle} := by
+  refine MeasurableSet.congr (ms_forall fun Hlt => ms_forall fun Hle =>
+    eigspace_shell_measurable hσ d N X hX H0 γ δp Hyp Hlt Hle) ?_
+  ext ω
+  exact ⟨fun h hS r rm rp gap Hlt Hle hy => h Hlt Hle r rm rp gap hy,
+    fun h Hlt Hle r rm rp gap hy => h (sGraph_herm d N σ X ω) r rm rp gap Hlt Hle hy⟩
+
+/-- The exceptional set of `EigenspaceFinal.eigspace_final_sample`, verbatim, is measurable. -/
+theorem eigspace_final_sample_set_measurable {Ω : Type*} {mΩ : MeasurableSpace Ω} {σ : ℝ}
+    (hσ : 0 < σ) (d N K : ℕ) (X : ℕ → Ω → FlatTorus d) (hX : ∀ j, Measurable (X j))
+    (H0 : Finset (Fin d → ℤ)) (γ δp : ℝ) :
+    MeasurableSet {ω | ¬ ∀ (hS : (sGraph d σ N (fun j => X j ω)).IsHermitian) (r rm rp gap : ℝ),
+        0 ≤ rm → rm < r → r < rp → 0 < gap → gap ≤ r - rm → gap ≤ rp - r →
+        4 * Real.pi ^ 2 * σ * r ≤ 1 → 1 ≤ (K : ℝ) * (2 * Real.pi ^ 2 * σ * r) →
+        (∀ n, lexPos d n → ∑ i, ((n i : ℤ) : ℝ) ^ 2 ≤ rm ∨ ∑ i, ((n i : ℤ) : ℝ) ^ 2 = r
+            ∨ rp ≤ ∑ i, ((n i : ℤ) : ℝ) ^ 2) →
+        ∀ Hlt Hle : Finset (Fin d → ℤ),
+        (∀ n, n ∈ Hlt ↔ lexPos d n ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 < r) →
+        (∀ n, n ∈ Hle ↔ lexPos d n ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 ≤ r) →
+        eigTheta d σ δp r gap ≤ 1 →
+        EigspaceConcl d N σ (fun j => X j ω) hS H0 γ r (eigTheta d σ δp r gap) Hlt Hle} := by
+  refine MeasurableSet.compl ?_
+  refine MeasurableSet.congr (eigspace_concl_measurable hσ d N X hX H0 γ δp
+    (fun r rm rp gap Hlt Hle => 0 ≤ rm ∧ rm < r ∧ r < rp ∧ 0 < gap ∧ gap ≤ r - rm ∧ gap ≤ rp - r
+      ∧ 4 * Real.pi ^ 2 * σ * r ≤ 1 ∧ 1 ≤ (K : ℝ) * (2 * Real.pi ^ 2 * σ * r)
+      ∧ (∀ n, lexPos d n → ∑ i, ((n i : ℤ) : ℝ) ^ 2 ≤ rm ∨ ∑ i, ((n i : ℤ) : ℝ) ^ 2 = r
+            ∨ rp ≤ ∑ i, ((n i : ℤ) : ℝ) ^ 2)
+      ∧ (∀ n, n ∈ Hlt ↔ lexPos d n ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 < r)
+      ∧ (∀ n, n ∈ Hle ↔ lexPos d n ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 ≤ r)
+      ∧ eigTheta d σ δp r gap ≤ 1)) ?_
+  ext ω
+  simp only [Set.mem_setOf_eq]
+  constructor
+  · intro h hS r rm rp gap a1 a2 a3 a4 a5 a6 a7 a8 a9 Hlt Hle b1 b2 b3
+    exact h hS r rm rp gap Hlt Hle ⟨a1, a2, a3, a4, a5, a6, a7, a8, a9, b1, b2, b3⟩
+  · rintro h hS r rm rp gap Hlt Hle ⟨a1, a2, a3, a4, a5, a6, a7, a8, a9, b1, b2, b3⟩
+    exact h hS r rm rp gap a1 a2 a3 a4 a5 a6 a7 a8 a9 Hlt Hle b1 b2 b3
+
+/-- The exceptional set of `EigenspaceFinal.eigspace_final_sample'`, verbatim, is measurable. -/
+theorem eigspace_final_sample'_set_measurable {Ω : Type*} {mΩ : MeasurableSpace Ω} {σ : ℝ}
+    (hσ : 0 < σ) (d N : ℕ) (X : ℕ → Ω → FlatTorus d) (hX : ∀ j, Measurable (X j))
+    (H0 : Finset (Fin d → ℤ)) (γ δp : ℝ) :
+    MeasurableSet {ω | ¬ ∀ (hS : (sGraph d σ N (fun j => X j ω)).IsHermitian) (r rm rp gap : ℝ),
+        0 ≤ rm → rm < r → r < rp → 0 < gap → gap ≤ r - rm → gap ≤ rp - r →
+        4 * Real.pi ^ 2 * σ * r ≤ 1 → 1 ≤ r →
+        (∀ n, lexPos d n → ∑ i, ((n i : ℤ) : ℝ) ^ 2 ≤ rm ∨ ∑ i, ((n i : ℤ) : ℝ) ^ 2 = r
+            ∨ rp ≤ ∑ i, ((n i : ℤ) : ℝ) ^ 2) →
+        ∀ Hlt Hle : Finset (Fin d → ℤ),
+        (∀ n, n ∈ Hlt ↔ lexPos d n ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 < r) →
+        (∀ n, n ∈ Hle ↔ lexPos d n ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 ≤ r) →
+        eigTheta d σ δp r gap ≤ 1 →
+        EigspaceConcl d N σ (fun j => X j ω) hS H0 γ r (eigTheta d σ δp r gap) Hlt Hle} := by
+  refine MeasurableSet.compl ?_
+  refine MeasurableSet.congr (eigspace_concl_measurable hσ d N X hX H0 γ δp
+    (fun r rm rp gap Hlt Hle => 0 ≤ rm ∧ rm < r ∧ r < rp ∧ 0 < gap ∧ gap ≤ r - rm ∧ gap ≤ rp - r
+      ∧ 4 * Real.pi ^ 2 * σ * r ≤ 1 ∧ 1 ≤ r
+      ∧ (∀ n, lexPos d n → ∑ i, ((n i : ℤ) : ℝ) ^ 2 ≤ rm ∨ ∑ i, ((n i : ℤ) : ℝ) ^ 2 = r
+            ∨ rp ≤ ∑ i, ((n i : ℤ) : ℝ) ^ 2)
+      ∧ (∀ n, n ∈ Hlt ↔ lexPos d n ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 < r)
+      ∧ (∀ n, n ∈ Hle ↔ lexPos d n ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 ≤ r)
+      ∧ eigTheta d σ δp r gap ≤ 1)) ?_
+  ext ω
+  simp only [Set.mem_setOf_eq]
+  constructor
+  · intro h hS r rm rp gap a1 a2 a3 a4 a5 a6 a7 a8 a9 Hlt Hle b1 b2 b3
+    exact h hS r rm rp gap Hlt Hle ⟨a1, a2, a3, a4, a5, a6, a7, a8, a9, b1, b2, b3⟩
+  · rintro h hS r rm rp gap Hlt Hle ⟨a1, a2, a3, a4, a5, a6, a7, a8, a9, b1, b2, b3⟩
+    exact h hS r rm rp gap a1 a2 a3 a4 a5 a6 a7 a8 a9 Hlt Hle b1 b2 b3
+
+/-- The exceptional set of `EigenspaceFinal.eigspace_final_sample''`, verbatim, is measurable. -/
+theorem eigspace_final_sample''_set_measurable {Ω : Type*} {mΩ : MeasurableSpace Ω} {σ : ℝ}
+    (hσ : 0 < σ) (d N : ℕ) (X : ℕ → Ω → FlatTorus d) (hX : ∀ j, Measurable (X j))
+    (δp : ℝ) (m a : ℕ) (R : ℝ) :
+    MeasurableSet {ω | ¬ ∀ (hS : (sGraph d σ N (fun j => X j ω)).IsHermitian) (r rm rp gap : ℝ),
+        0 ≤ rm → rm < r → r < rp → 0 < gap → gap ≤ r - rm → gap ≤ rp - r →
+        4 * Real.pi ^ 2 * σ * r ≤ 1 → 1 ≤ r →
+        (∀ n, lexPos d n → ∑ i, ((n i : ℤ) : ℝ) ^ 2 ≤ rm ∨ ∑ i, ((n i : ℤ) : ℝ) ^ 2 = r
+            ∨ rp ≤ ∑ i, ((n i : ℤ) : ℝ) ^ 2) →
+        ∀ Hlt Hle : Finset (Fin d → ℤ),
+        (∀ n, n ∈ Hlt ↔ lexPos d n ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 < r) →
+        (∀ n, n ∈ Hle ↔ lexPos d n ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 ≤ r) →
+        eigTheta d σ δp r gap ≤ 1 →
+        EigspaceConcl d N σ (fun j => X j ω) hS (halfFreq d m R)
+          (Real.sqrt (8 * (3 + 2 * (a : ℝ))) * δp) r (eigTheta d σ δp r gap) Hlt Hle} := by
+  refine MeasurableSet.compl ?_
+  refine MeasurableSet.congr (eigspace_concl_measurable hσ d N X hX (halfFreq d m R)
+    (Real.sqrt (8 * (3 + 2 * (a : ℝ))) * δp) δp
+    (fun r rm rp gap Hlt Hle => 0 ≤ rm ∧ rm < r ∧ r < rp ∧ 0 < gap ∧ gap ≤ r - rm ∧ gap ≤ rp - r
+      ∧ 4 * Real.pi ^ 2 * σ * r ≤ 1 ∧ 1 ≤ r
+      ∧ (∀ n, lexPos d n → ∑ i, ((n i : ℤ) : ℝ) ^ 2 ≤ rm ∨ ∑ i, ((n i : ℤ) : ℝ) ^ 2 = r
+            ∨ rp ≤ ∑ i, ((n i : ℤ) : ℝ) ^ 2)
+      ∧ (∀ n, n ∈ Hlt ↔ lexPos d n ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 < r)
+      ∧ (∀ n, n ∈ Hle ↔ lexPos d n ∧ ∑ i, ((n i : ℤ) : ℝ) ^ 2 ≤ r)
+      ∧ eigTheta d σ δp r gap ≤ 1)) ?_
+  ext ω
+  simp only [Set.mem_setOf_eq]
+  constructor
+  · intro h hS r rm rp gap a1 a2 a3 a4 a5 a6 a7 a8 a9 Hlt Hle b1 b2 b3
+    exact h hS r rm rp gap Hlt Hle ⟨a1, a2, a3, a4, a5, a6, a7, a8, a9, b1, b2, b3⟩
+  · rintro h hS r rm rp gap Hlt Hle ⟨a1, a2, a3, a4, a5, a6, a7, a8, a9, b1, b2, b3⟩
+    exact h hS r rm rp gap a1 a2 a3 a4 a5 a6 a7 a8 a9 Hlt Hle b1 b2 b3
+
+end EigspaceSets
+
+end Reals3Sets
+
 end CTG.Reals2
