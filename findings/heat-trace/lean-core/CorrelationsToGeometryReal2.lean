@@ -15873,4 +15873,941 @@ theorem second_stage_trace_rel2' {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : M
 
 end SecondStageTrace2
 
+/-! ## The second stage as a LIMIT STATEMENT in probability (`cor:secondstage-alld`).
+
+`SecondStageTrace2.second_stage_trace_rel2'` is a bound for a fixed sample size `N`, with free
+parameters `J` (truncation of the Poisson sum) and `s` (Markov). Here the parameters are chosen
+as functions of `N` and the smallness condition `C₁ δ' √J ≤ 1` is derived from the regime, as in
+`namespace Regime`. The sample is nested: the first `N` points of one sequence
+`X : ℕ → Ω → FlatTorus d`. `σ_N` is the variance of the kernel (`σ = ξ²`), `τ_N` the Poisson
+parameter (`τ = 2t/ξ²`; `2 ≤ τ ≤ c/σ` is `ξ² ≤ t ≤ c/2`, so `c = 2` is `t ≤ 1`).
+
+What is proved (independent uniform points on the flat torus of dimension `d ≥ 1`, graph with
+self-loops, eventually `0 < σ_N ≤ 1` and `2 ≤ τ_N ≤ c/σ_N`):
+
+* `second_stage_ceil`: under `N σ_N^{d/2+1}/log N → ∞` (`N ξ^{d+2}/log N → ∞`), for all large `N`
+  and EVERY `s > 0`, the bound of `second_stage_trace_rel2'` with `J_N = ⌈3c/σ_N + 2 log N⌉`;
+  no hypothesis on `J` or on the smallness is left.
+* `second_stage_OP`, `second_stage_tight`: under the same regime the relative error of the
+  subtracted heat trace is `O_P((M_N log N/N) τ_N)`: for every `ε > 0` there is a constant `C`
+  with `P(error > C (M_N log N/N) τ_N) ≤ ε` for all large `N`. This is the first display of
+  `cor:secondstage-alld` with `τ` in place of `J` (so the factor is `τ_N`, not `τ_N + log N`).
+* `second_stage_limit_eventually`, `second_stage_limit`: under `N σ_N^{d/2+2}/log N → ∞`
+  (`N ξ^{d+4}/log N → ∞`), for every `η > 0`,
+  `P(|(Tr exp(τ_N(S-1)) - N e^{-τ_N})/T - 1| > η σ_N) → 0`: the error is `o_P(ξ_N²)`.
+
+What is NOT proved here: `poissonMean d σ τ` is the Poisson mean of the heat-kernel values
+`∑_{j≥1} w_j(τ) p_{jσ}(0)`; it is not identified with `T_σ(t)` of the paper as defined there, and
+`exp(τ(S-1))` is not identified with `e^{-tL}` by a theorem. The statements are for ONE sequence
+`τ_N` (each `N` has its own exceptional event; no uniformity in `τ`). The exceptional events are
+those of this file; their measurability is not shown (`μ.real` of a set that need not be
+measurable is the outer measure). No sharp coefficient of the term of order `ξ²` is obtained:
+only that the random error is `o_P(ξ²)`. Neither `ξ_N → 0` nor `τ_N → ∞` is assumed. -/
+
+namespace SecondStageLimit
+
+open Filter Topology
+open CTG.Reals.TorusReduction CTG.Reals.TraceG29 TorusReductionL1 H5 PiBound SecondStage
+  SecondStageTrace SecondStageTrace2 Regime
+
+/-! ### Stage 1: deterministic estimates of the threshold (real numbers only) -/
+
+/-- Abstract form of the threshold estimate for the limit: `b` stands for `M log N/N`, `m` for
+    `M/N`, `q` for `M/N²`, `E σ²` bounds `b`, and `τ σ ≤ c`. -/
+theorem abs_limit {b m q σ τ c s R P Q E : ℝ} (hmb : m ≤ b) (hq : q ≤ m)
+    (hσ : 0 < σ) (hσ1 : σ ≤ 1) (hτ0 : 0 ≤ τ) (hτ : τ * σ ≤ c) (hs : 0 ≤ s)
+    (hR : 0 ≤ R) (hP : 0 ≤ P) (hQ : 0 ≤ Q) (hE : 0 ≤ E) (hB : b ≤ E * σ ^ 2) :
+    (R * b + s * P * m) * τ + Q * b + 7 * s * m + 4 * q
+      ≤ σ * (E * ((R * c + Q + 4) + s * (P * c + 7))) := by
+  have hEσ : 0 ≤ E * σ := mul_nonneg hE hσ.le
+  have hb1 : b ≤ E * σ := by
+    have := mul_nonneg hEσ (sub_nonneg.2 hσ1)
+    nlinarith
+  have hbt : b * τ ≤ E * σ * c := by
+    calc b * τ ≤ E * σ ^ 2 * τ := mul_le_mul_of_nonneg_right hB hτ0
+      _ = E * σ * (τ * σ) := by ring
+      _ ≤ E * σ * c := mul_le_mul_of_nonneg_left hτ hEσ
+  have hmt : m * τ ≤ E * σ * c := (mul_le_mul_of_nonneg_right hmb hτ0).trans hbt
+  have a1 := mul_le_mul_of_nonneg_left hbt hR
+  have a2 := mul_le_mul_of_nonneg_left hmt (mul_nonneg hs hP)
+  have a3 := mul_le_mul_of_nonneg_left hb1 hQ
+  have a4 := mul_le_mul_of_nonneg_left (hmb.trans hb1)
+    (mul_nonneg (by norm_num : (0 : ℝ) ≤ 7) hs)
+  have a5 : q ≤ E * σ := hq.trans (hmb.trans hb1)
+  nlinarith [a1, a2, a3, a4, a5]
+
+/-- Abstract form of the threshold estimate for the `O_P` statement (`τ ≥ 1`). -/
+theorem abs_OP {b m q τ s R P Q : ℝ} (hm0 : 0 ≤ m) (hmb : m ≤ b) (hq : q ≤ m)
+    (hτ : 1 ≤ τ) (hs : 0 ≤ s) (hP : 0 ≤ P) (hQ : 0 ≤ Q) :
+    (R * b + s * P * m) * τ + Q * b + 7 * s * m + 4 * q
+      ≤ (R + Q + 4 + s * (P + 7)) * b * τ := by
+  have hτ0 : 0 ≤ τ := by linarith
+  have hb0 : 0 ≤ b := hm0.trans hmb
+  have hbτ : b ≤ b * τ := by
+    have := mul_nonneg hb0 (sub_nonneg.2 hτ)
+    nlinarith
+  have t1 := mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_right hmb hτ0) (mul_nonneg hs hP)
+  have t2 := mul_le_mul_of_nonneg_left hbτ hQ
+  have t3 := mul_le_mul_of_nonneg_left (hmb.trans hbτ)
+    (mul_nonneg (by norm_num : (0 : ℝ) ≤ 7) hs)
+  have t4 : q ≤ b * τ := hq.trans (hmb.trans hbτ)
+  nlinarith [t1, t2, t3, t4]
+
+/-- `0 ≤ M/n ≤ M L/n` and `M/n² ≤ M/n` for `M ≥ 0`, `n ≥ 1`, `L ≥ 1`. -/
+theorem ratio_facts {M n L : ℝ} (hM : 0 ≤ M) (hn : 1 ≤ n) (hL : 1 ≤ L) :
+    0 ≤ M / n ∧ M / n ≤ M * L / n ∧ M / n ^ 2 ≤ M / n := by
+  have hn0 : (0 : ℝ) < n := by linarith
+  refine ⟨div_nonneg hM hn0.le, div_le_div_of_nonneg_right ?_ hn0.le,
+    div_le_div_of_nonneg_left hM hn0 ?_⟩
+  · have := mul_nonneg hM (sub_nonneg.2 hL)
+    nlinarith
+  · have := mul_nonneg hn0.le (sub_nonneg.2 hn)
+    nlinarith
+
+/-- `M ≤ 2^d/r` gives `M L/n ≤ (2^d/A) σ²` for `A = n r σ²/L`. -/
+theorem hB_core {M n L r σ : ℝ} (d : ℕ) (hM : M ≤ 2 ^ d / r) (hr : 0 < r) (hL : 0 < L)
+    (hn : 0 < n) (hσ : 0 < σ) :
+    M * L / n ≤ 2 ^ d / (n * r * σ ^ 2 / L) * σ ^ 2 := by
+  have e : 2 ^ d / (n * r * σ ^ 2 / L) * σ ^ 2 = 2 ^ d / r * L / n := by
+    field_simp
+  rw [e]
+  exact div_le_div_of_nonneg_right (mul_le_mul_of_nonneg_right hM hL.le) hn.le
+
+/-- **The threshold of `second_stage_trace_rel2'` with `s = √A` is at most `η σ`** as soon as
+    `A ≥ 1` and `A ≥ (2^d (R c + 14 Nc² + 4 + P c + 7)/η)²`; here `δ² = M L/n ≤ (2^d/A) σ²`
+    and `τ ≤ c/σ`. -/
+theorem thr_sqrt {M n L σ τ c R P Nc δ A η : ℝ} (d : ℕ) (hM : 0 ≤ M) (hn : 1 ≤ n) (hL : 1 ≤ L)
+    (hσ : 0 < σ) (hσ1 : σ ≤ 1) (hτ0 : 0 ≤ τ) (hτ : τ ≤ c / σ) (hR : 0 ≤ R) (hP : 0 ≤ P)
+    (hδ : δ ^ 2 = M * L / n) (hη : 0 < η) (hA1 : 1 ≤ A)
+    (hB : M * L / n ≤ 2 ^ d / A * σ ^ 2)
+    (hAη : (2 ^ d * ((R * c + 14 * Nc ^ 2 + 4) + (P * c + 7)) / η) ^ 2 ≤ A) :
+    (R * δ ^ 2 + Real.sqrt A * P * (M / n)) * τ + 14 * (Nc * δ) ^ 2
+        + 7 * Real.sqrt A * (M / n) + 4 * (M / n ^ 2) ≤ η * σ := by
+  have hA0 : 0 < A := by linarith
+  have hw0 : 0 ≤ Real.sqrt A := Real.sqrt_nonneg A
+  have hw : Real.sqrt A * Real.sqrt A = A := Real.mul_self_sqrt hA0.le
+  have hw1 : 1 ≤ Real.sqrt A := Real.sqrt_one.symm.le.trans (Real.sqrt_le_sqrt hA1)
+  have h3 : τ * σ ≤ c := (le_div_iff₀ hσ).1 hτ
+  have hc0 : 0 ≤ c := le_trans (mul_nonneg hτ0 hσ.le) h3
+  have hQ : 0 ≤ 14 * Nc ^ 2 := mul_nonneg (by norm_num) (_root_.sq_nonneg Nc)
+  have hK1 : 0 ≤ R * c + 14 * Nc ^ 2 + 4 :=
+    add_nonneg (add_nonneg (mul_nonneg hR hc0) hQ) (by norm_num)
+  have hG : (0 : ℝ) ≤ 2 ^ d := pow_nonneg (by norm_num) d
+  have hE : 0 ≤ 2 ^ d / A := div_nonneg hG hA0.le
+  obtain ⟨f1, f2, f3⟩ := ratio_facts hM hn hL
+  have core := abs_limit (s := Real.sqrt A) (R := R) (P := P) (Q := 14 * Nc ^ 2)
+    f2 f3 hσ hσ1 hτ0 h3 hw0 hR hP hQ hE hB
+  have hwη : 2 ^ d * ((R * c + 14 * Nc ^ 2 + 4) + (P * c + 7)) / η ≤ Real.sqrt A :=
+    (le_abs_self _).trans (Real.abs_le_sqrt hAη)
+  have hwη' : 2 ^ d * ((R * c + 14 * Nc ^ 2 + 4) + (P * c + 7)) ≤ Real.sqrt A * η :=
+    (div_le_iff₀ hη).1 hwη
+  have hηA : η * A = Real.sqrt A * η * Real.sqrt A := by
+    calc η * A = η * (Real.sqrt A * Real.sqrt A) := by rw [hw]
+      _ = Real.sqrt A * η * Real.sqrt A := by ring
+  have hfin : 2 ^ d / A * ((R * c + 14 * Nc ^ 2 + 4) + Real.sqrt A * (P * c + 7)) ≤ η := by
+    rw [div_mul_eq_mul_div, div_le_iff₀ hA0, hηA]
+    have ha : 0 ≤ 2 ^ d * (R * c + 14 * Nc ^ 2 + 4) * (Real.sqrt A - 1) :=
+      mul_nonneg (mul_nonneg hG hK1) (by linarith)
+    have hb := mul_le_mul_of_nonneg_right hwη' hw0
+    nlinarith [ha, hb]
+  have e : (R * δ ^ 2 + Real.sqrt A * P * (M / n)) * τ + 14 * (Nc * δ) ^ 2
+        + 7 * Real.sqrt A * (M / n) + 4 * (M / n ^ 2)
+      = (R * (M * L / n) + Real.sqrt A * P * (M / n)) * τ + 14 * Nc ^ 2 * (M * L / n)
+        + 7 * Real.sqrt A * (M / n) + 4 * (M / n ^ 2) := by
+    rw [mul_pow, hδ]; ring
+  rw [e]
+  calc (R * (M * L / n) + Real.sqrt A * P * (M / n)) * τ + 14 * Nc ^ 2 * (M * L / n)
+        + 7 * Real.sqrt A * (M / n) + 4 * (M / n ^ 2)
+      ≤ σ * (2 ^ d / A * ((R * c + 14 * Nc ^ 2 + 4) + Real.sqrt A * (P * c + 7))) := core
+    _ ≤ σ * η := mul_le_mul_of_nonneg_left hfin hσ.le
+    _ = η * σ := mul_comm _ _
+
+/-- **The threshold of `second_stage_trace_rel2'` is at most a constant times `(M L/n) τ`**
+    (`τ ≥ 1`, `n ≥ 1`, `L ≥ 1`, `δ² = M L/n`). -/
+theorem thr_OP {M n L τ s R P Nc δ : ℝ} (hM : 0 ≤ M) (hn : 1 ≤ n) (hL : 1 ≤ L)
+    (hτ : 1 ≤ τ) (hs : 0 ≤ s) (hP : 0 ≤ P) (hδ : δ ^ 2 = M * L / n) :
+    (R * δ ^ 2 + s * P * (M / n)) * τ + 14 * (Nc * δ) ^ 2 + 7 * s * (M / n) + 4 * (M / n ^ 2)
+      ≤ (R + 14 * Nc ^ 2 + 4 + s * (P + 7)) * (M * L / n) * τ := by
+  obtain ⟨f1, f2, f3⟩ := ratio_facts hM hn hL
+  have hQ : 0 ≤ 14 * Nc ^ 2 := mul_nonneg (by norm_num) (_root_.sq_nonneg Nc)
+  have core := abs_OP (R := R) f1 f2 f3 hτ hs hP hQ
+  have e : (R * δ ^ 2 + s * P * (M / n)) * τ + 14 * (Nc * δ) ^ 2 + 7 * s * (M / n)
+        + 4 * (M / n ^ 2)
+      = (R * (M * L / n) + s * P * (M / n)) * τ + 14 * Nc ^ 2 * (M * L / n)
+        + 7 * s * (M / n) + 4 * (M / n ^ 2) := by
+    rw [mul_pow, hδ]; ring
+  rw [e]
+  exact core
+
+/-- The regime with exponent `d/2+2` implies the regime with exponent `d/2+1` (`σ ≤ 1`):
+    `N ξ^{d+4}/log N → ∞` implies `N ξ^{d+2}/log N → ∞`. -/
+theorem regime_four_to_two (d : ℕ) (σ : ℕ → ℝ)
+    (hσ : ∀ᶠ N in atTop, 0 < σ N ∧ σ N ≤ 1)
+    (hreg : Tendsto (fun N : ℕ => (N : ℝ) * Real.sqrt (σ N) ^ d * σ N ^ 2 / Real.log N)
+      atTop atTop) :
+    Tendsto (fun N : ℕ => (N : ℝ) * Real.sqrt (σ N) ^ d * σ N / Real.log N) atTop atTop := by
+  refine tendsto_atTop_mono' atTop ?_ hreg
+  filter_upwards [hσ, eventually_ge_atTop 2] with N h1 h4
+  have hN : (2 : ℝ) ≤ N := by exact_mod_cast h4
+  have hL : 0 < Real.log N := Real.log_pos (by linarith)
+  have hX : 0 ≤ (N : ℝ) * Real.sqrt (σ N) ^ d :=
+    mul_nonneg (by linarith) (pow_nonneg (Real.sqrt_nonneg _) d)
+  have hσσ : σ N ^ 2 ≤ σ N := by
+    have := mul_nonneg h1.1.le (sub_nonneg.2 h1.2)
+    nlinarith
+  exact div_le_div_of_nonneg_right (mul_le_mul_of_nonneg_left hσσ hX) hL.le
+
+/-- `12/N³ → 0`. -/
+theorem tendsto_twelve_div_cube :
+    Tendsto (fun N : ℕ => 12 / (N : ℝ) ^ 3) atTop (𝓝 0) :=
+  tendsto_const_nhds.div_atTop
+    ((tendsto_pow_atTop (by norm_num : (3 : ℕ) ≠ 0)).comp
+      (tendsto_natCast_atTop_atTop (R := ℝ)))
+
+/-! ### Stage 2: statements about the sample -/
+
+/-- **The finite form with `J_N = ⌈3c/σ_N + 2 log N⌉`, smallness derived from the regime.**
+    If eventually `0 < σ_N ≤ 1`, `2 ≤ τ_N ≤ c/σ_N`, and `N σ_N^{d/2+1}/log N → ∞`, then for all
+    large `N` and EVERY `s > 0`, with `M = p_{σ_N}(0)`, `δ' = √(M log N/N)`:
+    `P(|(Tr exp(τ_N(S-1)) - N e^{-τ_N})/T - 1|
+         > (C_red δ'² + s C_Π M/N) τ_N + 14 (normC δ')² + 7 s M/N + 4M/N²) ≤ 12/N³ + 1/s`. -/
+theorem second_stage_ceil {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] (d : ℕ) (hd : 1 ≤ d)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (σ τ : ℕ → ℝ) {c : ℝ} (hc : 0 < c)
+    (hσ : ∀ᶠ N in atTop, 0 < σ N ∧ σ N ≤ 1)
+    (hτ : ∀ᶠ N in atTop, 2 ≤ τ N ∧ τ N ≤ c / σ N)
+    (hreg : Tendsto (fun N : ℕ => (N : ℝ) * Real.sqrt (σ N) ^ d * σ N / Real.log N)
+      atTop atTop) :
+    ∀ᶠ N : ℕ in atTop, ∀ s : ℝ, 0 < s →
+      μ.real {ω | (redC d
+              * Real.sqrt (heatTorus d (2 * Real.pi ^ 2 * σ N) 0 * Real.log N / N) ^ 2
+            + s * piC d * (heatTorus d (2 * Real.pi ^ 2 * σ N) 0 / N)) * τ N
+          + 14 * (normC d
+              * Real.sqrt (heatTorus d (2 * Real.pi ^ 2 * σ N) 0 * Real.log N / N)) ^ 2
+          + 7 * s * (heatTorus d (2 * Real.pi ^ 2 * σ N) 0 / N)
+          + 4 * (heatTorus d (2 * Real.pi ^ 2 * σ N) 0 / (N : ℝ) ^ 2)
+        < |((NormedSpace.exp (τ N • (symGraph
+              (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ N) (X a ω - X j ω))
+              (fun a : Fin N => heatRho d (σ N) N (fun j => X j ω) a) - 1))).trace
+            - (N : ℝ) * Real.exp (-τ N)) / poissonMean d (σ N) (τ N) - 1|}
+        ≤ 12 / (N : ℝ) ^ 3 + 1 / s := by
+  have hJ2 := ceil_trace_ge_two σ hc hσ
+  have hJ0 : ∀ᶠ N in atTop, 0 < ⌈3 * c / σ N + 2 * Real.log N⌉₊ :=
+    hJ2.mono (fun N h => by omega)
+  have hsmall := eventually_small d (kernelC1_nonneg d) σ
+    (fun N => ⌈3 * c / σ N + 2 * Real.log N⌉₊) hσ hJ0
+    (regime_ceil_trace d σ hc hσ (regime_log d σ hσ hreg)) one_pos
+  filter_upwards [hσ, hτ, hsmall, hJ2, eventually_ge_atTop 2] with N h1 h2 h3 h4 h5
+  intro s hs
+  have h6 := Nat.le_ceil (3 * c / σ N + 2 * Real.log N)
+  have h7 : 3 * c / σ N = 3 * (c / σ N) := by ring
+  have hJτ : 3 * τ N + 2 * Real.log N
+      ≤ ((⌈3 * c / σ N + 2 * Real.log N⌉₊ : ℕ) : ℝ) + 2 := by
+    have := h2.2
+    linarith
+  exact second_stage_trace_rel2' h1.1 h1.2 d hd X h_indep hX hlaw N
+    ⌈3 * c / σ N + 2 * Real.log N⌉₊ h5 h4 rfl rfl h3 h2.1 hJτ s hs
+
+/-- **`O_P` form (first display of `cor:secondstage-alld`, with `τ` in place of `J`).** Under
+    the assumptions of `second_stage_ceil` (`N ξ^{d+2}/log N → ∞`), for every `s > 0`, for all
+    large `N`:
+    `P(|(Tr exp(τ_N(S-1)) - N e^{-τ_N})/T - 1|
+         > (C_red + 14 normC² + 4 + s (C_Π + 7)) (M_N log N/N) τ_N) ≤ 12/N³ + 1/s`. -/
+theorem second_stage_OP {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] (d : ℕ) (hd : 1 ≤ d)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (σ τ : ℕ → ℝ) {c : ℝ} (hc : 0 < c)
+    (hσ : ∀ᶠ N in atTop, 0 < σ N ∧ σ N ≤ 1)
+    (hτ : ∀ᶠ N in atTop, 2 ≤ τ N ∧ τ N ≤ c / σ N)
+    (hreg : Tendsto (fun N : ℕ => (N : ℝ) * Real.sqrt (σ N) ^ d * σ N / Real.log N)
+      atTop atTop) (s : ℝ) (hs : 0 < s) :
+    ∀ᶠ N : ℕ in atTop,
+      μ.real {ω | (redC d + 14 * normC d ^ 2 + 4 + s * (piC d + 7))
+            * (heatTorus d (2 * Real.pi ^ 2 * σ N) 0 * Real.log N / N) * τ N
+        < |((NormedSpace.exp (τ N • (symGraph
+              (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ N) (X a ω - X j ω))
+              (fun a : Fin N => heatRho d (σ N) N (fun j => X j ω) a) - 1))).trace
+            - (N : ℝ) * Real.exp (-τ N)) / poissonMean d (σ N) (τ N) - 1|}
+        ≤ 12 / (N : ℝ) ^ 3 + 1 / s := by
+  filter_upwards [second_stage_ceil d hd X h_indep hX hlaw σ τ hc hσ hτ hreg, hσ, hτ,
+    eventually_ge_atTop 3] with N hfin h1 h2 h6
+  have hN : (3 : ℝ) ≤ N := by exact_mod_cast h6
+  have hL : 1 ≤ Real.log N := by
+    rw [Real.le_log_iff_exp_le (by linarith)]
+    have := Real.exp_one_lt_d9
+    linarith
+  have hM : 0 ≤ heatTorus d (2 * Real.pi ^ 2 * σ N) 0 :=
+    (heatTorus_zero_pos (mul_pos (by positivity) h1.1) d).le
+  have hnn : 0 ≤ heatTorus d (2 * Real.pi ^ 2 * σ N) 0 * Real.log N / N :=
+    div_nonneg (mul_nonneg hM (by linarith)) (by linarith)
+  refine le_trans (measureReal_mono ?_ (measure_ne_top μ _)) (hfin s hs)
+  intro ω hω
+  rw [Set.mem_setOf_eq] at hω ⊢
+  refine lt_of_le_of_lt ?_ hω
+  exact thr_OP hM (by linarith) hL (by linarith [h2.1]) hs.le (piC_pos d).le
+    (Real.sq_sqrt hnn)
+
+/-- **Tightness form of `second_stage_OP`:** the relative error of the subtracted heat trace is
+    `O_P((M_N log N/N) τ_N)`. For every `ε > 0` there is a constant `C > 0` (depending on `d`
+    and `ε` only) such that, for all large `N`,
+    `P(|(Tr exp(τ_N(S-1)) - N e^{-τ_N})/T - 1| > C (M_N log N/N) τ_N) ≤ ε`. -/
+theorem second_stage_tight {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] (d : ℕ) (hd : 1 ≤ d)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (σ τ : ℕ → ℝ) {c : ℝ} (hc : 0 < c)
+    (hσ : ∀ᶠ N in atTop, 0 < σ N ∧ σ N ≤ 1)
+    (hτ : ∀ᶠ N in atTop, 2 ≤ τ N ∧ τ N ≤ c / σ N)
+    (hreg : Tendsto (fun N : ℕ => (N : ℝ) * Real.sqrt (σ N) ^ d * σ N / Real.log N)
+      atTop atTop) {ε : ℝ} (hε : 0 < ε) :
+    ∃ C : ℝ, 0 < C ∧ ∀ᶠ N : ℕ in atTop,
+      μ.real {ω | C * (heatTorus d (2 * Real.pi ^ 2 * σ N) 0 * Real.log N / N) * τ N
+        < |((NormedSpace.exp (τ N • (symGraph
+              (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ N) (X a ω - X j ω))
+              (fun a : Fin N => heatRho d (σ N) N (fun j => X j ω) a) - 1))).trace
+            - (N : ℝ) * Real.exp (-τ N)) / poissonMean d (σ N) (τ N) - 1|}
+        ≤ ε := by
+  have hs : 0 < 2 / ε := div_pos (by norm_num) hε
+  have hC : 0 < redC d + 14 * normC d ^ 2 + 4 + 2 / ε * (piC d + 7) := by
+    have h1 := redC_nonneg d
+    have h2 : 0 ≤ 14 * normC d ^ 2 := mul_nonneg (by norm_num) (_root_.sq_nonneg _)
+    have h3 : 0 ≤ 2 / ε * (piC d + 7) := mul_nonneg hs.le (by linarith [piC_pos d])
+    linarith
+  refine ⟨redC d + 14 * normC d ^ 2 + 4 + 2 / ε * (piC d + 7), hC, ?_⟩
+  filter_upwards [second_stage_OP d hd X h_indep hX hlaw σ τ hc hσ hτ hreg (2 / ε) hs,
+    (tendsto_order.1 tendsto_twelve_div_cube).2 (ε / 2) (half_pos hε)] with N h1 h2
+  have e : 1 / (2 / ε) = ε / 2 := one_div_div 2 ε
+  rw [e] at h1
+  have h2' : 12 / (N : ℝ) ^ 3 < ε / 2 := h2
+  linarith
+
+/-- **The second stage in the limit, quantitative.** If eventually `0 < σ_N ≤ 1`,
+    `2 ≤ τ_N ≤ c/σ_N`, and `A_N := N σ_N^{d/2+2}/log N → ∞` (with `σ = ξ²`:
+    `N ξ^{d+4}/log N → ∞`), then for every `η > 0`, for all large `N`,
+    `P(|(Tr exp(τ_N(S-1)) - N e^{-τ_N})/T - 1| > η σ_N) ≤ 12/N³ + 1/√A_N`.
+    (The Markov parameter of the finite form is `s_N = √A_N`.) -/
+theorem second_stage_limit_eventually {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] (d : ℕ) (hd : 1 ≤ d)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (σ τ : ℕ → ℝ) {c : ℝ} (hc : 0 < c)
+    (hσ : ∀ᶠ N in atTop, 0 < σ N ∧ σ N ≤ 1)
+    (hτ : ∀ᶠ N in atTop, 2 ≤ τ N ∧ τ N ≤ c / σ N)
+    (hreg : Tendsto (fun N : ℕ => (N : ℝ) * Real.sqrt (σ N) ^ d * σ N ^ 2 / Real.log N)
+      atTop atTop) {η : ℝ} (hη : 0 < η) :
+    ∀ᶠ N : ℕ in atTop,
+      μ.real {ω | η * σ N
+        < |((NormedSpace.exp (τ N • (symGraph
+              (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ N) (X a ω - X j ω))
+              (fun a : Fin N => heatRho d (σ N) N (fun j => X j ω) a) - 1))).trace
+            - (N : ℝ) * Real.exp (-τ N)) / poissonMean d (σ N) (τ N) - 1|}
+        ≤ 12 / (N : ℝ) ^ 3
+          + 1 / Real.sqrt ((N : ℝ) * Real.sqrt (σ N) ^ d * σ N ^ 2 / Real.log N) := by
+  filter_upwards [second_stage_ceil d hd X h_indep hX hlaw σ τ hc hσ hτ
+      (regime_four_to_two d σ hσ hreg), hσ, hτ,
+    hreg.eventually_ge_atTop (max 1 ((2 ^ d * ((redC d * c + 14 * normC d ^ 2 + 4)
+      + (piC d * c + 7)) / η) ^ 2)), eventually_ge_atTop 3] with N hfin h1 h2 h5 h6
+  have hN : (3 : ℝ) ≤ N := by exact_mod_cast h6
+  have hL : 1 ≤ Real.log N := by
+    rw [Real.le_log_iff_exp_le (by linarith)]
+    have := Real.exp_one_lt_d9
+    linarith
+  have hM : 0 ≤ heatTorus d (2 * Real.pi ^ 2 * σ N) 0 :=
+    (heatTorus_zero_pos (mul_pos (by positivity) h1.1) d).le
+  have hnn : 0 ≤ heatTorus d (2 * Real.pi ^ 2 * σ N) 0 * Real.log N / N :=
+    div_nonneg (mul_nonneg hM (by linarith)) (by linarith)
+  have hA1 : 1 ≤ (N : ℝ) * Real.sqrt (σ N) ^ d * σ N ^ 2 / Real.log N :=
+    (le_max_left _ _).trans h5
+  have hAη : (2 ^ d * ((redC d * c + 14 * normC d ^ 2 + 4) + (piC d * c + 7)) / η) ^ 2
+      ≤ (N : ℝ) * Real.sqrt (σ N) ^ d * σ N ^ 2 / Real.log N := (le_max_right _ _).trans h5
+  have hs : 0 < Real.sqrt ((N : ℝ) * Real.sqrt (σ N) ^ d * σ N ^ 2 / Real.log N) :=
+    Real.sqrt_pos.mpr (by linarith)
+  have hB := hB_core (n := (N : ℝ)) (L := Real.log N) d (heatM_bound h1.1 h1.2 d)
+    (pow_pos (Real.sqrt_pos.mpr h1.1) d) (by linarith) (by linarith) h1.1
+  refine le_trans (measureReal_mono ?_ (measure_ne_top μ _)) (hfin _ hs)
+  intro ω hω
+  rw [Set.mem_setOf_eq] at hω ⊢
+  refine lt_of_le_of_lt ?_ hω
+  exact thr_sqrt d hM (by linarith) hL h1.1 h1.2 (by linarith [h2.1]) h2.2 (redC_nonneg d)
+    (piC_pos d).le (Real.sq_sqrt hnn) hη hA1 hB hAη
+
+/-- **The second stage as a limit in probability (`o_P(ξ²)` statement of
+    `cor:secondstage-alld`).** Independent uniform points on the flat torus of dimension
+    `d ≥ 1` (nested sample), kernel variance `σ_N = ξ_N²`, graph with self-loops. If eventually
+    `0 < σ_N ≤ 1` and `2 ≤ τ_N ≤ c/σ_N`, and `N σ_N^{d/2+2}/log N → ∞` (`N ξ^{d+4}/log N → ∞`),
+    then for every `η > 0`
+    `P(|(Tr exp(τ_N(S-1)) - N e^{-τ_N})/poissonMean d σ_N τ_N - 1| > η σ_N) → 0` as `N → ∞`. -/
+theorem second_stage_limit {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] (d : ℕ) (hd : 1 ≤ d)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (σ τ : ℕ → ℝ) {c : ℝ} (hc : 0 < c)
+    (hσ : ∀ᶠ N in atTop, 0 < σ N ∧ σ N ≤ 1)
+    (hτ : ∀ᶠ N in atTop, 2 ≤ τ N ∧ τ N ≤ c / σ N)
+    (hreg : Tendsto (fun N : ℕ => (N : ℝ) * Real.sqrt (σ N) ^ d * σ N ^ 2 / Real.log N)
+      atTop atTop) {η : ℝ} (hη : 0 < η) :
+    Tendsto (fun N : ℕ =>
+      μ.real {ω | η * σ N
+        < |((NormedSpace.exp (τ N • (symGraph
+              (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ N) (X a ω - X j ω))
+              (fun a : Fin N => heatRho d (σ N) N (fun j => X j ω) a) - 1))).trace
+            - (N : ℝ) * Real.exp (-τ N)) / poissonMean d (σ N) (τ N) - 1|})
+      atTop (𝓝 0) := by
+  have h1 : Tendsto (fun N : ℕ =>
+      1 / Real.sqrt ((N : ℝ) * Real.sqrt (σ N) ^ d * σ N ^ 2 / Real.log N)) atTop (𝓝 0) :=
+    tendsto_const_nhds.div_atTop (Real.tendsto_sqrt_atTop.comp hreg)
+  have h2 : Tendsto (fun N : ℕ => 12 / (N : ℝ) ^ 3
+      + 1 / Real.sqrt ((N : ℝ) * Real.sqrt (σ N) ^ d * σ N ^ 2 / Real.log N))
+      atTop (𝓝 0) := by
+    have := tendsto_twelve_div_cube.add h1
+    rwa [add_zero] at this
+  exact tendsto_of_tendsto_of_tendsto_of_le_of_le' tendsto_const_nhds h2
+    (Eventually.of_forall (fun N => measureReal_nonneg))
+    (second_stage_limit_eventually d hd X h_indep hX hlaw σ τ hc hσ hτ hreg hη)
+
+end SecondStageLimit
+
+/-! ### The heat trace of the graph WITHOUT self-loops, for a fixed sample size
+
+A finite form of the second display of Corollary "The graph without self-loops"
+(`cor:kernel-noloops`). What is proved here, and what is not:
+
+* `noloopSym` is the symmetric matrix `S° = D°^{-1/2} W° D°^{-1/2}` of the graph whose kernel has
+  the diagonal removed (`symGraph` of the second file with the kernel and the normalisation of
+  `NoLoops.noloopWalk`). For `N ≥ 2` and every configuration of points it is symmetric,
+  `Tr (S°)^k = Tr (P°)^k` for every `k`, and `|Tr (S°)^k| ≤ Tr (S°)²` for `k ≥ 2`
+  (`noloop_sym_facts`); `Tr P° = 0` (`noloopWalk_trace`). No event is needed for these.
+* `noloop_heat_trace_det` (deterministic) and `noloop_heat_trace_sample` (probability):
+  `|Tr exp(τ(S° - 1)) - N e^{-τ} - (T - w_1 M)|
+      ≤ C₁ δ' √J (T - w_1 M) + 96 (M²/N) τ (1 - e^{-τ}) + (3M + 192 M²/N) (1 - ∑_{j≤J} w_j)`,
+  with `T = poissonMean`, `w_1 M = τ e^{-τ} M` (the term `τ e^{-τ} M` of the paper), except on the
+  event of `NoLoops.noloop_trace_sample` (probability at most `4/N³`).
+* `noloop_heat_trace_ratio`: the same divided by `T`, for `τ ≥ 2`, `3τ + 2 log N ≤ J + 1`.
+* `noloop_heat_trace_ratio_small`: under the ADDITIONAL condition `M ≤ C₁ log N` the additional
+  term is absorbed, and the bound has the form `(C₁ + 96) δ' √J + 5M/N²` of the corollary.
+
+NOT the corollary of the paper: fixed `N` (no "almost surely for all large `N`"); `J` is a free
+integer with `C₁ δ' √J ≤ 1` (the paper takes `J = ⌈8τ⌉ + ⌈2 log N⌉`); the comparison of the walk
+without self-loops goes through the walk WITH self-loops (perturbation), which produces the
+additional term `96 (M²/N) τ` instead of the constant `C₁' = C₁ + 3·2^{d/2}` of the paper; the
+constant `C₁ = kernelC1 d` and the exceptional event are those of the file; that
+`Tr exp(τ(S° - 1))` is `Tr e^{-tL°}` with `τ = 2t/ξ²` and that `poissonMean` is `T_σ(t)` are not
+statements of the file; the last assertion of the corollary (`τ e^{-τ} M ≤ C τ^{1+d/2} e^{-τ} Θ`,
+and the statements on the rate) is not formalised; the exceptional sets are not shown to be
+measurable (the bounds are bounds for the outer measure). -/
+
+namespace NoLoopsTrace
+
+open CTG.Reals.TraceG29 NoLoops
+
+/-- The kernel with the diagonal removed. -/
+noncomputable def noloopK (d : ℕ) (σ : ℝ) (N : ℕ) (x : ℕ → FlatTorus d) : Fin N → Fin N → ℝ :=
+  fun a j : Fin N => if a = j then 0 else heatTorus d (2 * Real.pi ^ 2 * σ) (x a - x j)
+
+/-- The normalisation of the graph without self-loops, `ρ°_a = ρ_a - p_σ(0)/N`. -/
+noncomputable def noloopRho (d : ℕ) (σ : ℝ) (N : ℕ) (x : ℕ → FlatTorus d) : Fin N → ℝ :=
+  fun a : Fin N => heatRho d σ N x a - heatTorus d (2 * Real.pi ^ 2 * σ) 0 / N
+
+/-- The symmetric matrix `S° = D°^{-1/2} W° D°^{-1/2}` of the graph without self-loops. -/
+noncomputable def noloopSym (d : ℕ) (σ : ℝ) (N : ℕ) (x : ℕ → FlatTorus d) :
+    Matrix (Fin N) (Fin N) ℝ :=
+  symGraph (noloopK d σ N x) (noloopRho d σ N x)
+
+/-- The walk `NoLoops.noloopWalk` is the walk matrix of this kernel and this normalisation. -/
+theorem noloopWalk_eq (d : ℕ) (σ : ℝ) (N : ℕ) (x : ℕ → FlatTorus d) :
+    noloopWalk d σ N x = walkMatrix (noloopK d σ N x) (noloopRho d σ N x) := rfl
+
+theorem exists_ne_fin {N : ℕ} (hN : 2 ≤ N) (a : Fin N) : ∃ b : Fin N, b ≠ a := by
+  by_cases h : a.val = 0
+  · refine ⟨⟨1, by omega⟩, fun hb => ?_⟩
+    have h1 : (1 : ℕ) = a.val := congrArg Fin.val hb
+    omega
+  · refine ⟨⟨0, by omega⟩, fun hb => ?_⟩
+    have h1 : (0 : ℕ) = a.val := congrArg Fin.val hb
+    omega
+
+theorem noloopK_symm (d : ℕ) (σ : ℝ) (N : ℕ) (x : ℕ → FlatTorus d) (a j : Fin N) :
+    noloopK d σ N x a j = noloopK d σ N x j a := by
+  show (if a = j then (0 : ℝ) else heatTorus d (2 * Real.pi ^ 2 * σ) (x a - x j))
+    = (if j = a then (0 : ℝ) else heatTorus d (2 * Real.pi ^ 2 * σ) (x j - x a))
+  by_cases h : a = j
+  · rw [if_pos h, if_pos h.symm]
+  · rw [if_neg h, if_neg (Ne.symm h), ← heatTorus_even d _ (x j - x a), neg_sub]
+
+theorem noloopK_nonneg {σ : ℝ} (hσ : 0 < σ) (d N : ℕ) (x : ℕ → FlatTorus d) (a j : Fin N) :
+    0 ≤ noloopK d σ N x a j := by
+  have hpi := Real.pi_pos
+  have hcσ : 0 < 2 * Real.pi ^ 2 * σ := by positivity
+  show 0 ≤ (if a = j then (0 : ℝ) else heatTorus d (2 * Real.pi ^ 2 * σ) (x a - x j))
+  by_cases h : a = j
+  · rw [if_pos h]
+  · rw [if_neg h]; exact heatTorus_nonneg hcσ d _
+
+theorem noloopK_pos {σ : ℝ} (hσ : 0 < σ) (d N : ℕ) (x : ℕ → FlatTorus d) {a j : Fin N}
+    (h : a ≠ j) : 0 < noloopK d σ N x a j := by
+  have hpi := Real.pi_pos
+  have hcσ : 0 < 2 * Real.pi ^ 2 * σ := by positivity
+  show 0 < (if a = j then (0 : ℝ) else heatTorus d (2 * Real.pi ^ 2 * σ) (x a - x j))
+  rw [if_neg h]; exact heatTorus_pos hcσ d _
+
+/-- `ρ°_a = (1/N) ∑_{l ≠ a} p_σ(x_a - x_l)`. -/
+theorem noloopRho_eq (d : ℕ) (σ : ℝ) (N : ℕ) (x : ℕ → FlatTorus d) (a : Fin N) :
+    noloopRho d σ N x a
+      = (∑ l ∈ Finset.univ.erase a, heatTorus d (2 * Real.pi ^ 2 * σ) (x a - x l)) / N := by
+  show heatRho d σ N x a - heatTorus d (2 * Real.pi ^ 2 * σ) 0 / N = _
+  unfold heatRho
+  rw [Finset.sum_erase_eq_sub (Finset.mem_univ a), sub_self,
+    Finset.sum_range (fun l => heatTorus d (2 * Real.pi ^ 2 * σ) (x a - x l))]
+  ring
+
+theorem noloopRho_pos {σ : ℝ} (hσ : 0 < σ) (d N : ℕ) (hN : 2 ≤ N) (x : ℕ → FlatTorus d)
+    (a : Fin N) : 0 < noloopRho d σ N x a := by
+  have hpi := Real.pi_pos
+  have hcσ : 0 < 2 * Real.pi ^ 2 * σ := by positivity
+  have hNpos : (0 : ℝ) < (N : ℝ) := by exact_mod_cast (show 0 < N by omega)
+  obtain ⟨b, hb⟩ := exists_ne_fin hN a
+  rw [noloopRho_eq]
+  exact div_pos (Finset.sum_pos (fun l _ => heatTorus_pos hcσ d _)
+    ⟨b, Finset.mem_erase.mpr ⟨hb, Finset.mem_univ b⟩⟩) hNpos
+
+theorem noloop_degree_pos {σ : ℝ} (hσ : 0 < σ) (d N : ℕ) (hN : 2 ≤ N) (x : ℕ → FlatTorus d)
+    (i : Fin N) :
+    0 < ∑ l, noloopK d σ N x i l / (noloopRho d σ N x i * noloopRho d σ N x l) := by
+  obtain ⟨b, hb⟩ := exists_ne_fin hN i
+  have hrho := noloopRho_pos hσ d N hN x
+  refine Finset.sum_pos' (fun l _ => div_nonneg (noloopK_nonneg hσ d N x i l)
+    (mul_pos (hrho i) (hrho l)).le) ⟨b, Finset.mem_univ b, ?_⟩
+  exact div_pos (noloopK_pos hσ d N x (Ne.symm hb)) (mul_pos (hrho i) (hrho b))
+
+/-- The diagonal of the walk without self-loops vanishes, for every configuration of points. -/
+theorem noloopWalk_diag (d : ℕ) (σ : ℝ) (N : ℕ) (x : ℕ → FlatTorus d) (a : Fin N) :
+    noloopWalk d σ N x a a = 0 := by
+  rw [noloopWalk_eq]
+  simp [walkMatrix, noloopK]
+
+/-- `Tr P° = 0`, for every configuration of points. -/
+theorem noloopWalk_trace (d : ℕ) (σ : ℝ) (N : ℕ) (x : ℕ → FlatTorus d) :
+    (noloopWalk d σ N x).trace = 0 := by
+  rw [Matrix.trace]
+  exact Finset.sum_eq_zero fun a _ => by rw [Matrix.diag_apply]; exact noloopWalk_diag d σ N x a
+
+/-- **The symmetric matrix of the graph without self-loops (deterministic, `N ≥ 2`).** `S°` is
+    symmetric, `Tr (S°)^k = Tr (P°)^k` for all `k`, and `|Tr (S°)^k| ≤ Tr (S°)²` for `k ≥ 2`. -/
+theorem noloop_sym_facts {σ : ℝ} (hσ : 0 < σ) (d N : ℕ) (hN : 2 ≤ N) (x : ℕ → FlatTorus d) :
+    (noloopSym d σ N x).IsHermitian ∧
+    (∀ k : ℕ, ((noloopSym d σ N x) ^ k).trace = ((noloopWalk d σ N x) ^ k).trace) ∧
+    (∀ k : ℕ, 2 ≤ k →
+      |((noloopSym d σ N x) ^ k).trace| ≤ ((noloopSym d σ N x) ^ 2).trace) := by
+  have hKs := noloopK_symm d σ N x
+  have hK0 := noloopK_nonneg hσ d N x
+  have hrho := noloopRho_pos hσ d N hN x
+  have hD := noloop_degree_pos hσ d N hN x
+  refine ⟨symGraph_isHermitian _ _ hKs, fun k => ?_, fun k hk => ?_⟩
+  · rw [noloopWalk_eq]
+    exact symGraph_trace_pow _ _ hD k
+  · exact (symGraph_trace_bounds (noloopK d σ N x) (noloopRho d σ N x) hKs hK0 hrho hD k).2 hk
+
+/-! #### The Poisson splitting with absolute errors -/
+
+/-- Splitting of a Poisson mean at an index `J` with absolute errors `e_j`.
+    HYPOTHESES: the two sums exist (`hA`, `hT`). -/
+theorem poisson_split_abs {τ : ℝ} (hτ : 0 ≤ τ) (a m e : ℕ → ℝ) (J : ℕ) {A T B B' : ℝ}
+    (hA : HasSum (fun j : ℕ => pw τ (j + 1) * a (j + 1)) A)
+    (hT : HasSum (fun j : ℕ => pw τ (j + 1) * m (j + 1)) T)
+    (hlow : ∀ j, 1 ≤ j → j ≤ J → |a j - m j| ≤ e j)
+    (hB : ∀ j, J < j → |a j| ≤ B) (hB' : ∀ j, J < j → |m j| ≤ B') :
+    |A - T| ≤ ∑ j ∈ Finset.range J, pw τ (j + 1) * e (j + 1) + (B + B') * ptail τ J := by
+  have hdiff : HasSum (fun j : ℕ => pw τ (j + 1) * a (j + 1) - pw τ (j + 1) * m (j + 1))
+      (A - T) := hA.sub hT
+  have h2 : HasSum (fun j : ℕ => if j < J then pw τ (j + 1) * e (j + 1) else 0)
+      (∑ j ∈ Finset.range J, pw τ (j + 1) * e (j + 1)) := by
+    have h : HasSum (fun j : ℕ => if j < J then pw τ (j + 1) * e (j + 1) else 0)
+        (∑ j ∈ Finset.range J, (if j < J then pw τ (j + 1) * e (j + 1) else 0)) :=
+      hasSum_sum_of_ne_finset_zero (fun b hb => by rw [Finset.mem_range] at hb; simp [hb])
+    have e' : ∑ j ∈ Finset.range J, (if j < J then pw τ (j + 1) * e (j + 1) else 0)
+        = ∑ j ∈ Finset.range J, pw τ (j + 1) * e (j + 1) :=
+      Finset.sum_congr rfl (fun j hj => by rw [if_pos (Finset.mem_range.mp hj)])
+    rw [e'] at h
+    exact h
+  have h3 := h2.add ((ptail_hasSum τ J).mul_left (B + B'))
+  refine abs_le_of_hasSum hdiff h3 (fun j => ?_)
+  have hw := pw_nonneg hτ (j + 1)
+  beta_reduce
+  by_cases hj : j < J
+  · simp only [if_pos hj, mul_zero, add_zero]
+    rw [← mul_sub, abs_mul, abs_of_nonneg hw]
+    exact mul_le_mul_of_nonneg_left (hlow (j + 1) (by omega) (by omega)) hw
+  · simp only [if_neg hj, zero_add]
+    rw [← mul_sub, abs_mul, abs_of_nonneg hw, mul_comm (B + B')]
+    refine mul_le_mul_of_nonneg_left ?_ hw
+    have h1 := hB (j + 1) (by omega)
+    have h2' := hB' (j + 1) (by omega)
+    have h3' : |a (j + 1) - m (j + 1)| ≤ |a (j + 1)| + |m (j + 1)| := by
+      rcases abs_cases (a (j + 1) - m (j + 1)) with h | h <;>
+        rcases abs_cases (a (j + 1)) with h' | h' <;>
+        rcases abs_cases (m (j + 1)) with h'' | h'' <;> linarith
+    linarith
+
+/-- `(k+1) w_{k+1}(τ) = τ w_k(τ)`. -/
+theorem pw_succ_mul (τ : ℝ) (k : ℕ) : pw τ (k + 1) * ((k : ℝ) + 1) = τ * pw τ k := by
+  have hk : (((k + 1).factorial : ℕ) : ℝ) = ((k : ℝ) + 1) * (k.factorial : ℝ) := by
+    rw [Nat.factorial_succ]; push_cast; ring
+  have hk1 : (k : ℝ) + 1 ≠ 0 := by positivity
+  have key : ∀ a b f : ℝ, b ≠ 0 → a / (b * f) * b = a / f := by
+    intro a b f hb
+    rw [div_mul_eq_mul_div, mul_comm a b, mul_div_mul_left _ _ hb]
+  unfold pw
+  rw [hk, pow_succ]
+  calc Real.exp (-τ) * (τ ^ k * τ / (((k : ℝ) + 1) * (k.factorial : ℝ))) * ((k : ℝ) + 1)
+      = Real.exp (-τ) * (τ ^ k * τ / (((k : ℝ) + 1) * (k.factorial : ℝ)) * ((k : ℝ) + 1)) := by
+        ring
+    _ = Real.exp (-τ) * (τ ^ k * τ / (k.factorial : ℝ)) := by rw [key _ _ _ hk1]
+    _ = τ * (Real.exp (-τ) * (τ ^ k / (k.factorial : ℝ))) := by ring
+
+/-- The population values for the graph without self-loops: `0` for `j = 1` (because
+    `Tr P° = 0`) and `m_j = p_{jσ}(0)` otherwise. -/
+noncomputable def modeNL (d : ℕ) (σ : ℝ) (j : ℕ) : ℝ := if j = 1 then 0 else heatMode d σ j
+
+/-- The weight `j` for `j ≥ 2` and `0` for `j = 1`. -/
+noncomputable def stepNL (j : ℕ) : ℝ := if j = 1 then 0 else (j : ℝ)
+
+theorem modeNL_one (d : ℕ) (σ : ℝ) : modeNL d σ 1 = 0 := by
+  unfold modeNL; rw [if_pos rfl]
+
+theorem modeNL_of_two (d : ℕ) (σ : ℝ) {j : ℕ} (hj : 2 ≤ j) : modeNL d σ j = heatMode d σ j := by
+  unfold modeNL; rw [if_neg (by omega)]
+
+theorem modeNL_succ_nonneg {σ : ℝ} (hσ : 0 < σ) (d j : ℕ) : 0 ≤ modeNL d σ (j + 1) := by
+  unfold modeNL
+  by_cases h : j + 1 = 1
+  · rw [if_pos h]
+  · rw [if_neg h]; exact le_trans zero_le_one (heatMode_ge_one hσ d (by omega))
+
+theorem stepNL_one : stepNL 1 = 0 := by
+  unfold stepNL; rw [if_pos rfl]
+
+theorem stepNL_of_two {j : ℕ} (hj : 2 ≤ j) : stepNL j = (j : ℝ) := by
+  unfold stepNL; rw [if_neg (by omega)]
+
+theorem stepNL_nonneg (j : ℕ) : 0 ≤ stepNL j := by
+  unfold stepNL
+  by_cases h : j = 1
+  · rw [if_pos h]
+  · rw [if_neg h]; exact Nat.cast_nonneg j
+
+/-- `∑_{j≥2} w_j m_j = T - w_1 M`: the Poisson mean without its first term. -/
+theorem modeNL_hasSum {σ : ℝ} (hσ : 0 < σ) (d : ℕ) {τ : ℝ} (hτ : 0 ≤ τ) :
+    HasSum (fun j : ℕ => pw τ (j + 1) * modeNL d σ (j + 1))
+      (poissonMean d σ τ - pw τ 1 * heatTorus d (2 * Real.pi ^ 2 * σ) 0) := by
+  have hmode1 : heatMode d σ 1 = heatTorus d (2 * Real.pi ^ 2 * σ) 0 := by
+    unfold heatMode; rw [Nat.cast_one, one_mul]
+  have h1 := (poissonMean_hasSum hσ d hτ).sub
+    (hasSum_ite_eq (0 : ℕ) (pw τ 1 * heatTorus d (2 * Real.pi ^ 2 * σ) 0))
+  have e : (fun j : ℕ => pw τ (j + 1) * modeNL d σ (j + 1))
+      = fun j : ℕ => pw τ (j + 1) * heatMode d σ (j + 1)
+          - (if j = 0 then pw τ 1 * heatTorus d (2 * Real.pi ^ 2 * σ) 0 else 0) := by
+    funext j
+    by_cases hj : j = 0
+    · rw [if_pos hj, hj]
+      show pw τ 1 * modeNL d σ 1 = pw τ 1 * heatMode d σ 1 - _
+      rw [modeNL_one, hmode1]; ring
+    · rw [if_neg hj, modeNL_of_two d σ (by omega : 2 ≤ j + 1)]; ring
+  rw [e]
+  exact h1
+
+/-- `∑_{j=2}^{J} w_j j ≤ τ (1 - e^{-τ})`. -/
+theorem stepNL_sum_le {τ : ℝ} (hτ : 0 ≤ τ) (J : ℕ) :
+    ∑ j ∈ Finset.range J, pw τ (j + 1) * stepNL (j + 1) ≤ τ * (1 - Real.exp (-τ)) := by
+  have hG : HasSum (fun j : ℕ => τ * pw τ j - (if j = 0 then τ * pw τ 0 else 0))
+      (τ * 1 - τ * pw τ 0) :=
+    ((pw_hasSum τ).mul_left τ).sub (hasSum_ite_eq (0 : ℕ) (τ * pw τ 0))
+  have heq : ∀ j : ℕ, pw τ (j + 1) * stepNL (j + 1)
+      = τ * pw τ j - (if j = 0 then τ * pw τ 0 else 0) := by
+    intro j
+    by_cases hj : j = 0
+    · rw [if_pos hj, hj]
+      show pw τ 1 * stepNL 1 = τ * pw τ 0 - τ * pw τ 0
+      rw [stepNL_one]; ring
+    · rw [if_neg hj, stepNL_of_two (by omega : 2 ≤ j + 1), sub_zero]
+      have h := pw_succ_mul τ j
+      push_cast
+      exact h
+  have hnn : ∀ j : ℕ, 0 ≤ τ * pw τ j - (if j = 0 then τ * pw τ 0 else 0) := fun j => by
+    rw [← heq j]; exact mul_nonneg (pw_nonneg hτ (j + 1)) (stepNL_nonneg (j + 1))
+  have hle := sum_le_hasSum (Finset.range J) (fun j _ => hnn j) hG
+  calc ∑ j ∈ Finset.range J, pw τ (j + 1) * stepNL (j + 1)
+      = ∑ j ∈ Finset.range J, (τ * pw τ j - (if j = 0 then τ * pw τ 0 else 0)) :=
+        Finset.sum_congr rfl fun j _ => heq j
+    _ ≤ τ * 1 - τ * pw τ 0 := hle
+    _ = τ * (1 - Real.exp (-τ)) := by rw [pw_zero]; ring
+
+/-! #### The heat trace, deterministic part -/
+
+/-- **Deterministic part.** Points `x_0, …, x_{N-1}` on the flat torus, `N ≥ 2`, kernel of
+    variance `σ` with the diagonal removed, `P°` the walk and `S°` the symmetric matrix,
+    `M = p_σ(0)`. If for `2 ≤ k ≤ J`
+    `|Tr P°^k - m_k| ≤ c √k m_k + 96 (M/N) ∑_{l=1}^k m_l` (HYPOTHESIS `hgood`: the conclusion of
+    `NoLoops.noloop_trace_sample`), `2 ≤ J` and `c √J ≤ 1`, then with `T = ∑_{j≥1} w_j m_j`:
+    `|Tr exp(τ(S°-1)) - N e^{-τ} - (T - w_1 M)|
+       ≤ c √J (T - w_1 M) + 96 (M/N) M τ (1 - e^{-τ}) + (3M + 192 (M/N) M) (1 - ∑_{j≤J} w_j)`.
+    The index `j = 1` contributes exactly zero on both sides (`Tr P° = 0`). -/
+theorem noloop_heat_trace_det {σ : ℝ} (hσ : 0 < σ) (d N J : ℕ) (hN : 2 ≤ N) (hJ : 2 ≤ J)
+    (x : ℕ → FlatTorus d) {τ c Mp : ℝ} (hMp : Mp = heatTorus d (2 * Real.pi ^ 2 * σ) 0)
+    (hτ : 0 ≤ τ) (hc : 0 ≤ c) (hc1 : c * Real.sqrt J ≤ 1)
+    (hgood : ∀ k, 2 ≤ k → k ≤ J →
+      |((noloopWalk d σ N x) ^ k).trace - mS d σ k|
+        ≤ c * Real.sqrt k * mS d σ k
+          + 96 * (Mp / N) * ∑ l ∈ Finset.range k, mS d σ (l + 1)) :
+    |(NormedSpace.exp (τ • (noloopSym d σ N x - 1))).trace - (N : ℝ) * Real.exp (-τ)
+        - (poissonMean d σ τ - pw τ 1 * Mp)|
+      ≤ c * Real.sqrt J * (poissonMean d σ τ - pw τ 1 * Mp)
+        + 96 * (Mp / N) * Mp * (τ * (1 - Real.exp (-τ)))
+        + (3 * Mp + 192 * (Mp / N) * Mp) * ptail τ J := by
+  have hpi := Real.pi_pos
+  have hcσ : 0 < 2 * Real.pi ^ 2 * σ := by positivity
+  have hNpos : (0 : ℝ) < (N : ℝ) := by exact_mod_cast (show 0 < N by omega)
+  obtain ⟨hS, htr, hbd⟩ := noloop_sym_facts hσ d N hN x
+  have hMp1 : 1 ≤ Mp := by rw [hMp]; exact heatTorus_zero_ge_one hcσ d
+  have hMp0 : 0 ≤ Mp := by linarith
+  have hq0 : 0 ≤ 96 * (Mp / N) := mul_nonneg (by norm_num) (div_nonneg hMp0 hNpos.le)
+  have hκ0 : 0 ≤ 96 * (Mp / N) * Mp := mul_nonneg hq0 hMp0
+  have hm1 : ∀ j, 1 ≤ j → 1 ≤ heatMode d σ j := fun j hj => heatMode_ge_one hσ d hj
+  have hmM : ∀ j, 1 ≤ j → heatMode d σ j ≤ Mp := fun j hj => by
+    rw [hMp]; exact heatMode_le hσ d hj
+  have hmS : ∀ j, 1 ≤ j → mS d σ j = heatMode d σ j := fun j hj => mS_of_pos d σ hj
+  have hsumle : ∀ j : ℕ, ∑ l ∈ Finset.range j, mS d σ (l + 1) ≤ (j : ℝ) * Mp := by
+    intro j
+    calc ∑ l ∈ Finset.range j, mS d σ (l + 1) ≤ ∑ _l ∈ Finset.range j, Mp :=
+          Finset.sum_le_sum fun l _ => by
+            rw [hmS (l + 1) (by omega)]; exact hmM (l + 1) (by omega)
+      _ = (j : ℝ) * Mp := by rw [Finset.sum_const, Finset.card_range, nsmul_eq_mul]
+  -- the series
+  have hA := subtracted_trace_hasSum (noloopSym d σ N x) hS τ
+  rw [Fintype.card_fin] at hA
+  have hT' : HasSum (fun j : ℕ => pw τ (j + 1) * modeNL d σ (j + 1))
+      (poissonMean d σ τ - pw τ 1 * Mp) := by
+    rw [hMp]; exact modeNL_hasSum hσ d hτ
+  -- the indices up to J
+  have hlow : ∀ j, 1 ≤ j → j ≤ J →
+      |((noloopSym d σ N x) ^ j).trace - modeNL d σ j|
+        ≤ c * Real.sqrt J * modeNL d σ j + 96 * (Mp / N) * Mp * stepNL j := by
+    intro j hj hjJ
+    rw [htr j]
+    by_cases h1 : j = 1
+    · rw [h1, pow_one, noloopWalk_trace, modeNL_one, stepNL_one]
+      simp
+    · have hj2 : 2 ≤ j := by omega
+      have hg := hgood j hj2 hjJ
+      rw [hmS j hj] at hg
+      have hsq : Real.sqrt (j : ℝ) ≤ Real.sqrt (J : ℝ) :=
+        Real.sqrt_le_sqrt (by exact_mod_cast hjJ)
+      have hmj0 : 0 ≤ heatMode d σ j := le_trans zero_le_one (hm1 j hj)
+      have h2 : c * Real.sqrt j * heatMode d σ j ≤ c * Real.sqrt J * heatMode d σ j :=
+        mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_left hsq hc) hmj0
+      have h3 : 96 * (Mp / N) * ∑ l ∈ Finset.range j, mS d σ (l + 1)
+          ≤ 96 * (Mp / N) * ((j : ℝ) * Mp) := mul_le_mul_of_nonneg_left (hsumle j) hq0
+      have e : 96 * (Mp / N) * Mp * (j : ℝ) = 96 * (Mp / N) * ((j : ℝ) * Mp) := by ring
+      rw [modeNL_of_two d σ hj2, stepNL_of_two hj2, e]
+      linarith
+  -- the second moment and the tail
+  have h2 : ((noloopSym d σ N x) ^ 2).trace ≤ 2 * Mp + 192 * (Mp / N) * Mp := by
+    rw [htr 2]
+    have hg := hgood 2 (le_refl _) hJ
+    rw [hmS 2 (by omega)] at hg
+    have h2J : (((2 : ℕ) : ℝ)) ≤ (J : ℝ) := by exact_mod_cast hJ
+    have hsq : c * Real.sqrt ((2 : ℕ) : ℝ) ≤ 1 :=
+      le_trans (mul_le_mul_of_nonneg_left (Real.sqrt_le_sqrt h2J) hc) hc1
+    have hm20 : 0 ≤ heatMode d σ 2 := le_trans zero_le_one (hm1 2 (by omega))
+    have h' := mul_le_mul_of_nonneg_right hsq hm20
+    have h3 : 96 * (Mp / N) * ∑ l ∈ Finset.range 2, mS d σ (l + 1)
+        ≤ 96 * (Mp / N) * ((((2 : ℕ) : ℝ)) * Mp) := mul_le_mul_of_nonneg_left (hsumle 2) hq0
+    have e : 96 * (Mp / N) * ((((2 : ℕ) : ℝ)) * Mp) = 192 * (Mp / N) * Mp := by
+      push_cast; ring
+    rw [e] at h3
+    have h'' := (abs_le.mp hg).2
+    have hm2 := hmM 2 (by omega)
+    have key : ∀ t m A B q : ℝ, t - m ≤ A + B → A ≤ 1 * m → B ≤ q → m ≤ Mp →
+        t ≤ 2 * Mp + q := by
+      intro t m A B q k1 k2 k3 k4; linarith
+    exact key _ _ _ _ _ h'' h' h3 hm2
+  have hB : ∀ j, J < j → |((noloopSym d σ N x) ^ j).trace| ≤ 2 * Mp + 192 * (Mp / N) * Mp :=
+    fun j hj => le_trans (hbd j (by omega)) h2
+  have hB' : ∀ j, J < j → |modeNL d σ j| ≤ Mp := fun j hj => by
+    rw [modeNL_of_two d σ (by omega : 2 ≤ j),
+      abs_of_nonneg (le_trans zero_le_one (hm1 j (by omega)))]
+    exact hmM j (by omega)
+  have h := poisson_split_abs hτ (fun j => ((noloopSym d σ N x) ^ j).trace) (modeNL d σ)
+    (fun j => c * Real.sqrt J * modeNL d σ j + 96 * (Mp / N) * Mp * stepNL j) J hA hT' hlow hB hB'
+  -- the finite sum
+  have hs1 : ∑ j ∈ Finset.range J, pw τ (j + 1)
+        * (c * Real.sqrt J * modeNL d σ (j + 1) + 96 * (Mp / N) * Mp * stepNL (j + 1))
+      = c * Real.sqrt J * ∑ j ∈ Finset.range J, pw τ (j + 1) * modeNL d σ (j + 1)
+        + 96 * (Mp / N) * Mp * ∑ j ∈ Finset.range J, pw τ (j + 1) * stepNL (j + 1) := by
+    rw [Finset.mul_sum, Finset.mul_sum, ← Finset.sum_add_distrib]
+    exact Finset.sum_congr rfl fun j _ => by ring
+  have hs2 : ∑ j ∈ Finset.range J, pw τ (j + 1) * modeNL d σ (j + 1)
+      ≤ poissonMean d σ τ - pw τ 1 * Mp :=
+    sum_le_hasSum (Finset.range J)
+      (fun j _ => mul_nonneg (pw_nonneg hτ (j + 1)) (modeNL_succ_nonneg hσ d j)) hT'
+  have hs3 := stepNL_sum_le hτ J
+  have h4 := mul_le_mul_of_nonneg_left hs2 (mul_nonneg hc (Real.sqrt_nonneg (J : ℝ)))
+  have h5 := mul_le_mul_of_nonneg_left hs3 hκ0
+  have hsum_all : ∑ j ∈ Finset.range J, pw τ (j + 1)
+        * (c * Real.sqrt J * modeNL d σ (j + 1) + 96 * (Mp / N) * Mp * stepNL (j + 1))
+      ≤ c * Real.sqrt J * (poissonMean d σ τ - pw τ 1 * Mp)
+        + 96 * (Mp / N) * Mp * (τ * (1 - Real.exp (-τ))) := by
+    rw [hs1]; linarith
+  have e : (2 * Mp + 192 * (Mp / N) * Mp + Mp) * ptail τ J
+      = (3 * Mp + 192 * (Mp / N) * Mp) * ptail τ J := by ring
+  exact le_trans h (add_le_add hsum_all (le_of_eq e))
+
+/-! #### The heat trace for samples -/
+
+/-- **The heat trace of the graph without self-loops, for a fixed sample size.** Independent
+    uniform points on the flat torus of dimension `d ≥ 1`, periodised Gaussian kernel of variance
+    `σ = ξ² ≤ 1` with the diagonal removed, `N ≥ 2`, `M = p_σ(0)`, `δ' = √(M log N/N)`,
+    `C₁ = kernelC1 d`, an integer `J ≥ 2` with `C₁ δ' √J ≤ 1`, `τ ≥ 0`,
+    `T = poissonMean d σ τ = ∑_{j≥1} w_j p_{jσ}(0)`, `w_j = e^{-τ} τ^j/j!`. Except on an event of
+    probability at most `4/N³` (the event of `NoLoops.noloop_trace_sample`),
+    `|Tr exp(τ(S°-1)) - N e^{-τ} - (T - τ e^{-τ} M)|
+       ≤ C₁ δ' √J (T - τ e^{-τ} M) + 96 (M²/N) τ (1 - e^{-τ}) + (3M + 192 M²/N) (1 - ∑_{j≤J} w_j)`
+    (`τ e^{-τ} = pw τ 1`). -/
+theorem noloop_heat_trace_sample {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {σ : ℝ} (hσ : 0 < σ) (hσ1 : σ ≤ 1) (d : ℕ) (hd : 1 ≤ d)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (N J : ℕ) (hN2 : 2 ≤ N) (hJ : 2 ≤ J)
+    {Mp δp : ℝ} (hMp : Mp = heatTorus d (2 * Real.pi ^ 2 * σ) 0)
+    (hδp : δp = Real.sqrt (Mp * Real.log N / N))
+    (hrange : kernelC1 d * δp * Real.sqrt J ≤ 1) {τ : ℝ} (hτ : 0 ≤ τ) :
+    μ.real {ω | ¬ |(NormedSpace.exp (τ • (noloopSym d σ N (fun j => X j ω) - 1))).trace
+            - (N : ℝ) * Real.exp (-τ) - (poissonMean d σ τ - pw τ 1 * Mp)|
+          ≤ kernelC1 d * δp * Real.sqrt J * (poissonMean d σ τ - pw τ 1 * Mp)
+            + 96 * (Mp / N) * Mp * (τ * (1 - Real.exp (-τ)))
+            + (3 * Mp + 192 * (Mp / N) * Mp) * ptail τ J}
+      ≤ 4 / (N : ℝ) ^ 3 := by
+  have h := noloop_trace_sample hσ hσ1 d hd X h_indep hX hlaw N J hN2 (by omega) hMp hδp hrange
+  refine le_trans (measureReal_mono ?_ (measure_ne_top μ _)) h
+  intro ω hω hgood
+  apply hω
+  have hc : 0 ≤ kernelC1 d * δp := by
+    rw [hδp]; exact mul_nonneg (kernelC1_nonneg d) (Real.sqrt_nonneg _)
+  exact noloop_heat_trace_det hσ d N J hN2 hJ (fun j => X j ω) hMp hτ hc hrange
+    (fun k hk hkJ => hgood k hk hkJ)
+
+/-- From the absolute to the relative form. -/
+theorem ratio_form_noloop {X T T' c s κ τ q Mp pt N2 r : ℝ} (hT : 3 / 4 ≤ T) (hq : q ≤ T)
+    (hT' : T' ≤ T) (hcs : 0 ≤ c * s) (hκ : 0 ≤ κ) (hτ : 0 ≤ τ)
+    (h : |X - T'| ≤ c * s * T' + κ * (τ * q) + (3 * Mp + r * Mp) * pt)
+    (hMp : 0 ≤ Mp) (hr : r ≤ 1 / 6) (hpt0 : 0 ≤ pt) (hpt : pt ≤ 1 / N2) (hN2 : 0 < N2) :
+    |(X - T') / T| ≤ c * s + κ * τ + 5 * Mp / N2 := by
+  have hTpos : 0 < T := by linarith
+  rw [abs_div, abs_of_pos hTpos, div_le_iff₀ hTpos]
+  have hQ : 0 ≤ Mp / N2 := div_nonneg hMp hN2.le
+  have h1 : c * s * T' ≤ c * s * T := mul_le_mul_of_nonneg_left hT' hcs
+  have h2 : κ * (τ * q) ≤ κ * (τ * T) :=
+    mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_left hq hτ) hκ
+  have h3 : Mp * pt ≤ Mp / N2 := by
+    have h := mul_le_mul_of_nonneg_left hpt hMp
+    rw [mul_one_div] at h
+    exact h
+  have h4 : r * (Mp * pt) ≤ 1 / 6 * (Mp * pt) :=
+    mul_le_mul_of_nonneg_right hr (mul_nonneg hMp hpt0)
+  have h5 : 0 ≤ Mp / N2 * (T - 3 / 4) := mul_nonneg hQ (by linarith)
+  have h6 : 0 ≤ Mp * pt := mul_nonneg hMp hpt0
+  have e : (c * s + κ * τ + 5 * Mp / N2) * T
+      = c * s * T + κ * (τ * T) + 5 * (Mp / N2 * T) := by ring
+  have e2 : (3 * Mp + r * Mp) * pt = 3 * (Mp * pt) + r * (Mp * pt) := by ring
+  have e3 : Mp / N2 * (T - 3 / 4) = Mp / N2 * T - 3 / 4 * (Mp / N2) := by ring
+  rw [e]
+  rw [e2] at h
+  rw [e3] at h5
+  linarith
+
+/-- **The relative form.** In the situation of `noloop_heat_trace_sample` let moreover `τ ≥ 2`
+    and `3τ + 2 log N ≤ J + 1`. Except on an event of probability at most `4/N³`,
+    `|(Tr exp(τ(S°-1)) - N e^{-τ} - (T - τ e^{-τ} M)) / T| ≤ C₁ δ' √J + 96 (M²/N) τ + 5 M/N²`. -/
+theorem noloop_heat_trace_ratio {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {σ : ℝ} (hσ : 0 < σ) (hσ1 : σ ≤ 1) (d : ℕ) (hd : 1 ≤ d)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (N J : ℕ) (hN2 : 2 ≤ N) (hJ : 2 ≤ J)
+    {Mp δp : ℝ} (hMp : Mp = heatTorus d (2 * Real.pi ^ 2 * σ) 0)
+    (hδp : δp = Real.sqrt (Mp * Real.log N / N))
+    (hrange : kernelC1 d * δp * Real.sqrt J ≤ 1) {τ : ℝ} (hτ : 2 ≤ τ)
+    (hJτ : 3 * τ + 2 * Real.log N ≤ (J : ℝ) + 1) :
+    μ.real {ω | ¬ |((NormedSpace.exp (τ • (noloopSym d σ N (fun j => X j ω) - 1))).trace
+            - (N : ℝ) * Real.exp (-τ) - (poissonMean d σ τ - pw τ 1 * Mp)) / poissonMean d σ τ|
+          ≤ kernelC1 d * δp * Real.sqrt J + 96 * (Mp / N) * Mp * τ + 5 * Mp / (N : ℝ) ^ 2}
+      ≤ 4 / (N : ℝ) ^ 3 := by
+  have hτ0 : 0 ≤ τ := by linarith
+  have h := noloop_heat_trace_sample hσ hσ1 d hd X h_indep hX hlaw N J hN2 hJ hMp hδp hrange hτ0
+  refine le_trans (measureReal_mono ?_ (measure_ne_top μ _)) h
+  intro ω hω hgood
+  apply hω
+  have hpi := Real.pi_pos
+  have hcσ : 0 < 2 * Real.pi ^ 2 * σ := by positivity
+  have hNpos : (0 : ℝ) < N := by exact_mod_cast (by omega : 0 < N)
+  have hM1152 := (norm_event hσ hσ1 d hd X h_indep hX hlaw N J hN2 (by omega) hMp hδp hrange).2.2
+  have hMp0 : 0 ≤ Mp := by
+    rw [hMp]; exact le_trans zero_le_one (heatTorus_zero_ge_one hcσ d)
+  have hq := poissonMean_ge hσ d hτ0
+  have hquart := exp_neg_le_quarter hτ
+  have hT : 3 / 4 ≤ poissonMean d σ τ := by linarith
+  have hT' : poissonMean d σ τ - pw τ 1 * Mp ≤ poissonMean d σ τ := by
+    have := mul_nonneg (pw_nonneg hτ0 1) hMp0
+    linarith
+  have hcs : 0 ≤ kernelC1 d * δp * Real.sqrt J := by
+    rw [hδp]
+    exact mul_nonneg (mul_nonneg (kernelC1_nonneg d) (Real.sqrt_nonneg _)) (Real.sqrt_nonneg _)
+  have hκ : 0 ≤ 96 * (Mp / N) * Mp :=
+    mul_nonneg (mul_nonneg (by norm_num) (div_nonneg hMp0 hNpos.le)) hMp0
+  have hr : 192 * (Mp / N) ≤ 1 / 6 := by
+    have h1 : Mp / N ≤ 1 / 1152 := by rw [div_le_iff₀ hNpos]; linarith
+    linarith
+  exact ratio_form_noloop hT hq hT' hcs hκ hτ0 hgood hMp0 hr (ptail_nonneg hτ0 J)
+    (ptail_le_inv_sq hτ0 J N (by omega) hJτ) (by positivity)
+
+/-- **The relative form when the additional term is absorbed.** In the situation of
+    `noloop_heat_trace_ratio` let moreover `p_σ(0) ≤ kernelC1 d · log N`. Except on an event of
+    probability at most `4/N³`,
+    `|(Tr exp(τ(S°-1)) - N e^{-τ} - (T - τ e^{-τ} M)) / T| ≤ (C₁ + 96) δ' √J + 5 M/N²`. -/
+theorem noloop_heat_trace_ratio_small {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {σ : ℝ} (hσ : 0 < σ) (hσ1 : σ ≤ 1) (d : ℕ) (hd : 1 ≤ d)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (N J : ℕ) (hN2 : 2 ≤ N) (hJ : 2 ≤ J)
+    {Mp δp : ℝ} (hMp : Mp = heatTorus d (2 * Real.pi ^ 2 * σ) 0)
+    (hδp : δp = Real.sqrt (Mp * Real.log N / N))
+    (hrange : kernelC1 d * δp * Real.sqrt J ≤ 1) {τ : ℝ} (hτ : 2 ≤ τ)
+    (hJτ : 3 * τ + 2 * Real.log N ≤ (J : ℝ) + 1)
+    (hsmall : Mp ≤ kernelC1 d * Real.log N) :
+    μ.real {ω | ¬ |((NormedSpace.exp (τ • (noloopSym d σ N (fun j => X j ω) - 1))).trace
+            - (N : ℝ) * Real.exp (-τ) - (poissonMean d σ τ - pw τ 1 * Mp)) / poissonMean d σ τ|
+          ≤ (kernelC1 d + 96) * δp * Real.sqrt J + 5 * Mp / (N : ℝ) ^ 2}
+      ≤ 4 / (N : ℝ) ^ 3 := by
+  have h := noloop_heat_trace_ratio hσ hσ1 d hd X h_indep hX hlaw N J hN2 hJ hMp hδp hrange hτ hJτ
+  refine le_trans (measureReal_mono ?_ (measure_ne_top μ _)) h
+  intro ω hω hgood
+  apply hω
+  refine hgood.trans ?_
+  have hpi := Real.pi_pos
+  have hcσ : 0 < 2 * Real.pi ^ 2 * σ := by positivity
+  have hNr2 : (2 : ℝ) ≤ N := by exact_mod_cast hN2
+  have hNpos : (0 : ℝ) < (N : ℝ) := by linarith
+  have hJr2 : (2 : ℝ) ≤ J := by exact_mod_cast hJ
+  have hlg : 0 < Real.log N := Real.log_pos (by linarith)
+  have hMp0 : 0 ≤ Mp := by rw [hMp]; exact heatTorus_nonneg hcσ d 0
+  have hδp0 : 0 ≤ δp := by rw [hδp]; exact Real.sqrt_nonneg _
+  have hδ2 : δp ^ 2 = Mp * Real.log N / N := by
+    rw [hδp, Real.sq_sqrt (div_nonneg (mul_nonneg hMp0 hlg.le) hNpos.le)]
+  have hτJ : τ ≤ (J : ℝ) := by linarith
+  have hab := absorb hNpos hlg hMp0 hδ2 hδp0 (Nat.cast_nonneg J) hrange hsmall (le_refl (1 : ℝ))
+  have hq : 0 ≤ Mp / N * Mp := mul_nonneg (div_nonneg hMp0 hNpos.le) hMp0
+  have h1 : Mp / N * Mp * τ ≤ Mp / N * Mp * (J : ℝ) := mul_le_mul_of_nonneg_left hτJ hq
+  have e1 : Mp / N * Mp * (J : ℝ) = Mp / N * ((J : ℝ) * Mp) := by ring
+  have e2 : 96 * (Mp / N) * Mp * τ = 96 * (Mp / N * Mp * τ) := by ring
+  have e3 : (kernelC1 d + 96) * δp * Real.sqrt J
+      = kernelC1 d * δp * Real.sqrt J + 96 * (δp * Real.sqrt J * 1) := by ring
+  rw [e1] at h1
+  rw [e2, e3]
+  linarith
+
+end NoLoopsTrace
+
 end CTG.Reals2
