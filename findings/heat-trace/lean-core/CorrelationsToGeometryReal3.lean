@@ -6865,4 +6865,1558 @@ theorem weighted_consistency_paper_w3 {Ω : Type*} {mΩ : MeasurableSpace Ω} {�
 
 end SharpVariance
 
+namespace OlderParts
+
+open PopulationRate
+
+/-!
+Older parts of Appendix G (`thm:profile`, `prop:discrete`, `prop:heatbounds`) as statements about
+sums over a list of eigenvalues or about real symmetric matrices. Contents: Part B (`thm:profile`,
+this comment), a negative control for (F2), Part A (`prop:discrete`, deterministic part) and
+Part C (`prop:heatbounds` for matrices); Parts A and C have their own comments below.
+
+Conventions. As in `PopulationRate`, `σ` is the `σ` of the PAPER (`σ = c_h ξ²/2`; the `σ` of the
+second and third Lean files is `ξ² = 2σ`), `t` is the time of the paper and `τ = t/σ`. A "closed
+Riemannian manifold" enters only through a list `lam : ι → ℝ` with `PopulationRate.IsSpectrum lam`
+(`lam ≥ 0`, every heat sum `∑ e^{-s lam_k}` converges); `heatTr lam s = Θ(s)`,
+`heatMom lam p s = ∑ lam^p e^{-s lam} = (-1)^p Θ^{(p)}(s)`.
+
+Part B (`thm:profile`, "Other profiles"). For a profile function `F : ℝ → ℝ` the operator
+`P = F(-σΔ)` is represented by its eigenvalues `F(σ lam_k)`;
+* `profTr F lam σ t = ∑_k [e^{-τ(1 - F(σ lam_k))} - e^{-τ}]` is `T^F_σ(t)`,
+* `discTr F lam σ n = ∑_k F(σ lam_k)^n` is `Tr P^n`,
+* `powSum lam p σ = ∑_k (1 + σ lam_k)^{-p}` is `N_p(σ)` (real exponent `p`).
+The hypotheses on `F` are collected in `ProfileHyp F β c3 u1 δ CF p`: (F1) on `[0, u1]`, (F2) in
+the form `|F| ≤ 1 - δ` on `[u1, ∞)`, (F3), and the smallness condition
+`(5|β| + 9 c3 + 18) u1 ≤ 1` on the threshold `u1` between low and high modes.  Proved:
+* `profile_i`: `thm:profile`(i) with explicit constants;
+* `profile_ii`: `thm:profile`(ii) with explicit constants, for every `n ≥ 1` (the paper: `k ≥ 2`);
+* `profile_hyp_of_paper`: the hypotheses (F1) on `[0, u0]`, the SECOND part of (F2) of the
+  corrected statement (`sup_{u ≥ u1} |F(u)| < 1` for every `u1 > 0`, written as
+  `∀ u1 > 0, ∃ δ > 0, ∀ u ≥ u1, |F u| ≤ 1 - δ`) and (F3) give `ProfileHyp` with
+  `u1 = min u0 (1/(5|β| + 9 c3 + 18))`; the FIRST part of (F2) (`|F| ≤ 1 - δ` for `u ≥ u0`) is
+  not used at all;
+* `profile_paper`: the statement of the theorem in the form "there are constants `c, C > 0` such
+  that for every spectrum, `t ≥ σ > 0` ... (i) and (ii) hold with the remainder `𝓡`".
+* `profileHyp_gauss`: `ProfileHyp` is satisfiable (Gaussian profile `F(u) = e^{-u}`, `β = 1`);
+* `profile_F2_fails`: a formal negative control: for `F(u) = 1 - u + 5u² - (9/2)u³` on `[0,1]`,
+  `F = 0` on `(1, ∞)`, which satisfies (F1) on `[0,1]` (with `β = 10`, `c3 = 9/2`), the FIRST part
+  of (F2) with `u0 = 1`, `δ = 1/2`, and (F3), the conclusion (i) fails for every choice of the
+  constants `c, C` (one mode with `σ lam = 3/5`).
+
+NOT proved and NOT claimed:
+* nothing about a manifold, an operator `F(-σΔ)` or its trace: only the eigenvalue sums;
+* the convergence of `N_p(σ)` is a HYPOTHESIS (`hNp`); on a manifold it follows from Weyl's law
+  and `p > d/2`, which is not formalised (the condition `p > d/2` does not occur here);
+* the last sentence of the theorem (relative deviations `β d(d+2)/8τ`, `(β-1) d(d+2)/8τ` up to
+  `O(τ^{-2}) + O(σ)`), which needs the heat-trace asymptotics;
+* the paragraph after the theorem (walks with independent steps on the torus, `eq:beta`);
+* the dependence of the constants "only on ..." is visible from the explicit constants
+  `profB`, `profCt`, `profB2`, `profK`, `profK2`, `profc`, not stated as a theorem;
+* the explicit constants are far from sharp: `c = min(δ, u₁/4)` with `u₁ ≤ 1/18`, so the term
+  `K(1+τ)e^{-cτ}[N_p(σ) + Θ(t/4)]` is small only for `τ` much larger than `1/c ≥ 72`.
+Deviations from the proof of the paper: the logarithm in (ii) is estimated with
+`|ln(1-v) + v + v²/2| ≤ v³/(1-v) ≤ 2v³` (Mathlib) instead of `≤ v³`; the number of low modes is
+bounded through `1 ≤ 2^p (1+u)^{-p}` for `u ≤ 1`; `y² ≤ (|β|/2 + c₃)² x⁴/τ²` instead of
+`β²x⁴/2τ² + 2c₃²u₀²x⁴/τ²`.
+-/
+
+/-! #### Constants -/
+
+/-- `|β|/2 + c₃`. -/
+noncomputable def profB (β c3 : ℝ) : ℝ := |β| / 2 + c3
+
+/-- The constant `c̃` of the proof of (ii): `|ln F(u) + u - (β-1)u²/2| ≤ c̃ u³` on low modes. -/
+noncomputable def profCt (β c3 : ℝ) : ℝ := 4 + c3 + 9 / 8 * profB β c3
+
+/-- `|β - 1|/2 + c̃`. -/
+noncomputable def profB2 (β c3 : ℝ) : ℝ := |β - 1| / 2 + profCt β c3
+
+/-- The constant in front of the exponentially small terms in (i). -/
+noncomputable def profK (β CF p : ℝ) : ℝ := (2 : ℝ) ^ p + CF + 5 * (1 + |β|)
+
+/-- The constant in front of the exponentially small terms in (ii). -/
+noncomputable def profK2 (β CF : ℝ) : ℝ := 4 * CF + 5 * (1 + |β - 1|)
+
+/-- The exponential rate `c = min(δ, u₁/4)`. -/
+noncomputable def profc (u1 δ : ℝ) : ℝ := min δ (u1 / 4)
+
+theorem profB_nonneg {β c3 : ℝ} (hc : 0 ≤ c3) : 0 ≤ profB β c3 :=
+  add_nonneg (div_nonneg (abs_nonneg β) (by norm_num)) hc
+
+theorem profCt_nonneg {β c3 : ℝ} (hc : 0 ≤ c3) : 0 ≤ profCt β c3 := by
+  have := profB_nonneg (β := β) hc
+  unfold profCt
+  linarith
+
+theorem profB2_nonneg {β c3 : ℝ} (hc : 0 ≤ c3) : 0 ≤ profB2 β c3 :=
+  add_nonneg (div_nonneg (abs_nonneg _) (by norm_num)) (profCt_nonneg hc)
+
+theorem small_consequences {β c3 u1 : ℝ} (hc : 0 ≤ c3) (hu1 : 0 ≤ u1)
+    (hU : (5 * |β| + 9 * c3 + 18) * u1 ≤ 1) :
+    u1 ≤ 1 / 18 ∧ profB β c3 * u1 ≤ 1 / 4 ∧ profB2 β c3 * u1 ≤ 1 / 4 := by
+  have hβ := abs_nonneg β
+  have h1 := mul_nonneg hβ hu1
+  have h2 := mul_nonneg hc hu1
+  have h3 : |β - 1| ≤ |β| + 1 :=
+    abs_le.2 ⟨by linarith [neg_abs_le β], by linarith [le_abs_self β]⟩
+  have h4 := mul_le_mul_of_nonneg_right h3 hu1
+  unfold profB2 profCt profB
+  refine ⟨by linarith, by linarith, by linarith⟩
+
+/-! #### One mode -/
+
+/-- `exp_mode_expansion` of the core file for the real exponential, as an absolute value. -/
+theorem mode_expansion_abs {x y p r Y : ℝ} (hx : 0 ≤ x) (hr : 0 ≤ r)
+    (hyp : |y - p| ≤ r) (hy : |y| ≤ x / 4) (hY : y * y ≤ Y) :
+    |Real.exp (-x + y) - Real.exp (-x) - p * Real.exp (-x)|
+      ≤ (Y / 2 + r) * Real.exp (-(x / 2)) := by
+  obtain ⟨a1, a2⟩ := abs_le.1 hyp
+  obtain ⟨b1, b2⟩ := abs_le.1 hy
+  obtain ⟨l, u⟩ := CTG.HeatTrace.exp_mode_expansion real_isExp2 hx hr a1 a2 b1 b2
+  have hE := Real.exp_pos (-(x / 2))
+  have h1 : (y * y / 2 + r) * Real.exp (-(x / 2)) ≤ (Y / 2 + r) * Real.exp (-(x / 2)) :=
+    mul_le_mul_of_nonneg_right (by linarith) hE.le
+  have h2 : 0 ≤ Y * Real.exp (-(x / 2)) :=
+    mul_nonneg ((_root_.mul_self_nonneg y).trans hY) hE.le
+  rw [abs_le]
+  constructor
+  · linarith
+  · linarith
+
+/-- (F1) at one point: `|F(u) - 1 + u| ≤ (|β|/2 + c₃) u² ≤ u/4`. -/
+theorem w_bound {u s β c3 u1 : ℝ} (hu : 0 ≤ u) (hu1 : u ≤ u1) (h1 : u1 ≤ 1) (hc : 0 ≤ c3)
+    (hB : profB β c3 * u1 ≤ 1 / 4)
+    (hF : |s - (1 - u + β * u ^ 2 / 2)| ≤ c3 * u ^ 3) :
+    |s - 1 + u| ≤ profB β c3 * u ^ 2 ∧ |s - 1 + u| ≤ u / 4 := by
+  obtain ⟨f1, f2⟩ := abs_le.1 hF
+  have hu2 : 0 ≤ u ^ 2 := pow_two_nonneg u
+  have hb1 : β * u ^ 2 ≤ |β| * u ^ 2 := mul_le_mul_of_nonneg_right (le_abs_self β) hu2
+  have hb2 : -(|β| * u ^ 2) ≤ β * u ^ 2 := by
+    have := mul_le_mul_of_nonneg_right (neg_abs_le β) hu2
+    linarith
+  have h3 : c3 * u ^ 3 ≤ c3 * u ^ 2 := by
+    have h : u ^ 3 ≤ u ^ 2 :=
+      calc u ^ 3 = u ^ 2 * u := by ring
+        _ ≤ u ^ 2 * 1 := mul_le_mul_of_nonneg_left (hu1.trans h1) hu2
+        _ = u ^ 2 := by ring
+    exact mul_le_mul_of_nonneg_left h hc
+  have hB0 := profB_nonneg (β := β) hc
+  have key : |s - 1 + u| ≤ profB β c3 * u ^ 2 := by
+    unfold profB
+    rw [abs_le]
+    constructor
+    · linarith
+    · linarith
+  refine ⟨key, key.trans ?_⟩
+  have h5 : profB β c3 * u ≤ 1 / 4 := (mul_le_mul_of_nonneg_left hu1 hB0).trans hB
+  calc profB β c3 * u ^ 2 = u * (profB β c3 * u) := by ring
+    _ ≤ u * (1 / 4) := mul_le_mul_of_nonneg_left h5 hu
+    _ = u / 4 := by ring
+
+/-- `thm:profile`(i), one low mode (`u = σλ ≤ u₁`, `x = τu = tλ`, `s = F(u)`). -/
+theorem prof_low {τ u s β c3 u1 x : ℝ} (hx : τ * u = x) (hτ : 0 ≤ τ) (hu : 0 ≤ u)
+    (hu1 : u ≤ u1) (h1 : u1 ≤ 1) (hc : 0 ≤ c3) (hB : profB β c3 * u1 ≤ 1 / 4)
+    (hF : |s - (1 - u + β * u ^ 2 / 2)| ≤ c3 * u ^ 3) :
+    |Real.exp (-(τ * (1 - s))) - Real.exp (-x) - β * (x * u / 2) * Real.exp (-x)|
+      ≤ (profB β c3 ^ 2 * (x * u) ^ 2 / 2 + c3 * (x * u * u)) * Real.exp (-(x / 2)) := by
+  subst hx
+  obtain ⟨w1, w2⟩ := w_bound hu hu1 h1 hc hB hF
+  have hxx : 0 ≤ τ * u := mul_nonneg hτ hu
+  have key := mode_expansion_abs (x := τ * u) (y := τ * (s - 1 + u))
+    (p := β * (τ * u * u / 2)) (r := c3 * (τ * u * u * u))
+    (Y := profB β c3 ^ 2 * (τ * u * u) ^ 2) hxx
+    (mul_nonneg hc (mul_nonneg (mul_nonneg hxx hu) hu)) ?_ ?_ ?_
+  · have e : -(τ * u) + τ * (s - 1 + u) = -(τ * (1 - s)) := by ring
+    rw [e] at key
+    exact key
+  · have e : τ * (s - 1 + u) - β * (τ * u * u / 2) = τ * (s - (1 - u + β * u ^ 2 / 2)) := by
+      ring
+    rw [e, abs_mul, abs_of_nonneg hτ]
+    calc τ * |s - (1 - u + β * u ^ 2 / 2)| ≤ τ * (c3 * u ^ 3) :=
+          mul_le_mul_of_nonneg_left hF hτ
+      _ = c3 * (τ * u * u * u) := by ring
+  · rw [abs_mul, abs_of_nonneg hτ]
+    calc τ * |s - 1 + u| ≤ τ * (u / 4) := mul_le_mul_of_nonneg_left w2 hτ
+      _ = τ * u / 4 := by ring
+  · have h := mul_self_le_mul_self (abs_nonneg (s - 1 + u)) w1
+    rw [abs_mul_abs_self] at h
+    have h' := mul_le_mul_of_nonneg_left h (_root_.mul_self_nonneg τ)
+    calc τ * (s - 1 + u) * (τ * (s - 1 + u)) = τ * τ * ((s - 1 + u) * (s - 1 + u)) := by ring
+      _ ≤ τ * τ * (profB β c3 * u ^ 2 * (profB β c3 * u ^ 2)) := h'
+      _ = profB β c3 ^ 2 * (τ * u * u) ^ 2 := by ring
+
+/-- The continuum part of a high mode (`u ≥ u₁`, `τ ≥ 1`):
+    `b + |γ| (τu²/2) b ≤ 5(1+|γ|) e^{-u₁τ/4} e^{-τu/4}`. -/
+theorem high_b {τ u u1 γ x : ℝ} (hx : τ * u = x) (hτ : 1 ≤ τ) (hu1 : 0 ≤ u1) (hu : u1 ≤ u) :
+    Real.exp (-x) + |γ| * (x * u / 2) * Real.exp (-x)
+      ≤ 5 * (1 + |γ|) * (Real.exp (-(u1 * τ / 4)) * Real.exp (-(x / 4))) := by
+  subst hx
+  have hτ0 : 0 ≤ τ := by linarith
+  have hu0 : 0 ≤ u := hu1.trans hu
+  have hxx : 0 ≤ τ * u := mul_nonneg hτ0 hu0
+  have hγ := abs_nonneg γ
+  have hE := Real.exp_pos (-(τ * u))
+  have k5 : τ * u * u / 2 ≤ (τ * u) ^ 2 / 2 := by
+    nlinarith [mul_nonneg (mul_nonneg hxx hu0) (show 0 ≤ τ - 1 by linarith)]
+  have k6 := high_aux hxx
+  have k7 : Real.exp (-(τ * u / 2)) ≤ Real.exp (-(u1 * τ / 4)) * Real.exp (-(τ * u / 4)) := by
+    rw [← Real.exp_add]
+    exact Real.exp_le_exp.2 (by nlinarith [mul_nonneg hτ0 (sub_nonneg.2 hu)])
+  have p1 : |γ| * (τ * u * u / 2) * Real.exp (-(τ * u))
+      ≤ |γ| * ((τ * u) ^ 2 / 2) * Real.exp (-(τ * u)) :=
+    mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_left k5 hγ) hE.le
+  have p2 : 0 ≤ Real.exp (-(τ * u)) * ((τ * u) ^ 2 / 2) := mul_nonneg hE.le (by positivity)
+  have p3 : 0 ≤ |γ| * Real.exp (-(τ * u)) := mul_nonneg hγ hE.le
+  have p4 : (1 + |γ|) * (Real.exp (-(τ * u)) * (1 + (τ * u) ^ 2 / 2))
+      ≤ (1 + |γ|) * (5 * (Real.exp (-(u1 * τ / 4)) * Real.exp (-(τ * u / 4)))) :=
+    mul_le_mul_of_nonneg_left (k6.trans (by linarith)) (by linarith)
+  linarith
+
+/-- `thm:profile`(i), one high mode (`u ≥ u₁`, `|s| ≤ 1 - δ`, `|s| ≤ m`). -/
+theorem prof_high {τ u s β u1 δ m x : ℝ} (hx : τ * u = x) (hτ : 1 ≤ τ) (hu1 : 0 ≤ u1)
+    (hu : u1 ≤ u) (hδ : 0 ≤ δ) (hs : |s| ≤ 1 - δ) (hm : |s| ≤ m) :
+    |Real.exp (-(τ * (1 - s))) - Real.exp (-τ) - Real.exp (-x)
+        - β * (x * u / 2) * Real.exp (-x)|
+      ≤ τ * m * Real.exp (-(δ * τ))
+        + 5 * (1 + |β|) * (Real.exp (-(u1 * τ / 4)) * Real.exp (-(x / 4))) := by
+  have hτ0 : 0 ≤ τ := by linarith
+  have hu0 : 0 ≤ u := hu1.trans hu
+  obtain ⟨l1, l2⟩ := CTG.HeatTrace.profile_high_mode real_isExp (tau := τ) (s := s)
+    (m := |s|) (delta := δ) hτ0 (neg_abs_le s) (le_abs_self s) hδ hs
+  have hb := high_b (γ := β) hx hτ hu1 hu
+  have hEd := Real.exp_pos (-(δ * τ))
+  have hEx := Real.exp_pos (-x)
+  have h3 : τ * |s| * Real.exp (-(δ * τ)) ≤ τ * m * Real.exp (-(δ * τ)) :=
+    mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_left hm hτ0) hEd.le
+  have hx0 : 0 ≤ x := by rw [← hx]; exact mul_nonneg hτ0 hu0
+  have hq : 0 ≤ (x * u / 2) * Real.exp (-x) :=
+    mul_nonneg (by have := mul_nonneg hx0 hu0; linarith) hEx.le
+  have h4 : β * ((x * u / 2) * Real.exp (-x)) ≤ |β| * ((x * u / 2) * Real.exp (-x)) :=
+    mul_le_mul_of_nonneg_right (le_abs_self β) hq
+  have h5 : -(|β| * ((x * u / 2) * Real.exp (-x))) ≤ β * ((x * u / 2) * Real.exp (-x)) := by
+    have := mul_le_mul_of_nonneg_right (neg_abs_le β) hq
+    linarith
+  rw [abs_le]
+  constructor
+  · linarith
+  · linarith
+
+/-- The hypotheses on the profile function, with an explicit threshold `u₁` between low and high
+    modes: (F1) on `[0, u₁]`, (F2) as `|F| ≤ 1 - δ` on `[u₁, ∞)`, (F3), and
+    `(5|β| + 9c₃ + 18) u₁ ≤ 1`. See `profile_hyp_of_paper` for the hypotheses of the paper. -/
+structure ProfileHyp (F : ℝ → ℝ) (β c3 u1 δ CF p : ℝ) : Prop where
+  c3_nonneg : 0 ≤ c3
+  u1_pos : 0 < u1
+  small : (5 * |β| + 9 * c3 + 18) * u1 ≤ 1
+  δ_pos : 0 < δ
+  CF_nonneg : 0 ≤ CF
+  p_nonneg : 0 ≤ p
+  F1 : ∀ u, 0 ≤ u → u ≤ u1 → |F u - (1 - u + β * u ^ 2 / 2)| ≤ c3 * u ^ 3
+  F2 : ∀ u, u1 ≤ u → |F u| ≤ 1 - δ
+  F3 : ∀ u, 0 ≤ u → |F u| ≤ CF * (1 + u) ^ (-p)
+
+theorem weight_low {u p : ℝ} (hu : 0 ≤ u) (hu1 : u ≤ 1) (hp : 0 ≤ p) :
+    1 ≤ (2 : ℝ) ^ p * (1 + u) ^ (-p) := by
+  have h1 : (0 : ℝ) < 1 + u := by linarith
+  have h2 : (1 + u) ^ p ≤ (2 : ℝ) ^ p := Real.rpow_le_rpow h1.le (by linarith) hp
+  have h3 : 0 < (1 + u) ^ p := Real.rpow_pos_of_pos h1 p
+  rw [Real.rpow_neg h1.le, ← div_eq_mul_inv, one_le_div h3]
+  exact h2
+
+theorem profc_facts {u1 δ : ℝ} (hu1 : 0 < u1) (hδ : 0 < δ) :
+    0 < profc u1 δ ∧ profc u1 δ ≤ δ ∧ profc u1 δ ≤ u1 / 4 :=
+  ⟨lt_min hδ (by linarith), min_le_left _ _, min_le_right _ _⟩
+
+/-- **`thm:profile`(i) for one mode**, low or high (`u = σλ`, `x = τu = tλ`, `τ ≥ 1`). -/
+theorem prof_mode {F : ℝ → ℝ} {β c3 u1 δ CF p : ℝ} (H : ProfileHyp F β c3 u1 δ CF p)
+    {τ u x : ℝ} (hx : τ * u = x) (hτ : 1 ≤ τ) (hu : 0 ≤ u) :
+    |Real.exp (-(τ * (1 - F u))) - Real.exp (-τ) - Real.exp (-x)
+        - β * (x * u / 2) * Real.exp (-x)|
+      ≤ (profB β c3 ^ 2 * (x * u) ^ 2 / 2 + c3 * (x * u * u)) * Real.exp (-(x / 2))
+        + profK β CF p * (1 + τ) * Real.exp (-(profc u1 δ * τ))
+            * ((1 + u) ^ (-p) + Real.exp (-(x / 4))) := by
+  have hτ0 : 0 ≤ τ := by linarith
+  obtain ⟨s1, s2, -⟩ := small_consequences H.c3_nonneg H.u1_pos.le H.small
+  have hδ1 : δ ≤ 1 := by
+    have := (abs_nonneg _).trans (H.F2 u1 le_rfl)
+    linarith
+  obtain ⟨hc0, hcδ, hcu⟩ := profc_facts H.u1_pos H.δ_pos
+  have hc1 : profc u1 δ ≤ 1 := hcδ.trans hδ1
+  have hG : 0 ≤ (1 + u) ^ (-p) := Real.rpow_nonneg (by linarith) _
+  have hE4 := Real.exp_pos (-(x / 4))
+  have hEc := Real.exp_pos (-(profc u1 δ * τ))
+  have hx0 : 0 ≤ x := by rw [← hx]; exact mul_nonneg hτ0 hu
+  have hP : 0 ≤ (profB β c3 ^ 2 * (x * u) ^ 2 / 2 + c3 * (x * u * u)) * Real.exp (-(x / 2)) :=
+    mul_nonneg (add_nonneg (by positivity)
+      (mul_nonneg H.c3_nonneg (mul_nonneg (mul_nonneg hx0 hu) hu))) (Real.exp_pos _).le
+  have h2p : 0 ≤ (2 : ℝ) ^ p := Real.rpow_nonneg (by norm_num) p
+  have hTG : 0 ≤ (1 + τ) * Real.exp (-(profc u1 δ * τ)) * (1 + u) ^ (-p) :=
+    mul_nonneg (mul_nonneg (by linarith) hEc.le) hG
+  have hTE : 0 ≤ (1 + τ) * Real.exp (-(profc u1 δ * τ)) * Real.exp (-(x / 4)) :=
+    mul_nonneg (mul_nonneg (by linarith) hEc.le) hE4.le
+  have hT : Real.exp (-(profc u1 δ * τ)) ≤ (1 + τ) * Real.exp (-(profc u1 δ * τ)) := by
+    have := mul_nonneg hτ0 hEc.le
+    linarith
+  have hKsplit : profK β CF p * (1 + τ) * Real.exp (-(profc u1 δ * τ))
+        * ((1 + u) ^ (-p) + Real.exp (-(x / 4)))
+      = (2 : ℝ) ^ p * ((1 + τ) * Real.exp (-(profc u1 δ * τ)) * (1 + u) ^ (-p))
+        + CF * ((1 + τ) * Real.exp (-(profc u1 δ * τ)) * (1 + u) ^ (-p))
+        + 5 * (1 + |β|) * ((1 + τ) * Real.exp (-(profc u1 δ * τ)) * Real.exp (-(x / 4)))
+        + (5 * (1 + |β|) * ((1 + τ) * Real.exp (-(profc u1 δ * τ)) * (1 + u) ^ (-p))
+          + ((2 : ℝ) ^ p + CF)
+              * ((1 + τ) * Real.exp (-(profc u1 δ * τ)) * Real.exp (-(x / 4)))) := by
+    unfold profK
+    ring
+  have hβ5 : (0 : ℝ) ≤ 5 * (1 + |β|) := by positivity
+  have hrest : 0 ≤ 5 * (1 + |β|) * ((1 + τ) * Real.exp (-(profc u1 δ * τ)) * (1 + u) ^ (-p))
+      + ((2 : ℝ) ^ p + CF) * ((1 + τ) * Real.exp (-(profc u1 δ * τ)) * Real.exp (-(x / 4))) :=
+    add_nonneg (mul_nonneg hβ5 hTG) (mul_nonneg (add_nonneg h2p H.CF_nonneg) hTE)
+  have n1 := mul_nonneg h2p hTG
+  have n2 := mul_nonneg H.CF_nonneg hTG
+  have n3 := mul_nonneg hβ5 hTE
+  rcases le_total u u1 with h | h
+  · have key := prof_low hx hτ0 hu h (by linarith) H.c3_nonneg s2 (H.F1 u hu h)
+    obtain ⟨k1, k2⟩ := abs_le.1 key
+    have e1 : Real.exp (-τ) ≤ Real.exp (-(profc u1 δ * τ)) :=
+      Real.exp_le_exp.2 (by nlinarith [mul_nonneg (sub_nonneg.2 hc1) hτ0])
+    have wl := weight_low hu (h.trans (by linarith)) H.p_nonneg
+    have a1 := mul_le_mul_of_nonneg_left wl hEc.le
+    have a2 : Real.exp (-(profc u1 δ * τ)) * ((2 : ℝ) ^ p * (1 + u) ^ (-p))
+        ≤ (1 + τ) * Real.exp (-(profc u1 δ * τ)) * ((2 : ℝ) ^ p * (1 + u) ^ (-p)) :=
+      mul_le_mul_of_nonneg_right hT (mul_nonneg h2p hG)
+    have hEt := Real.exp_pos (-τ)
+    rw [abs_le]
+    constructor
+    · linarith
+    · linarith
+  · have key := prof_high (β := β) hx hτ H.u1_pos.le h H.δ_pos.le (H.F2 u h) (H.F3 u hu)
+    have d1 : Real.exp (-(δ * τ)) ≤ Real.exp (-(profc u1 δ * τ)) :=
+      Real.exp_le_exp.2 (by have := mul_le_mul_of_nonneg_right hcδ hτ0; linarith)
+    have d2 : Real.exp (-(u1 * τ / 4)) ≤ Real.exp (-(profc u1 δ * τ)) :=
+      Real.exp_le_exp.2 (by have := mul_le_mul_of_nonneg_right hcu hτ0; linarith)
+    have t0 : τ * Real.exp (-(δ * τ)) ≤ (1 + τ) * Real.exp (-(profc u1 δ * τ)) :=
+      mul_le_mul (by linarith) d1 (Real.exp_pos _).le (by linarith)
+    have t1 : τ * (CF * (1 + u) ^ (-p)) * Real.exp (-(δ * τ))
+        ≤ CF * ((1 + τ) * Real.exp (-(profc u1 δ * τ)) * (1 + u) ^ (-p)) :=
+      calc τ * (CF * (1 + u) ^ (-p)) * Real.exp (-(δ * τ))
+          = CF * (1 + u) ^ (-p) * (τ * Real.exp (-(δ * τ))) := by ring
+        _ ≤ CF * (1 + u) ^ (-p) * ((1 + τ) * Real.exp (-(profc u1 δ * τ))) :=
+            mul_le_mul_of_nonneg_left t0 (mul_nonneg H.CF_nonneg hG)
+        _ = CF * ((1 + τ) * Real.exp (-(profc u1 δ * τ)) * (1 + u) ^ (-p)) := by ring
+    have t2 : 5 * (1 + |β|) * (Real.exp (-(u1 * τ / 4)) * Real.exp (-(x / 4)))
+        ≤ 5 * (1 + |β|) * ((1 + τ) * Real.exp (-(profc u1 δ * τ)) * Real.exp (-(x / 4))) :=
+      mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_right (d2.trans hT) hE4.le) hβ5
+    exact key.trans (by linarith)
+
+/-- `thm:profile`(ii), one low mode: `s = F(u)`, `u ≤ u₁`, `n` steps, `x = nu`. The logarithm of
+    the paper is taken with `Real.log` and `Real.abs_log_sub_add_sum_range_le`. -/
+theorem prof_low_disc {u s β c3 u1 τ x : ℝ} (n : ℕ) (hn : (n : ℝ) = τ) (hx : τ * u = x)
+    (hu : 0 ≤ u) (hu1 : u ≤ u1) (hc : 0 ≤ c3) (hU : (5 * |β| + 9 * c3 + 18) * u1 ≤ 1)
+    (hF : |s - (1 - u + β * u ^ 2 / 2)| ≤ c3 * u ^ 3) :
+    |s ^ n - Real.exp (-x) - (β - 1) * (x * u / 2) * Real.exp (-x)|
+      ≤ (profB2 β c3 ^ 2 * (x * u) ^ 2 / 2 + profCt β c3 * (x * u * u))
+          * Real.exp (-(x / 2)) := by
+  subst hn
+  subst hx
+  have hu10 : 0 ≤ u1 := hu.trans hu1
+  obtain ⟨s1, s2, s3⟩ := small_consequences hc hu10 hU
+  have h1 : u1 ≤ 1 := by linarith
+  obtain ⟨w1, w2⟩ := w_bound hu hu1 h1 hc s2 hF
+  obtain ⟨f1, f2⟩ := abs_le.1 hF
+  obtain ⟨w2a, w2b⟩ := abs_le.1 w2
+  have hτ : (0 : ℝ) ≤ (n : ℝ) := Nat.cast_nonneg n
+  have hB0 := profB_nonneg (β := β) hc
+  have hCt0 := profCt_nonneg (β := β) hc
+  have hB20 := profB2_nonneg (β := β) hc
+  have hu2 : 0 ≤ u ^ 2 := pow_two_nonneg u
+  have hu3 : 0 ≤ u ^ 3 := pow_nonneg hu 3
+  have hv0 : 0 ≤ 1 - s := by linarith
+  have hv1 : 1 - s ≤ 5 / 4 * u := by linarith
+  have hs2 : 1 / 2 ≤ s := by linarith
+  have hs : 0 < s := by linarith
+  have habs : |1 - s| < 1 := by rw [abs_of_nonneg hv0]; linarith
+  have hlog := Real.abs_log_sub_add_sum_range_le habs 2
+  have e0 : (∑ i ∈ Finset.range 2, (1 - s) ^ (i + 1) / ((i : ℝ) + 1)) + Real.log (1 - (1 - s))
+      = Real.log s + (1 - s) + (1 - s) ^ 2 / 2 := by
+    have e1 : (1 : ℝ) - (1 - s) = s := by ring
+    rw [Finset.sum_range_succ, Finset.sum_range_one, e1]
+    push_cast
+    ring
+  rw [e0, abs_of_nonneg hv0] at hlog
+  have hL : |Real.log s + (1 - s) + (1 - s) ^ 2 / 2| ≤ 4 * u ^ 3 := by
+    refine hlog.trans ?_
+    have e1 : (1 : ℝ) - (1 - s) = s := by ring
+    have e2 : (1 - s) ^ (2 + 1) = (1 - s) ^ 3 := by norm_num
+    rw [e1, e2, div_le_iff₀ hs]
+    have h3 : (1 - s) ^ 3 ≤ (5 / 4 * u) ^ 3 := pow_le_pow_left₀ hv0 hv1 3
+    have e3 : (5 / 4 * u) ^ 3 = 125 / 64 * u ^ 3 := by ring
+    have h4 := mul_nonneg hu3 (show 0 ≤ s - 1 / 2 by linarith)
+    rw [e3] at h3
+    linarith
+  obtain ⟨L1, L2⟩ := abs_le.1 hL
+  have hvu : |(1 - s) ^ 2 - u ^ 2| ≤ profB β c3 * u ^ 2 * (9 / 4 * u) := by
+    have e : (1 - s) ^ 2 - u ^ 2 = -(s - 1 + u) * ((1 - s) + u) := by ring
+    rw [e, abs_mul, abs_neg, abs_of_nonneg (show 0 ≤ (1 - s) + u by linarith)]
+    exact mul_le_mul w1 (by linarith) (by linarith) (mul_nonneg hB0 hu2)
+  obtain ⟨D1, D2⟩ := abs_le.1 hvu
+  have hρ : |Real.log s + u - (β - 1) * u ^ 2 / 2| ≤ profCt β c3 * u ^ 3 := by
+    unfold profCt
+    rw [abs_le]
+    constructor
+    · linarith
+    · linarith
+  obtain ⟨r1, r2⟩ := abs_le.1 hρ
+  have hb1 : (β - 1) * u ^ 2 ≤ |β - 1| * u ^ 2 :=
+    mul_le_mul_of_nonneg_right (le_abs_self _) hu2
+  have hb2 : -(|β - 1| * u ^ 2) ≤ (β - 1) * u ^ 2 := by
+    have := mul_le_mul_of_nonneg_right (neg_abs_le (β - 1)) hu2
+    linarith
+  have h3 : profCt β c3 * u ^ 3 ≤ profCt β c3 * u ^ 2 := by
+    have h : u ^ 3 ≤ u ^ 2 :=
+      calc u ^ 3 = u ^ 2 * u := by ring
+        _ ≤ u ^ 2 * 1 := mul_le_mul_of_nonneg_left (hu1.trans h1) hu2
+        _ = u ^ 2 := by ring
+    exact mul_le_mul_of_nonneg_left h hCt0
+  have key2 : |Real.log s + u| ≤ profB2 β c3 * u ^ 2 := by
+    unfold profB2
+    rw [abs_le]
+    constructor
+    · linarith
+    · linarith
+  have key3 : |Real.log s + u| ≤ u / 4 := by
+    refine key2.trans ?_
+    have h5 : profB2 β c3 * u ≤ 1 / 4 := (mul_le_mul_of_nonneg_left hu1 hB20).trans s3
+    calc profB2 β c3 * u ^ 2 = u * (profB2 β c3 * u) := by ring
+      _ ≤ u * (1 / 4) := mul_le_mul_of_nonneg_left h5 hu
+      _ = u / 4 := by ring
+  have hxx : 0 ≤ (n : ℝ) * u := mul_nonneg hτ hu
+  have key := mode_expansion_abs (x := (n : ℝ) * u) (y := (n : ℝ) * (Real.log s + u))
+    (p := (β - 1) * ((n : ℝ) * u * u / 2)) (r := profCt β c3 * ((n : ℝ) * u * u * u))
+    (Y := profB2 β c3 ^ 2 * ((n : ℝ) * u * u) ^ 2) hxx
+    (mul_nonneg hCt0 (mul_nonneg (mul_nonneg hxx hu) hu)) ?_ ?_ ?_
+  · have e : -((n : ℝ) * u) + (n : ℝ) * (Real.log s + u) = (n : ℝ) * Real.log s := by ring
+    rw [e, Real.exp_nat_mul, Real.exp_log hs] at key
+    exact key
+  · have e : (n : ℝ) * (Real.log s + u) - (β - 1) * ((n : ℝ) * u * u / 2)
+        = (n : ℝ) * (Real.log s + u - (β - 1) * u ^ 2 / 2) := by ring
+    rw [e, abs_mul, abs_of_nonneg hτ]
+    calc (n : ℝ) * |Real.log s + u - (β - 1) * u ^ 2 / 2|
+        ≤ (n : ℝ) * (profCt β c3 * u ^ 3) := mul_le_mul_of_nonneg_left hρ hτ
+      _ = profCt β c3 * ((n : ℝ) * u * u * u) := by ring
+  · rw [abs_mul, abs_of_nonneg hτ]
+    calc (n : ℝ) * |Real.log s + u| ≤ (n : ℝ) * (u / 4) := mul_le_mul_of_nonneg_left key3 hτ
+      _ = (n : ℝ) * u / 4 := by ring
+  · have h := mul_self_le_mul_self (abs_nonneg (Real.log s + u)) key2
+    rw [abs_mul_abs_self] at h
+    have h' := mul_le_mul_of_nonneg_left h (_root_.mul_self_nonneg (n : ℝ))
+    calc (n : ℝ) * (Real.log s + u) * ((n : ℝ) * (Real.log s + u))
+        = (n : ℝ) * (n : ℝ) * ((Real.log s + u) * (Real.log s + u)) := by ring
+      _ ≤ (n : ℝ) * (n : ℝ) * (profB2 β c3 * u ^ 2 * (profB2 β c3 * u ^ 2)) := h'
+      _ = profB2 β c3 ^ 2 * ((n : ℝ) * u * u) ^ 2 := by ring
+
+/-- `thm:profile`(ii), one high mode: `|s|^n ≤ (1-δ)^{n-1} |s| ≤ 4 e^{-δ n} m`. -/
+theorem prof_high_disc {u s β u1 δ m τ x : ℝ} (n : ℕ) (hn1 : 1 ≤ n) (hn : (n : ℝ) = τ)
+    (hx : τ * u = x) (hu1 : 0 ≤ u1) (hu : u1 ≤ u) (hδ1 : δ ≤ 1)
+    (hs : |s| ≤ 1 - δ) (hm : |s| ≤ m) :
+    |s ^ n - Real.exp (-x) - (β - 1) * (x * u / 2) * Real.exp (-x)|
+      ≤ 4 * m * Real.exp (-(δ * τ))
+        + 5 * (1 + |β - 1|) * (Real.exp (-(u1 * τ / 4)) * Real.exp (-(x / 4))) := by
+  have hτ : 1 ≤ τ := by rw [← hn]; exact_mod_cast hn1
+  have hτ0 : 0 ≤ τ := by linarith
+  have hu0 : 0 ≤ u := hu1.trans hu
+  obtain ⟨j, rfl⟩ : ∃ j, n = j + 1 := Nat.exists_eq_succ_of_ne_zero (by omega)
+  have hEd := Real.exp_pos (-(δ * τ))
+  have q1 : (1 - δ) ^ j ≤ Real.exp (-δ) ^ j :=
+    pow_le_pow_left₀ (by linarith) (by have := Real.add_one_le_exp (-δ); linarith) j
+  have q2 : Real.exp (-δ) ^ j = Real.exp δ * Real.exp (-(δ * τ)) := by
+    rw [← Real.exp_nat_mul, ← Real.exp_add, ← hn]
+    congr 1
+    push_cast
+    ring
+  have q3 : Real.exp δ ≤ 4 := (Real.exp_le_exp.2 hδ1).trans exp_one_le_four
+  have q4 : (1 - δ) ^ j ≤ 4 * Real.exp (-(δ * τ)) := by
+    rw [q2] at q1
+    exact q1.trans (mul_le_mul_of_nonneg_right q3 hEd.le)
+  have q5 : |s| ^ j ≤ (1 - δ) ^ j := pow_le_pow_left₀ (abs_nonneg s) hs j
+  have habs : |s ^ (j + 1)| ≤ 4 * m * Real.exp (-(δ * τ)) := by
+    rw [abs_pow, pow_succ]
+    calc |s| ^ j * |s| ≤ 4 * Real.exp (-(δ * τ)) * m :=
+          mul_le_mul (q5.trans q4) hm (abs_nonneg s) (by positivity)
+      _ = 4 * m * Real.exp (-(δ * τ)) := by ring
+  obtain ⟨l1, l2⟩ := abs_le.1 habs
+  have hb := high_b (γ := β - 1) hx hτ hu1 hu
+  have hEx := Real.exp_pos (-x)
+  have hx0 : 0 ≤ x := by rw [← hx]; exact mul_nonneg hτ0 hu0
+  have hq : 0 ≤ (x * u / 2) * Real.exp (-x) :=
+    mul_nonneg (by have := mul_nonneg hx0 hu0; linarith) hEx.le
+  have h4 : (β - 1) * ((x * u / 2) * Real.exp (-x)) ≤ |β - 1| * ((x * u / 2) * Real.exp (-x)) :=
+    mul_le_mul_of_nonneg_right (le_abs_self _) hq
+  have h5 : -(|β - 1| * ((x * u / 2) * Real.exp (-x)))
+      ≤ (β - 1) * ((x * u / 2) * Real.exp (-x)) := by
+    have := mul_le_mul_of_nonneg_right (neg_abs_le (β - 1)) hq
+    linarith
+  rw [abs_le]
+  constructor
+  · linarith
+  · linarith
+
+/-- **`thm:profile`(ii) for one mode**, low or high (`u = σλ`, `n ≥ 1` steps, `x = nu = tλ`). -/
+theorem prof_mode_disc {F : ℝ → ℝ} {β c3 u1 δ CF p : ℝ} (H : ProfileHyp F β c3 u1 δ CF p)
+    (n : ℕ) (hn1 : 1 ≤ n) {τ u x : ℝ} (hn : (n : ℝ) = τ) (hx : τ * u = x) (hu : 0 ≤ u) :
+    |F u ^ n - Real.exp (-x) - (β - 1) * (x * u / 2) * Real.exp (-x)|
+      ≤ (profB2 β c3 ^ 2 * (x * u) ^ 2 / 2 + profCt β c3 * (x * u * u)) * Real.exp (-(x / 2))
+        + profK2 β CF * (1 + τ) * Real.exp (-(profc u1 δ * τ))
+            * ((1 + u) ^ (-p) + Real.exp (-(x / 4))) := by
+  have hτ : 1 ≤ τ := by rw [← hn]; exact_mod_cast hn1
+  have hτ0 : 0 ≤ τ := by linarith
+  have hδ1 : δ ≤ 1 := by
+    have := (abs_nonneg _).trans (H.F2 u1 le_rfl)
+    linarith
+  obtain ⟨hc0, hcδ, hcu⟩ := profc_facts H.u1_pos H.δ_pos
+  have hG : 0 ≤ (1 + u) ^ (-p) := Real.rpow_nonneg (by linarith) _
+  have hE4 := Real.exp_pos (-(x / 4))
+  have hEc := Real.exp_pos (-(profc u1 δ * τ))
+  have hx0 : 0 ≤ x := by rw [← hx]; exact mul_nonneg hτ0 hu
+  have hCt0 := profCt_nonneg (β := β) H.c3_nonneg
+  have hTG : 0 ≤ (1 + τ) * Real.exp (-(profc u1 δ * τ)) * (1 + u) ^ (-p) :=
+    mul_nonneg (mul_nonneg (by linarith) hEc.le) hG
+  have hTE : 0 ≤ (1 + τ) * Real.exp (-(profc u1 δ * τ)) * Real.exp (-(x / 4)) :=
+    mul_nonneg (mul_nonneg (by linarith) hEc.le) hE4.le
+  have hT : Real.exp (-(profc u1 δ * τ)) ≤ (1 + τ) * Real.exp (-(profc u1 δ * τ)) := by
+    have := mul_nonneg hτ0 hEc.le
+    linarith
+  have hβ5 : (0 : ℝ) ≤ 5 * (1 + |β - 1|) := by positivity
+  have hKsplit : profK2 β CF * (1 + τ) * Real.exp (-(profc u1 δ * τ))
+        * ((1 + u) ^ (-p) + Real.exp (-(x / 4)))
+      = 4 * CF * ((1 + τ) * Real.exp (-(profc u1 δ * τ)) * (1 + u) ^ (-p))
+        + 5 * (1 + |β - 1|) * ((1 + τ) * Real.exp (-(profc u1 δ * τ)) * Real.exp (-(x / 4)))
+        + (5 * (1 + |β - 1|) * ((1 + τ) * Real.exp (-(profc u1 δ * τ)) * (1 + u) ^ (-p))
+          + 4 * CF * ((1 + τ) * Real.exp (-(profc u1 δ * τ)) * Real.exp (-(x / 4)))) := by
+    unfold profK2
+    ring
+  have h4CF : (0 : ℝ) ≤ 4 * CF := by have := H.CF_nonneg; linarith
+  have hrest : 0 ≤ 5 * (1 + |β - 1|) * ((1 + τ) * Real.exp (-(profc u1 δ * τ)) * (1 + u) ^ (-p))
+      + 4 * CF * ((1 + τ) * Real.exp (-(profc u1 δ * τ)) * Real.exp (-(x / 4))) :=
+    add_nonneg (mul_nonneg hβ5 hTG) (mul_nonneg h4CF hTE)
+  have n2 := mul_nonneg h4CF hTG
+  have n3 := mul_nonneg hβ5 hTE
+  rcases le_total u u1 with h | h
+  · have key := prof_low_disc n hn hx hu h H.c3_nonneg H.small (H.F1 u hu h)
+    exact key.trans (by linarith)
+  · have key := prof_high_disc (β := β) n hn1 hn hx H.u1_pos.le h hδ1 (H.F2 u h)
+      (H.F3 u hu)
+    have d1 : Real.exp (-(δ * τ)) ≤ Real.exp (-(profc u1 δ * τ)) :=
+      Real.exp_le_exp.2 (by have := mul_le_mul_of_nonneg_right hcδ hτ0; linarith)
+    have d2 : Real.exp (-(u1 * τ / 4)) ≤ Real.exp (-(profc u1 δ * τ)) :=
+      Real.exp_le_exp.2 (by have := mul_le_mul_of_nonneg_right hcu hτ0; linarith)
+    have t1 : 4 * (CF * (1 + u) ^ (-p)) * Real.exp (-(δ * τ))
+        ≤ 4 * CF * ((1 + τ) * Real.exp (-(profc u1 δ * τ)) * (1 + u) ^ (-p)) :=
+      calc 4 * (CF * (1 + u) ^ (-p)) * Real.exp (-(δ * τ))
+          = 4 * CF * (1 + u) ^ (-p) * Real.exp (-(δ * τ)) := by ring
+        _ ≤ 4 * CF * (1 + u) ^ (-p) * ((1 + τ) * Real.exp (-(profc u1 δ * τ))) :=
+            mul_le_mul_of_nonneg_left (d1.trans hT) (mul_nonneg h4CF hG)
+        _ = 4 * CF * ((1 + τ) * Real.exp (-(profc u1 δ * τ)) * (1 + u) ^ (-p)) := by ring
+    have t2 : 5 * (1 + |β - 1|) * (Real.exp (-(u1 * τ / 4)) * Real.exp (-(x / 4)))
+        ≤ 5 * (1 + |β - 1|)
+            * ((1 + τ) * Real.exp (-(profc u1 δ * τ)) * Real.exp (-(x / 4))) :=
+      mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_right (d2.trans hT) hE4.le) hβ5
+    have hP : 0 ≤ (profB2 β c3 ^ 2 * (x * u) ^ 2 / 2 + profCt β c3 * (x * u * u))
+        * Real.exp (-(x / 2)) :=
+      mul_nonneg (add_nonneg (by positivity)
+        (mul_nonneg hCt0 (mul_nonneg (mul_nonneg hx0 hu) hu))) (Real.exp_pos _).le
+    exact key.trans (by linarith)
+
+/-! #### Summation over a spectrum -/
+
+/-- The remainder for one mode in the variables of the paper (`l = λ_k`). -/
+noncomputable def modeR (a1 a2 K c p σ t l : ℝ) : ℝ :=
+  (σ / t) ^ 2 * (a1 * t ^ 4 * (l ^ 4 * Real.exp (-(t / 2 * l)))
+      + a2 * t ^ 3 * (l ^ 3 * Real.exp (-(t / 2 * l))))
+    + K * (1 + t / σ) * Real.exp (-(c * (t / σ)))
+        * ((1 + σ * l) ^ (-p) + Real.exp (-(t / 4 * l)))
+
+theorem modeR_eq {A a2 K c p σ t l : ℝ} (ht : 0 < t) :
+    (A ^ 2 * (t * l * (σ * l)) ^ 2 / 2 + a2 * (t * l * (σ * l) * (σ * l)))
+          * Real.exp (-(t * l / 2))
+        + K * (1 + t / σ) * Real.exp (-(c * (t / σ)))
+            * ((1 + σ * l) ^ (-p) + Real.exp (-(t * l / 4)))
+      = modeR (A ^ 2 / 2) a2 K c p σ t l := by
+  have h : σ / t * t = σ := div_mul_cancel₀ σ ht.ne'
+  have e4 : t * l / 2 = t / 2 * l := by ring
+  have e5 : t * l / 4 = t / 4 * l := by ring
+  have e1 : (σ / t) ^ 2 * (A ^ 2 / 2 * t ^ 4 * l ^ 4) = A ^ 2 * (t * l * (σ * l)) ^ 2 / 2 :=
+    calc (σ / t) ^ 2 * (A ^ 2 / 2 * t ^ 4 * l ^ 4)
+        = A ^ 2 / 2 * (σ / t * t) ^ 2 * t ^ 2 * l ^ 4 := by ring
+      _ = A ^ 2 / 2 * σ ^ 2 * t ^ 2 * l ^ 4 := by rw [h]
+      _ = A ^ 2 * (t * l * (σ * l)) ^ 2 / 2 := by ring
+  have e2 : (σ / t) ^ 2 * (a2 * t ^ 3 * l ^ 3) = a2 * (t * l * (σ * l) * (σ * l)) :=
+    calc (σ / t) ^ 2 * (a2 * t ^ 3 * l ^ 3) = a2 * (σ / t * t) ^ 2 * t * l ^ 3 := by ring
+      _ = a2 * σ ^ 2 * t * l ^ 3 := by rw [h]
+      _ = a2 * (t * l * (σ * l) * (σ * l)) := by ring
+  unfold modeR
+  rw [← e1, ← e2, e4, e5]
+  ring
+
+section Sums
+
+variable {ι : Type*} (lam : ι → ℝ)
+
+/-- `N_p(σ) = ∑_k (1 + σ λ_k)^{-p}` (real exponent). -/
+noncomputable def powSum (p σ : ℝ) : ℝ := ∑' k, (1 + σ * lam k) ^ (-p)
+
+/-- `T^F_σ(t) = ∑_k [e^{-τ(1 - F(σ λ_k))} - e^{-τ}]`, `τ = t/σ`. -/
+noncomputable def profTr (F : ℝ → ℝ) (σ t : ℝ) : ℝ :=
+  ∑' k, (Real.exp (-(t / σ * (1 - F (σ * lam k)))) - Real.exp (-(t / σ)))
+
+/-- `Tr P^n = ∑_k F(σ λ_k)^n`. -/
+noncomputable def discTr (F : ℝ → ℝ) (σ : ℝ) (n : ℕ) : ℝ := ∑' k, F (σ * lam k) ^ n
+
+variable {lam}
+
+theorem powSum_nonneg (h : IsSpectrum lam) {σ : ℝ} (hσ : 0 ≤ σ) (p : ℝ) : 0 ≤ powSum lam p σ :=
+  tsum_nonneg fun k =>
+    Real.rpow_nonneg (by have := mul_nonneg hσ (h.nonneg k); linarith) _
+
+/-- Summation of mode-wise bounds of the form `modeR`. -/
+theorem sum_modeR (h : IsSpectrum lam) {a1 a2 K c p σ t : ℝ} (ht : 0 < t)
+    (hNp : Summable fun k => (1 + σ * lam k) ^ (-p)) {d : ι → ℝ}
+    (hd : ∀ k, |d k| ≤ modeR a1 a2 K c p σ t (lam k)) :
+    Summable d ∧
+    |∑' k, d k|
+      ≤ (σ / t) ^ 2 * (a1 * t ^ 4 * heatMom lam 4 (t / 2) + a2 * t ^ 3 * heatMom lam 3 (t / 2))
+        + K * (1 + t / σ) * Real.exp (-(c * (t / σ)))
+            * (powSum lam p σ + heatTr lam (t / 4)) := by
+  have ht2 : 0 < t / 2 := by linarith
+  have ht4 : 0 < t / 4 := by linarith
+  have hR : HasSum (fun k => modeR a1 a2 K c p σ t (lam k))
+      ((σ / t) ^ 2 * (a1 * t ^ 4 * heatMom lam 4 (t / 2) + a2 * t ^ 3 * heatMom lam 3 (t / 2))
+        + K * (1 + t / σ) * Real.exp (-(c * (t / σ)))
+            * (powSum lam p σ + heatTr lam (t / 4))) :=
+    ((((heatMom_hasSum h 4 ht2).mul_left (a1 * t ^ 4)).add
+      ((heatMom_hasSum h 3 ht2).mul_left (a2 * t ^ 3))).mul_left ((σ / t) ^ 2)).add
+    ((hNp.hasSum.add (heatTr_hasSum h ht4)).mul_left
+      (K * (1 + t / σ) * Real.exp (-(c * (t / σ)))))
+  have hs : Summable d :=
+    Summable.of_norm_bounded hR.summable (fun k => by rw [Real.norm_eq_abs]; exact hd k)
+  refine ⟨hs, ?_⟩
+  rw [abs_le]
+  constructor
+  · exact hasSum_le (fun k => (abs_le.1 (hd k)).1) hR.neg hs.hasSum
+  · exact hasSum_le (fun k => (abs_le.1 (hd k)).2) hs.hasSum hR
+
+/-- **`thm:profile`(i) as a statement about a list of eigenvalues, with explicit constants.**
+    For `t ≥ σ > 0`, `τ = t/σ`, under `ProfileHyp` and the convergence of `N_p(σ)`:
+    `|T^F_σ(t) - Θ(t) - β (σt/2) Θ''(t)| ≤ (σ/t)² [(B²/2) t⁴ Θ''''(t/2) + c₃ t³ |Θ'''(t/2)|]
+        + K (1+τ) e^{-cτ} [N_p(σ) + Θ(t/4)]`,
+    `B = profB β c₃`, `K = profK β C_F p`, `c = profc u₁ δ`. The series `T^F_σ(t)` converges. -/
+theorem profile_i (h : IsSpectrum lam) {F : ℝ → ℝ} {β c3 u1 δ CF p : ℝ}
+    (H : ProfileHyp F β c3 u1 δ CF p) {σ t : ℝ} (hσ : 0 < σ) (hts : σ ≤ t)
+    (hNp : Summable fun k => (1 + σ * lam k) ^ (-p)) :
+    Summable (fun k => Real.exp (-(t / σ * (1 - F (σ * lam k)))) - Real.exp (-(t / σ))) ∧
+    |profTr lam F σ t - heatTr lam t - β * (σ * t / 2) * heatMom lam 2 t|
+      ≤ (σ / t) ^ 2 * (profB β c3 ^ 2 / 2 * t ^ 4 * heatMom lam 4 (t / 2)
+            + c3 * t ^ 3 * heatMom lam 3 (t / 2))
+        + profK β CF p * (1 + t / σ) * Real.exp (-(profc u1 δ * (t / σ)))
+            * (powSum lam p σ + heatTr lam (t / 4)) := by
+  have ht : 0 < t := lt_of_lt_of_le hσ hts
+  have hτ : 1 ≤ t / σ := by rw [le_div_iff₀ hσ]; linarith
+  obtain ⟨d, hd_def⟩ : ∃ d : ι → ℝ, d = fun k =>
+      Real.exp (-(t / σ * (1 - F (σ * lam k)))) - Real.exp (-(t / σ))
+        - Real.exp (-(t * lam k)) - β * (σ * t / 2) * (lam k ^ 2 * Real.exp (-(t * lam k))) :=
+    ⟨_, rfl⟩
+  have hd : ∀ k, |d k|
+      ≤ modeR (profB β c3 ^ 2 / 2) c3 (profK β CF p) (profc u1 δ) p σ t (lam k) := by
+    intro k
+    have hx : t / σ * (σ * lam k) = t * lam k := by field_simp
+    have key := prof_mode H hx hτ (mul_nonneg hσ.le (h.nonneg k))
+    rw [modeR_eq ht] at key
+    have e : d k = Real.exp (-(t / σ * (1 - F (σ * lam k)))) - Real.exp (-(t / σ))
+        - Real.exp (-(t * lam k))
+        - β * (t * lam k * (σ * lam k) / 2) * Real.exp (-(t * lam k)) := by
+      rw [hd_def]
+      ring
+    rw [e]
+    exact key
+  obtain ⟨hs, hb⟩ := sum_modeR h ht hNp hd
+  have hΘ := heatTr_hasSum h ht
+  have hM := (heatMom_hasSum h 2 ht).mul_left (β * (σ * t / 2))
+  have hA : HasSum (fun k => Real.exp (-(t / σ * (1 - F (σ * lam k)))) - Real.exp (-(t / σ)))
+      (∑' k, d k + heatTr lam t + β * (σ * t / 2) * heatMom lam 2 t) := by
+    convert (hs.hasSum.add hΘ).add hM using 1
+    funext k
+    rw [hd_def]
+    ring
+  have e2 : profTr lam F σ t - heatTr lam t - β * (σ * t / 2) * heatMom lam 2 t = ∑' k, d k := by
+    unfold profTr
+    rw [hA.tsum_eq]
+    ring
+  rw [e2]
+  exact ⟨hA.summable, hb⟩
+
+/-- **`thm:profile`(ii) as a statement about a list of eigenvalues, with explicit constants.**
+    For `σ > 0`, an integer `n ≥ 1` and `t = nσ`, under `ProfileHyp` and the convergence of
+    `N_p(σ)`:
+    `|∑_k F(σλ_k)^n - Θ(t) - (β-1)(σt/2) Θ''(t)|
+        ≤ (σ/t)² [(B₂²/2) t⁴ Θ''''(t/2) + c̃ t³ |Θ'''(t/2)|] + K₂ (1+n) e^{-cn} [N_p(σ) + Θ(t/4)]`.
+    Nothing is subtracted. (The paper states this for `n ≥ 2`.) -/
+theorem profile_ii (h : IsSpectrum lam) {F : ℝ → ℝ} {β c3 u1 δ CF p : ℝ}
+    (H : ProfileHyp F β c3 u1 δ CF p) {σ t : ℝ} (hσ : 0 < σ) (n : ℕ) (hn1 : 1 ≤ n)
+    (hnt : (n : ℝ) * σ = t) (hNp : Summable fun k => (1 + σ * lam k) ^ (-p)) :
+    Summable (fun k => F (σ * lam k) ^ n) ∧
+    |discTr lam F σ n - heatTr lam t - (β - 1) * (σ * t / 2) * heatMom lam 2 t|
+      ≤ (σ / t) ^ 2 * (profB2 β c3 ^ 2 / 2 * t ^ 4 * heatMom lam 4 (t / 2)
+            + profCt β c3 * t ^ 3 * heatMom lam 3 (t / 2))
+        + profK2 β CF * (1 + t / σ) * Real.exp (-(profc u1 δ * (t / σ)))
+            * (powSum lam p σ + heatTr lam (t / 4)) := by
+  have hn0 : (1 : ℝ) ≤ (n : ℝ) := by exact_mod_cast hn1
+  have ht : 0 < t := by rw [← hnt]; exact mul_pos (by linarith) hσ
+  have hn : (n : ℝ) = t / σ := eq_div_of_mul_eq hσ.ne' hnt
+  obtain ⟨d, hd_def⟩ : ∃ d : ι → ℝ, d = fun k =>
+      F (σ * lam k) ^ n - Real.exp (-(t * lam k))
+        - (β - 1) * (σ * t / 2) * (lam k ^ 2 * Real.exp (-(t * lam k))) :=
+    ⟨_, rfl⟩
+  have hd : ∀ k, |d k|
+      ≤ modeR (profB2 β c3 ^ 2 / 2) (profCt β c3) (profK2 β CF) (profc u1 δ) p σ t (lam k) := by
+    intro k
+    have hx : t / σ * (σ * lam k) = t * lam k := by field_simp
+    have key := prof_mode_disc H n hn1 hn hx (mul_nonneg hσ.le (h.nonneg k))
+    rw [modeR_eq ht] at key
+    have e : d k = F (σ * lam k) ^ n - Real.exp (-(t * lam k))
+        - (β - 1) * (t * lam k * (σ * lam k) / 2) * Real.exp (-(t * lam k)) := by
+      rw [hd_def]
+      ring
+    rw [e]
+    exact key
+  obtain ⟨hs, hb⟩ := sum_modeR h ht hNp hd
+  have hΘ := heatTr_hasSum h ht
+  have hM := (heatMom_hasSum h 2 ht).mul_left ((β - 1) * (σ * t / 2))
+  have hA : HasSum (fun k => F (σ * lam k) ^ n)
+      (∑' k, d k + heatTr lam t + (β - 1) * (σ * t / 2) * heatMom lam 2 t) := by
+    convert (hs.hasSum.add hΘ).add hM using 1
+    funext k
+    rw [hd_def]
+    ring
+  have e2 : discTr lam F σ n - heatTr lam t - (β - 1) * (σ * t / 2) * heatMom lam 2 t
+      = ∑' k, d k := by
+    unfold discTr
+    rw [hA.tsum_eq]
+    ring
+  rw [e2]
+  exact ⟨hA.summable, hb⟩
+
+end Sums
+
+/-! #### The hypotheses of the paper -/
+
+/-- **The corrected hypotheses of `thm:profile` suffice.** (F1) on `[0, u₀]`, the second part of
+    (F2) (`sup_{u ≥ u₁} |F| < 1` for every `u₁ > 0`) and (F3) give `ProfileHyp` with the threshold
+    `u₁ = min(u₀, 1/(5|β| + 9c₃ + 18))`, which depends only on `u₀, β, c₃`, and with the `δ`
+    that the second part of (F2) provides at this `u₁`. The first part of (F2) is not used. -/
+theorem profile_hyp_of_paper {F : ℝ → ℝ} {β c3 u0 CF p : ℝ} (hc : 0 ≤ c3) (hu0 : 0 < u0)
+    (hCF : 0 ≤ CF) (hp : 0 ≤ p)
+    (hF1 : ∀ u, 0 ≤ u → u ≤ u0 → |F u - (1 - u + β * u ^ 2 / 2)| ≤ c3 * u ^ 3)
+    (hF2 : ∀ u1 : ℝ, 0 < u1 → ∃ δ : ℝ, 0 < δ ∧ ∀ u, u1 ≤ u → |F u| ≤ 1 - δ)
+    (hF3 : ∀ u, 0 ≤ u → |F u| ≤ CF * (1 + u) ^ (-p)) :
+    ∃ δ : ℝ, ProfileHyp F β c3 (min u0 (1 / (5 * |β| + 9 * c3 + 18))) δ CF p := by
+  have hD : 0 < 5 * |β| + 9 * c3 + 18 := by have := abs_nonneg β; linarith
+  have hu1 : 0 < min u0 (1 / (5 * |β| + 9 * c3 + 18)) := lt_min hu0 (by positivity)
+  obtain ⟨δ, hδ, hδF⟩ := hF2 _ hu1
+  refine ⟨δ, ⟨hc, hu1, ?_, hδ, hCF, hp, ?_, hδF, hF3⟩⟩
+  · calc (5 * |β| + 9 * c3 + 18) * min u0 (1 / (5 * |β| + 9 * c3 + 18))
+        ≤ (5 * |β| + 9 * c3 + 18) * (1 / (5 * |β| + 9 * c3 + 18)) :=
+          mul_le_mul_of_nonneg_left (min_le_right _ _) hD.le
+      _ = 1 := mul_one_div_cancel hD.ne'
+  · intro u h0 h1
+    exact hF1 u h0 (h1.trans (min_le_left _ _))
+
+/-- **`thm:profile` in the form of the paper** ("there are constants `c, C > 0` such that ..."),
+    for lists of eigenvalues: under (F1) on `[0, u₀]`, the second part of (F2) and (F3) there are
+    `c, C > 0` such that for every spectrum `lam`, all `t ≥ σ > 0` with `N_p(σ) < ∞`, and
+    `𝓡 = C (σ/t)² [t³|Θ'''(t/2)| + t⁴ Θ''''(t/2)] + C (1+τ) e^{-cτ} [N_p(σ) + Θ(t/4)]`:
+    (i) `|T^F_σ(t) - Θ(t) - β(σt/2)Θ''(t)| ≤ 𝓡`, and (ii) for every integer `n ≥ 1` with
+    `t = nσ`, `|∑_k F(σλ_k)^n - Θ(t) - (β-1)(σt/2)Θ''(t)| ≤ 𝓡`. -/
+theorem profile_paper.{v} {F : ℝ → ℝ} {β c3 u0 CF p : ℝ} (hc : 0 ≤ c3) (hu0 : 0 < u0)
+    (hCF : 0 ≤ CF) (hp : 0 ≤ p)
+    (hF1 : ∀ u, 0 ≤ u → u ≤ u0 → |F u - (1 - u + β * u ^ 2 / 2)| ≤ c3 * u ^ 3)
+    (hF2 : ∀ u1 : ℝ, 0 < u1 → ∃ δ : ℝ, 0 < δ ∧ ∀ u, u1 ≤ u → |F u| ≤ 1 - δ)
+    (hF3 : ∀ u, 0 ≤ u → |F u| ≤ CF * (1 + u) ^ (-p)) :
+    ∃ c C : ℝ, 0 < c ∧ 0 < C ∧ ∀ (ι : Type v) (lam : ι → ℝ), IsSpectrum lam →
+      ∀ σ t : ℝ, 0 < σ → σ ≤ t → (Summable fun k => (1 + σ * lam k) ^ (-p)) →
+        |profTr lam F σ t - heatTr lam t - β * (σ * t / 2) * heatMom lam 2 t|
+            ≤ C * ((σ / t) ^ 2 * (t ^ 3 * heatMom lam 3 (t / 2) + t ^ 4 * heatMom lam 4 (t / 2)))
+              + C * ((1 + t / σ) * Real.exp (-(c * (t / σ)))
+                  * (powSum lam p σ + heatTr lam (t / 4)))
+        ∧ ∀ n : ℕ, 1 ≤ n → (n : ℝ) * σ = t →
+          |discTr lam F σ n - heatTr lam t - (β - 1) * (σ * t / 2) * heatMom lam 2 t|
+            ≤ C * ((σ / t) ^ 2 * (t ^ 3 * heatMom lam 3 (t / 2) + t ^ 4 * heatMom lam 4 (t / 2)))
+              + C * ((1 + t / σ) * Real.exp (-(c * (t / σ)))
+                  * (powSum lam p σ + heatTr lam (t / 4))) := by
+  obtain ⟨δ, H⟩ := profile_hyp_of_paper hc hu0 hCF hp hF1 hF2 hF3
+  obtain ⟨hc0, -, -⟩ := profc_facts H.u1_pos H.δ_pos
+  have hB0 := profB_nonneg (β := β) hc
+  have hCt0 := profCt_nonneg (β := β) hc
+  have hB20 := profB2_nonneg (β := β) hc
+  have h2p : 0 ≤ (2 : ℝ) ^ p := Real.rpow_nonneg (by norm_num) p
+  have hK0 : 0 ≤ profK β CF p := by
+    unfold profK
+    have := abs_nonneg β
+    linarith
+  have hK20 : 0 ≤ profK2 β CF := by
+    unfold profK2
+    have := abs_nonneg (β - 1)
+    linarith
+  have hA1 : 0 ≤ profB β c3 ^ 2 / 2 := by positivity
+  have hA2 : 0 ≤ profB2 β c3 ^ 2 / 2 := by positivity
+  refine ⟨profc (min u0 (1 / (5 * |β| + 9 * c3 + 18))) δ, profB β c3 ^ 2 / 2 + c3 + profK β CF p + profB2 β c3 ^ 2 / 2
+    + profCt β c3 + profK2 β CF + 1, hc0, by linarith, ?_⟩
+  intro ι lam h σ t hσ hts hNp
+  have ht : 0 < t := lt_of_lt_of_le hσ hts
+  have hm3 : 0 ≤ (σ / t) ^ 2 * (t ^ 3 * heatMom lam 3 (t / 2)) :=
+    mul_nonneg (by positivity) (mul_nonneg (by positivity) (heatMom_nonneg h 3 _))
+  have hm4 : 0 ≤ (σ / t) ^ 2 * (t ^ 4 * heatMom lam 4 (t / 2)) :=
+    mul_nonneg (by positivity) (mul_nonneg (by positivity) (heatMom_nonneg h 4 _))
+  have hX : 0 ≤ (1 + t / σ) * Real.exp (-(profc (min u0 (1 / (5 * |β| + 9 * c3 + 18))) δ * (t / σ)))
+      * (powSum lam p σ + heatTr lam (t / 4)) :=
+    mul_nonneg (mul_nonneg (by positivity) (Real.exp_pos _).le)
+      (add_nonneg (powSum_nonneg h hσ.le p) (heatTr_nonneg _))
+  constructor
+  · refine (profile_i h H hσ hts hNp).2.trans ?_
+    have q1 := mul_nonneg hA1 hm4
+    have q2 := mul_nonneg hc hm3
+    have q3 := mul_nonneg hK0 hX
+    have q4 := mul_nonneg (show 0 ≤ c3 + profK β CF p + profB2 β c3 ^ 2 / 2
+      + profCt β c3 + profK2 β CF + 1 by linarith) hm4
+    have q5 := mul_nonneg (show 0 ≤ profB β c3 ^ 2 / 2 + profK β CF p + profB2 β c3 ^ 2 / 2
+      + profCt β c3 + profK2 β CF + 1 by linarith) hm3
+    have q6 := mul_nonneg (show 0 ≤ profB β c3 ^ 2 / 2 + c3 + profB2 β c3 ^ 2 / 2
+      + profCt β c3 + profK2 β CF + 1 by linarith) hX
+    linarith
+  · intro n hn1 hnt
+    refine (profile_ii h H hσ n hn1 hnt hNp).2.trans ?_
+    have q4 := mul_nonneg (show 0 ≤ profB β c3 ^ 2 / 2 + c3 + profK β CF p
+      + profCt β c3 + profK2 β CF + 1 by linarith) hm4
+    have q5 := mul_nonneg (show 0 ≤ profB β c3 ^ 2 / 2 + c3 + profK β CF p
+      + profB2 β c3 ^ 2 / 2 + profK2 β CF + 1 by linarith) hm3
+    have q6 := mul_nonneg (show 0 ≤ profB β c3 ^ 2 / 2 + c3 + profK β CF p
+      + profB2 β c3 ^ 2 / 2 + profCt β c3 + 1 by linarith) hX
+    linarith
+
+
+/-- The hypotheses `ProfileHyp` are satisfiable: the Gaussian profile `F(u) = e^{-u}` of the
+    exactly solvable case, with `β = 1`, `c₃ = 1/6`, `u₁ = 1/25`, `δ = 1 - e^{-1/25}`, `C_F = 2`,
+    `p = 2`. (For this `F`, `profile_i` is a weaker form of `PopulationRate.rate_iii`, and
+    `profile_ii` has the coefficient `β - 1 = 0`, in agreement with `discTr_exact`.) -/
+theorem profileHyp_gauss :
+    ProfileHyp (fun u => Real.exp (-u)) 1 (1 / 6) (1 / 25) (1 - Real.exp (-(1 / 25))) 2 2 where
+  c3_nonneg := by norm_num
+  u1_pos := by norm_num
+  small := by rw [abs_one]; norm_num
+  δ_pos := by
+    have h : Real.exp (-(1 / 25)) < Real.exp 0 := Real.exp_lt_exp.2 (by norm_num)
+    rw [Real.exp_zero] at h
+    linarith
+  CF_nonneg := by norm_num
+  p_nonneg := by norm_num
+  F1 := fun u hu _ => by
+    show |Real.exp (-u) - (1 - u + 1 * u ^ 2 / 2)| ≤ 1 / 6 * u ^ 3
+    have t3 := real_isExp3.taylor3 u hu
+    have t2 := real_isExp2.taylor_nonpos (-u) (by linarith)
+    rw [abs_le]
+    constructor
+    · linarith
+    · linarith
+  F2 := fun u hu => by
+    show |Real.exp (-u)| ≤ 1 - (1 - Real.exp (-(1 / 25)))
+    rw [abs_of_pos (Real.exp_pos _)]
+    have h : Real.exp (-u) ≤ Real.exp (-(1 / 25)) := Real.exp_le_exp.2 (by linarith)
+    linarith
+  F3 := fun u hu => by
+    show |Real.exp (-u)| ≤ 2 * (1 + u) ^ (-(2 : ℝ))
+    rw [abs_of_pos (Real.exp_pos _)]
+    have h1 : (0 : ℝ) < 1 + u := by linarith
+    have quad := Real.quadratic_le_exp_of_nonneg hu
+    have e1 : Real.exp (-u) * Real.exp u = 1 := by rw [← Real.exp_add]; simp
+    have h2 : (1 + u) ^ 2 ≤ 2 * Real.exp u := by nlinarith
+    rw [Real.rpow_neg h1.le, Real.rpow_two, ← div_eq_mul_inv, le_div_iff₀ (by positivity)]
+    calc Real.exp (-u) * (1 + u) ^ 2 ≤ Real.exp (-u) * (2 * Real.exp u) :=
+          mul_le_mul_of_nonneg_left h2 (Real.exp_pos _).le
+      _ = 2 * (Real.exp (-u) * Real.exp u) := by ring
+      _ = 2 := by rw [e1]; ring
+
+
+/-! #### Negative control: the second part of (F2) cannot be dropped
+
+The function `badF(u) = 1 - u + 5u² - (9/2)u³` on `[0,1]`, `0` on `(1,∞)`, satisfies (F1) on
+`[0,1]` with `β = 10`, `c₃ = 9/2` (`badF_F1`), the FIRST part of (F2) with `u₀ = 1`, `δ = 1/2`
+(`badF_F2`) and (F3) with `C_F = 12·2^p` (`badF_F3`), but `badF(3/5) = 307/250 > 1`. For the
+one-element spectrum `{3/5}` and `σ = 1` the conclusion (i) of `thm:profile`, in the form of
+`profile_paper`, fails for every choice of the constants (`profile_F2_fails`): the left side
+grows like `e^{57t/250}`, the right side is bounded by a polynomial in `t`. This is the
+counterexample recorded in the proof of the paper (core file: `profile_F2_needed`), as a formal
+statement about the sums. -/
+
+/-- The profile function of the negative control. -/
+noncomputable def badF (u : ℝ) : ℝ := if u ≤ 1 then 1 - u + 5 * u ^ 2 - 9 / 2 * u ^ 3 else 0
+
+theorem badF_F1 (u : ℝ) (hu : 0 ≤ u) (hu1 : u ≤ 1) :
+    |badF u - (1 - u + 10 * u ^ 2 / 2)| ≤ 9 / 2 * u ^ 3 := by
+  unfold badF
+  rw [if_pos hu1]
+  have e : 1 - u + 5 * u ^ 2 - 9 / 2 * u ^ 3 - (1 - u + 10 * u ^ 2 / 2) = -(9 / 2 * u ^ 3) := by
+    ring
+  rw [e, abs_neg, abs_of_nonneg (mul_nonneg (by norm_num) (pow_nonneg hu 3))]
+
+theorem badF_F2 (u : ℝ) (hu : 1 ≤ u) : |badF u| ≤ 1 - 1 / 2 := by
+  unfold badF
+  rcases eq_or_lt_of_le hu with h | h
+  · rw [← h, if_pos le_rfl]
+    have e : (1 : ℝ) - 1 + 5 * 1 ^ 2 - 9 / 2 * 1 ^ 3 = 1 / 2 := by norm_num
+    rw [e, abs_of_pos (by norm_num)]
+    norm_num
+  · rw [if_neg (not_le.2 h), abs_zero]
+    norm_num
+
+theorem badF_F3 {p : ℝ} (hp : 0 ≤ p) (u : ℝ) (hu : 0 ≤ u) :
+    |badF u| ≤ 12 * (2 : ℝ) ^ p * (1 + u) ^ (-p) := by
+  have h2p : 0 ≤ (2 : ℝ) ^ p := Real.rpow_nonneg (by norm_num) p
+  have hG : 0 ≤ (1 + u) ^ (-p) := Real.rpow_nonneg (by linarith) _
+  unfold badF
+  split_ifs with h
+  · have wl := weight_low hu h hp
+    have hu2 : u ^ 2 ≤ 1 := pow_le_one₀ hu h
+    have hu3 : u ^ 3 ≤ 1 := pow_le_one₀ hu h
+    have hu2' : 0 ≤ u ^ 2 := pow_two_nonneg u
+    have hu3' : 0 ≤ u ^ 3 := pow_nonneg hu 3
+    have habs : |1 - u + 5 * u ^ 2 - 9 / 2 * u ^ 3| ≤ 12 := by
+      rw [abs_le]
+      constructor
+      · linarith
+      · linarith
+    calc |1 - u + 5 * u ^ 2 - 9 / 2 * u ^ 3| ≤ 12 * 1 := by linarith
+      _ ≤ 12 * ((2 : ℝ) ^ p * (1 + u) ^ (-p)) := mul_le_mul_of_nonneg_left wl (by norm_num)
+      _ = 12 * (2 : ℝ) ^ p * (1 + u) ^ (-p) := by ring
+  · rw [abs_zero]
+    exact mul_nonneg (mul_nonneg (by norm_num) h2p) hG
+
+theorem badF_value : badF (1 * (3 / 5)) = 307 / 250 := by
+  unfold badF
+  rw [if_pos (by norm_num)]
+  norm_num
+
+/-- The one-element list `{3/5}` is a spectrum in the sense of `IsSpectrum`. -/
+theorem unit_isSpectrum : IsSpectrum (fun _ : Unit => (3 / 5 : ℝ)) where
+  nonneg := fun _ => by norm_num
+  summable := fun _ _ => (hasSum_fintype _).summable
+
+/-- **Negative control.** For `badF` (which satisfies (F1), the first part of (F2) and (F3)), the
+    spectrum `{3/5}` and `σ = 1`, there are no constants `c, C > 0` for which the bound (i) of
+    `profile_paper` (with `β = 10`) holds for all `t ≥ 1 = σ`. -/
+theorem profile_F2_fails (p : ℝ) :
+    ¬ ∃ c C : ℝ, 0 < c ∧ 0 < C ∧ ∀ t : ℝ, 1 ≤ t →
+      |profTr (fun _ : Unit => (3 / 5 : ℝ)) badF 1 t - heatTr (fun _ : Unit => (3 / 5 : ℝ)) t
+          - 10 * (1 * t / 2) * heatMom (fun _ : Unit => (3 / 5 : ℝ)) 2 t|
+        ≤ C * ((1 / t) ^ 2 * (t ^ 3 * heatMom (fun _ : Unit => (3 / 5 : ℝ)) 3 (t / 2)
+              + t ^ 4 * heatMom (fun _ : Unit => (3 / 5 : ℝ)) 4 (t / 2)))
+          + C * ((1 + t / 1) * Real.exp (-(c * (t / 1)))
+              * (powSum (fun _ : Unit => (3 / 5 : ℝ)) p 1
+                  + heatTr (fun _ : Unit => (3 / 5 : ℝ)) (t / 4))) := by
+  rintro ⟨c, C, hc, hC, hall⟩
+  have ev : ∀ f : Unit → ℝ, ∑' k, f k = f () := fun f => by
+    rw [tsum_fintype]; simp
+  obtain ⟨P, hP⟩ : ∃ P : ℝ, P = (1 + 1 * (3 / 5 : ℝ)) ^ (-p) := ⟨_, rfl⟩
+  have hP0 : 0 ≤ P := by rw [hP]; exact Real.rpow_nonneg (by norm_num) _
+  obtain ⟨a, ha⟩ : ∃ a : ℝ, a = (57 / 250) ^ 3 / 6 := ⟨_, rfl⟩
+  have ha0 : 0 < a := by rw [ha]; norm_num
+  have hCP : 0 ≤ C * (P + 1) := mul_nonneg hC.le (by linarith)
+  obtain ⟨b, hb⟩ : ∃ b : ℝ, b = C + 2 * (C * (P + 1)) + 4 := ⟨_, rfl⟩
+  have hb0 : 0 < b := by rw [hb]; linarith
+  obtain ⟨T, hT⟩ : ∃ T : ℝ, T = b / a + 1 := ⟨_, rfl⟩
+  have hT1 : 1 ≤ T := by rw [hT]; have := div_pos hb0 ha0; linarith
+  have hT0 : 0 < T := by linarith
+  have hTne : T ≠ 0 := hT0.ne'
+  have hane : a ≠ 0 := ha0.ne'
+  have hTa : b < a * T := by
+    have e : a * (b / a + 1) = b + a := by field_simp
+    rw [hT, e]
+    linarith
+  have key := hall T hT1
+  simp only [profTr, heatTr, heatMom, powSum, ev] at key
+  rw [badF_value, ← hP] at key
+  -- the exponentials
+  have hx0 : (0 : ℝ) ≤ 57 / 250 * T := by positivity
+  have h3 := Real.pow_div_factorial_le_exp (57 / 250 * T) hx0 3
+  have e6 : ((Nat.factorial 3 : ℕ) : ℝ) = 6 := by norm_num [Nat.factorial]
+  rw [e6] at h3
+  have eA : -(T / 1 * (1 - 307 / 250)) = 57 / 250 * T := by ring
+  rw [eA] at key
+  have hEt : Real.exp (-(T / 1)) ≤ 1 := Real.exp_le_one_iff.2 (by rw [div_one]; linarith)
+  have hEb : Real.exp (-(T * (3 / 5))) ≤ 1 := Real.exp_le_one_iff.2 (by linarith)
+  have hE2 : Real.exp (-(T / 2 * (3 / 5))) ≤ 1 := Real.exp_le_one_iff.2 (by linarith)
+  have hE4 : Real.exp (-(T / 4 * (3 / 5))) ≤ 1 := Real.exp_le_one_iff.2 (by linarith)
+  have hEc : Real.exp (-(c * (T / 1))) ≤ 1 :=
+    Real.exp_le_one_iff.2 (by rw [div_one]; have := mul_pos hc hT0; linarith)
+  have pEb := Real.exp_pos (-(T * (3 / 5)))
+  have pE2 := Real.exp_pos (-(T / 2 * (3 / 5)))
+  have pE4 := Real.exp_pos (-(T / 4 * (3 / 5)))
+  have pEc := Real.exp_pos (-(c * (T / 1)))
+  have hTT : T ≤ T ^ 2 := by nlinarith
+  have h1T : 1 ≤ T ^ 2 := by nlinarith
+  -- lower bound for the left side
+  have l1 : 10 * (1 * T / 2) * ((3 / 5) ^ 2 * Real.exp (-(T * (3 / 5)))) ≤ 9 / 5 * T := by
+    have := mul_le_mul_of_nonneg_left hEb (show (0 : ℝ) ≤ 9 / 5 * T by positivity)
+    linarith
+  have l2 := le_abs_self (Real.exp (57 / 250 * T) - Real.exp (-(T / 1)) - Real.exp (-(T * (3 / 5)))
+    - 10 * (1 * T / 2) * ((3 / 5) ^ 2 * Real.exp (-(T * (3 / 5)))))
+  -- upper bound for the right side
+  have i1 : (1 / T) ^ 2 * T ^ 3 = T := by field_simp
+  have i2 : (1 / T) ^ 2 * T ^ 4 = T ^ 2 := by field_simp
+  have r1 : (1 / T) ^ 2 * (T ^ 3 * ((3 / 5) ^ 3 * Real.exp (-(T / 2 * (3 / 5))))
+        + T ^ 4 * ((3 / 5) ^ 4 * Real.exp (-(T / 2 * (3 / 5))))) ≤ T ^ 2 := by
+    have e : (1 / T) ^ 2 * (T ^ 3 * ((3 / 5) ^ 3 * Real.exp (-(T / 2 * (3 / 5))))
+          + T ^ 4 * ((3 / 5) ^ 4 * Real.exp (-(T / 2 * (3 / 5)))))
+        = ((1 / T) ^ 2 * T ^ 3 * (3 / 5) ^ 3 + (1 / T) ^ 2 * T ^ 4 * (3 / 5) ^ 4)
+            * Real.exp (-(T / 2 * (3 / 5))) := by ring
+    rw [e, i1, i2]
+    have h := mul_le_mul_of_nonneg_left hE2
+      (show (0 : ℝ) ≤ T * (3 / 5) ^ 3 + T ^ 2 * (3 / 5) ^ 4 by positivity)
+    nlinarith
+  have r2 : (1 + T / 1) * Real.exp (-(c * (T / 1))) * (P + Real.exp (-(T / 4 * (3 / 5))))
+      ≤ 2 * T ^ 2 * (P + 1) := by
+    have h1 : (1 + T / 1) * Real.exp (-(c * (T / 1))) ≤ 2 * T ^ 2 := by
+      have := mul_le_mul_of_nonneg_left hEc (show (0 : ℝ) ≤ 1 + T / 1 by positivity)
+      rw [div_one] at this ⊢
+      linarith
+    exact mul_le_mul h1 (by linarith) (by linarith) (by positivity)
+  have r1' := mul_le_mul_of_nonneg_left r1 hC.le
+  have r2' := mul_le_mul_of_nonneg_left r2 hC.le
+  -- the cubic beats the quadratic
+  have hcub : b * T ^ 2 < (57 / 250 * T) ^ 3 / 6 := by
+    have e : (57 / 250 * T) ^ 3 / 6 = a * T * T ^ 2 := by rw [ha]; ring
+    rw [e]
+    exact mul_lt_mul_of_pos_right hTa (by positivity)
+  have hbT : C * T ^ 2 + C * (2 * T ^ 2 * (P + 1)) + 4 * T ^ 2 = b * T ^ 2 := by
+    rw [hb]; ring
+  linarith
+
+
+/-! #### Part A: the trace in discrete time (`prop:discrete`), deterministic part
+
+`prop:discrete` is a statement about the sampled graph ("in the situation of `thm:trace`", almost
+surely for large `N`). What is formalised here is the deterministic content of its proof, for an
+arbitrary real symmetric matrix `S` whose eigenvalues `s_a` lie in `[-1 + κ₀, 1]`, with the low
+modes `1 - s_a < κ` (`κ ≤ 1/2`) and `k = j + 2 ≥ 2` steps:
+* `discrete_trace_matrix`: `|Tr S^k - ∑_low e^{-k(1 - s_a)}| ≤ ∑_low k (1 - s_a)² e^{-k(1 - s_a)}
+    + (1 - min(κ, κ₀))^{k-2} Tr S²` (no hypothesis beyond the location of the spectrum; here
+  `k(1 - s_a) = t λ^N_a` in the notation of the paper, `t = kσ`, and `Tr S^k = Tr P^k`);
+* `discrete_trace_conditional`: if in addition, for the low modes, numbers `μ_a ≥ 0` (in the paper
+  `μ_a = t λ_a`) satisfy `|k(1 - s_a) - μ_a| ≤ ε μ_a` and `c μ_a ≤ k(1 - s_a)` with `c ≤ 1`
+  (HYPOTHESES; in the paper they come from `thm:eig`, equation `eq:eiglow`), then
+  `|Tr S^k - ∑_low e^{-μ_a}| ≤ (8/k) ∑_low e^{-c μ_a/2} + ε ∑_low μ_a e^{-c μ_a}
+      + (1 - min(κ, κ₀))^{k-2} Tr S²`.
+  With `1/k = σ/t` the first term is the term `ξ²/t` of the proof of the paper (constant `8`
+  instead of the sharp `16/e²`).
+The population counterpart, `∑_k F(σλ_k)^n` against `Θ(nσ)` with the coefficient `β - 1`, is
+`profile_ii`; in the exactly solvable case `F = e^{-u}` it is the identity
+`PopulationRate.heatTr_pow`, restated as `discTr_exact`.
+
+NOT formalised: everything probabilistic in `prop:discrete` (the eigenvalue estimates of `thm:eig`
+for the low modes, the bound `Tr S² ≤ C ξ^{-d}`, the continuum modes beyond the low ones, the
+resulting rate `ε_N/ξ_N + ξ_N/√t + k^{d/2} e^{-κk}`, "almost surely for all large `N`"). -/
+
+/-- `discrete_low_mode` of the core file for the real exponential:
+    `0 ≤ e^{-kv} - (1 - v)^k ≤ k v² e^{-kv}` for `0 ≤ v ≤ 1/2`. -/
+theorem real_discrete_low {v : ℝ} (hv0 : 0 ≤ v) (hv1 : v ≤ 1 / 2) (k : ℕ) :
+    0 ≤ Real.exp (-((k : ℝ) * v)) - (1 - v) ^ k ∧
+    Real.exp (-((k : ℝ) * v)) - (1 - v) ^ k
+      ≤ (k : ℝ) * (v * v) * Real.exp (-((k : ℝ) * v)) := by
+  have h := CTG.HeatTrace.discrete_low_mode real_isExp real_archimedean hv0 hv1 k
+  rw [ncast_eq, pw_eq] at h
+  exact h
+
+/-- The splitting of `∑_a s_a^k` into low and high modes, for a finite family of numbers. -/
+theorem discrete_sum {ι : Type*} [Fintype ι] (s : ι → ℝ) {κ κ0 : ℝ} (hκ : κ ≤ 1 / 2)
+    (h1 : ∀ a, s a ≤ 1) (h0 : ∀ a, -1 + κ0 ≤ s a) (j : ℕ) :
+    |∑ a, s a ^ (j + 2)
+        - ∑ a ∈ Finset.univ.filter (fun a => 1 - s a < κ),
+            Real.exp (-(((j + 2 : ℕ) : ℝ) * (1 - s a)))|
+      ≤ ∑ a ∈ Finset.univ.filter (fun a => 1 - s a < κ),
+            ((j + 2 : ℕ) : ℝ) * ((1 - s a) * (1 - s a))
+              * Real.exp (-(((j + 2 : ℕ) : ℝ) * (1 - s a)))
+        + (1 - min κ κ0) ^ j * ∑ a, s a ^ 2 := by
+  have hsplit := (Finset.sum_filter_add_sum_filter_not Finset.univ (fun a => 1 - s a < κ)
+    (fun a => s a ^ (j + 2))).symm
+  have hlow1 : ∑ a ∈ Finset.univ.filter (fun a => 1 - s a < κ), s a ^ (j + 2)
+      ≤ ∑ a ∈ Finset.univ.filter (fun a => 1 - s a < κ),
+          Real.exp (-(((j + 2 : ℕ) : ℝ) * (1 - s a))) := by
+    refine Finset.sum_le_sum fun a ha => ?_
+    have hlt := (Finset.mem_filter.1 ha).2
+    have h := (real_discrete_low (v := 1 - s a) (by linarith [h1 a]) (by linarith) (j + 2)).1
+    rw [sub_sub_cancel] at h
+    linarith
+  have hlow2 : ∑ a ∈ Finset.univ.filter (fun a => 1 - s a < κ),
+        Real.exp (-(((j + 2 : ℕ) : ℝ) * (1 - s a)))
+      ≤ ∑ a ∈ Finset.univ.filter (fun a => 1 - s a < κ), s a ^ (j + 2)
+        + ∑ a ∈ Finset.univ.filter (fun a => 1 - s a < κ),
+            ((j + 2 : ℕ) : ℝ) * ((1 - s a) * (1 - s a))
+              * Real.exp (-(((j + 2 : ℕ) : ℝ) * (1 - s a))) := by
+    rw [← Finset.sum_add_distrib]
+    refine Finset.sum_le_sum fun a ha => ?_
+    have hlt := (Finset.mem_filter.1 ha).2
+    have h := (real_discrete_low (v := 1 - s a) (by linarith [h1 a]) (by linarith) (j + 2)).2
+    rw [sub_sub_cancel] at h
+    linarith
+  have hϑ : 0 ≤ 1 - min κ κ0 := by have := min_le_left κ κ0; linarith
+  have hhigh : |∑ a ∈ Finset.univ.filter (fun a => ¬ (1 - s a < κ)), s a ^ (j + 2)|
+      ≤ (1 - min κ κ0) ^ j * ∑ a, s a ^ 2 := by
+    calc |∑ a ∈ Finset.univ.filter (fun a => ¬ (1 - s a < κ)), s a ^ (j + 2)|
+        ≤ ∑ a ∈ Finset.univ.filter (fun a => ¬ (1 - s a < κ)), |s a ^ (j + 2)| :=
+          Finset.abs_sum_le_sum_abs _ _
+      _ ≤ ∑ a ∈ Finset.univ.filter (fun a => ¬ (1 - s a < κ)),
+            (1 - min κ κ0) ^ j * s a ^ 2 := by
+          refine Finset.sum_le_sum fun a ha => ?_
+          have hge := not_lt.1 (Finset.mem_filter.1 ha).2
+          have habs : |s a| ≤ 1 - min κ κ0 :=
+            abs_le.2 ⟨by linarith [h0 a, min_le_right κ κ0], by linarith [min_le_left κ κ0]⟩
+          rw [abs_pow, pow_add, sq_abs]
+          exact mul_le_mul_of_nonneg_right (pow_le_pow_left₀ (abs_nonneg _) habs j)
+            (pow_two_nonneg _)
+      _ = (1 - min κ κ0) ^ j
+            * ∑ a ∈ Finset.univ.filter (fun a => ¬ (1 - s a < κ)), s a ^ 2 := by
+          rw [Finset.mul_sum]
+      _ ≤ (1 - min κ κ0) ^ j * ∑ a, s a ^ 2 :=
+          mul_le_mul_of_nonneg_left
+            (Finset.sum_le_sum_of_subset_of_nonneg (Finset.filter_subset _ _)
+              (fun a _ _ => pow_two_nonneg _)) (pow_nonneg hϑ j)
+  obtain ⟨g1, g2⟩ := abs_le.1 hhigh
+  rw [hsplit, abs_le]
+  constructor
+  · linarith
+  · linarith
+
+/-- **`prop:discrete`, deterministic splitting, for a real symmetric matrix.** Eigenvalues in
+    `[-1 + κ₀, 1]`, low modes `1 - s_a < κ ≤ 1/2`, `k = j + 2`:
+    `|Tr S^k - ∑_low e^{-k(1-s_a)}| ≤ ∑_low k(1-s_a)² e^{-k(1-s_a)} + (1 - min(κ,κ₀))^{k-2} Tr S²`. -/
+theorem discrete_trace_matrix {n : Type} [Fintype n] [DecidableEq n] (S : Matrix n n ℝ)
+    (hS : S.IsHermitian) {κ κ0 : ℝ} (hκ : κ ≤ 1 / 2) (h1 : ∀ i, hS.eigenvalues i ≤ 1)
+    (h0 : ∀ i, -1 + κ0 ≤ hS.eigenvalues i) (j : ℕ) :
+    |(S ^ (j + 2)).trace
+        - ∑ i ∈ Finset.univ.filter (fun i => 1 - hS.eigenvalues i < κ),
+            Real.exp (-(((j + 2 : ℕ) : ℝ) * (1 - hS.eigenvalues i)))|
+      ≤ ∑ i ∈ Finset.univ.filter (fun i => 1 - hS.eigenvalues i < κ),
+            ((j + 2 : ℕ) : ℝ) * ((1 - hS.eigenvalues i) * (1 - hS.eigenvalues i))
+              * Real.exp (-(((j + 2 : ℕ) : ℝ) * (1 - hS.eigenvalues i)))
+        + (1 - min κ κ0) ^ j * (S ^ 2).trace := by
+  rw [trace_pow_eq_sum_eigenvalues S hS (j + 2), trace_pow_eq_sum_eigenvalues S hS 2]
+  exact discrete_sum hS.eigenvalues hκ h1 h0 j
+
+/-- One low mode against a reference value `μ` (`z = k v = t λ^N`, `μ = t λ`). -/
+theorem discrete_low_conditional {k : ℕ} (hk : 0 < k) {v μ ε c : ℝ} (hv : 0 ≤ v) (hc1 : c ≤ 1)
+    (hμ : 0 ≤ μ) (heig : |(k : ℝ) * v - μ| ≤ ε * μ) (hlow : c * μ ≤ (k : ℝ) * v) :
+    (k : ℝ) * (v * v) * Real.exp (-((k : ℝ) * v)) ≤ 8 / (k : ℝ) * Real.exp (-(c * μ / 2)) ∧
+    |Real.exp (-((k : ℝ) * v)) - Real.exp (-μ)| ≤ ε * (μ * Real.exp (-(c * μ))) := by
+  have hk0 : (0 : ℝ) < (k : ℝ) := Nat.cast_pos.2 hk
+  have hz : 0 ≤ (k : ℝ) * v := mul_nonneg hk0.le hv
+  constructor
+  · have quad := Real.quadratic_le_exp_of_nonneg (show 0 ≤ (k : ℝ) * v / 2 by linarith)
+    have hE := Real.exp_pos (-((k : ℝ) * v / 2))
+    have e1 : Real.exp ((k : ℝ) * v / 2) * Real.exp (-((k : ℝ) * v / 2)) = 1 := by
+      rw [← Real.exp_add]; simp
+    have e2 : Real.exp (-((k : ℝ) * v)) = Real.exp (-((k : ℝ) * v / 2))
+        * Real.exp (-((k : ℝ) * v / 2)) := by
+      rw [← Real.exp_add]; congr 1; ring
+    have h8 : ((k : ℝ) * v) ^ 2 ≤ 8 * Real.exp ((k : ℝ) * v / 2) := by
+      nlinarith [pow_two_nonneg ((k : ℝ) * v / 2)]
+    have h9 : ((k : ℝ) * v) ^ 2 * Real.exp (-((k : ℝ) * v))
+        ≤ 8 * Real.exp (-((k : ℝ) * v / 2)) :=
+      calc ((k : ℝ) * v) ^ 2 * Real.exp (-((k : ℝ) * v))
+          = ((k : ℝ) * v) ^ 2 * (Real.exp (-((k : ℝ) * v / 2))
+              * Real.exp (-((k : ℝ) * v / 2))) := by rw [e2]
+        _ ≤ 8 * Real.exp ((k : ℝ) * v / 2) * (Real.exp (-((k : ℝ) * v / 2))
+              * Real.exp (-((k : ℝ) * v / 2))) :=
+            mul_le_mul_of_nonneg_right h8 (mul_nonneg hE.le hE.le)
+        _ = 8 * Real.exp (-((k : ℝ) * v / 2))
+              * (Real.exp ((k : ℝ) * v / 2) * Real.exp (-((k : ℝ) * v / 2))) := by ring
+        _ = 8 * Real.exp (-((k : ℝ) * v / 2)) := by rw [e1]; ring
+    have h10 : Real.exp (-((k : ℝ) * v / 2)) ≤ Real.exp (-(c * μ / 2)) :=
+      Real.exp_le_exp.2 (by linarith)
+    calc (k : ℝ) * (v * v) * Real.exp (-((k : ℝ) * v))
+        = (((k : ℝ) * v) ^ 2 * Real.exp (-((k : ℝ) * v))) / (k : ℝ) := by
+          field_simp
+      _ ≤ (8 * Real.exp (-(c * μ / 2))) / (k : ℝ) :=
+          div_le_div_of_nonneg_right (h9.trans (by linarith)) hk0.le
+      _ = 8 / (k : ℝ) * Real.exp (-(c * μ / 2)) := by ring
+  · have h := abs_exp_neg_sub ((k : ℝ) * v) μ
+    have hmin : c * μ ≤ min ((k : ℝ) * v) μ :=
+      le_min hlow (by nlinarith [mul_nonneg (sub_nonneg.2 hc1) hμ])
+    have hE : Real.exp (-(min ((k : ℝ) * v) μ)) ≤ Real.exp (-(c * μ)) :=
+      Real.exp_le_exp.2 (by linarith)
+    calc |Real.exp (-((k : ℝ) * v)) - Real.exp (-μ)|
+        ≤ |(k : ℝ) * v - μ| * Real.exp (-(min ((k : ℝ) * v) μ)) := h
+      _ ≤ (ε * μ) * Real.exp (-(c * μ)) :=
+          mul_le_mul heig hE (Real.exp_pos _).le ((abs_nonneg _).trans heig)
+      _ = ε * (μ * Real.exp (-(c * μ))) := by ring
+
+/-- **`prop:discrete`, conditional form for a real symmetric matrix.** HYPOTHESES `heig`, `hlow`:
+    the low eigenvalues are close to reference values `μ_a` (in the paper `μ_a = tλ_a`, from
+    `thm:eig`). Then `Tr S^k` differs from `∑_low e^{-μ_a}` by at most
+    `(8/k) ∑_low e^{-cμ_a/2} + ε ∑_low μ_a e^{-cμ_a} + (1 - min(κ,κ₀))^{k-2} Tr S²`, `k = j+2`. -/
+theorem discrete_trace_conditional {n : Type} [Fintype n] [DecidableEq n] (S : Matrix n n ℝ)
+    (hS : S.IsHermitian) {κ κ0 ε c : ℝ} (hκ : κ ≤ 1 / 2) (h1 : ∀ i, hS.eigenvalues i ≤ 1)
+    (h0 : ∀ i, -1 + κ0 ≤ hS.eigenvalues i) (j : ℕ) (hc1 : c ≤ 1) (mu : n → ℝ)
+    (hmu : ∀ i, 1 - hS.eigenvalues i < κ → 0 ≤ mu i)
+    (heig : ∀ i, 1 - hS.eigenvalues i < κ →
+      |((j + 2 : ℕ) : ℝ) * (1 - hS.eigenvalues i) - mu i| ≤ ε * mu i)
+    (hlow : ∀ i, 1 - hS.eigenvalues i < κ →
+      c * mu i ≤ ((j + 2 : ℕ) : ℝ) * (1 - hS.eigenvalues i)) :
+    |(S ^ (j + 2)).trace
+        - ∑ i ∈ Finset.univ.filter (fun i => 1 - hS.eigenvalues i < κ), Real.exp (-(mu i))|
+      ≤ 8 / ((j + 2 : ℕ) : ℝ)
+            * ∑ i ∈ Finset.univ.filter (fun i => 1 - hS.eigenvalues i < κ),
+                Real.exp (-(c * mu i / 2))
+        + ε * ∑ i ∈ Finset.univ.filter (fun i => 1 - hS.eigenvalues i < κ),
+                mu i * Real.exp (-(c * mu i))
+        + (1 - min κ κ0) ^ j * (S ^ 2).trace := by
+  have hdet := discrete_trace_matrix S hS hκ h1 h0 j
+  have hk : 0 < j + 2 := by omega
+  have hA : ∑ i ∈ Finset.univ.filter (fun i => 1 - hS.eigenvalues i < κ),
+        ((j + 2 : ℕ) : ℝ) * ((1 - hS.eigenvalues i) * (1 - hS.eigenvalues i))
+          * Real.exp (-(((j + 2 : ℕ) : ℝ) * (1 - hS.eigenvalues i)))
+      ≤ 8 / ((j + 2 : ℕ) : ℝ)
+          * ∑ i ∈ Finset.univ.filter (fun i => 1 - hS.eigenvalues i < κ),
+              Real.exp (-(c * mu i / 2)) := by
+    rw [Finset.mul_sum]
+    refine Finset.sum_le_sum fun i hi => ?_
+    have hlt := (Finset.mem_filter.1 hi).2
+    exact (discrete_low_conditional hk (by linarith [h1 i]) hc1 (hmu i hlt) (heig i hlt)
+      (hlow i hlt)).1
+  have hB : |∑ i ∈ Finset.univ.filter (fun i => 1 - hS.eigenvalues i < κ),
+          Real.exp (-(((j + 2 : ℕ) : ℝ) * (1 - hS.eigenvalues i)))
+        - ∑ i ∈ Finset.univ.filter (fun i => 1 - hS.eigenvalues i < κ), Real.exp (-(mu i))|
+      ≤ ε * ∑ i ∈ Finset.univ.filter (fun i => 1 - hS.eigenvalues i < κ),
+          mu i * Real.exp (-(c * mu i)) := by
+    rw [← Finset.sum_sub_distrib, Finset.mul_sum]
+    refine (Finset.abs_sum_le_sum_abs _ _).trans (Finset.sum_le_sum fun i hi => ?_)
+    have hlt := (Finset.mem_filter.1 hi).2
+    exact (discrete_low_conditional hk (by linarith [h1 i]) hc1 (hmu i hlt) (heig i hlt)
+      (hlow i hlt)).2
+  obtain ⟨a1, a2⟩ := abs_le.1 hdet
+  obtain ⟨b1, b2⟩ := abs_le.1 hB
+  rw [abs_le]
+  constructor
+  · linarith
+  · linarith
+
+/-- The exactly solvable case in discrete time (`thm:rate`(i), second statement; first consequence
+    drawn after `thm:rate`): for `F(u) = e^{-u}`, `∑_k F(σλ_k)^n = Θ(nσ)` exactly, `n ≥ 1`. -/
+theorem discTr_exact {ι : Type*} {lam : ι → ℝ} (h : IsSpectrum lam) {σ : ℝ} (hσ : 0 < σ)
+    (j : ℕ) :
+    discTr lam (fun u => Real.exp (-u)) σ (j + 1) = heatTr lam (((j + 1 : ℕ) : ℝ) * σ) :=
+  (heatTr_pow h hσ j).tsum_eq
+
+
+/-! #### Part C: `prop:heatbounds` for real symmetric matrices
+
+`Tr e^{-tL} = Tr exp(τ(S - 1))`, `m_1 = Tr S`, `m_2 = Tr S²`, `p_i = S_ii`, `N` the size of the
+matrix. Already in the second Lean file: `heat_lower_matrix` (`N e^{-τ} ≤ Tr e^{-tL}` for
+`Tr S ≥ 0`), `heat_two_term_matrix` (`e^{-τ}(N + τ Tr S) ≤ Tr e^{-tL}`, i.e. the identity of (ii)
+with the non-negativity of the twice-subtracted trace), `heat_upper_matrix` (`Tr e^{-tL} ≤ N`),
+`normalised_eigenvalues_mem` (`s_a ∈ [-1, 1]` for the normalised graph matrix). Added here:
+* `heat_chain_first`, `heat_chain_second`, `heat_chain_third`: the first three inequalities of the
+  chain `eq:chain`,
+  `N e^{-τ} ≤ N exp(-τ(1 - m_1/N)) ≤ ∑_i e^{-τ(1 - p_i)} ≤ Tr e^{-tL}`
+  (the third one through the diagonal of the matrix exponential in the eigenbasis and Jensen's
+  inequality with the weights `|v_a(i)|²`; it holds for every real symmetric `S` and every real
+  `τ`); `heat_chain` collects the whole chain;
+* `heat_twice_subtracted_matrix`: both bounds of `eq:twoterm`,
+  `(τ²/2) e^{-2τ} m_2 ≤ Tr e^{-tL} - e^{-τ}(N + τ m_1) ≤ (τ²/2) m_2` for `τ ≥ 0` and
+  eigenvalues in `[-1, 1]` (the lower bound with `e^{-2τ}` was not in the Lean files before);
+* `heat_antitone_matrix`, `heat_logconvex_midpoint`: part (iii): nonincreasing in `τ` (for
+  eigenvalues `≤ 1`), and `Tr e^{-t L}` at the midpoint `(τ₁+τ₂)/2` squared is at most the product
+  of the values at `τ₁` and `τ₂` (Cauchy--Schwarz). Midpoint log-convexity only: the convexity of
+  `log Tr e^{-tL}` for all weights (which follows with continuity, or by Hölder) is NOT stated.
+The hypothesis "eigenvalues in `[-1, 1]`" is not derived here from "`W` symmetric, non-negative,
+positive row sums"; that is `normalised_eigenvalues_mem` of the second file. -/
+
+/-- `e^z (1 - z) ≤ 1 - z²/2` for `z ≥ 0`; equivalently `e^x - 1 - x ≥ (x²/2) e^x` for `x ≤ 0`. -/
+theorem exp_neg_second_lower {z : ℝ} (hz : 0 ≤ z) :
+    z ^ 2 / 2 * Real.exp (-z) ≤ Real.exp (-z) - 1 + z := by
+  have hE := Real.exp_pos (-z)
+  rcases le_total (z ^ 2) 2 with h | h
+  · have t3 := real_isExp3.taylor3 z hz
+    have hq : (1 - z + z * z / 2 - z * z * z / 6) * (1 - z ^ 2 / 2)
+        = 1 - z + z ^ 3 * ((z - 3 / 2) ^ 2 + 7 / 4) / 12 := by ring
+    have h1 := mul_le_mul_of_nonneg_right t3 (show 0 ≤ 1 - z ^ 2 / 2 by linarith)
+    have h2 : 0 ≤ z ^ 3 * ((z - 3 / 2) ^ 2 + 7 / 4) / 12 := by positivity
+    rw [hq] at h1
+    linarith
+  · have quad := Real.quadratic_le_exp_of_nonneg hz
+    have e1 : Real.exp (-z) * Real.exp z = 1 := by rw [← Real.exp_add]; simp
+    have hz1 : 1 ≤ z := by nlinarith
+    have h1 : Real.exp (-z) * (1 + z + z ^ 2 / 2) ≤ 1 := by
+      have := mul_le_mul_of_nonneg_left quad hE.le
+      linarith
+    have h2 : z ^ 2 / 2 - 1 ≤ (z - 1) * (1 + z + z ^ 2 / 2) := by
+      have : 0 ≤ z ^ 3 := pow_nonneg hz 3
+      nlinarith
+    have h3 := mul_le_mul_of_nonneg_left h2 hE.le
+    have h4 := mul_le_mul_of_nonneg_left h1 (show 0 ≤ z - 1 by linarith)
+    linarith
+
+/-- `φ(x) = e^x - 1 - x` for `|x| ≤ τ`: `(x²/2) e^{-τ} ≤ φ(x) ≤ (x²/2) e^{τ}`. -/
+theorem phi_two_sided {x τ : ℝ} (h1 : -τ ≤ x) (h2 : x ≤ τ) :
+    x ^ 2 / 2 * Real.exp (-τ) ≤ Real.exp x - 1 - x ∧
+    Real.exp x - 1 - x ≤ x ^ 2 / 2 * Real.exp τ := by
+  have hx2 : 0 ≤ x ^ 2 / 2 := by positivity
+  have hτ : 0 ≤ τ := by linarith
+  have hEm : Real.exp (-τ) ≤ 1 := Real.exp_le_one_iff.2 (by linarith)
+  have hEp : 1 ≤ Real.exp τ := Real.one_le_exp hτ
+  rcases le_total 0 x with h | h
+  · constructor
+    · have quad := Real.quadratic_le_exp_of_nonneg h
+      have := mul_le_mul_of_nonneg_left hEm hx2
+      linarith
+    · have t := real_isExp2.taylor_nonneg x h
+      have hm : Real.exp x ≤ Real.exp τ := Real.exp_le_exp.2 h2
+      have := mul_le_mul_of_nonneg_left hm hx2
+      linarith
+  · constructor
+    · have l := exp_neg_second_lower (z := -x) (by linarith)
+      rw [neg_neg] at l
+      have hm : Real.exp (-τ) ≤ Real.exp x := Real.exp_le_exp.2 h1
+      have := mul_le_mul_of_nonneg_left hm hx2
+      have e : (-x) ^ 2 = x ^ 2 := by ring
+      rw [e] at l
+      linarith
+    · have t := real_isExp2.taylor_nonpos x h
+      have := mul_le_mul_of_nonneg_left hEp hx2
+      linarith
+
+/-- **`prop:heatbounds`(ii), both bounds, for a real symmetric matrix with spectrum in `[-1,1]`:**
+    `(τ²/2) e^{-2τ} Tr S² ≤ Tr exp(τ(S-1)) - e^{-τ}(N + τ Tr S) ≤ (τ²/2) Tr S²` for `τ ≥ 0`. -/
+theorem heat_twice_subtracted_matrix {n : Type} [Fintype n] [DecidableEq n] (S : Matrix n n ℝ)
+    (hS : S.IsHermitian) {τ : ℝ} (hτ : 0 ≤ τ) (h1 : ∀ i, hS.eigenvalues i ≤ 1)
+    (h0 : ∀ i, -1 ≤ hS.eigenvalues i) :
+    τ ^ 2 / 2 * Real.exp (-(2 * τ)) * (S ^ 2).trace
+        ≤ (NormedSpace.exp (τ • (S - 1))).trace
+          - Real.exp (-τ) * ((Fintype.card n : ℝ) + τ * S.trace) ∧
+    (NormedSpace.exp (τ • (S - 1))).trace - Real.exp (-τ) * ((Fintype.card n : ℝ) + τ * S.trace)
+        ≤ τ ^ 2 / 2 * (S ^ 2).trace := by
+  rw [trace_exp_heat S hS τ, trace_pow_eq_sum_eigenvalues S hS 2]
+  have htr : S.trace = ∑ i, hS.eigenvalues i := by
+    have h := hS.trace_eq_sum_eigenvalues (𝕜 := ℝ)
+    simpa using h
+  have hsum : Real.exp (-τ) * ((Fintype.card n : ℝ) + τ * S.trace)
+      = ∑ i, Real.exp (-τ) * (1 + τ * hS.eigenvalues i) := by
+    rw [htr, ← Finset.mul_sum, Finset.sum_add_distrib, ← Finset.mul_sum]
+    simp
+  have hEt := Real.exp_pos (-τ)
+  have e2 : Real.exp (-(2 * τ)) = Real.exp (-τ) * Real.exp (-τ) := by
+    rw [← Real.exp_add]; congr 1; ring
+  have e3 : Real.exp (-τ) * Real.exp τ = 1 := by rw [← Real.exp_add]; simp
+  have hmode : ∀ i, τ ^ 2 / 2 * Real.exp (-(2 * τ)) * hS.eigenvalues i ^ 2
+        ≤ Real.exp (-(τ * (1 - hS.eigenvalues i))) - Real.exp (-τ) * (1 + τ * hS.eigenvalues i) ∧
+      Real.exp (-(τ * (1 - hS.eigenvalues i))) - Real.exp (-τ) * (1 + τ * hS.eigenvalues i)
+        ≤ τ ^ 2 / 2 * hS.eigenvalues i ^ 2 := by
+    intro i
+    have ha : Real.exp (-(τ * (1 - hS.eigenvalues i)))
+        = Real.exp (-τ) * Real.exp (τ * hS.eigenvalues i) := by
+      rw [← Real.exp_add]; congr 1; ring
+    obtain ⟨p1, p2⟩ := phi_two_sided (x := τ * hS.eigenvalues i) (τ := τ)
+      (by nlinarith [mul_nonneg hτ (show 0 ≤ hS.eigenvalues i + 1 by linarith [h0 i])])
+      (by nlinarith [mul_nonneg hτ (show 0 ≤ 1 - hS.eigenvalues i by linarith [h1 i])])
+    have q1 := mul_le_mul_of_nonneg_left p1 hEt.le
+    have q2 := mul_le_mul_of_nonneg_left p2 hEt.le
+    have r1 : Real.exp (-τ) * ((τ * hS.eigenvalues i) ^ 2 / 2 * Real.exp (-τ))
+        = τ ^ 2 / 2 * Real.exp (-(2 * τ)) * hS.eigenvalues i ^ 2 := by rw [e2]; ring
+    have r2 : Real.exp (-τ) * ((τ * hS.eigenvalues i) ^ 2 / 2 * Real.exp τ)
+        = τ ^ 2 / 2 * hS.eigenvalues i ^ 2 :=
+      calc Real.exp (-τ) * ((τ * hS.eigenvalues i) ^ 2 / 2 * Real.exp τ)
+          = τ ^ 2 / 2 * hS.eigenvalues i ^ 2 * (Real.exp (-τ) * Real.exp τ) := by ring
+        _ = τ ^ 2 / 2 * hS.eigenvalues i ^ 2 := by rw [e3]; ring
+    rw [r1] at q1
+    rw [r2] at q2
+    rw [ha]
+    constructor
+    · linarith
+    · linarith
+  rw [hsum, ← Finset.sum_sub_distrib, Finset.mul_sum, Finset.mul_sum]
+  exact ⟨Finset.sum_le_sum fun i _ => (hmode i).1, Finset.sum_le_sum fun i _ => (hmode i).2⟩
+
+/-- First inequality of `eq:chain`: `N e^{-τ} ≤ N exp(-τ(1 - m_1/N))` for `τ, m_1 ≥ 0`. -/
+theorem heat_chain_first {N τ m1 : ℝ} (hN : 0 ≤ N) (hτ : 0 ≤ τ) (hm : 0 ≤ m1) :
+    N * Real.exp (-τ) ≤ N * Real.exp (-(τ * (1 - m1 / N))) := by
+  refine mul_le_mul_of_nonneg_left (Real.exp_le_exp.2 ?_) hN
+  have := mul_nonneg hτ (div_nonneg hm hN)
+  linarith
+
+/-- Jensen's inequality for the exponential in the supporting-line form: for weights `w_a ≥ 0`
+    with `∑ w_a = 1`, `exp(∑ w_a y_a) ≤ ∑ w_a exp(y_a)`. -/
+theorem exp_jensen {ι : Type*} [Fintype ι] (w y : ι → ℝ) (hw : ∀ a, 0 ≤ w a)
+    (h1 : ∑ a, w a = 1) : Real.exp (∑ a, w a * y a) ≤ ∑ a, w a * Real.exp (y a) := by
+  have hE := Real.exp_pos (∑ a, w a * y a)
+  have hterm : ∀ a, w a * (Real.exp (∑ b, w b * y b) * (1 + (y a - ∑ b, w b * y b)))
+      ≤ w a * Real.exp (y a) := by
+    intro a
+    refine mul_le_mul_of_nonneg_left ?_ (hw a)
+    have h := Real.add_one_le_exp (y a - ∑ b, w b * y b)
+    have e : Real.exp (y a) = Real.exp (∑ b, w b * y b) * Real.exp (y a - ∑ b, w b * y b) := by
+      rw [← Real.exp_add]; congr 1; ring
+    rw [e]
+    exact mul_le_mul_of_nonneg_left (by linarith) hE.le
+  have hsum : ∑ a, w a * (Real.exp (∑ b, w b * y b) * (1 + (y a - ∑ b, w b * y b)))
+      = Real.exp (∑ b, w b * y b) := by
+    have e : ∀ a, w a * (Real.exp (∑ b, w b * y b) * (1 + (y a - ∑ b, w b * y b)))
+        = Real.exp (∑ b, w b * y b) * (1 - ∑ b, w b * y b) * w a
+          + Real.exp (∑ b, w b * y b) * (w a * y a) := fun a => by ring
+    rw [Finset.sum_congr rfl (fun a _ => e a), Finset.sum_add_distrib, ← Finset.mul_sum,
+      ← Finset.mul_sum, h1]
+    ring
+  calc Real.exp (∑ a, w a * y a)
+      = ∑ a, w a * (Real.exp (∑ b, w b * y b) * (1 + (y a - ∑ b, w b * y b))) := hsum.symm
+    _ ≤ ∑ a, w a * Real.exp (y a) := Finset.sum_le_sum fun a _ => hterm a
+
+/-- Second inequality of `eq:chain` (Jensen with uniform weights), for any numbers `p_i`:
+    `N exp(-τ(1 - (∑ p_i)/N)) ≤ ∑_i e^{-τ(1 - p_i)}`. -/
+theorem heat_chain_second {ι : Type*} [Fintype ι] (p : ι → ℝ) (τ : ℝ) :
+    (Fintype.card ι : ℝ) * Real.exp (-(τ * (1 - (∑ i, p i) / (Fintype.card ι : ℝ))))
+      ≤ ∑ i, Real.exp (-(τ * (1 - p i))) := by
+  rcases isEmpty_or_nonempty ι with hι | hι
+  · simp
+  · have hN : (0 : ℝ) < (Fintype.card ι : ℝ) := Nat.cast_pos.2 Fintype.card_pos
+    have h := exp_jensen (fun _ : ι => 1 / (Fintype.card ι : ℝ))
+      (fun i => -(τ * (1 - p i))) (fun _ => by positivity)
+      (by rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul]; field_simp)
+    have e1 : ∑ i : ι, 1 / (Fintype.card ι : ℝ) * -(τ * (1 - p i))
+        = -(τ * (1 - (∑ i, p i) / (Fintype.card ι : ℝ))) := by
+      rw [← Finset.mul_sum, Finset.sum_neg_distrib, ← Finset.mul_sum, Finset.sum_sub_distrib,
+        Finset.sum_const, Finset.card_univ, nsmul_eq_mul]
+      field_simp
+    have e2 : ∑ i : ι, 1 / (Fintype.card ι : ℝ) * Real.exp (-(τ * (1 - p i)))
+        = (∑ i, Real.exp (-(τ * (1 - p i)))) / (Fintype.card ι : ℝ) := by
+      rw [← Finset.mul_sum]; ring
+    rw [e1, e2, le_div_iff₀ hN] at h
+    linarith
+
+/-- Part (iii), monotonicity: for eigenvalues `≤ 1` the trace is nonincreasing in `τ`. -/
+theorem heat_antitone_matrix {n : Type} [Fintype n] [DecidableEq n] (S : Matrix n n ℝ)
+    (hS : S.IsHermitian) (h1 : ∀ i, hS.eigenvalues i ≤ 1) {τ1 τ2 : ℝ} (h : τ1 ≤ τ2) :
+    (NormedSpace.exp (τ2 • (S - 1))).trace ≤ (NormedSpace.exp (τ1 • (S - 1))).trace := by
+  rw [trace_exp_heat S hS τ1, trace_exp_heat S hS τ2]
+  refine Finset.sum_le_sum fun i _ => Real.exp_le_exp.2 ?_
+  nlinarith [mul_nonneg (sub_nonneg.2 h) (sub_nonneg.2 (h1 i))]
+
+/-- Part (iii), logarithmic convexity at the midpoint (Cauchy--Schwarz):
+    `(Tr e^{-tL} at (τ₁+τ₂)/2)² ≤ (Tr e^{-tL} at τ₁)(Tr e^{-tL} at τ₂)`, every real symmetric `S`. -/
+theorem heat_logconvex_midpoint {n : Type} [Fintype n] [DecidableEq n] (S : Matrix n n ℝ)
+    (hS : S.IsHermitian) (τ1 τ2 : ℝ) :
+    (NormedSpace.exp (((τ1 + τ2) / 2) • (S - 1))).trace ^ 2
+      ≤ (NormedSpace.exp (τ1 • (S - 1))).trace * (NormedSpace.exp (τ2 • (S - 1))).trace := by
+  rw [trace_exp_heat S hS τ1, trace_exp_heat S hS τ2, trace_exp_heat S hS ((τ1 + τ2) / 2)]
+  have h := Finset.sum_mul_sq_le_sq_mul_sq Finset.univ
+    (fun i => Real.exp (-(τ1 * (1 - hS.eigenvalues i)) / 2))
+    (fun i => Real.exp (-(τ2 * (1 - hS.eigenvalues i)) / 2))
+  have e0 : ∀ i, Real.exp (-(τ1 * (1 - hS.eigenvalues i)) / 2)
+        * Real.exp (-(τ2 * (1 - hS.eigenvalues i)) / 2)
+      = Real.exp (-((τ1 + τ2) / 2 * (1 - hS.eigenvalues i))) := fun i => by
+    rw [← Real.exp_add]; congr 1; ring
+  have e1 : ∀ τ : ℝ, ∀ i, Real.exp (-(τ * (1 - hS.eigenvalues i)) / 2) ^ 2
+      = Real.exp (-(τ * (1 - hS.eigenvalues i))) := fun τ i => by
+    rw [← Real.exp_nat_mul]; congr 1; push_cast; ring
+  simp only [e0, e1] at h
+  exact h
+
+/-- The diagonal of the matrix exponential in the eigenbasis: with the orthogonal matrix `U` of
+    eigenvectors, `(exp(τ(S-1)))_ii = ∑_a U_ia² e^{-τ(1-s_a)}`, `S_ii = ∑_a U_ia² s_a` and
+    `∑_a U_ia² = 1`. -/
+theorem exp_diag_eigen {n : Type} [Fintype n] [DecidableEq n] (S : Matrix n n ℝ)
+    (hS : S.IsHermitian) (τ : ℝ) (i : n) :
+    (NormedSpace.exp (τ • (S - 1))) i i
+        = ∑ a, (hS.eigenvectorUnitary : Matrix n n ℝ) i a ^ 2
+            * Real.exp (-(τ * (1 - hS.eigenvalues a))) ∧
+    S i i = ∑ a, (hS.eigenvectorUnitary : Matrix n n ℝ) i a ^ 2 * hS.eigenvalues a ∧
+    ∑ a, (hS.eigenvectorUnitary : Matrix n n ℝ) i a ^ 2 = 1 := by
+  let U : Matrix n n ℝ := hS.eigenvectorUnitary
+  have h1 : U * star U = 1 := Unitary.coe_mul_star_self _
+  have h2 : star U * U = 1 := Unitary.coe_star_mul_self _
+  let u : (Matrix n n ℝ)ˣ := ⟨U, star U, h1, h2⟩
+  have hS' : S = (u : Matrix n n ℝ) * diagonal (RCLike.ofReal ∘ hS.eigenvalues)
+      * ((u⁻¹ : (Matrix n n ℝ)ˣ) : Matrix n n ℝ) := by
+    conv_lhs => rw [hS.spectral_theorem, Unitary.conjStarAlgAut_apply]
+    rfl
+  have hD : diagonal (fun i => τ * (hS.eigenvalues i - 1))
+      = τ • (diagonal (RCLike.ofReal ∘ hS.eigenvalues) - 1) := by
+    ext i j
+    by_cases h : i = j
+    · subst h; simp
+    · simp [h]
+  have hsub : S - 1 = (u : Matrix n n ℝ) * (diagonal (RCLike.ofReal ∘ hS.eigenvalues) - 1)
+      * ((u⁻¹ : (Matrix n n ℝ)ˣ) : Matrix n n ℝ) := by
+    rw [mul_sub, sub_mul, mul_one, Units.mul_inv, ← hS']
+  have hL : τ • (S - 1) = (u : Matrix n n ℝ) * diagonal (fun i => τ * (hS.eigenvalues i - 1))
+      * ((u⁻¹ : (Matrix n n ℝ)ˣ) : Matrix n n ℝ) := by
+    rw [hD, hsub, Matrix.mul_smul, Matrix.smul_mul]
+  have hexp := (congrArg NormedSpace.exp hL).trans (Matrix.exp_units_conj u _)
+  have entry : ∀ d : n → ℝ, (U * diagonal d * star U) i i = ∑ a, U i a ^ 2 * d a := by
+    intro d
+    rw [Matrix.mul_apply]
+    refine Finset.sum_congr rfl fun a _ => ?_
+    rw [Matrix.mul_diagonal, Matrix.star_apply, star_trivial]
+    ring
+  refine ⟨?_, ?_, ?_⟩
+  · rw [hexp, Matrix.exp_diagonal]
+    have := entry (NormedSpace.exp fun i => τ * (hS.eigenvalues i - 1))
+    refine this.trans (Finset.sum_congr rfl fun a _ => ?_)
+    rw [Pi.coe_exp, ← Real.exp_eq_exp_ℝ]
+    congr 2
+    ring
+  · have := entry hS.eigenvalues
+    conv_lhs => rw [hS']
+    exact this
+  · have := congrFun (congrFun h1 i) i
+    rw [Matrix.mul_apply, Matrix.one_apply_eq] at this
+    rw [← this]
+    refine Finset.sum_congr rfl fun a _ => ?_
+    rw [Matrix.star_apply, star_trivial]
+    ring
+
+/-- Third inequality of `eq:chain`: `∑_i e^{-τ(1 - S_ii)} ≤ Tr exp(τ(S-1))`, for every real
+    symmetric `S` and every real `τ` (Jensen with the weights `|v_a(i)|²`). -/
+theorem heat_chain_third {n : Type} [Fintype n] [DecidableEq n] (S : Matrix n n ℝ)
+    (hS : S.IsHermitian) (τ : ℝ) :
+    ∑ i, Real.exp (-(τ * (1 - S i i))) ≤ (NormedSpace.exp (τ • (S - 1))).trace := by
+  unfold Matrix.trace
+  refine Finset.sum_le_sum fun i _ => ?_
+  obtain ⟨e1, e2, e3⟩ := exp_diag_eigen S hS τ i
+  have h := exp_jensen (fun a => (hS.eigenvectorUnitary : Matrix n n ℝ) i a ^ 2)
+    (fun a => -(τ * (1 - hS.eigenvalues a))) (fun a => pow_two_nonneg _) e3
+  have e4 : ∑ a, (hS.eigenvectorUnitary : Matrix n n ℝ) i a ^ 2 * -(τ * (1 - hS.eigenvalues a))
+      = -(τ * (1 - S i i)) := by
+    have e : ∀ a, (hS.eigenvectorUnitary : Matrix n n ℝ) i a ^ 2 * -(τ * (1 - hS.eigenvalues a))
+        = τ * ((hS.eigenvectorUnitary : Matrix n n ℝ) i a ^ 2 * hS.eigenvalues a)
+          - τ * (hS.eigenvectorUnitary : Matrix n n ℝ) i a ^ 2 := fun a => by ring
+    rw [Finset.sum_congr rfl (fun a _ => e a), Finset.sum_sub_distrib, ← Finset.mul_sum,
+      ← Finset.mul_sum, ← e2, e3]
+    ring
+  rw [e4] at h
+  rw [Matrix.diag_apply, e1]
+  exact h
+
+/-- **`prop:heatbounds`(i), the chain `eq:chain`, for a real symmetric matrix** with `Tr S ≥ 0`
+    and eigenvalues `≤ 1`, `τ ≥ 0`:
+    `N e^{-τ} ≤ N exp(-τ(1 - Tr S/N)) ≤ ∑_i e^{-τ(1 - S_ii)} ≤ Tr exp(τ(S-1)) ≤ N`. -/
+theorem heat_chain {n : Type} [Fintype n] [DecidableEq n] (S : Matrix n n ℝ)
+    (hS : S.IsHermitian) {τ : ℝ} (hτ : 0 ≤ τ) (htr : 0 ≤ S.trace)
+    (h1 : ∀ i, hS.eigenvalues i ≤ 1) :
+    (Fintype.card n : ℝ) * Real.exp (-τ)
+        ≤ (Fintype.card n : ℝ) * Real.exp (-(τ * (1 - S.trace / (Fintype.card n : ℝ)))) ∧
+    (Fintype.card n : ℝ) * Real.exp (-(τ * (1 - S.trace / (Fintype.card n : ℝ))))
+        ≤ ∑ i, Real.exp (-(τ * (1 - S i i))) ∧
+    ∑ i, Real.exp (-(τ * (1 - S i i))) ≤ (NormedSpace.exp (τ • (S - 1))).trace ∧
+    (NormedSpace.exp (τ • (S - 1))).trace ≤ (Fintype.card n : ℝ) :=
+  ⟨heat_chain_first (Nat.cast_nonneg _) hτ htr, heat_chain_second (fun i => S i i) τ,
+    heat_chain_third S hS τ, heat_upper_matrix S hS hτ h1⟩
+
+end OlderParts
+
 end CTG.Reals2
