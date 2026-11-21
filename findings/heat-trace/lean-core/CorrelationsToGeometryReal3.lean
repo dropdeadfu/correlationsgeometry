@@ -11035,4 +11035,85 @@ theorem oracle_two_torus {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure �
 
 end OracleTwoTorus
 
+/-! ## Lemma "oraclemoments" for `k = 2` on the flat torus (A58)
+
+For the walk with exact normalisation `P̃_{ij} = p(x_i - x_j)/N`, `p = pker d σ` the periodised
+Gaussian kernel, `M = m₁ = p(0)`: `E |Tr P̃² - m₂| ≤ 16 M²/N` for every `N ≥ 1`. This is the bound
+`4 k² M²/N` of Lemma "oraclemoments" of Appendix G for `k = 2` (the trace written as a double
+sum), here WITHOUT the condition `k² M ≤ N`. It follows from the second moment
+`OracleTwoTorus.oracle_two_torus` and Cauchy–Schwarz.
+
+NOT the lemma of the paper: only `k = 2` (and `k = 1` is trivial, `Tr P̃ = M = m₁`). The general
+case needs the count of closed walks by coincidence pattern and the spanning-tree integration;
+neither is formalised. -/
+
+namespace OracleMomentsTwo
+
+open PiBound OracleTwo OracleTwoTorus CTG.Reals.TorusReduction
+
+theorem oraclemoments_two {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {d : ℕ} (X : ℕ → Ω → FlatTorus d)
+    (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) {σ : ℝ} (hσ : 0 < σ) (N : ℕ) (hN : 1 ≤ N) :
+    ∫ ω, |1 / (N : ℝ) ^ 2 * ∑ i ∈ Finset.range N, ∑ j ∈ Finset.range N,
+        pker d σ (X i ω - X j ω) ^ 2 - torusM d σ 2| ∂μ
+      ≤ 16 * torusM d σ 1 ^ 2 / N := by
+  have hNpos : (0 : ℝ) < N := by exact_mod_cast hN
+  have hM1 : 1 ≤ torusM d σ 1 := torusM_one_ge hσ d
+  have hM0 : 0 ≤ torusM d σ 1 := by linarith
+  have e : ∀ ω, 1 / (N : ℝ) ^ 2 * ∑ i ∈ Finset.range N, ∑ j ∈ Finset.range N,
+        pker d σ (X i ω - X j ω) ^ 2 - torusM d σ 2
+      = 1 / (N : ℝ) ^ 2 * ∑ i ∈ Finset.range N, ∑ j ∈ Finset.range N,
+          phi0 d σ 1 (X i ω - X j ω) := by
+    intro ω
+    have h1 : ∀ i j : ℕ, phi0 d σ 1 (X i ω - X j ω)
+        = pker d σ (X i ω - X j ω) ^ 2 - torusM d σ 2 := by
+      intro i j
+      simp only [phi0, pker, heatP_one, pow_two, Nat.reduceAdd]
+    simp only [h1, Finset.sum_sub_distrib, Finset.sum_const, Finset.card_range, nsmul_eq_mul]
+    rw [mul_sub]
+    congr 1
+    field_simp
+  have hmeas : Measurable fun ω => 1 / (N : ℝ) ^ 2 * ∑ i ∈ Finset.range N,
+      ∑ j ∈ Finset.range N, pker d σ (X i ω - X j ω) ^ 2 - torusM d σ 2 :=
+    ((Finset.measurable_sum _ fun i _ => Finset.measurable_sum _ fun j _ =>
+      ((pker_continuous hσ d).measurable.comp ((hX i).sub (hX j))).pow_const 2).const_mul
+        _).sub_const _
+  have hb : ∀ ω, |1 / (N : ℝ) ^ 2 * ∑ i ∈ Finset.range N, ∑ j ∈ Finset.range N,
+        pker d σ (X i ω - X j ω) ^ 2 - torusM d σ 2|
+      ≤ 1 / (N : ℝ) ^ 2 * ((N : ℝ) * ((N : ℝ) * (torusM d σ 1 * torusM d σ 1))) := by
+    intro ω
+    rw [e ω, abs_mul, abs_of_nonneg (by positivity : (0 : ℝ) ≤ 1 / (N : ℝ) ^ 2)]
+    refine mul_le_mul_of_nonneg_left ?_ (by positivity)
+    calc |∑ i ∈ Finset.range N, ∑ j ∈ Finset.range N, phi0 d σ 1 (X i ω - X j ω)|
+        ≤ ∑ i ∈ Finset.range N, |∑ j ∈ Finset.range N, phi0 d σ 1 (X i ω - X j ω)| :=
+          Finset.abs_sum_le_sum_abs _ _
+      _ ≤ ∑ i ∈ Finset.range N, ∑ j ∈ Finset.range N, |phi0 d σ 1 (X i ω - X j ω)| :=
+          Finset.sum_le_sum fun i _ => Finset.abs_sum_le_sum_abs _ _
+      _ ≤ ∑ i ∈ Finset.range N, ∑ j ∈ Finset.range N, torusM d σ 1 * torusM d σ 1 :=
+          Finset.sum_le_sum fun i _ => Finset.sum_le_sum fun j _ =>
+            phi0_bound hσ d 1 le_rfl _
+      _ = (N : ℝ) * ((N : ℝ) * (torusM d σ 1 * torusM d σ 1)) := by
+          simp [Finset.sum_const, nsmul_eq_mul]
+  have h2 := abs_integral_le_sqrt (μ := μ) _ hmeas hb
+    (oracle_two_torus X h_indep hX hlaw hσ N hN)
+  refine h2.trans ?_
+  rw [Real.sqrt_le_iff]
+  refine ⟨by positivity, ?_⟩
+  have hr : (16 * torusM d σ 1 ^ 2 / (N : ℝ)) ^ 2 = (16 * torusM d σ 1 ^ 2) ^ 2 / (N : ℝ) ^ 2 :=
+    div_pow _ _ _
+  rw [hr, le_div_iff₀ (by positivity)]
+  have ht : 1 / (N : ℝ) ^ 2 * (N : ℝ) ^ 2 = 1 := by field_simp
+  have hw : (1 / (N : ℝ) ^ 2) ^ 2 * (4 * (N : ℝ) ^ 2 * (torusM d σ 1 * torusM d σ 1 ^ 2)
+        + 2 * ((N : ℝ) ^ 2 * (torusM d σ 1 * torusM d σ 1) ^ 2)) * (N : ℝ) ^ 2
+      = (1 / (N : ℝ) ^ 2 * (N : ℝ) ^ 2) ^ 2
+          * (4 * (torusM d σ 1 * torusM d σ 1 ^ 2) + 2 * (torusM d σ 1 * torusM d σ 1) ^ 2) := by
+    ring
+  rw [hw, ht]
+  have h34 : torusM d σ 1 ^ 3 ≤ torusM d σ 1 ^ 4 := by
+    nlinarith [mul_nonneg (pow_nonneg hM0 3) (sub_nonneg.mpr hM1)]
+  nlinarith [h34, pow_nonneg hM0 4]
+
+end OracleMomentsTwo
+
 end CTG.Reals2
