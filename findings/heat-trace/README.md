@@ -7,6 +7,18 @@ side (paper, numerics, core-library Lean file) and a second session on the repos
 
 This branch does not touch `main` or the Mathlib project in `CorrelationsGeometry/`. The contributions of the second session are in `second-session/` (see its `README.md`).
 
+## The paper (working version)
+
+`paper/correlations_to_geometry.tex`, `paper/correlations_to_geometry.pdf` and `paper/figures/` are the
+author's working version of the whole paper (131 pages, built on 20 November 2026), placed here on
+21 November 2026 at the author's wish and with the agreement of the owner of this repository, so that
+the state can be followed in public. It is NOT the version on Zenodo (version 3,
+doi:10.5281/zenodo.24273022) and it changes with the work. As its abstract says, none of the proofs
+has been checked independently by a second person; the status of every statement is in Table 1 of the
+paper. The ten JPEG figures were made with an image generator and are marked as schematic in their
+captions. The Lean statements added after 19 November (third, fourth and fifth Lean file) are
+described in this README, not yet in the paper.
+
 ## Status of each item
 
 No statement here has been read by a person. "Proven" means: a complete proof is written out and,
