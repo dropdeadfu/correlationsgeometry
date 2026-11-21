@@ -8419,4 +8419,351 @@ theorem heat_chain {n : Type} [Fintype n] [DecidableEq n] (S : Matrix n n ℝ)
 
 end OlderParts
 
+/-! ## The limit `N → ∞` at a FIXED kernel scale on the flat torus (A48)
+
+Formal counterparts, on the flat torus `(ℝ/ℤ)^d` with the uniform density and the periodised
+Gaussian kernel only, of Theorem "fixedxi" and Corollary "torus" of Appendix G.
+
+WHAT IS PROVED (no hypotheses beyond: the points are independent, measurable and uniform;
+`σ > 0`):
+* `trace_pow_tendsto_ae`: almost surely, for EVERY `k ≥ 1` simultaneously, `Tr P_N^k → m_k`
+  (`m_k = heatMode d σ k`, the heat kernel of the torus at the origin after `k` steps).
+* `subtracted_trace_uniform_ae`: almost surely, for every `Tm ≥ 0` and `ε > 0`, eventually in `N`,
+  `|Tr exp(τ(S_N - 1)) - N e^{-τ} - poissonMean d σ τ| ≤ ε` for ALL `τ ∈ [0, Tm]` (one null set for
+  all `τ`, uniform on compact sets of `τ`); `subtracted_trace_tendsto_ae` is the pointwise form.
+* `cor_torus_ae`: the same in the conventions of the paper (`s = ξ²/2` is the `σ` of the paper,
+  the kernel has variance `2s`, `τ = t/s`): the limits are `Tr e^{ksΔ}` and `T_s(t)` (`subTr`),
+  and for `s ≤ t ≤ 1` the quotient by `Θ(t)` converges to a number within `popRem d s t` of
+  `1 + d(d+2)/8 · s/t`.
+
+WHAT IS NOT PROVED: Theorem "fixedxi" itself. The paper states it for a closed manifold, a
+continuous positive density and an arbitrary continuous symmetric kernel, and proves it with the
+strong law for U-statistics. Here the entrywise limit `heatTorus_walk_ae` of the second file
+(Hoeffding, nets, Borel–Cantelli, semigroup property of the heat kernel) is used instead, which
+exists only for the torus, the uniform density and the heat kernel. Part (ii) of Corollary "torus"
+(other profiles) is not formalised. The sample is nested (the first `N` points of one sequence),
+the graph keeps its self-loops, the kernel is defined by its Fourier series (`heatTorus`; it is the
+periodised Gaussian by `heatTorus_eq_prod`), and the normalisation is the estimated one, `q_i`
+divided by `N`. No rate in `N` is claimed. -/
+
+namespace FixedScale
+
+open Filter Topology
+open CTG.Reals.TraceG29 PopulationRate SharpRate
+
+variable {Ω : Type*} {d : ℕ}
+
+/-- The kernel matrix of the first `N` sample points: `K_ij = p_σ(X_i - X_j)`, `p_σ` the heat
+    kernel of the torus of variance `σ` (`heatTorus d (2π²σ)`), diagonal included. -/
+noncomputable def fsK (d : ℕ) (σ : ℝ) (X : ℕ → Ω → FlatTorus d) (N : ℕ) (ω : Ω) :
+    Fin N → Fin N → ℝ :=
+  fun i j => heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X j ω)
+
+/-- The estimated normalisation `ρ_i = (1/N) ∑_l K_il`. -/
+noncomputable def fsRho (d : ℕ) (σ : ℝ) (X : ℕ → Ω → FlatTorus d) (N : ℕ) (ω : Ω) : Fin N → ℝ :=
+  fun i => (∑ l : Fin N, heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X l ω)) / N
+
+/-- The walk matrix `P_N` of the first `N` sample points. -/
+noncomputable def fsWalk (d : ℕ) (σ : ℝ) (X : ℕ → Ω → FlatTorus d) (N : ℕ) (ω : Ω) :
+    Matrix (Fin N) (Fin N) ℝ :=
+  walkMatrix (fsK d σ X N ω) (fsRho d σ X N ω)
+
+/-- The symmetric normalised matrix `S_N` of the first `N` sample points. -/
+noncomputable def fsSym (d : ℕ) (σ : ℝ) (X : ℕ → Ω → FlatTorus d) (N : ℕ) (ω : Ω) :
+    Matrix (Fin N) (Fin N) ℝ :=
+  symGraph (fsK d σ X N ω) (fsRho d σ X N ω)
+
+/-- The subtracted heat trace `Tr exp(τ(S_N - 1)) - N e^{-τ}` (`= Tr e^{-tL} - N e^{-τ}` with
+    `L = (2/ξ²)(1 - S)`, `τ = 2t/ξ²`). -/
+noncomputable def fsSub (d : ℕ) (σ : ℝ) (X : ℕ → Ω → FlatTorus d) (N : ℕ) (ω : Ω) (τ : ℝ) : ℝ :=
+  (NormedSpace.exp (τ • (fsSym d σ X N ω - 1))).trace - (N : ℝ) * Real.exp (-τ)
+
+/-- The normalisation is the `heatRho` of the other sections (sum over `Fin N` against sum over
+    `Finset.range N`), so the matrices here are those of `kernel_theorem_G28`, `heat_trace_G29`. -/
+theorem fsRho_eq_heatRho (σ : ℝ) (X : ℕ → Ω → FlatTorus d) (N : ℕ) (ω : Ω) (i : Fin N) :
+    fsRho d σ X N ω i = heatRho d σ N (fun j => X j ω) i := by
+  unfold fsRho heatRho
+  rw [Fin.sum_univ_eq_sum_range
+    (fun l : ℕ => heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X l ω)) N]
+
+/-! ### Deterministic facts about the sampled graph -/
+
+theorem fsK_symm (σ : ℝ) (X : ℕ → Ω → FlatTorus d) (N : ℕ) (ω : Ω) (i j : Fin N) :
+    fsK d σ X N ω i j = fsK d σ X N ω j i := by
+  unfold fsK
+  rw [← heatTorus_even, neg_sub]
+
+theorem fsK_nonneg {σ : ℝ} (hσ : 0 < σ) (X : ℕ → Ω → FlatTorus d) (N : ℕ) (ω : Ω) (i j : Fin N) :
+    0 ≤ fsK d σ X N ω i j := by
+  have hpi := Real.pi_pos
+  exact heatTorus_nonneg (by positivity) d _
+
+theorem fsRho_pos {σ : ℝ} (hσ : 0 < σ) (X : ℕ → Ω → FlatTorus d) (N : ℕ) (ω : Ω) (i : Fin N) :
+    0 < fsRho d σ X N ω i := by
+  have hpi := Real.pi_pos
+  have hc : 0 < 2 * Real.pi ^ 2 * σ := by positivity
+  have hN : (0 : ℝ) < N := by exact_mod_cast (Nat.zero_lt_of_lt i.isLt)
+  unfold fsRho
+  refine div_pos ?_ hN
+  refine Finset.sum_pos' (fun l _ => heatTorus_nonneg hc d _) ⟨i, Finset.mem_univ _, ?_⟩
+  rw [sub_self]
+  exact heatTorus_zero_pos hc d
+
+theorem fs_degree_pos {σ : ℝ} (hσ : 0 < σ) (X : ℕ → Ω → FlatTorus d) (N : ℕ) (ω : Ω)
+    (i : Fin N) :
+    0 < ∑ l, fsK d σ X N ω i l / (fsRho d σ X N ω i * fsRho d σ X N ω l) := by
+  have hpi := Real.pi_pos
+  have hc : 0 < 2 * Real.pi ^ 2 * σ := by positivity
+  refine Finset.sum_pos'
+    (fun l _ => div_nonneg (fsK_nonneg hσ X N ω i l)
+      (mul_pos (fsRho_pos hσ X N ω i) (fsRho_pos hσ X N ω l)).le) ⟨i, Finset.mem_univ _, ?_⟩
+  refine div_pos ?_ (mul_pos (fsRho_pos hσ X N ω i) (fsRho_pos hσ X N ω i))
+  unfold fsK
+  rw [sub_self]
+  exact heatTorus_zero_pos hc d
+
+theorem fsSym_isHermitian (σ : ℝ) (X : ℕ → Ω → FlatTorus d) (N : ℕ) (ω : Ω) :
+    (fsSym d σ X N ω).IsHermitian :=
+  symGraph_isHermitian _ _ (fsK_symm σ X N ω)
+
+/-- `Tr S_N^k = Tr P_N^k`. -/
+theorem fs_trace_eq {σ : ℝ} (hσ : 0 < σ) (X : ℕ → Ω → FlatTorus d) (N : ℕ) (ω : Ω) (k : ℕ) :
+    (fsSym d σ X N ω ^ k).trace = (fsWalk d σ X N ω ^ k).trace :=
+  symGraph_trace_pow _ _ (fs_degree_pos hσ X N ω) k
+
+/-- `|Tr S_N^k| ≤ Tr S_N²` for `k ≥ 2` (Proposition "moments"(ii), spectral form). -/
+theorem fs_trace_le_sq {σ : ℝ} (hσ : 0 < σ) (X : ℕ → Ω → FlatTorus d) (N : ℕ) (ω : Ω) {k : ℕ}
+    (hk : 2 ≤ k) : |(fsSym d σ X N ω ^ k).trace| ≤ (fsSym d σ X N ω ^ 2).trace :=
+  (symGraph_trace_bounds _ _ (fsK_symm σ X N ω) (fsK_nonneg hσ X N ω) (fsRho_pos hσ X N ω)
+    (fs_degree_pos hσ X N ω) k).2 hk
+
+/-- The Poisson series of the subtracted heat trace of the sampled graph. -/
+theorem fsSub_hasSum (σ : ℝ) (X : ℕ → Ω → FlatTorus d) (N : ℕ) (ω : Ω) (τ : ℝ) :
+    HasSum (fun j : ℕ => pw τ (j + 1) * (fsSym d σ X N ω ^ (j + 1)).trace)
+      (fsSub d σ X N ω τ) := by
+  have h := subtracted_trace_hasSum (fsSym d σ X N ω) (fsSym_isHermitian σ X N ω) τ
+  rw [Fintype.card_fin] at h
+  exact h
+
+/-! ### Stage 1: the traces of the powers -/
+
+variable {mΩ : MeasurableSpace Ω} {μ : Measure Ω} [IsProbabilityMeasure μ]
+
+/-- One power and one tolerance: almost surely, for all large `N`,
+    `|Tr P_N^{k+1} - m_{k+1}| ≤ eta` (the diagonal of `heatTorus_walk_ae`). -/
+theorem trace_pow_eventually_ae (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ)
+    (hX : ∀ j, Measurable (X j)) (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d)
+    {σ : ℝ} (hσ : 0 < σ) (k : ℕ) {eta : ℝ} (heta : 0 < eta) :
+    ∀ᵐ ω ∂μ, ∀ᶠ N in atTop,
+      |(fsWalk d σ X N ω ^ (k + 1)).trace - heatMode d σ (k + 1)| ≤ eta := by
+  have hpi := Real.pi_pos
+  have hc : 0 < 2 * Real.pi ^ 2 * σ := by positivity
+  filter_upwards [heatTorus_walk_ae d X h_indep hX hlaw hc k heta] with ω hω
+  obtain ⟨N0, hN0⟩ := eventually_atTop.1 hω
+  refine eventually_atTop.2 ⟨N0 + 1, fun N hN => ?_⟩
+  obtain ⟨n, rfl⟩ : ∃ n, N = n + 1 := ⟨N - 1, by omega⟩
+  have hn := hN0 n (by omega)
+  refine trace_from_diagonal (Nat.succ_pos n) (fsWalk d σ X (n + 1) ω ^ (k + 1)) (fun a => ?_)
+  have h2 := hn a a
+  rw [sub_self] at h2
+  have e : ((k + 1 : ℕ) : ℝ) * (2 * Real.pi ^ 2 * σ)
+      = 2 * Real.pi ^ 2 * (((k + 1 : ℕ) : ℝ) * σ) := by ring
+  rw [e] at h2
+  exact h2
+
+/-- **Theorem "fixedxi"(i) on the flat torus, Gaussian profile.** Almost surely, for every
+    `k ≥ 1`, `Tr P_N^k → m_k = p_{kσ}(0)` as `N → ∞` (kernel of variance `σ` fixed; one null set
+    for all `k`). -/
+theorem trace_pow_tendsto_ae (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ)
+    (hX : ∀ j, Measurable (X j)) (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d)
+    {σ : ℝ} (hσ : 0 < σ) :
+    ∀ᵐ ω ∂μ, ∀ k, 1 ≤ k →
+      Tendsto (fun N => (fsWalk d σ X N ω ^ k).trace) atTop (𝓝 (heatMode d σ k)) := by
+  have h : ∀ᵐ ω ∂μ, ∀ k n : ℕ, ∀ᶠ N in atTop,
+      |(fsWalk d σ X N ω ^ (k + 1)).trace - heatMode d σ (k + 1)| ≤ 1 / ((n : ℝ) + 1) := by
+    rw [ae_all_iff]; intro k
+    rw [ae_all_iff]; intro n
+    exact trace_pow_eventually_ae X h_indep hX hlaw hσ k (by positivity)
+  filter_upwards [h] with ω hω k hk
+  obtain ⟨k, rfl⟩ : ∃ k', k = k' + 1 := ⟨k - 1, by omega⟩
+  rw [Metric.tendsto_nhds]
+  intro ε hε
+  obtain ⟨n, hn⟩ := exists_nat_one_div_lt hε
+  filter_upwards [hω k n] with N hN
+  rw [Real.dist_eq]
+  exact lt_of_le_of_lt hN hn
+
+/-! ### Stage 2: the subtracted heat trace -/
+
+/-- A nonnegative series dominated by a summable one is small if a tail of the dominating series
+    and the corresponding initial segment are small. -/
+theorem tsum_lt_of_tail {f b : ℕ → ℝ} (hf0 : ∀ j, 0 ≤ f j) (hle : ∀ j, f j ≤ b j)
+    (hb : Summable b) (J : ℕ) {e : ℝ} (hJ : ∑' j, b (j + J) < e / 2)
+    (hfin : ∑ j ∈ Finset.range J, f j < e / 2) : ∑' j, f j < e := by
+  have hsum : Summable f := Summable.of_nonneg_of_le hf0 hle hb
+  rw [← Summable.sum_add_tsum_nat_add J hsum]
+  have h2 : ∑' j, f (j + J) ≤ ∑' j, b (j + J) :=
+    Summable.tsum_le_tsum (fun j => hle (j + J)) ((summable_nat_add_iff J).2 hsum)
+      ((summable_nat_add_iff J).2 hb)
+  linarith
+
+/-- Deterministic limit of Poisson means, uniform for `τ` in `[0, Tm]`: if `a_N(j) → m(j)` for
+    every `j ≥ 1` and eventually `|a_N(j)| ≤ B` for all `j ≥ 1`, `|m(j)| ≤ B`, then for every
+    `ε > 0`, eventually in `N`, `|∑_{j≥1} w_j(τ) a_N(j) - ∑_{j≥1} w_j(τ) m(j)| ≤ ε` for all
+    `τ ∈ [0, Tm]`. (Dominated convergence for series with the weights `Tm^j/j!`, done by hand: tail plus finite sum.) -/
+theorem poisson_limit_uniform (a : ℕ → ℕ → ℝ) (m : ℕ → ℝ) {B Tm : ℝ} (hTm : 0 ≤ Tm)
+    (hconv : ∀ j, Tendsto (fun N => a N (j + 1)) atTop (𝓝 (m (j + 1))))
+    (hB : ∀ᶠ N in atTop, ∀ j, |a N (j + 1)| ≤ B) (hm : ∀ j, |m (j + 1)| ≤ B)
+    {ε : ℝ} (hε : 0 < ε) :
+    ∀ᶠ N in atTop, ∀ τ, 0 ≤ τ → τ ≤ Tm → ∀ A T : ℝ,
+      HasSum (fun j : ℕ => pw τ (j + 1) * a N (j + 1)) A →
+      HasSum (fun j : ℕ => pw τ (j + 1) * m (j + 1)) T → |A - T| ≤ ε := by
+  obtain ⟨g, hgdef⟩ : ∃ g : ℕ → ℝ, g = fun j : ℕ => Tm ^ (j + 1) / ((j + 1).factorial : ℝ) :=
+    ⟨_, rfl⟩
+  have hg0 : ∀ j, 0 ≤ g j := fun j => by
+    rw [hgdef]; exact div_nonneg (pow_nonneg hTm _) (Nat.cast_nonneg _)
+  have hg : Summable g := by
+    rw [hgdef]
+    exact (summable_nat_add_iff 1).2 (Real.summable_pow_div_factorial Tm)
+  have hbs : Summable (fun j => g j * (2 * B)) := hg.mul_right _
+  obtain ⟨J, hJ⟩ : ∃ J, ∑' j, g (j + J) * (2 * B) < ε / 2 := by
+    have h := tendsto_sum_nat_add (fun j => g j * (2 * B))
+    exact ((tendsto_order.1 h).2 (ε / 2) (by linarith)).exists
+  have hfin : Tendsto (fun N => ∑ j ∈ Finset.range J, g j * |a N (j + 1) - m (j + 1)|) atTop
+      (𝓝 0) := by
+    have h := tendsto_finset_sum (Finset.range J)
+      (fun j _ => (((hconv j).sub_const (m (j + 1))).abs).const_mul (g j))
+    simpa using h
+  have hF : ∀ᶠ N in atTop, ∑' j, g j * |a N (j + 1) - m (j + 1)| < ε := by
+    filter_upwards [(tendsto_order.1 hfin).2 (ε / 2) (by linarith), hB] with N hN hBN
+    have hle : ∀ j, g j * |a N (j + 1) - m (j + 1)| ≤ g j * (2 * B) := fun j => by
+      refine mul_le_mul_of_nonneg_left ?_ (hg0 j)
+      have := abs_sub (a N (j + 1)) (m (j + 1))
+      linarith [hBN j, hm j]
+    exact tsum_lt_of_tail (f := fun j => g j * |a N (j + 1) - m (j + 1)|)
+      (b := fun j => g j * (2 * B)) (fun j => mul_nonneg (hg0 j) (abs_nonneg _)) hle hbs J hJ hN
+  filter_upwards [hF, hB] with N hN hBN τ hτ0 hτ A T hA hT
+  have hsum : Summable (fun j => g j * |a N (j + 1) - m (j + 1)|) :=
+    Summable.of_nonneg_of_le (fun j => mul_nonneg (hg0 j) (abs_nonneg _))
+      (fun j => by
+        refine mul_le_mul_of_nonneg_left ?_ (hg0 j)
+        have := abs_sub (a N (j + 1)) (m (j + 1))
+        linarith [hBN j, hm j]) (hg.mul_right (2 * B))
+  have hpw : ∀ j, pw τ (j + 1) ≤ g j := fun j => by
+    rw [hgdef]
+    unfold pw
+    have h1 : Real.exp (-τ) ≤ 1 := Real.exp_le_one_iff.2 (by linarith)
+    have h2 : τ ^ (j + 1) / ((j + 1).factorial : ℝ) ≤ Tm ^ (j + 1) / ((j + 1).factorial : ℝ) :=
+      div_le_div_of_nonneg_right (pow_le_pow_left₀ hτ0 hτ _) (Nat.cast_nonneg _)
+    have h3 : 0 ≤ τ ^ (j + 1) / ((j + 1).factorial : ℝ) :=
+      div_nonneg (pow_nonneg hτ0 _) (Nat.cast_nonneg _)
+    calc Real.exp (-τ) * (τ ^ (j + 1) / ((j + 1).factorial : ℝ))
+        ≤ 1 * (τ ^ (j + 1) / ((j + 1).factorial : ℝ)) := mul_le_mul_of_nonneg_right h1 h3
+      _ ≤ Tm ^ (j + 1) / ((j + 1).factorial : ℝ) := by rw [one_mul]; exact h2
+  have hD := hA.sub hT
+  have hle := hD.norm_le_of_bounded hsum.hasSum (fun j => by
+    rw [Real.norm_eq_abs, ← mul_sub, abs_mul, abs_of_nonneg (pw_nonneg hτ0 _)]
+    exact mul_le_mul_of_nonneg_right (hpw j) (abs_nonneg _))
+  rw [Real.norm_eq_abs] at hle
+  exact hle.trans hN.le
+
+/-- **Theorem "fixedxi"(ii) on the flat torus, Gaussian profile, uniformly on compact sets of
+    `τ`.** Kernel of variance `σ > 0` fixed. Almost surely: for every `Tm ≥ 0` and `ε > 0`, for all
+    large `N`, `|Tr exp(τ(S_N - 1)) - N e^{-τ} - ∑_{j≥1} w_j(τ) m_j| ≤ ε` for all `τ ∈ [0, Tm]`.
+    The null set does not depend on `τ`, `Tm`, `ε`. -/
+theorem subtracted_trace_uniform_ae (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ)
+    (hX : ∀ j, Measurable (X j)) (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d)
+    {σ : ℝ} (hσ : 0 < σ) :
+    ∀ᵐ ω ∂μ, ∀ Tm : ℝ, 0 ≤ Tm → ∀ ε : ℝ, 0 < ε → ∀ᶠ N in atTop, ∀ τ, 0 ≤ τ → τ ≤ Tm →
+      |fsSub d σ X N ω τ - poissonMean d σ τ| ≤ ε := by
+  filter_upwards [trace_pow_tendsto_ae X h_indep hX hlaw hσ] with ω hω Tm hTm ε hε
+  have hconv : ∀ j, Tendsto (fun N => (fsSym d σ X N ω ^ (j + 1)).trace) atTop
+      (𝓝 (heatMode d σ (j + 1))) := fun j =>
+    (hω (j + 1) (by omega)).congr (fun N => (fs_trace_eq hσ X N ω (j + 1)).symm)
+  obtain ⟨M, hMdef⟩ : ∃ M : ℝ, M = heatTorus d (2 * Real.pi ^ 2 * σ) 0 := ⟨_, rfl⟩
+  have hmle : ∀ j, heatMode d σ (j + 1) ≤ M := fun j => by
+    rw [hMdef]; exact heatMode_le hσ d (by omega)
+  have hmge : ∀ j, 1 ≤ heatMode d σ (j + 1) := fun j => heatMode_ge_one hσ d (by omega)
+  have hm : ∀ j, |heatMode d σ (j + 1)| ≤ M + 1 := fun j => by
+    rw [abs_of_nonneg (by linarith [hmge j])]; linarith [hmle j]
+  have hev : ∀ j, ∀ᶠ N in atTop, |(fsSym d σ X N ω ^ (j + 1)).trace| ≤ M + 1 := fun j => by
+    filter_upwards [(Metric.tendsto_nhds.1 (hconv j)) 1 one_pos] with N hN
+    rw [Real.dist_eq] at hN
+    have h1 := abs_sub_abs_le_abs_sub ((fsSym d σ X N ω ^ (j + 1)).trace) (heatMode d σ (j + 1))
+    have h2 := hm j
+    have h3 : |heatMode d σ (j + 1)| ≤ M := by
+      rw [abs_of_nonneg (by linarith [hmge j])]; exact hmle j
+    linarith
+  have hB : ∀ᶠ N in atTop, ∀ j, |(fsSym d σ X N ω ^ (j + 1)).trace| ≤ M + 1 := by
+    filter_upwards [hev 0, hev 1] with N h0 h1 j
+    rcases Nat.eq_zero_or_pos j with hj | hj
+    · rw [hj]; exact h0
+    · have h2 := fs_trace_le_sq hσ X N ω (k := j + 1) (by omega)
+      exact h2.trans ((le_abs_self _).trans h1)
+  filter_upwards [poisson_limit_uniform (fun N j => (fsSym d σ X N ω ^ j).trace)
+    (heatMode d σ) hTm hconv hB hm hε] with N hN τ hτ0 hτ
+  exact hN τ hτ0 hτ _ _ (fsSub_hasSum σ X N ω τ) (poissonMean_hasSum hσ d hτ0)
+
+/-- **Theorem "fixedxi"(ii) on the flat torus, Gaussian profile, pointwise form.** Almost surely,
+    for every `τ ≥ 0`: `Tr exp(τ(S_N - 1)) - N e^{-τ} → poissonMean d σ τ` as `N → ∞`. -/
+theorem subtracted_trace_tendsto_ae (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ)
+    (hX : ∀ j, Measurable (X j)) (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d)
+    {σ : ℝ} (hσ : 0 < σ) :
+    ∀ᵐ ω ∂μ, ∀ τ : ℝ, 0 ≤ τ →
+      Tendsto (fun N => fsSub d σ X N ω τ) atTop (𝓝 (poissonMean d σ τ)) := by
+  filter_upwards [subtracted_trace_uniform_ae X h_indep hX hlaw hσ] with ω hω τ hτ
+  rw [Metric.tendsto_nhds]
+  intro ε hε
+  filter_upwards [hω τ hτ (ε / 2) (by linarith)] with N hN
+  rw [Real.dist_eq]
+  have := hN τ hτ le_rfl
+  linarith
+
+/-! ### Stage 3: Corollary "torus"(i) in the conventions of the paper -/
+
+/-- `m_k` for the kernel of variance `2s` is the heat trace `Θ(ks) = Tr e^{ksΔ}` of the torus. -/
+theorem heatMode_eq_heatTr (d : ℕ) (s : ℝ) (k : ℕ) :
+    heatMode d (2 * s) k = heatTr (torusLam d) ((k : ℝ) * s) := by
+  rw [heatTr_torus]
+  unfold heatMode
+  congr 1
+  ring
+
+/-- **Corollary "torus"(i), Gaussian profile.** `s > 0` is the `σ = ξ²/2` of the paper; the
+    kernel is the heat kernel of variance `ξ² = 2s`, and `τ = t/s`. Almost surely (one null set
+    for all `k` and `t`):
+    (a) `Tr P_N^k → Θ(ks) = Tr e^{ksΔ}` for every `k ≥ 1`;
+    (b) `Tr e^{-tL_N} - N e^{-τ} → T_s(t)` (`subTr`, equation `eq:Tsigma`) for every `t ≥ 0`;
+    (c) for `s ≤ t ≤ 1` the quotient by `Θ(t)` converges to `T_s(t)/Θ(t)`, and this limit satisfies
+        `|T_s(t)/Θ(t) - 1 - d(d+2)/8 · s/t| ≤ popRem d s t` (`eq:rateexact` with the explicit
+        remainder of `rate_exact_torus_explicit`; the remainder is `O(τ^{-2})` plus terms that are
+        exponentially small in `τ` and in `1/t`, see there for when it is small). -/
+theorem cor_torus_ae (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ)
+    (hX : ∀ j, Measurable (X j)) (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d)
+    {s : ℝ} (hs : 0 < s) :
+    ∀ᵐ ω ∂μ,
+      (∀ k : ℕ, 1 ≤ k → Tendsto (fun N => (fsWalk d (2 * s) X N ω ^ k).trace) atTop
+          (𝓝 (heatTr (torusLam d) ((k : ℝ) * s))))
+      ∧ (∀ t : ℝ, 0 ≤ t → Tendsto (fun N => fsSub d (2 * s) X N ω (t / s)) atTop
+          (𝓝 (subTr (torusLam d) s t)))
+      ∧ (∀ t : ℝ, s ≤ t → t ≤ 1 →
+          Tendsto (fun N => fsSub d (2 * s) X N ω (t / s) / heatTr (torusLam d) t) atTop
+            (𝓝 (subTr (torusLam d) s t / heatTr (torusLam d) t))
+          ∧ |subTr (torusLam d) s t / heatTr (torusLam d) t - 1
+              - (d : ℝ) * ((d : ℝ) + 2) / 8 * (s / t)| ≤ popRem d s t) := by
+  have h2s : 0 < 2 * s := by linarith
+  filter_upwards [trace_pow_tendsto_ae X h_indep hX hlaw h2s,
+    subtracted_trace_tendsto_ae X h_indep hX hlaw h2s] with ω h1 h2
+  have hb : ∀ t : ℝ, 0 ≤ t → Tendsto (fun N => fsSub d (2 * s) X N ω (t / s)) atTop
+      (𝓝 (subTr (torusLam d) s t)) := fun t ht => by
+    rw [subTr_torus d hs ht]
+    exact h2 (t / s) (div_nonneg ht hs.le)
+  refine ⟨fun k hk => ?_, hb, fun t hts ht1 => ⟨?_, ?_⟩⟩
+  · rw [← heatMode_eq_heatTr]
+    exact h1 k hk
+  · exact (hb t (hs.le.trans hts)).div_const _
+  · exact rate_exact_torus_explicit d hs hts ht1
+
+end FixedScale
+
 end CTG.Reals2
