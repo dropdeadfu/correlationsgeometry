@@ -1654,4 +1654,544 @@ theorem rate_exact_torus_explicit (d : ℕ) {σ t : ℝ} (hσ : 0 < σ) (hts : �
 
 end PopulationRate
 
+/-! ## The sharp rate for the sampled graph on the flat torus
+(last display of `cor:kernel-trace`; the same display with `cor:secondstage-alld` on the sample side)
+
+This block only COMPOSES accepted statements; it contains no new estimate on the sample:
+* sample side: `TraceRates.heat_trace_rate_small` (almost surely, regime `N σ_N^{d/2+3}/log N → ∞`,
+  i.e. `N ξ^{d+6}/log N → ∞`, uniformly in `2 ≤ τ ≤ c/σ_N`) and `SecondStageLimit.second_stage_limit`
+  (in probability, regime `N σ_N^{d/2+2}/log N → ∞`, i.e. `N ξ^{d+4}/log N → ∞`, one sequence `τ_N`);
+* population side: `PopulationRate.subTr_torus`, `rate_exact_torus_explicit` (`eq:rateexact` on the
+  flat torus with explicit remainder).
+
+Conventions (as in `TraceRates`): `σ N` is the VARIANCE of the kernel, `σ_N = ξ_N²`; the `σ` of the
+paper is `σ N / 2`; `t` is the time of the paper, `τ = t/(σ_N/2) = 2 t/σ_N` the Poisson time,
+`t ∈ [ξ_N², 1]` is `σ N ≤ t ≤ 1`. `Θ(t) = heatTr (torusLam d) t = ∑_{n ∈ ℤ^d} e^{-4π²|n|² t}`
+(`= heatTorus d (4π² t) 0` by `heatTr_torus`). The sample quantity is
+`Tr exp(τ(S - 1)) - N e^{-τ}` with `S = symGraph …` (graph WITH self-loops, nested sample).
+
+What is proven (every statement for the flat torus `ℝ^d/ℤ^d`, `d ≥ 1`, uniform points):
+* `combine`: the deterministic combination lemma.
+* `sharp_rate_ae_explicit`: almost surely, for every `η > 0`, for all large `N` and ALL
+  `t ∈ [σ_N, 1]`:
+  `|(Tr exp(τ(S-1)) - N e^{-τ})/Θ(t) - 1 - d(d+2)/8 · (σ_N/2)/t|
+     ≤ η σ_N (1 + d(d+2)/8·(σ_N/2)/t + popRem) + popRem`,
+  `popRem d (σ_N/2) t` being the explicit population remainder of `rate_exact_torus_explicit`.
+* `sharp_rate_ae`: the same with the remainder in the form of the paper,
+  `≤ sharpC2 d · ((σ_N/2)/t)² + sharpC1 d · (σ_N/2) + η σ_N`
+  (`O(τ^{-2}) + O(ξ²) + o(ξ²)` with explicit constants in the two `O`).
+* `sharp_rate_ae_small_time`: if moreover `t` is restricted to `[σ_N, Tm_N]` with `Tm_N → 0`:
+  `≤ sharpC2 d · ((σ_N/2)/t)² + η · (σ_N/2)/t`.
+* `sharp_rate_prob_explicit`, `sharp_rate_prob`, `sharp_rate_prob_small_time`: the same three
+  statements in probability (the probability that the bound fails tends to `0`), for ONE sequence
+  `t_N ∈ [σ_N, 1]`, under the weaker regime `N σ_N^{d/2+2}/log N → ∞`.
+
+HONEST READING, not to be hidden:
+* The term `sharpC1 d · (σ_N/2)` (the `O(ξ²)` of the paper; it comes from
+  `(σ/2t)(2d+12) 9^d e^{-1/(16t)}`) is of the SAME order `σ` as the main term
+  `d(d+2)/8 · (σ_N/2)/t` when `t` is of order one. For such `t` the statements do NOT show that the
+  deviation is of the size of the main term (and it is not: on the unit torus `T_σ/Θ - 1` is then
+  much smaller than `d(d+2)/(8τ)`, the "remainder" cancels the main term; see
+  `scripts/rate_exact_large_t.py`). The main term is identified only in `…_small_time`
+  (`t ≤ Tm_N → 0`), and even there it dominates the bound only where additionally
+  `sharpC2 d · (σ_N/2)/t` is small against `d(d+2)/8`, i.e. for `τ = 2t/σ_N` much larger than
+  `8·sharpC2 d/(d(d+2))`; `sharpC2 d = 832·6^d + 12·3^d·4^{d+3}·(d+3)!` is far from sharp.
+* The constants are those of these files, not constants of the paper; the exceptional null set /
+  events are those of `heat_trace_rate_small` / `second_stage_limit`; the sample is nested (the
+  first `N` points of one sequence); `Θ` is the sum over the list `4π²|n|²` (no Laplace operator);
+  the sample quantity is `Tr exp(τ(S-1)) - N e^{-τ}`, not literally `Tr e^{-tL} - N e^{-τ}`
+  (`L = (2/ξ²)(1 - S)` up to conjugation is not a statement of this block); `ξ_N → 0` is not
+  assumed (only eventually `0 < σ_N ≤ 1`).
+* The statements in probability are for one deterministic sequence `t_N`, not uniform in `t`, and
+  measurability of the events is not shown here (`μ.real` of the sets as written). -/
+
+namespace SharpRate
+
+open Filter Topology
+open CTG.Reals.TraceG29 TraceRates PopulationRate SecondStageLimit
+
+/-! ### Stage 1: deterministic -/
+
+/-- **Combination lemma.** From `|A/T - 1| ≤ ε` and `|T/Θ - 1 - κ| ≤ ρ` (`T, Θ ≠ 0`):
+    `|A/Θ - 1 - κ| ≤ ε (1 + |κ| + ρ) + ρ`. -/
+theorem combine {A T Θ κ ε ρ : ℝ} (hT : T ≠ 0) (hΘ : Θ ≠ 0)
+    (h1 : |A / T - 1| ≤ ε) (h2 : |T / Θ - 1 - κ| ≤ ρ) :
+    |A / Θ - 1 - κ| ≤ ε * (1 + |κ| + ρ) + ρ := by
+  have e : A / Θ - 1 - κ = (A / T - 1) * (T / Θ) + (T / Θ - 1 - κ) := by
+    field_simp
+    ring
+  have h3 : |T / Θ| ≤ 1 + |κ| + ρ := by
+    have e3 : T / Θ = ((T / Θ - 1 - κ) + 1) + κ := by ring
+    have a1 := abs_add_le ((T / Θ - 1 - κ) + 1) κ
+    have a2 := abs_add_le (T / Θ - 1 - κ) 1
+    rw [abs_one] at a2
+    rw [← e3] at a1
+    linarith
+  have h4 : |(A / T - 1) * (T / Θ)| ≤ ε * (1 + |κ| + ρ) := by
+    rw [abs_mul]
+    exact mul_le_mul h1 h3 (abs_nonneg _) ((abs_nonneg _).trans h1)
+  rw [e]
+  exact (abs_add_le _ _).trans (add_le_add h4 h2)
+
+/-- The explicit population remainder of `rate_exact_torus_explicit` (`s` is the `σ` of the paper,
+    `τ = t/s`): `832·6^d/τ² + 3(1+τ) e^{-τ/4}((4+√τ)^d + 6^d) + (1/2τ)(2d+12) 9^d e^{-1/(16t)}`. -/
+noncomputable def popRem (d : ℕ) (s t : ℝ) : ℝ :=
+  832 * 6 ^ d * (s / t) ^ 2
+    + 3 * (1 + t / s) * Real.exp (-(t / s / 4)) * ((4 + Real.sqrt (t / s)) ^ d + 6 ^ d)
+    + s / (2 * t) * ((2 * (d : ℝ) + 12) * (9 ^ d * Real.exp (-(1 / (16 * t)))))
+
+/-- **Deterministic sharp rate, explicit remainder.** `σ` is the variance of the kernel (`ξ²`),
+    `σ ≤ t ≤ 1`, `x` any real number (the subtracted trace of the sample). If
+    `|x / T_{σ/2}(t) - 1| ≤ ε` (with `T_{σ/2}(t) = poissonMean d σ (2t/σ)`), then
+    `|x/Θ(t) - 1 - d(d+2)/8·(σ/2)/t| ≤ ε (1 + d(d+2)/8·(σ/2)/t + popRem) + popRem`. -/
+theorem sharp_det (d : ℕ) {σ t x ε : ℝ} (hσ : 0 < σ) (hts : σ ≤ t) (ht1 : t ≤ 1)
+    (h : |x / poissonMean d σ (2 * t / σ) - 1| ≤ ε) :
+    |x / heatTr (torusLam d) t - 1 - (d : ℝ) * ((d : ℝ) + 2) / 8 * (σ / 2 / t)|
+      ≤ ε * (1 + (d : ℝ) * ((d : ℝ) + 2) / 8 * (σ / 2 / t) + popRem d (σ / 2) t)
+        + popRem d (σ / 2) t := by
+  unfold popRem
+  have hs : 0 < σ / 2 := by linarith
+  have ht : 0 < t := lt_of_lt_of_le hσ hts
+  have hst : σ / 2 ≤ t := by linarith
+  have e1 : 2 * (σ / 2) = σ := by ring
+  have e2 : t / (σ / 2) = 2 * t / σ := by rw [div_div_eq_mul_div]; ring
+  have hT : subTr (torusLam d) (σ / 2) t = poissonMean d σ (2 * t / σ) := by
+    rw [subTr_torus d hs ht.le, e1, e2]
+  have hτ : 0 < 2 * t / σ := by positivity
+  have hTpos : 0 < poissonMean d σ (2 * t / σ) := by
+    have h1 := poissonMean_ge hσ d hτ.le
+    have h2 : Real.exp (-(2 * t / σ)) < 1 := by
+      rw [Real.exp_lt_one_iff]
+      linarith
+    linarith
+  have hpop := rate_exact_torus_explicit d hs hst ht1
+  rw [hT] at hpop
+  have hκ : 0 ≤ (d : ℝ) * ((d : ℝ) + 2) / 8 * (σ / 2 / t) := by positivity
+  have hΘ : heatTr (torusLam d) t ≠ 0 := by
+    have h1 : 0 < heatTr (torusLam d) t := by
+      rw [heatTr_torus]
+      exact lt_of_lt_of_le zero_lt_one (heatTorus_zero_ge_one (by positivity) d)
+    exact h1.ne'
+  have key := combine hTpos.ne' hΘ h hpop
+  rwa [abs_of_nonneg hκ] at key
+
+/-- The constant of the exponentially small term: `12·3^d·4^{d+3}·(d+3)!`. -/
+noncomputable def sharpK (d : ℕ) : ℝ := 12 * 3 ^ d * (4 ^ (d + 3) * ((d + 3).factorial : ℝ))
+
+/-- The exponentially small term of `popRem` is `O(τ^{-2})` for `τ ≥ 2`. -/
+theorem exp_tail_le (d : ℕ) {τ : ℝ} (hτ : 2 ≤ τ) :
+    3 * (1 + τ) * Real.exp (-(τ / 4)) * ((4 + Real.sqrt τ) ^ d + 6 ^ d)
+      ≤ sharpK d * (1 / τ) ^ 2 := by
+  have hτ0 : 0 < τ := by linarith
+  have hsq : Real.sqrt τ ≤ τ := Real.sqrt_le_iff.2 ⟨hτ0.le, by nlinarith⟩
+  have hs0 : 0 ≤ Real.sqrt τ := Real.sqrt_nonneg τ
+  have h4 : (4 + Real.sqrt τ) ^ d ≤ (3 * τ) ^ d :=
+    pow_le_pow_left₀ (by linarith) (by linarith) d
+  have h6 : (6 : ℝ) ^ d ≤ (3 * τ) ^ d := pow_le_pow_left₀ (by norm_num) (by linarith) d
+  have he : 0 ≤ Real.exp (-(τ / 4)) := (Real.exp_pos _).le
+  have hfpos : (0 : ℝ) < ((d + 3).factorial : ℝ) := by exact_mod_cast Nat.factorial_pos (d + 3)
+  have hfac := Real.pow_div_factorial_le_exp (x := τ / 4) (by positivity) (d + 3)
+  rw [div_le_iff₀ hfpos] at hfac
+  have hexp : Real.exp (-(τ / 4)) * Real.exp (τ / 4) = 1 := by
+    rw [← Real.exp_add, neg_add_cancel, Real.exp_zero]
+  have hpw : τ ^ (d + 3) = 4 ^ (d + 3) * (τ / 4) ^ (d + 3) := by
+    rw [← mul_pow]
+    congr 1
+    ring
+  have hE : Real.exp (-(τ / 4)) * τ ^ (d + 3) ≤ 4 ^ (d + 3) * ((d + 3).factorial : ℝ) := by
+    rw [hpw]
+    have a1 := mul_le_mul_of_nonneg_left hfac
+      (mul_nonneg he (by positivity : (0 : ℝ) ≤ 4 ^ (d + 3)))
+    have a2 : Real.exp (-(τ / 4)) * 4 ^ (d + 3)
+          * (Real.exp (τ / 4) * ((d + 3).factorial : ℝ))
+        = 4 ^ (d + 3) * ((d + 3).factorial : ℝ)
+          * (Real.exp (-(τ / 4)) * Real.exp (τ / 4)) := by ring
+    rw [a2, hexp, mul_one] at a1
+    linarith
+  have a1 : (4 + Real.sqrt τ) ^ d + 6 ^ d ≤ 2 * (3 * τ) ^ d := by linarith
+  have a2 : 3 * (1 + τ) * Real.exp (-(τ / 4)) ≤ 6 * τ * Real.exp (-(τ / 4)) :=
+    mul_le_mul_of_nonneg_right (by linarith) he
+  have a3 : 3 * (1 + τ) * Real.exp (-(τ / 4)) * ((4 + Real.sqrt τ) ^ d + 6 ^ d)
+      ≤ 6 * τ * Real.exp (-(τ / 4)) * (2 * (3 * τ) ^ d) :=
+    mul_le_mul a2 a1 (by positivity) (by positivity)
+  have hid : τ ^ (d + 3) * (1 / τ) ^ 2 = τ ^ d * τ := by
+    rw [pow_add]
+    field_simp
+  have a4 : 6 * τ * Real.exp (-(τ / 4)) * (2 * (3 * τ) ^ d)
+      = 12 * 3 ^ d * (Real.exp (-(τ / 4)) * τ ^ (d + 3)) * (1 / τ) ^ 2 := by
+    rw [mul_pow]
+    linear_combination (-(12 * 3 ^ d * Real.exp (-(τ / 4)))) * hid
+  have a5 : 12 * 3 ^ d * (Real.exp (-(τ / 4)) * τ ^ (d + 3)) * (1 / τ) ^ 2
+      ≤ 12 * 3 ^ d * (4 ^ (d + 3) * ((d + 3).factorial : ℝ)) * (1 / τ) ^ 2 :=
+    mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_left hE (by positivity)) (by positivity)
+  rw [a4] at a3
+  unfold sharpK
+  exact a3.trans a5
+
+/-- The constant of the `O(τ^{-2})` term: `832·6^d + 12·3^d·4^{d+3}·(d+3)!`. -/
+noncomputable def sharpC2 (d : ℕ) : ℝ := 832 * 6 ^ d + sharpK d
+
+/-- The constant of the `O(σ)` term (with `σ` of the paper): `16 (d+6) 9^d`. -/
+noncomputable def sharpC1 (d : ℕ) : ℝ := 16 * ((d : ℝ) + 6) * 9 ^ d
+
+/-- The constant that absorbs `1 + κ + popRem`: `1 + d(d+2)/16 + sharpC2/4 + sharpC1/2`. -/
+noncomputable def sharpB (d : ℕ) : ℝ :=
+  1 + (d : ℝ) * ((d : ℝ) + 2) / 16 + sharpC2 d / 4 + sharpC1 d / 2
+
+theorem sharpC2_nonneg (d : ℕ) : 0 ≤ sharpC2 d := by
+  unfold sharpC2 sharpK
+  positivity
+
+theorem sharpC1_nonneg (d : ℕ) : 0 ≤ sharpC1 d := by
+  unfold sharpC1
+  positivity
+
+theorem sharpB_pos (d : ℕ) : 0 < sharpB d := by
+  have h1 := sharpC2_nonneg d
+  have h2 := sharpC1_nonneg d
+  have h3 : (0 : ℝ) ≤ (d : ℝ) * ((d : ℝ) + 2) / 16 := by positivity
+  unfold sharpB
+  linarith
+
+/-- **The population remainder in the form of `eq:rateexact`:** for `0 < 2s ≤ t` (`τ = t/s ≥ 2`),
+    `popRem d s t ≤ sharpC2 d · (s/t)² + sharpC1 d · s`, i.e. `O(τ^{-2}) + O(σ)`. The second term
+    uses only `e^{-1/(16t)} ≤ 16 t`; it is NOT small against the main term `d(d+2)/8·(s/t)` unless
+    `t` is small. -/
+theorem popRem_le (d : ℕ) {s t : ℝ} (hs : 0 < s) (hst : 2 * s ≤ t) :
+    popRem d s t ≤ sharpC2 d * (s / t) ^ 2 + sharpC1 d * s := by
+  have ht : 0 < t := by linarith
+  have hτ : 2 ≤ t / s := by
+    rw [le_div_iff₀ hs]
+    linarith
+  have h2 := exp_tail_le d hτ
+  rw [one_div_div] at h2
+  have h3 : Real.exp (-(1 / (16 * t))) ≤ 16 * t := by
+    have hx : 0 < 1 / (16 * t) := by positivity
+    have h := Real.add_one_le_exp (1 / (16 * t))
+    have hE := Real.exp_pos (1 / (16 * t))
+    rw [Real.exp_neg, inv_le_comm₀ hE (by positivity)]
+    have e : (16 * t)⁻¹ = 1 / (16 * t) := (one_div _).symm
+    rw [e]
+    linarith
+  have h4 : s / (2 * t) * ((2 * (d : ℝ) + 12) * (9 ^ d * Real.exp (-(1 / (16 * t)))))
+      ≤ s / (2 * t) * ((2 * (d : ℝ) + 12) * (9 ^ d * (16 * t))) :=
+    mul_le_mul_of_nonneg_left
+      (mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_left h3 (by positivity)) (by positivity))
+      (by positivity)
+  have e4 : s / (2 * t) * ((2 * (d : ℝ) + 12) * (9 ^ d * (16 * t))) = sharpC1 d * s := by
+    unfold sharpC1
+    field_simp
+    ring
+  rw [e4] at h4
+  unfold popRem sharpC2
+  linarith
+
+/-- **Deterministic sharp rate in the form of the paper:** under the hypotheses of `sharp_det`
+    and `ε ≥ 0`:
+    `|x/Θ(t) - 1 - d(d+2)/8·(σ/2)/t| ≤ sharpC2 ((σ/2)/t)² + sharpC1 (σ/2) + ε · sharpB`. -/
+theorem sharp_det_O (d : ℕ) {σ t x ε : ℝ} (hσ : 0 < σ) (hts : σ ≤ t) (ht1 : t ≤ 1)
+    (hε : 0 ≤ ε) (h : |x / poissonMean d σ (2 * t / σ) - 1| ≤ ε) :
+    |x / heatTr (torusLam d) t - 1 - (d : ℝ) * ((d : ℝ) + 2) / 8 * (σ / 2 / t)|
+      ≤ sharpC2 d * (σ / 2 / t) ^ 2 + sharpC1 d * (σ / 2) + ε * sharpB d := by
+  have h1 := sharp_det d hσ hts ht1 h
+  have ht : 0 < t := lt_of_lt_of_le hσ hts
+  have hr : σ / 2 / t ≤ 1 / 2 := by
+    rw [div_le_iff₀ ht]
+    linarith
+  have hr0 : 0 ≤ σ / 2 / t := by positivity
+  have hp := popRem_le d (s := σ / 2) (t := t) (by linarith) (by linarith)
+  have hC2 := sharpC2_nonneg d
+  have hC1 := sharpC1_nonneg d
+  have hsq : (σ / 2 / t) ^ 2 ≤ 1 / 4 := by nlinarith
+  have a := mul_le_mul_of_nonneg_left hsq hC2
+  have b := mul_le_mul_of_nonneg_left (by linarith : σ / 2 ≤ 1 / 2) hC1
+  have hκ : (d : ℝ) * ((d : ℝ) + 2) / 8 * (σ / 2 / t) ≤ (d : ℝ) * ((d : ℝ) + 2) / 16 := by
+    have := mul_le_mul_of_nonneg_left hr (by positivity : (0 : ℝ) ≤ (d : ℝ) * ((d : ℝ) + 2) / 8)
+    linarith
+  have hB : 1 + (d : ℝ) * ((d : ℝ) + 2) / 8 * (σ / 2 / t) + popRem d (σ / 2) t ≤ sharpB d := by
+    unfold sharpB
+    linarith
+  have c := mul_le_mul_of_nonneg_left hB hε
+  linarith
+
+/-- **Deterministic sharp rate for small times:** if moreover `t ≤ Tm` and the sample error is
+    `ε = e σ` (`e ≥ 0`), then
+    `|x/Θ(t) - 1 - d(d+2)/8·(σ/2)/t| ≤ sharpC2 ((σ/2)/t)² + (σ/2)/t · Tm (sharpC1 + 2 e sharpB)`. -/
+theorem sharp_det_small (d : ℕ) {σ t x e Tm : ℝ} (hσ : 0 < σ) (hts : σ ≤ t) (ht1 : t ≤ 1)
+    (htT : t ≤ Tm) (he : 0 ≤ e) (h : |x / poissonMean d σ (2 * t / σ) - 1| ≤ e * σ) :
+    |x / heatTr (torusLam d) t - 1 - (d : ℝ) * ((d : ℝ) + 2) / 8 * (σ / 2 / t)|
+      ≤ sharpC2 d * (σ / 2 / t) ^ 2 + σ / 2 / t * (Tm * (sharpC1 d + 2 * e * sharpB d)) := by
+  have h1 := sharp_det_O d hσ hts ht1 (mul_nonneg he hσ.le) h
+  have ht : 0 < t := lt_of_lt_of_le hσ hts
+  have hr0 : 0 ≤ σ / 2 / t := by positivity
+  have e1 : σ / 2 = σ / 2 / t * t := by field_simp
+  have h2 : σ / 2 ≤ σ / 2 / t * Tm := by
+    have := mul_le_mul_of_nonneg_left htT hr0
+    linarith
+  have hK : 0 ≤ sharpC1 d + 2 * e * sharpB d := by
+    have := sharpC1_nonneg d
+    have := mul_nonneg (mul_nonneg (by norm_num : (0 : ℝ) ≤ 2) he) (sharpB_pos d).le
+    linarith
+  have h3 := mul_le_mul_of_nonneg_right h2 hK
+  nlinarith
+
+/-! ### Stage 2: almost surely, uniformly in `t ∈ [σ_N, 1]` (regime `N ξ^{d+6}/log N → ∞`) -/
+
+/-- **Sharp rate, almost surely, explicit remainder.** Independent uniform points on the flat
+    torus of dimension `d ≥ 1` (nested sample), kernel variance `σ_N = ξ_N²`, graph with
+    self-loops. If eventually `0 < σ_N ≤ 1` and `N σ_N^{d/2+3}/log N → ∞` (`N ξ^{d+6}/log N → ∞`),
+    then almost surely, for every `η > 0`, for all large `N` and ALL `t` with `σ_N ≤ t ≤ 1`, with
+    `τ = 2t/σ_N`, `Θ(t) = ∑_n e^{-4π²|n|²t}`:
+    `|(Tr exp(τ(S-1)) - N e^{-τ})/Θ(t) - 1 - d(d+2)/8·(σ_N/2)/t|
+       ≤ η σ_N (1 + d(d+2)/8·(σ_N/2)/t + popRem d (σ_N/2) t) + popRem d (σ_N/2) t`.
+    (`d(d+2)/8·(σ_N/2)/t = d(d+2)/(8τ)`.) -/
+theorem sharp_rate_ae_explicit {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] (d : ℕ) (hd : 1 ≤ d)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (σ : ℕ → ℝ)
+    (hσ : ∀ᶠ N in atTop, 0 < σ N ∧ σ N ≤ 1)
+    (hreg3 : Tendsto (fun N : ℕ => (N : ℝ) * Real.sqrt (σ N) ^ d * σ N ^ 3 / Real.log N)
+      atTop atTop) :
+    ∀ᵐ ω ∂μ, ∀ η : ℝ, 0 < η → ∀ᶠ N : ℕ in atTop, ∀ t : ℝ, σ N ≤ t → t ≤ 1 →
+      |((NormedSpace.exp ((2 * t / σ N) • (symGraph
+              (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ N) (X a ω - X j ω))
+              (fun a : Fin N => heatRho d (σ N) N (fun j => X j ω) a) - 1))).trace
+            - (N : ℝ) * Real.exp (-(2 * t / σ N))) / heatTr (torusLam d) t - 1
+          - (d : ℝ) * ((d : ℝ) + 2) / 8 * (σ N / 2 / t)|
+        ≤ η * σ N * (1 + (d : ℝ) * ((d : ℝ) + 2) / 8 * (σ N / 2 / t) + popRem d (σ N / 2) t)
+          + popRem d (σ N / 2) t := by
+  filter_upwards [heat_trace_rate_small d hd X h_indep hX hlaw σ (c := 2) two_pos hσ hreg3]
+    with ω hω
+  intro η hη
+  filter_upwards [hω η hη, hσ] with N h1 h3 t ht1 ht2
+  have hσ0 := h3.1
+  have hτ1 : 2 ≤ 2 * t / σ N := by
+    rw [le_div_iff₀ hσ0]
+    linarith
+  have hτ2 : 2 * t / σ N ≤ 2 / σ N := div_le_div_of_nonneg_right (by linarith) hσ0.le
+  have h := h1 (2 * t / σ N) hτ1 hτ2
+  exact sharp_det d hσ0 ht1 ht2 (h.1.trans h.2)
+
+/-- **Sharp rate, almost surely (last display of `cor:kernel-trace`, uniformly in `t`).** Under
+    the hypotheses of `sharp_rate_ae_explicit`: almost surely, for every `η > 0`, for all large
+    `N` and ALL `t` with `σ_N ≤ t ≤ 1` (`τ = 2t/σ_N`):
+    `|(Tr exp(τ(S-1)) - N e^{-τ})/Θ(t) - 1 - d(d+2)/(8τ)|
+       ≤ sharpC2 d · τ^{-2} + sharpC1 d · (σ_N/2) + η σ_N`
+    (written with `1/τ = (σ_N/2)/t`). The middle term is of the order of the main term when `t` is
+    of order one: see the remarks at the head of the block. -/
+theorem sharp_rate_ae {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] (d : ℕ) (hd : 1 ≤ d)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (σ : ℕ → ℝ)
+    (hσ : ∀ᶠ N in atTop, 0 < σ N ∧ σ N ≤ 1)
+    (hreg3 : Tendsto (fun N : ℕ => (N : ℝ) * Real.sqrt (σ N) ^ d * σ N ^ 3 / Real.log N)
+      atTop atTop) :
+    ∀ᵐ ω ∂μ, ∀ η : ℝ, 0 < η → ∀ᶠ N : ℕ in atTop, ∀ t : ℝ, σ N ≤ t → t ≤ 1 →
+      |((NormedSpace.exp ((2 * t / σ N) • (symGraph
+              (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ N) (X a ω - X j ω))
+              (fun a : Fin N => heatRho d (σ N) N (fun j => X j ω) a) - 1))).trace
+            - (N : ℝ) * Real.exp (-(2 * t / σ N))) / heatTr (torusLam d) t - 1
+          - (d : ℝ) * ((d : ℝ) + 2) / 8 * (σ N / 2 / t)|
+        ≤ sharpC2 d * (σ N / 2 / t) ^ 2 + sharpC1 d * (σ N / 2) + η * σ N := by
+  filter_upwards [heat_trace_rate_small d hd X h_indep hX hlaw σ (c := 2) two_pos hσ hreg3]
+    with ω hω
+  intro η hη
+  have hB := sharpB_pos d
+  filter_upwards [hω (η / sharpB d) (div_pos hη hB), hσ] with N h1 h3 t ht1 ht2
+  have hσ0 := h3.1
+  have hτ1 : 2 ≤ 2 * t / σ N := by
+    rw [le_div_iff₀ hσ0]
+    linarith
+  have hτ2 : 2 * t / σ N ≤ 2 / σ N := div_le_div_of_nonneg_right (by linarith) hσ0.le
+  have h := h1 (2 * t / σ N) hτ1 hτ2
+  have key := sharp_det_O d hσ0 ht1 ht2
+    (mul_nonneg (div_pos hη hB).le hσ0.le) (h.1.trans h.2)
+  have e : η / sharpB d * σ N * sharpB d = η * σ N := by
+    field_simp
+  rw [e] at key
+  exact key
+
+/-- **Sharp rate for small times, almost surely: the main term is identified.** Under the
+    hypotheses of `sharp_rate_ae_explicit`, and for a sequence `Tm_N → 0`: almost surely, for
+    every `η > 0`, for all large `N` and ALL `t` with `σ_N ≤ t ≤ Tm_N` (`τ = 2t/σ_N`):
+    `|(Tr exp(τ(S-1)) - N e^{-τ})/Θ(t) - 1 - d(d+2)/(8τ)| ≤ sharpC2 d · τ^{-2} + η · τ^{-1}`
+    (written with `1/τ = (σ_N/2)/t`). The right-hand side is small against the main term
+    `d(d+2)/(8τ)` where moreover `τ` is large against `sharpC2 d`. -/
+theorem sharp_rate_ae_small_time {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] (d : ℕ) (hd : 1 ≤ d)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (σ Tm : ℕ → ℝ)
+    (hσ : ∀ᶠ N in atTop, 0 < σ N ∧ σ N ≤ 1)
+    (hreg3 : Tendsto (fun N : ℕ => (N : ℝ) * Real.sqrt (σ N) ^ d * σ N ^ 3 / Real.log N)
+      atTop atTop) (hTm : Tendsto Tm atTop (𝓝 0)) :
+    ∀ᵐ ω ∂μ, ∀ η : ℝ, 0 < η → ∀ᶠ N : ℕ in atTop, ∀ t : ℝ, σ N ≤ t → t ≤ Tm N →
+      |((NormedSpace.exp ((2 * t / σ N) • (symGraph
+              (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ N) (X a ω - X j ω))
+              (fun a : Fin N => heatRho d (σ N) N (fun j => X j ω) a) - 1))).trace
+            - (N : ℝ) * Real.exp (-(2 * t / σ N))) / heatTr (torusLam d) t - 1
+          - (d : ℝ) * ((d : ℝ) + 2) / 8 * (σ N / 2 / t)|
+        ≤ sharpC2 d * (σ N / 2 / t) ^ 2 + η * (σ N / 2 / t) := by
+  filter_upwards [heat_trace_rate_small d hd X h_indep hX hlaw σ (c := 2) two_pos hσ hreg3]
+    with ω hω
+  intro η hη
+  have hK : 0 < sharpC1 d + 2 * 1 * sharpB d := by
+    have := sharpC1_nonneg d
+    have := sharpB_pos d
+    linarith
+  filter_upwards [hω 1 one_pos, hσ,
+    (tendsto_order.1 hTm).2 (min 1 (η / (sharpC1 d + 2 * 1 * sharpB d)))
+      (lt_min one_pos (div_pos hη hK))] with N h1 h3 h4 t ht1 ht2
+  have hσ0 := h3.1
+  have hT1 : Tm N ≤ 1 := (h4.trans_le (min_le_left _ _)).le
+  have hT2 : Tm N * (sharpC1 d + 2 * 1 * sharpB d) ≤ η :=
+    ((lt_div_iff₀ hK).1 (h4.trans_le (min_le_right _ _))).le
+  have ht3 : t ≤ 1 := ht2.trans hT1
+  have hτ1 : 2 ≤ 2 * t / σ N := by
+    rw [le_div_iff₀ hσ0]
+    linarith
+  have hτ2 : 2 * t / σ N ≤ 2 / σ N := div_le_div_of_nonneg_right (by linarith) hσ0.le
+  have h := h1 (2 * t / σ N) hτ1 hτ2
+  have key := sharp_det_small d hσ0 ht1 ht3 ht2 zero_le_one (h.1.trans h.2)
+  have hr0 : 0 ≤ σ N / 2 / t := by
+    have : 0 < t := lt_of_lt_of_le hσ0 ht1
+    positivity
+  have := mul_le_mul_of_nonneg_left hT2 hr0
+  linarith
+
+/-! ### Stage 3: in probability, for one sequence `t_N` (regime `N ξ^{d+4}/log N → ∞`) -/
+
+/-- The Poisson times `τ_N = 2 t_N/σ_N` of a sequence `t_N ∈ [σ_N, 1]` lie in `[2, 2/σ_N]`. -/
+theorem tau_range (σ t : ℕ → ℝ) (hσ : ∀ᶠ N in atTop, 0 < σ N ∧ σ N ≤ 1)
+    (ht : ∀ᶠ N in atTop, σ N ≤ t N ∧ t N ≤ 1) :
+    ∀ᶠ N in atTop, 2 ≤ (fun N => 2 * t N / σ N) N ∧ (fun N => 2 * t N / σ N) N ≤ 2 / σ N := by
+  filter_upwards [hσ, ht] with N h1 h2
+  refine ⟨?_, div_le_div_of_nonneg_right (by linarith [h2.2]) h1.1.le⟩
+  show 2 ≤ 2 * t N / σ N
+  rw [le_div_iff₀ h1.1]
+  linarith [h2.1]
+
+/-- **Sharp rate in probability, explicit remainder.** Independent uniform points on the flat
+    torus of dimension `d ≥ 1` (nested sample), kernel variance `σ_N = ξ_N²`, graph with
+    self-loops. If eventually `0 < σ_N ≤ 1` and `σ_N ≤ t_N ≤ 1`, and `N σ_N^{d/2+2}/log N → ∞`
+    (`N ξ^{d+4}/log N → ∞`), then for every `η > 0`, with `τ_N = 2t_N/σ_N`, the probability of
+    `|(Tr exp(τ_N(S-1)) - N e^{-τ_N})/Θ(t_N) - 1 - d(d+2)/8·(σ_N/2)/t_N|
+       > η σ_N (1 + d(d+2)/8·(σ_N/2)/t_N + popRem) + popRem`
+    tends to `0` (`popRem = popRem d (σ_N/2) t_N`). -/
+theorem sharp_rate_prob_explicit {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] (d : ℕ) (hd : 1 ≤ d)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (σ t : ℕ → ℝ)
+    (hσ : ∀ᶠ N in atTop, 0 < σ N ∧ σ N ≤ 1)
+    (ht : ∀ᶠ N in atTop, σ N ≤ t N ∧ t N ≤ 1)
+    (hreg : Tendsto (fun N : ℕ => (N : ℝ) * Real.sqrt (σ N) ^ d * σ N ^ 2 / Real.log N)
+      atTop atTop) {η : ℝ} (hη : 0 < η) :
+    Tendsto (fun N : ℕ =>
+      μ.real {ω | η * σ N * (1 + (d : ℝ) * ((d : ℝ) + 2) / 8 * (σ N / 2 / t N)
+            + popRem d (σ N / 2) (t N)) + popRem d (σ N / 2) (t N)
+        < |((NormedSpace.exp ((2 * t N / σ N) • (symGraph
+              (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ N) (X a ω - X j ω))
+              (fun a : Fin N => heatRho d (σ N) N (fun j => X j ω) a) - 1))).trace
+            - (N : ℝ) * Real.exp (-(2 * t N / σ N))) / heatTr (torusLam d) (t N) - 1
+          - (d : ℝ) * ((d : ℝ) + 2) / 8 * (σ N / 2 / t N)|})
+      atTop (𝓝 0) := by
+  have h0 := second_stage_limit d hd X h_indep hX hlaw σ (fun N => 2 * t N / σ N) two_pos hσ
+    (tau_range σ t hσ ht) hreg hη
+  refine tendsto_of_tendsto_of_tendsto_of_le_of_le' tendsto_const_nhds h0
+    (Eventually.of_forall (fun N => measureReal_nonneg)) ?_
+  filter_upwards [hσ, ht] with N h1 h2
+  refine measureReal_mono ?_ (measure_ne_top μ _)
+  intro ω hω
+  rw [Set.mem_setOf_eq] at hω ⊢
+  by_contra hcon
+  rw [not_lt] at hcon
+  have key := sharp_det d h1.1 h2.1 h2.2 hcon
+  linarith
+
+/-- **Sharp rate in probability (the last display of `cor:kernel-trace` with the sample side of
+    `cor:secondstage-alld`).** Under the hypotheses of `sharp_rate_prob_explicit`, for every
+    `η > 0` the probability of
+    `|(Tr exp(τ_N(S-1)) - N e^{-τ_N})/Θ(t_N) - 1 - d(d+2)/(8τ_N)|
+       > sharpC2 d · τ_N^{-2} + sharpC1 d · (σ_N/2) + η σ_N`
+    tends to `0` (written with `1/τ_N = (σ_N/2)/t_N`). The middle term is of the order of the main
+    term when `t_N` is of order one: see the remarks at the head of the block. -/
+theorem sharp_rate_prob {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] (d : ℕ) (hd : 1 ≤ d)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (σ t : ℕ → ℝ)
+    (hσ : ∀ᶠ N in atTop, 0 < σ N ∧ σ N ≤ 1)
+    (ht : ∀ᶠ N in atTop, σ N ≤ t N ∧ t N ≤ 1)
+    (hreg : Tendsto (fun N : ℕ => (N : ℝ) * Real.sqrt (σ N) ^ d * σ N ^ 2 / Real.log N)
+      atTop atTop) {η : ℝ} (hη : 0 < η) :
+    Tendsto (fun N : ℕ =>
+      μ.real {ω | sharpC2 d * (σ N / 2 / t N) ^ 2 + sharpC1 d * (σ N / 2) + η * σ N
+        < |((NormedSpace.exp ((2 * t N / σ N) • (symGraph
+              (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ N) (X a ω - X j ω))
+              (fun a : Fin N => heatRho d (σ N) N (fun j => X j ω) a) - 1))).trace
+            - (N : ℝ) * Real.exp (-(2 * t N / σ N))) / heatTr (torusLam d) (t N) - 1
+          - (d : ℝ) * ((d : ℝ) + 2) / 8 * (σ N / 2 / t N)|})
+      atTop (𝓝 0) := by
+  have hB := sharpB_pos d
+  have h0 := second_stage_limit d hd X h_indep hX hlaw σ (fun N => 2 * t N / σ N) two_pos hσ
+    (tau_range σ t hσ ht) hreg (div_pos hη hB)
+  refine tendsto_of_tendsto_of_tendsto_of_le_of_le' tendsto_const_nhds h0
+    (Eventually.of_forall (fun N => measureReal_nonneg)) ?_
+  filter_upwards [hσ, ht] with N h1 h2
+  refine measureReal_mono ?_ (measure_ne_top μ _)
+  intro ω hω
+  rw [Set.mem_setOf_eq] at hω ⊢
+  by_contra hcon
+  rw [not_lt] at hcon
+  have key := sharp_det_O d h1.1 h2.1 h2.2 (mul_nonneg (div_pos hη hB).le h1.1.le) hcon
+  have e : η / sharpB d * σ N * sharpB d = η * σ N := by
+    field_simp
+  rw [e] at key
+  linarith
+
+/-- **Sharp rate in probability for small times: the main term is identified.** Under the
+    hypotheses of `sharp_rate_prob_explicit` and `t_N → 0`, for every `η > 0` the probability of
+    `|(Tr exp(τ_N(S-1)) - N e^{-τ_N})/Θ(t_N) - 1 - d(d+2)/(8τ_N)|
+       > sharpC2 d · τ_N^{-2} + η · τ_N^{-1}`
+    tends to `0` (written with `1/τ_N = (σ_N/2)/t_N`). -/
+theorem sharp_rate_prob_small_time {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] (d : ℕ) (hd : 1 ≤ d)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (σ t : ℕ → ℝ)
+    (hσ : ∀ᶠ N in atTop, 0 < σ N ∧ σ N ≤ 1)
+    (ht : ∀ᶠ N in atTop, σ N ≤ t N ∧ t N ≤ 1)
+    (hreg : Tendsto (fun N : ℕ => (N : ℝ) * Real.sqrt (σ N) ^ d * σ N ^ 2 / Real.log N)
+      atTop atTop) (ht0 : Tendsto t atTop (𝓝 0)) {η : ℝ} (hη : 0 < η) :
+    Tendsto (fun N : ℕ =>
+      μ.real {ω | sharpC2 d * (σ N / 2 / t N) ^ 2 + η * (σ N / 2 / t N)
+        < |((NormedSpace.exp ((2 * t N / σ N) • (symGraph
+              (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ N) (X a ω - X j ω))
+              (fun a : Fin N => heatRho d (σ N) N (fun j => X j ω) a) - 1))).trace
+            - (N : ℝ) * Real.exp (-(2 * t N / σ N))) / heatTr (torusLam d) (t N) - 1
+          - (d : ℝ) * ((d : ℝ) + 2) / 8 * (σ N / 2 / t N)|})
+      atTop (𝓝 0) := by
+  have hK : 0 < sharpC1 d + 2 * 1 * sharpB d := by
+    have := sharpC1_nonneg d
+    have := sharpB_pos d
+    linarith
+  have h0 := second_stage_limit d hd X h_indep hX hlaw σ (fun N => 2 * t N / σ N) two_pos hσ
+    (tau_range σ t hσ ht) hreg one_pos
+  refine tendsto_of_tendsto_of_tendsto_of_le_of_le' tendsto_const_nhds h0
+    (Eventually.of_forall (fun N => measureReal_nonneg)) ?_
+  filter_upwards [hσ, ht, (tendsto_order.1 ht0).2 (η / (sharpC1 d + 2 * 1 * sharpB d))
+    (div_pos hη hK)] with N h1 h2 h4
+  have hT2 : t N * (sharpC1 d + 2 * 1 * sharpB d) ≤ η := ((lt_div_iff₀ hK).1 h4).le
+  have hr0 : 0 ≤ σ N / 2 / t N := by
+    have : 0 < t N := lt_of_lt_of_le h1.1 h2.1
+    have := h1.1
+    positivity
+  have hm := mul_le_mul_of_nonneg_left hT2 hr0
+  refine measureReal_mono ?_ (measure_ne_top μ _)
+  intro ω hω
+  rw [Set.mem_setOf_eq] at hω ⊢
+  by_contra hcon
+  rw [not_lt] at hcon
+  have key := sharp_det_small d h1.1 h2.1 h2.2 le_rfl zero_le_one hcon
+  linarith
+
+end SharpRate
+
 end CTG.Reals2
