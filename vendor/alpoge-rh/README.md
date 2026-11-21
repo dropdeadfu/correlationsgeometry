@@ -31,9 +31,8 @@ A file that turns out not to be needed is removed again.
 |---|---|---|---|
 | `GroundTheory/AutomorphicForms/HilbertSchmidt.lean` | 248 | `2a23f04fb8fdf12591e7988541e9bdcfeaa80639332e9d416f9b5c90f38d537c` | listed |
 | `GroundTheory/AutomorphicForms/TraceClass.lean` | 449 | `48b8330a87e1134a3a058e5b20ea3240d93130c3627383fda5b555e6a87895f5` | listed |
-| `GroundTheory/AutomorphicForms/TraceNormComp.lean` | 61 | `7b4e198636be553d5d1fc17bfdced1a44e18e3c0c44ea7c2bc2f33158c829f1b` | listed |
 
-"listed" = chosen for the planned use below; "imported" = needed by a listed file. The three
+"listed" = chosen for the planned use below; "imported" = needed by a listed file. The two
 files import only Mathlib and each other. The `.gitattributes` next to this file switches off
 line-ending conversion, so a checkout has exactly the bytes of the archive and the hashes above can be
 checked with `sha256sum`.
@@ -50,7 +49,6 @@ Hilbert–Schmidt and trace-class operators on a Hilbert space (namespace `Groun
 | `isTraceClass_comp` | the composition of two Hilbert–Schmidt operators is trace class |
 | `trace T`, `IsTraceClass.hasSum_trace` | the trace, equal to `∑ ⟪bᵢ, T bᵢ⟫` for every Hilbert basis |
 | `trace_comp_comm` | `trace (C ∘ T) = trace (T ∘ C)` for trace-class `T` |
-| `traceNorm_comp_le` | trace norm of `A ∘ B` ≤ `hsNorm A * hsNorm B` |
 
 Planned use: the trace of the heat semigroup on the flat torus as an operator statement, through
 the eigenbasis (`findings/heat-trace/`).
@@ -63,12 +61,18 @@ published:
 | Toolchain | Result |
 |---|---|
 | Lean `v4.33.1` with the archive's Mathlib (upstream) | not built here; a public report by a third party says all modules of the archive compile |
-| Lean `v4.36.0-rc2`, Mathlib `v4.36.0-rc2` (root project) | `HilbertSchmidt.lean` compiles unchanged; `TraceClass.lean` stops with one error (line 28); `TraceNormComp.lean` imports it and was not reached |
-| Lean `v4.29.0`, Mathlib `v4.29.0` (`findings/heat-trace/lean-core`) | measured on the paper side's build, files as published: `HilbertSchmidt.lean` 2 errors (both "No goals to be solved", lines 203 and 224: a trailing `simp` after `convert`); `TraceClass.lean` 5 errors (instance search for `NonnegSpectrumClass ℝ (H →L[ℂ] H)` runs out of time, lines 47, 50, 53/54, 122), built against a port of the first file; `TraceNormComp.lean` not measured (needs `TraceClass`) |
+| Lean `v4.36.0-rc2`, Mathlib `v4.36.0-rc2` (root project) | `HilbertSchmidt.lean` compiles unchanged; `TraceClass.lean` stops with one error (line 28) |
+| Lean `v4.29.0`, Mathlib `v4.29.0` (`findings/heat-trace/lean-core`) | measured on the paper side's build, files as published: `HilbertSchmidt.lean` 2 errors (both "No goals to be solved", lines 203 and 224: a trailing `simp` after `convert`); `TraceClass.lean` 5 errors (instance search for `NonnegSpectrumClass ℝ (H →L[ℂ] H)` runs out of time, lines 47, 50, 53/54, 122), built against a port of the first file |
 
-So no toolchain of this repository builds all three files unchanged. Ports for Lean `v4.29.0` are
+So no toolchain of this repository builds both files unchanged. Ports for Lean `v4.29.0` are
 being written; each is added under `findings/heat-trace/lean-core/` as a separate file with a header,
 once the proof that imports it is accepted.
+
+## Removed again
+
+`GroundTheory/AutomorphicForms/TraceNormComp.lean` (61 lines) was part of the first version of this
+folder as a candidate. The planned proof does not import it, so it was removed; it remains in the
+history of this repository.
 
 ## Changes made to the files
 
