@@ -10991,4 +10991,48 @@ theorem oracle_two [IsProbabilityMeasure μ] [IsProbabilityMeasure ν] {p : G �
 
 end OracleTwo
 
+/-! ## Proposition "oracle" for `j = 2` on the flat torus with the Gaussian kernel (A57)
+
+The hypothesis `Deg2` of `OracleTwo.oracle_two` is discharged for the periodised Gaussian kernel
+`p = pker d σ` of variance `σ` on the flat torus with uniform points (`φ⁰ = p·p - m₂` of `PiBound`
+with `k = 1`): for `N ≥ 1`, with `M = m₁ = p(0)`,
+`E (N⁻² ∑_{i,j} p(X_i - X_j)² - m₂)² ≤ (1/N²)² (4 N² M³ + 2 N² M⁴)`, i.e. `≤ (4M³ + 2M⁴)/N²`.
+The statistic is `Tr P̃²` for the walk `P̃_{ij} = p(x_i - x_j)/N` with exact normalisation.
+No hypothesis beyond: independent, measurable, uniform points and `σ > 0`. Only `j = 2`. -/
+
+namespace OracleTwoTorus
+
+open PiBound OracleTwo CTG.Reals.TorusReduction
+
+theorem oracle_two_torus {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {d : ℕ} (X : ℕ → Ω → FlatTorus d)
+    (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) {σ : ℝ} (hσ : 0 < σ) (N : ℕ) (hN : 1 ≤ N) :
+    ∫ ω, (1 / (N : ℝ) ^ 2 * ∑ i ∈ Finset.range N, ∑ j ∈ Finset.range N,
+        pker d σ (X i ω - X j ω) ^ 2 - torusM d σ 2) ^ 2 ∂μ
+      ≤ (1 / (N : ℝ) ^ 2) ^ 2 * (4 * (N : ℝ) ^ 2 * (torusM d σ 1 * torusM d σ 1 ^ 2)
+          + 2 * ((N : ℝ) ^ 2 * (torusM d σ 1 * torusM d σ 1) ^ 2)) := by
+  have hM0 : 0 ≤ torusM d σ 1 := (torusM_pos hσ d le_rfl).le
+  have H0 : Deg2 μ (flatTorusMeasure d) X (phi0 d σ 1) (torusM d σ 1 * torusM d σ 1)
+      (torusM d σ 1 * torusM d σ 1 ^ 2) :=
+    { indep := h_indep
+      meas := hX
+      law := hlaw
+      psi_meas := (phi0_continuous hσ d 1 le_rfl).measurable
+      bound := phi0_bound hσ d 1 le_rfl
+      even := phi0_even d σ 1
+      mean := phi0_mean hσ d 1 le_rfl
+      var := phi0_var hσ d 1 le_rfl
+      V_nonneg := mul_nonneg hM0 (_root_.sq_nonneg _) }
+  have hfun : (fun u : FlatTorus d => pker d σ u ^ 2 - torusM d σ 2) = phi0 d σ 1 := by
+    funext u
+    simp only [phi0, pker, heatP_one, pow_two, Nat.reduceAdd]
+  have H1 : Deg2 μ (flatTorusMeasure d) X (fun u : FlatTorus d => pker d σ u ^ 2 - torusM d σ 2)
+      (torusM d σ 1 * torusM d σ 1) (torusM d σ 1 * torusM d σ 1 ^ 2) := by
+    rw [hfun]
+    exact H0
+  exact oracle_two H1 N hN
+
+end OracleTwoTorus
+
 end CTG.Reals2
