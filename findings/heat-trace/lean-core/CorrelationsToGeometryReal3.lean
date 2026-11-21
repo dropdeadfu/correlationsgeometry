@@ -10530,4 +10530,292 @@ end SphereReal
 
 end OlderParts2
 
+/-! ## The rate in `N` at a FIXED kernel scale on the flat torus (A52)
+
+Counterpart, on the flat torus with uniform points and the periodised Gaussian kernel only, of
+Proposition "rateN" of Appendix G: at a fixed kernel variance `σ ∈ (0,1]` (`σ = ξ²`) the traces
+`Tr P^k` and the subtracted heat trace are within a constant times `√(log N/N)` of their limits,
+almost surely for all large `N`. Both statements are the theorems `kernel_trace_rate` and
+`heat_trace_rate` of `TraceRates` applied to the constant sequence `σ_N = σ`; the regime
+`N σ^{d/2+1}/log N → ∞` then holds automatically.
+
+NOT the proposition of the paper: that one is stated for a closed manifold, a density and a general
+profile, in probability, with a constant that is not uniform in `ξ`. Here: torus, uniform density,
+heat kernel, relative errors, nested sample, constants `kernelRateC`, `traceRateC` of the file
+divided by `(σ^{d/2+1})^{1/2}`; the range of `k` is `k ≤ ⌈c/σ⌉` and of `τ` is `2 ≤ τ ≤ c/σ`. -/
+
+namespace RateN
+
+open Filter Topology TraceRates
+open CTG.Reals.TraceG29
+
+/-- For a constant `a > 0`: `N a / log N → ∞`. -/
+theorem const_regime {a : ℝ} (ha : 0 < a) :
+    Tendsto (fun N : ℕ => (N : ℝ) * a / Real.log N) atTop atTop := by
+  have h0 : Tendsto (fun x : ℝ => Real.log x / x) atTop (𝓝 0) :=
+    Real.isLittleO_log_id_atTop.tendsto_div_nhds_zero
+  have h1 : Tendsto (fun x : ℝ => Real.log x / x) atTop (𝓝[>] 0) := by
+    refine tendsto_nhdsWithin_iff.mpr ⟨h0, ?_⟩
+    filter_upwards [eventually_gt_atTop (1 : ℝ)] with x hx
+    exact div_pos (Real.log_pos hx) (by linarith)
+  have h2 : Tendsto (fun x : ℝ => (Real.log x / x)⁻¹) atTop atTop :=
+    tendsto_inv_nhdsGT_zero.comp h1
+  have h3 : Tendsto (fun x : ℝ => a * (Real.log x / x)⁻¹) atTop atTop :=
+    h2.const_mul_atTop ha
+  have h4 := h3.comp tendsto_natCast_atTop_atTop
+  refine h4.congr (fun N => ?_)
+  simp only [Function.comp]
+  rw [inv_div]
+  ring
+
+/-- `√(rateQ0 d σ N) = √(log N/N) / √(σ^{d/2} σ)`. -/
+theorem sqrt_rateQ0 (d : ℕ) {σ : ℝ} (hσ : 0 ≤ σ) (N : ℕ) :
+    Real.sqrt (rateQ0 d σ N)
+      = Real.sqrt (Real.log N / N) / Real.sqrt (Real.sqrt σ ^ d * σ) := by
+  have e : rateQ0 d σ N = (Real.log N / N) / (Real.sqrt σ ^ d * σ) := by
+    unfold rateQ0
+    rw [div_div, mul_assoc]
+  rw [e, Real.sqrt_div']
+  positivity
+
+/-- **Rate `√(log N/N)` for `Tr P^k` at a fixed kernel scale, almost surely.** -/
+theorem trace_pow_rateN {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] (d : ℕ) (hd : 1 ≤ d)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) {σ c : ℝ} (hσ : 0 < σ) (hσ1 : σ ≤ 1)
+    (hc : 0 < c) :
+    ∀ᵐ ω ∂μ, ∀ᶠ N : ℕ in atTop, ∀ k, 1 ≤ k → k ≤ ⌈c / σ⌉₊ →
+        |((walkMatrix
+              (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X a ω - X j ω))
+              (fun a : Fin N => heatRho d σ N (fun j => X j ω) a)) ^ k).trace
+            / heatTorus d (2 * Real.pi ^ 2 * ((k : ℝ) * σ)) 0 - 1|
+          ≤ kernelRateC d c / Real.sqrt (Real.sqrt σ ^ d * σ) * Real.sqrt (Real.log N / N) := by
+  have hreg : Tendsto (fun N : ℕ => (N : ℝ) * Real.sqrt σ ^ d * σ / Real.log N) atTop atTop := by
+    have ha : 0 < Real.sqrt σ ^ d * σ := by positivity
+    refine (const_regime ha).congr (fun N => ?_)
+    ring
+  have h := kernel_trace_rate d hd X h_indep hX hlaw (fun _ => σ) hc
+    (Eventually.of_forall fun _ => ⟨hσ, hσ1⟩) hreg
+  filter_upwards [h] with ω hω
+  filter_upwards [hω] with N hN k hk1 hk2
+  have := hN k hk1 hk2
+  rw [sqrt_rateQ0 d hσ.le] at this
+  calc _ ≤ _ := this
+    _ = _ := by ring
+
+/-- **Rate `√(log N/N)` (with the factor `(1 + σ log N)^{1/2}`) for the subtracted heat trace at a
+    fixed kernel scale, almost surely, for all `τ` with `2 ≤ τ ≤ c/σ` at once.** -/
+theorem heat_trace_rateN {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] (d : ℕ) (hd : 1 ≤ d)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) {σ c : ℝ} (hσ : 0 < σ) (hσ1 : σ ≤ 1)
+    (hc : 0 < c) :
+    ∀ᵐ ω ∂μ, ∀ᶠ N : ℕ in atTop,
+      ∀ τ : ℝ, 2 ≤ τ → τ ≤ c / σ →
+        |((NormedSpace.exp (τ • (symGraph
+              (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X a ω - X j ω))
+              (fun a : Fin N => heatRho d σ N (fun j => X j ω) a) - 1))).trace
+            - (N : ℝ) * Real.exp (-τ)) / poissonMean d σ τ - 1|
+          ≤ traceRateC d c * Real.sqrt (rateQ d σ N) := by
+  have hreg : Tendsto (fun N : ℕ => (N : ℝ) * Real.sqrt σ ^ d * σ / Real.log N) atTop atTop := by
+    have ha : 0 < Real.sqrt σ ^ d * σ := by positivity
+    refine (const_regime ha).congr (fun N => ?_)
+    ring
+  exact heat_trace_rate d hd X h_indep hX hlaw (fun _ => σ) hc
+    (Eventually.of_forall fun _ => ⟨hσ, hσ1⟩) hreg
+
+end RateN
+
+/-! ## The joint regime of Theorem "jointslow" on the flat torus (A53)
+
+Theorem "jointslow" of Appendix G assumes `ξ_N → 0` and `ξ_N^{d+2} log N ≥ 64`. With `σ = ξ²` this
+reads `σ_N^{d/2+1} log N ≥ 64`, and it implies both regimes used in this file:
+`N σ^{d/2+1}/log N ≥ 64 N/(log N)² → ∞` and `N σ^{d/2+3}/log N ≥ 64³ N/(log N)⁴ → ∞`
+(`jointslow_regime1`, `jointslow_regime3`). Hence the statements of `TraceRates` and `SharpRate`
+hold in the regime of that theorem: `jointslow_trace_pow` (relative error of `Tr P^k` with a rate,
+`k ≤ ⌈1/σ_N⌉`) and `jointslow_sharp` (the "Consequently" display: the subtracted trace divided by
+`Θ(t)`, uniformly for `σ_N ≤ t ≤ 1`).
+
+NOT the theorem of the paper: its first display bounds the ABSOLUTE errors by `N^{-1/4}`; here the
+errors are relative, with the rates and constants of the file, and the proof is the one of the
+kernel theorem, not the moment argument of the paper. `ξ_N → 0` is not needed. The remarks at the
+head of `SharpRate` apply (for `t` of order one the coefficient is not identified). -/
+
+namespace JointSlow
+
+open Filter Topology TraceRates SharpRate PopulationRate
+
+/-- `N/(log N)^n → ∞`. -/
+theorem pow_log_regime (n : ℕ) :
+    Tendsto (fun N : ℕ => (N : ℝ) / Real.log N ^ n) atTop atTop := by
+  have h0 : Tendsto (fun x : ℝ => Real.log x ^ n / x) atTop (𝓝 0) :=
+    (Real.isLittleO_pow_log_id_atTop (n := n)).tendsto_div_nhds_zero
+  have h1 : Tendsto (fun x : ℝ => Real.log x ^ n / x) atTop (𝓝[>] 0) := by
+    refine tendsto_nhdsWithin_iff.mpr ⟨h0, ?_⟩
+    filter_upwards [eventually_gt_atTop (1 : ℝ)] with x hx
+    exact div_pos (pow_pos (Real.log_pos hx) n) (by linarith)
+  have h2 : Tendsto (fun x : ℝ => (Real.log x ^ n / x)⁻¹) atTop atTop :=
+    tendsto_inv_nhdsGT_zero.comp h1
+  have h4 := h2.comp tendsto_natCast_atTop_atTop
+  refine h4.congr (fun N => ?_)
+  simp only [Function.comp]
+  rw [inv_div]
+
+/-- From `0 < σ ≤ 1`, `64 ≤ σ^{d/2} σ L`, `L > 0`: `64 ≤ σ L`. -/
+theorem sigma_log_ge {d : ℕ} {s L : ℝ} (h0 : 0 < s) (h1 : s ≤ 1) (hL : 0 < L)
+    (h64 : 64 ≤ Real.sqrt s ^ d * s * L) : 64 ≤ s * L := by
+  have hA1 : Real.sqrt s ^ d ≤ 1 :=
+    pow_le_one₀ (Real.sqrt_nonneg s) (Real.sqrt_le_one.mpr h1)
+  have hsL : 0 ≤ s * L := (mul_pos h0 hL).le
+  have : Real.sqrt s ^ d * s * L ≤ s * L := by
+    rw [mul_assoc]
+    exact mul_le_of_le_one_left hsL hA1
+  linarith
+
+/-- The regime `N σ^{d/2+1}/log N → ∞` follows from `σ_N^{d/2+1} log N ≥ 64`. -/
+theorem jointslow_regime1 (d : ℕ) (σ : ℕ → ℝ)
+    (hs : ∀ᶠ N : ℕ in atTop, 0 < σ N ∧ σ N ≤ 1 ∧
+      64 ≤ Real.sqrt (σ N) ^ d * σ N * Real.log N) :
+    Tendsto (fun N : ℕ => (N : ℝ) * Real.sqrt (σ N) ^ d * σ N / Real.log N) atTop atTop := by
+  have h := (pow_log_regime 2).const_mul_atTop (show (0 : ℝ) < 64 by norm_num)
+  refine tendsto_atTop_mono' atTop ?_ h
+  filter_upwards [hs, eventually_gt_atTop 1] with N hN h1N
+  obtain ⟨h0, h1, h64⟩ := hN
+  have hL : 0 < Real.log N := Real.log_pos (by exact_mod_cast h1N)
+  have hN0 : (0 : ℝ) ≤ N := Nat.cast_nonneg N
+  have e : (N : ℝ) * Real.sqrt (σ N) ^ d * σ N / Real.log N
+      = (N : ℝ) * (Real.sqrt (σ N) ^ d * σ N * Real.log N) / Real.log N ^ 2 := by
+    rw [div_eq_div_iff hL.ne' (pow_pos hL 2).ne']
+    ring
+  have e2 : (64 : ℝ) * ((N : ℝ) / Real.log N ^ 2) = (N : ℝ) * 64 / Real.log N ^ 2 := by ring
+  show (64 : ℝ) * ((N : ℝ) / Real.log N ^ 2) ≤ _
+  rw [e, e2]
+  exact div_le_div_of_nonneg_right (mul_le_mul_of_nonneg_left h64 hN0) (pow_pos hL 2).le
+
+/-- The regime `N σ^{d/2+3}/log N → ∞` follows from `σ_N^{d/2+1} log N ≥ 64`. -/
+theorem jointslow_regime3 (d : ℕ) (σ : ℕ → ℝ)
+    (hs : ∀ᶠ N : ℕ in atTop, 0 < σ N ∧ σ N ≤ 1 ∧
+      64 ≤ Real.sqrt (σ N) ^ d * σ N * Real.log N) :
+    Tendsto (fun N : ℕ => (N : ℝ) * Real.sqrt (σ N) ^ d * σ N ^ 3 / Real.log N)
+      atTop atTop := by
+  have h := (pow_log_regime 4).const_mul_atTop (show (0 : ℝ) < 64 * 64 ^ 2 by norm_num)
+  refine tendsto_atTop_mono' atTop ?_ h
+  filter_upwards [hs, eventually_gt_atTop 1] with N hN h1N
+  obtain ⟨h0, h1, h64⟩ := hN
+  have hL : 0 < Real.log N := Real.log_pos (by exact_mod_cast h1N)
+  have hN0 : (0 : ℝ) ≤ N := Nat.cast_nonneg N
+  have hsL := sigma_log_ge h0 h1 hL h64
+  have hsq : (64 : ℝ) ^ 2 ≤ (σ N * Real.log N) ^ 2 :=
+    pow_le_pow_left₀ (by norm_num) hsL 2
+  have hprod : (64 : ℝ) * 64 ^ 2
+      ≤ (Real.sqrt (σ N) ^ d * σ N * Real.log N) * (σ N * Real.log N) ^ 2 :=
+    mul_le_mul h64 hsq (by norm_num) (by linarith)
+  have e : (N : ℝ) * Real.sqrt (σ N) ^ d * σ N ^ 3 / Real.log N
+      = (N : ℝ) * ((Real.sqrt (σ N) ^ d * σ N * Real.log N) * (σ N * Real.log N) ^ 2)
+          / Real.log N ^ 4 := by
+    rw [div_eq_div_iff hL.ne' (pow_pos hL 4).ne']
+    ring
+  have e2 : (64 : ℝ) * 64 ^ 2 * ((N : ℝ) / Real.log N ^ 4)
+      = (N : ℝ) * (64 * 64 ^ 2) / Real.log N ^ 4 := by ring
+  show (64 : ℝ) * 64 ^ 2 * ((N : ℝ) / Real.log N ^ 4) ≤ _
+  rw [e, e2]
+  exact div_le_div_of_nonneg_right (mul_le_mul_of_nonneg_left hprod hN0) (pow_pos hL 4).le
+
+/-- **`Tr P^k` in the regime of Theorem "jointslow", almost surely, with a rate** (relative error,
+    all `1 ≤ k ≤ ⌈1/σ_N⌉`). -/
+theorem jointslow_trace_pow {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] (d : ℕ) (hd : 1 ≤ d)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (σ : ℕ → ℝ)
+    (hs : ∀ᶠ N : ℕ in atTop, 0 < σ N ∧ σ N ≤ 1 ∧
+      64 ≤ Real.sqrt (σ N) ^ d * σ N * Real.log N) :
+    ∀ᵐ ω ∂μ, ∀ᶠ N : ℕ in atTop, ∀ k, 1 ≤ k → k ≤ ⌈1 / σ N⌉₊ →
+        |((walkMatrix
+              (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ N) (X a ω - X j ω))
+              (fun a : Fin N => heatRho d (σ N) N (fun j => X j ω) a)) ^ k).trace
+            / heatTorus d (2 * Real.pi ^ 2 * ((k : ℝ) * σ N)) 0 - 1|
+          ≤ kernelRateC d 1 * Real.sqrt (rateQ0 d (σ N) N) :=
+  kernel_trace_rate d hd X h_indep hX hlaw σ one_pos (hs.mono fun _ h => ⟨h.1, h.2.1⟩)
+    (jointslow_regime1 d σ hs)
+
+/-- **The "Consequently" display of Theorem "jointslow", almost surely, uniformly in
+    `σ_N ≤ t ≤ 1`** (`τ = 2t/σ_N`, `Θ(t) = heatTr (torusLam d) t`). -/
+theorem jointslow_sharp {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] (d : ℕ) (hd : 1 ≤ d)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (σ : ℕ → ℝ)
+    (hs : ∀ᶠ N : ℕ in atTop, 0 < σ N ∧ σ N ≤ 1 ∧
+      64 ≤ Real.sqrt (σ N) ^ d * σ N * Real.log N) :
+    ∀ᵐ ω ∂μ, ∀ η : ℝ, 0 < η → ∀ᶠ N : ℕ in atTop, ∀ t : ℝ, σ N ≤ t → t ≤ 1 →
+      |((NormedSpace.exp ((2 * t / σ N) • (symGraph
+              (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ N) (X a ω - X j ω))
+              (fun a : Fin N => heatRho d (σ N) N (fun j => X j ω) a) - 1))).trace
+            - (N : ℝ) * Real.exp (-(2 * t / σ N))) / heatTr (torusLam d) t - 1
+          - (d : ℝ) * ((d : ℝ) + 2) / 8 * (σ N / 2 / t)|
+        ≤ sharpC2 d * (σ N / 2 / t) ^ 2 + sharpC1 d * (σ N / 2) + η * σ N :=
+  sharp_rate_ae d hd X h_indep hX hlaw σ (hs.mono fun _ h => ⟨h.1, h.2.1⟩)
+    (jointslow_regime3 d σ hs)
+
+end JointSlow
+
+/-! ## The regime of Theorem "jointpoly" on the flat torus (A54)
+
+Theorem "jointpoly" of Appendix G assumes `N ξ_N^{2d+6}/log N → ∞`; with `σ = ξ²` this is
+`N σ_N^{d+3}/log N → ∞`. For `σ_N ≤ 1` it implies the regime `N σ_N^{d/2+3}/log N → ∞` of
+`SharpRate.sharp_rate_ae` (`jointpoly_regime3`), so the last display of that theorem holds there
+ALMOST SURELY and uniformly in `σ_N ≤ t ≤ 1` (`jointpoly_sharp`), for every `d ≥ 1`.
+
+NOT the theorem of the paper as proved there: the paper proves it in probability, for `d ≥ 2`, by
+counting closed walks for the walk with exact normalisation (Lemma "oraclemoments"); that argument
+is NOT formalised. Here the conclusion is obtained from the kernel theorem. The remarks at the
+head of `SharpRate` apply. -/
+
+namespace JointPoly
+
+open Filter Topology SharpRate PopulationRate
+
+/-- `N σ^{d+3}/log N → ∞` and `σ ≤ 1` give `N σ^{d/2+3}/log N → ∞`. -/
+theorem jointpoly_regime3 (d : ℕ) (σ : ℕ → ℝ)
+    (hσ : ∀ᶠ N : ℕ in atTop, 0 < σ N ∧ σ N ≤ 1)
+    (hreg : Tendsto (fun N : ℕ => (N : ℝ) * σ N ^ (d + 3) / Real.log N) atTop atTop) :
+    Tendsto (fun N : ℕ => (N : ℝ) * Real.sqrt (σ N) ^ d * σ N ^ 3 / Real.log N)
+      atTop atTop := by
+  refine tendsto_atTop_mono' atTop ?_ hreg
+  filter_upwards [hσ, eventually_gt_atTop 1] with N hN h1N
+  obtain ⟨h0, h1⟩ := hN
+  have hL : 0 < Real.log N := Real.log_pos (by exact_mod_cast h1N)
+  have hN0 : (0 : ℝ) ≤ N := Nat.cast_nonneg N
+  have hA0 : 0 ≤ Real.sqrt (σ N) ^ d := pow_nonneg (Real.sqrt_nonneg _) d
+  have hA1 : Real.sqrt (σ N) ^ d ≤ 1 :=
+    pow_le_one₀ (Real.sqrt_nonneg _) (Real.sqrt_le_one.mpr h1)
+  have hsq : σ N ^ d = Real.sqrt (σ N) ^ d * Real.sqrt (σ N) ^ d := by
+    rw [← mul_pow, Real.mul_self_sqrt h0.le]
+  have hle : σ N ^ d ≤ Real.sqrt (σ N) ^ d := by
+    rw [hsq]
+    exact mul_le_of_le_one_left hA0 hA1
+  have h3 : 0 ≤ σ N ^ 3 := pow_nonneg h0.le 3
+  show (N : ℝ) * σ N ^ (d + 3) / Real.log N ≤ _
+  refine div_le_div_of_nonneg_right ?_ hL.le
+  rw [pow_add, mul_assoc]
+  exact mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_right hle h3) hN0
+
+/-- **The last display of Theorem "jointpoly" in its regime, almost surely, uniformly in
+    `σ_N ≤ t ≤ 1`** (`τ = 2t/σ_N`, `Θ(t) = heatTr (torusLam d) t`). -/
+theorem jointpoly_sharp {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] (d : ℕ) (hd : 1 ≤ d)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (σ : ℕ → ℝ)
+    (hσ : ∀ᶠ N : ℕ in atTop, 0 < σ N ∧ σ N ≤ 1)
+    (hreg : Tendsto (fun N : ℕ => (N : ℝ) * σ N ^ (d + 3) / Real.log N) atTop atTop) :
+    ∀ᵐ ω ∂μ, ∀ η : ℝ, 0 < η → ∀ᶠ N : ℕ in atTop, ∀ t : ℝ, σ N ≤ t → t ≤ 1 →
+      |((NormedSpace.exp ((2 * t / σ N) • (symGraph
+              (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ N) (X a ω - X j ω))
+              (fun a : Fin N => heatRho d (σ N) N (fun j => X j ω) a) - 1))).trace
+            - (N : ℝ) * Real.exp (-(2 * t / σ N))) / heatTr (torusLam d) t - 1
+          - (d : ℝ) * ((d : ℝ) + 2) / 8 * (σ N / 2 / t)|
+        ≤ sharpC2 d * (σ N / 2 / t) ^ 2 + sharpC1 d * (σ N / 2) + η * σ N :=
+  sharp_rate_ae d hd X h_indep hX hlaw σ hσ (jointpoly_regime3 d σ hσ hreg)
+
+end JointPoly
+
 end CTG.Reals2
