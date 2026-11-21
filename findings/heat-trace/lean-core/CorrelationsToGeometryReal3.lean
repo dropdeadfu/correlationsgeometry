@@ -10818,4 +10818,54 @@ theorem jointpoly_sharp {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω
 
 end JointPoly
 
+/-! ## Proposition "estimated" on the flat torus with the Gaussian kernel (A55)
+
+At a FIXED kernel variance `σ ∈ (0,1]` and a fixed `τ ≥ 2` the relative error of the subtracted
+heat trace of the sampled graph (estimated normalisation, self-loops) is `O_P(log N/N)`: for every
+`ε > 0` there is `C` with `P(|…| > C log N/N) ≤ ε` for all large `N`. This is
+`SecondStageLimit.second_stage_tight` for constant sequences.
+
+NOT the proposition of the paper: there `p` is any even Lipschitz density on a torus and `τ > 0`
+is arbitrary, and the first display (for `Tr P^j`, fixed `j`) is stated separately; here only the
+periodised Gaussian kernel, `τ ≥ 2`, the error relative to `poissonMean`, the nested sample, and
+the proof through the second-stage reduction instead of the expansion in the normalisation
+errors. -/
+
+namespace EstimatedTorus
+
+open Filter Topology
+open CTG.Reals.TraceG29
+
+theorem estimated_trace_OP {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] (d : ℕ) (hd : 1 ≤ d)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) {σ τ : ℝ} (hσ : 0 < σ) (hσ1 : σ ≤ 1)
+    (hτ : 2 ≤ τ) {ε : ℝ} (hε : 0 < ε) :
+    ∃ C : ℝ, 0 < C ∧ ∀ᶠ N : ℕ in atTop,
+      μ.real {ω | C * (Real.log N / N)
+        < |((NormedSpace.exp (τ • (symGraph
+              (fun a j : Fin N => heatTorus d (2 * Real.pi ^ 2 * σ) (X a ω - X j ω))
+              (fun a : Fin N => heatRho d σ N (fun j => X j ω) a) - 1))).trace
+            - (N : ℝ) * Real.exp (-τ)) / poissonMean d σ τ - 1|}
+        ≤ ε := by
+  have hreg : Tendsto (fun N : ℕ => (N : ℝ) * Real.sqrt σ ^ d * σ / Real.log N) atTop atTop := by
+    have ha : 0 < Real.sqrt σ ^ d * σ := by positivity
+    refine (RateN.const_regime ha).congr (fun N => ?_)
+    ring
+  have hτ0 : 0 < τ := by linarith
+  obtain ⟨C, hC, h⟩ := SecondStageLimit.second_stage_tight d hd X h_indep hX hlaw
+    (fun _ => σ) (fun _ => τ) (c := τ * σ) (mul_pos hτ0 hσ)
+    (Eventually.of_forall fun _ => ⟨hσ, hσ1⟩)
+    (Eventually.of_forall fun _ => ⟨hτ, (mul_div_cancel_right₀ τ hσ.ne').ge⟩) hreg hε
+  have hM : 0 < heatTorus d (2 * Real.pi ^ 2 * σ) 0 :=
+    heatTorus_zero_pos (mul_pos (by positivity) hσ) d
+  refine ⟨C * heatTorus d (2 * Real.pi ^ 2 * σ) 0 * τ, mul_pos (mul_pos hC hM) hτ0, ?_⟩
+  filter_upwards [h] with N hN
+  have e : C * heatTorus d (2 * Real.pi ^ 2 * σ) 0 * τ * (Real.log N / N)
+      = C * (heatTorus d (2 * Real.pi ^ 2 * σ) 0 * Real.log N / N) * τ := by ring
+  rw [e]
+  exact hN
+
+end EstimatedTorus
+
 end CTG.Reals2
