@@ -1,0 +1,3 @@
+# Keep the copied files byte-identical to upstream (no line-ending conversion).
+*.lean -text
+FILES.tsv -text
