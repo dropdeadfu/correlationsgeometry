@@ -10868,4 +10868,127 @@ theorem estimated_trace_OP {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure
 
 end EstimatedTorus
 
+/-! ## Proposition "oracle" for `j = 2` (A56)
+
+Second moment of a degenerate two-point statistic INCLUDING the diagonal, and from it the case
+`j = 2` of Proposition "oracle" of Appendix G: for the walk with exact normalisation,
+`Tr P̃² = N⁻² ∑_{i,j} p(x_i - x_j)²` (for an even kernel), and
+`E (Tr P̃² - m₂)² ≤ (4V + 2B²)/N²`, i.e. the fluctuations are of order `1/N`.
+
+HYPOTHESIS, as the structure `Deg2`: the points are independent with law `ν`, and
+`ψ = p² - m` is measurable, bounded by `B`, even, DEGENERATE (`∫ ψ(x - z) dν(z) = 0` for every
+`x`; for a translation-invariant `ν` this says `m = ∫ p²`) with `∫ ψ(x - z)² dν(z) ≤ V`.
+
+NOT the proposition of the paper: only `j = 2`. For general `j` the paper uses Hoeffding's
+variance formula for U-statistics of order `j` and a count of index coincidences; neither is
+formalised. With `0 ≤ p ≤ M`, `B = M²`, `V = M⁴` the bound reads `√6 M²/N`, below the `12 M²/N`
+of the paper. -/
+
+namespace OracleTwo
+
+open PiBound
+
+variable {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω} {G : Type*} [AddCommGroup G]
+  [MeasurableSpace G] [MeasurableSub₂ G] {ν : Measure G} {X : ℕ → Ω → G} {ψ : G → ℝ} {B V : ℝ}
+
+omit [MeasurableSpace G] [MeasurableSub₂ G] in
+theorem full_sum_eq (ψ : G → ℝ) (X : ℕ → Ω → G) (N : ℕ) (ω : Ω) :
+    ∑ i ∈ Finset.range N, ∑ j ∈ Finset.range N, ψ (X i ω - X j ω)
+      = Soff ψ X N ω + N * ψ 0 := by
+  unfold Soff
+  have h : ∀ i ∈ Finset.range N, ∑ j ∈ Finset.range N, ψ (X i ω - X j ω)
+      = ∑ j ∈ Finset.range N, aT ψ X i j ω + ψ 0 := by
+    intro i hi
+    have h' : ∀ j ∈ Finset.range N, ψ (X i ω - X j ω)
+        = aT ψ X i j ω + (if i = j then ψ 0 else 0) := by
+      intro j _
+      unfold aT
+      by_cases hij : i = j
+      · subst hij; simp
+      · simp [hij]
+    rw [Finset.sum_congr rfl h', Finset.sum_add_distrib, Finset.sum_ite_eq (Finset.range N) i,
+      if_pos hi]
+  rw [Finset.sum_congr rfl h, Finset.sum_add_distrib]
+  simp [Finset.sum_const, nsmul_eq_mul]
+
+theorem Soff_meas (H : Deg2 μ ν X ψ B V) (N : ℕ) : Measurable (Soff ψ X N) := by
+  unfold Soff
+  exact Finset.measurable_sum _ fun i _ => Finset.measurable_sum _ fun j _ => H.aT_meas i j
+
+theorem Soff_bound (H : Deg2 μ ν X ψ B V) (N : ℕ) (ω : Ω) :
+    |Soff ψ X N ω| ≤ (N : ℝ) * ((N : ℝ) * B) := by
+  unfold Soff
+  calc |∑ i ∈ Finset.range N, ∑ j ∈ Finset.range N, aT ψ X i j ω|
+      ≤ ∑ i ∈ Finset.range N, |∑ j ∈ Finset.range N, aT ψ X i j ω| :=
+        Finset.abs_sum_le_sum_abs _ _
+    _ ≤ ∑ i ∈ Finset.range N, ∑ j ∈ Finset.range N, |aT ψ X i j ω| :=
+        Finset.sum_le_sum fun i _ => Finset.abs_sum_le_sum_abs _ _
+    _ ≤ ∑ i ∈ Finset.range N, ∑ j ∈ Finset.range N, B :=
+        Finset.sum_le_sum fun i _ => Finset.sum_le_sum fun j _ => H.aT_bound i j ω
+    _ = (N : ℝ) * ((N : ℝ) * B) := by
+        simp [Finset.sum_const, nsmul_eq_mul]
+
+/-- **Second moment of the full degenerate two-point statistic** (diagonal included):
+    `E (N⁻² ∑_{i,j} ψ(X_i - X_j))² ≤ (1/N²)² (4 N² V + 2 N² B²)`, which is `(4V + 2B²)/N²`. -/
+theorem Z0_second_moment [IsProbabilityMeasure μ] [IsProbabilityMeasure ν]
+    (H : Deg2 μ ν X ψ B V) (N : ℕ) :
+    ∫ ω, (1 / (N : ℝ) ^ 2 * ∑ i ∈ Finset.range N, ∑ j ∈ Finset.range N,
+        ψ (X i ω - X j ω)) ^ 2 ∂μ
+      ≤ (1 / (N : ℝ) ^ 2) ^ 2 * (4 * (N : ℝ) ^ 2 * V + 2 * ((N : ℝ) ^ 2 * B ^ 2)) := by
+  have hB := H.B_nonneg
+  have hc : |ψ 0| ≤ B := H.bound 0
+  have hc2 : ψ 0 ^ 2 ≤ B ^ 2 := by
+    have := abs_le.mp hc
+    nlinarith
+  have hI : Integrable (fun ω => Soff ψ X N ω ^ 2) μ := by
+    refine Integrable.of_bound ((Soff_meas H N).pow_const 2).aestronglyMeasurable
+      (((N : ℝ) * ((N : ℝ) * B)) ^ 2) (Filter.Eventually.of_forall fun ω => ?_)
+    rw [Real.norm_eq_abs, abs_pow]
+    exact pow_le_pow_left₀ (abs_nonneg _) (Soff_bound H N ω) 2
+  have hpt : ∀ ω, (1 / (N : ℝ) ^ 2 * ∑ i ∈ Finset.range N, ∑ j ∈ Finset.range N,
+        ψ (X i ω - X j ω)) ^ 2
+      ≤ (1 / (N : ℝ) ^ 2) ^ 2 * (2 * Soff ψ X N ω ^ 2 + 2 * ((N : ℝ) ^ 2 * B ^ 2)) := by
+    intro ω
+    rw [full_sum_eq, mul_pow]
+    refine mul_le_mul_of_nonneg_left ?_ (by positivity)
+    have h1 : ((N : ℝ) * ψ 0) ^ 2 ≤ (N : ℝ) ^ 2 * B ^ 2 := by
+      rw [mul_pow]
+      exact mul_le_mul_of_nonneg_left hc2 (by positivity)
+    nlinarith [_root_.sq_nonneg (Soff ψ X N ω - (N : ℝ) * ψ 0)]
+  have hg : Integrable (fun ω => (1 / (N : ℝ) ^ 2) ^ 2 *
+      (2 * Soff ψ X N ω ^ 2 + 2 * ((N : ℝ) ^ 2 * B ^ 2))) μ :=
+    ((hI.const_mul 2).add (integrable_const _)).const_mul _
+  have hmono := integral_mono_of_nonneg
+    (Filter.Eventually.of_forall fun ω => by positivity) hg (Filter.Eventually.of_forall hpt)
+  refine hmono.trans ?_
+  rw [integral_const_mul, integral_add (hI.const_mul 2) (integrable_const _), integral_const_mul]
+  have hconst : ∫ _ : Ω, (2 * ((N : ℝ) ^ 2 * B ^ 2)) ∂μ = 2 * ((N : ℝ) ^ 2 * B ^ 2) := by simp
+  rw [hconst]
+  refine mul_le_mul_of_nonneg_left ?_ (by positivity)
+  have := H.second_moment N
+  linarith
+
+/-- **Proposition "oracle" for `j = 2`:** with `ψ = p² - m` degenerate,
+    `E (N⁻² ∑_{i,j} p(X_i - X_j)² - m)² ≤ (1/N²)² (4N²V + 2N²B²)` for `N ≥ 1`; the left-hand
+    statistic is `Tr P̃²` for an even kernel `p`. -/
+theorem oracle_two [IsProbabilityMeasure μ] [IsProbabilityMeasure ν] {p : G → ℝ} {m : ℝ}
+    (H : Deg2 μ ν X (fun u => p u ^ 2 - m) B V) (N : ℕ) (hN : 1 ≤ N) :
+    ∫ ω, (1 / (N : ℝ) ^ 2 * ∑ i ∈ Finset.range N, ∑ j ∈ Finset.range N,
+        p (X i ω - X j ω) ^ 2 - m) ^ 2 ∂μ
+      ≤ (1 / (N : ℝ) ^ 2) ^ 2 * (4 * (N : ℝ) ^ 2 * V + 2 * ((N : ℝ) ^ 2 * B ^ 2)) := by
+  have hNpos : (0 : ℝ) < N := by exact_mod_cast hN
+  have e : ∀ ω, 1 / (N : ℝ) ^ 2 * ∑ i ∈ Finset.range N, ∑ j ∈ Finset.range N,
+        p (X i ω - X j ω) ^ 2 - m
+      = 1 / (N : ℝ) ^ 2 * ∑ i ∈ Finset.range N, ∑ j ∈ Finset.range N,
+          (p (X i ω - X j ω) ^ 2 - m) := by
+    intro ω
+    simp only [Finset.sum_sub_distrib, Finset.sum_const, Finset.card_range, nsmul_eq_mul]
+    rw [mul_sub]
+    congr 1
+    field_simp
+  simp_rw [e]
+  exact Z0_second_moment H N
+
+end OracleTwo
+
 end CTG.Reals2
