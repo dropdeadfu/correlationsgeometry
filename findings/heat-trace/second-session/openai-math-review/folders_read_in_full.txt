@@ -1,0 +1,62 @@
+# Folders read in full in stage 2 (in addition to every stage-1 candidate file). Format: FOLDER [:: name parts]
+# Chosen 2026-11-21 from the stage-1 readers' #FOLDERS lines and the CONTENTS readers' strongest families.
+# --- torus heat kernel, lattice Gaussian sums, Poisson summation (paper part 1, flat torus)
+MathematicalPhysics/NavierStokes/ForcedComputation/Scalar
+MathematicalPhysics/NavierStokes/VelocityDetection :: Heat Periodic Periodization TailSpace
+MathematicalPhysics/DefocusingNLS/Linear :: Schwartz Torus Fourier Sobolev Poisson Lattice
+Analysis/Triangular/Energy
+Analysis/Triangular/Schwartz
+Analysis/Triangular/Auxiliary
+Analysis/Theta
+Analysis/PlanarPacking :: Lattice Theta Gaussian Poisson
+Analysis/PDE/Variational
+Analysis/PDE/Concentration :: Gaussian Lattice Torus Kernel Heat
+Analysis/HardSphere/Operators
+Analysis/TriangularHilbert :: Gaussian Heat Convolution Moment
+Combinatorics/Progressions/Lattices :: Lattice Gaussian Integer Poisson Dual Covolume
+Combinatorics/Progressions/Fourier :: Lattice Torus Integer
+Geometry/CubicTorus/Estimates
+Geometry/NodalSets/Waves
+Geometry/LatticeCovering :: Gaussian Lattice Grid Concentration
+Geometry/HeilbronnTriangle :: Successive Covolume Lattice Dual Minkowski
+RepresentationTheory/Theta
+NumberTheory/DirichletL/Poisson
+GroupTheory/SimpleAmenable/RandomFields
+# --- heat kernels on manifolds and metric measure spaces (paper: compact manifold case)
+Geometry/RCD/Heat
+Analysis/RCDHeat
+Geometry/WeakHessian/HeatFlow
+Geometry/EinsteinFour :: Heat Laplacian Trace LogDet Gaussian
+Geometry/TamingCompatibility/HeatFlow
+Probability/SphericalField/Heat
+Probability/SKValue/Evolution :: Heat Kernel Grid
+# --- random points, sampled spectra, concentration
+Combinatorics/TreeEdit
+Combinatorics/EditApproximation/Probability
+Combinatorics/BalancedRyser/Probability
+Combinatorics/Ryser/Probability
+Combinatorics/SparsestCut
+Probability/SKGap/Gaussian
+Probability/SphericalField/Gaussian
+MathematicalPhysics/CriticalSK
+# --- matrices, spectra, perturbation
+Analysis/HyperbolicCones
+Analysis/KLS/Spectral
+Analysis/BiholderTransport/LinearAlgebra
+Combinatorics/MatchingPSD
+Combinatorics/TriangleRemoval/Spectral
+Geometry/NodalSets/Spectral
+Probability/InvariantIsing/Spectral
+Probability/SKGap/Matrix
+Probability/BinarySweep/MatrixBounds
+LinearAlgebra/MatrixState
+# --- trace class, entropy of quantum states (paper part 2)
+InformationTheory/PhotonNumber
+InformationTheory/AmplitudeDamping
+InformationTheory/Entanglement :: Hilbert Trace Matrix Entropy
+MathematicalPhysics/PEPSMove
+MathematicalPhysics/PEPSSubvolume
+Analysis/BrownMeasure
+# --- real Riemannian geometry
+Geometry/WeakMTW/Geodesics
+Analysis/BiholderTransport/Geodesics
