@@ -32,7 +32,8 @@ Gaussian bounds). The method, its limits and the full list are in
   on a need" (`shortlist_score3.md` there gives each statement with its wording).
 - **2,419 further files** are here only because those 253 import them, directly or indirectly.
   Together the 2,672 files are closed under `import OAI.…`: every such import of a file in this
-  folder is in this folder. Apart from that they import Mathlib.
+  folder is in this folder. Apart from that they import Mathlib; two files also import Lean's core
+  library (`import Lean`).
 
 `FILES.tsv` lists every file with the Git blob hash it has upstream, its size, its line count and
 the number of rated statements in it (0 = present only as an import).
