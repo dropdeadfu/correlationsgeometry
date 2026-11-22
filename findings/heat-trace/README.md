@@ -10,14 +10,14 @@ This branch does not touch `main` or the Mathlib project in `CorrelationsGeometr
 ## The paper (working version)
 
 `paper/correlations_to_geometry.tex`, `paper/correlations_to_geometry.pdf` and `paper/figures/` are the
-authors' working version of the whole paper (132 pages, built on 21 November 2026; since that day with two authors, see the paragraph ``Author contributions'' after the abstract), placed here on
+authors' working version of the whole paper (135 pages, built on 22 November 2026; since that day with two authors, see the paragraph ``Author contributions'' after the abstract), placed here on
 21 November 2026 at the author's wish and with the agreement of the owner of this repository, so that
 the state can be followed in public. It is NOT the version on Zenodo (version 3,
 doi:10.5281/zenodo.24273022) and it changes with the work. As its abstract says, none of the proofs
 has been checked independently by a second person; the status of every statement is in Table 1 of the
 paper. The ten JPEG figures were made with an image generator and are marked as schematic in their
-captions. The Lean statements added after 19 November (third, fourth and fifth Lean file) are
-described in this README, not yet in the paper.
+captions. The Lean statements added after 19 November (third to eighth Lean file) are
+summarised in the paper since 22 November 2026, in the addendum at the end of Remark G.49 (``Machine-checked statements''), which also names the work of Levent Alpöge on which three of the files build; the detailed description is in this README.
 
 ## Status of each item
 
