@@ -13,6 +13,7 @@ import Mathlib.Analysis.Fourier.AddCircleMulti
 import Mathlib.Analysis.Real.Pi.Wallis
 import Mathlib.Analysis.Real.Pi.Bounds
 import Mathlib.MeasureTheory.Integral.Gamma
+import Mathlib.Analysis.Calculus.Deriv.Abs
 
 open MeasureTheory ProbabilityTheory CTG.Reals Matrix
 
@@ -26461,12 +26462,15 @@ manifolds (A72)
   `u'' Ω = Ω'' u`, that is `Hess u + E u = 0` with `E = -Ω''/Ω`, has only the periodic solutions
   `u = c Ω`.  This is Corollary `cor:ambiguity` (b) for `D = 1`.  It FALSIFIES the first wording of
   that corollary ("for D = 1 the solution space is two-dimensional") for closed manifolds.
-* `cross_ratio_trivial`: if the distances are obtained by inverting the flat profile on the same
-  correlators, the cross-ratio is identically one (status line of `thm:lapse-est`: the distances
-  are a prerequisite).
+* `cross_ratio_trivial`: the cancellation behind the statement that the cross-ratio is
+  identically one if the distances are obtained by inverting the flat profile on the same
+  correlators (status line of `thm:lapse-est`).  The hypothesis `k_xy = x_xy/(F_x F_y)` is the
+  RESULT of such an inversion; no profile, distance or inversion occurs in the statement.
 
-NOT formalised here: anything on manifolds of dimension `D ≥ 2`, the statements that are
-conditional on Theorem `thm:vargap` (b), and all probabilistic statements of the appendix. -/
+NOT formalised here: anything on curved manifolds of dimension `D ≥ 2` (for the flat torus and
+flat space see the later blocks), the statements that are conditional on Theorem `thm:vargap` (b),
+and all probabilistic statements of the appendix.  The refutation mentioned above is made a
+statement of its own in `periodic_solutions_dependent` and `OmegaW_not_periodic` below. -/
 namespace TimeAppendix
 
 theorem cross_quadratic {V : Type*} [AddCommGroup V] [Module ℝ V]
@@ -26779,10 +26783,10 @@ Proposition `prop:D2` says that `∂_t C` gives `∂_t h = 2ΩK - L_β h` and no
 separately.  Abstractly: if `A` (here `K ↦ 2ΩK`) is a linear isomorphism and `B` (here
 `β ↦ L_β h`) any linear map, then the map `(K, β) ↦ A K - B β` vanishes on `(A⁻¹ B β, β)` for
 every `β`, so it is not injective as soon as the space of shifts is non-zero: the datum does
-not determine the pair.  This is a formal NEGATIVE statement (the claim "the first time
-derivative of the metric determines `K`" is false without knowledge of the shift), and
-`D2_determined_given_shift` is the positive counterpart of Corollary `cor:shift`: given `β`,
-`K` is determined. -/
+not determine the PAIR.  That `K` itself is not determined needs a shift with `B β ≠ 0` and is
+`D2_K_not_determined` below.  `D2_determined_given_shift` is the positive statement: given `β`,
+`K` is determined (in Corollary `cor:shift` the paper goes in the other direction: polarisation
+and first derivative together give the shift). -/
 namespace TimeAppendix
 
 theorem D2_kernel {V U W : Type*} [AddCommGroup V] [Module ℝ V] [AddCommGroup U] [Module ℝ U]
@@ -26818,8 +26822,10 @@ For a flat reconstructed metric on the torus `ℝ^d/ℤ^d` the equation `Hess u 
 By `lapse_unique_circle` the quotient `u/Ω` is constant along each such line, hence constant:
 `u = c Ω`.  Only the diagonal entries of the Hessian equation are used, and no integration.
 This is part (b) of the corollary for the flat torus, `d ≥ 0`, for functions on `ℝ^d` that are
-periodic with period one in every coordinate.  NOT formalised: a curved reconstructed metric,
-and manifolds other than the torus. -/
+periodic with period one in every coordinate.  (A general flat torus `ℝ^d/Λ` is the same after a
+linear change of coordinates, because the equation holds along every lattice direction; this is
+not stated as a theorem.)  NOT formalised: a curved reconstructed metric, and manifolds other
+than the torus. -/
 namespace TimeAppendix
 
 theorem const_of_coordinatewise {d : ℕ} (v : (Fin d → ℝ) → ℝ)
@@ -26878,6 +26884,419 @@ theorem lapse_unique_flat_torus {d : ℕ} (Ω u : (Fin d → ℝ) → ℝ) (hΩ 
   have hne := ne_of_gt (hΩ x)
   rw [← this]
   field_simp
+
+end TimeAppendix
+
+
+/-! ## Appendix H: Lemma `lem:schwarz` in the exactly solvable case of constant curvature (A78)
+
+For a lapse with `Ω'' = -k² Ω` (constant `𝒦 = k²`) the differences of `W = ∫Ω⁻²` are, up to
+factors that cancel in the cross-ratio, `sin(k(y-x))/k`.  For four equally spaced points with
+spacing `ℓ` and `θ = kℓ` the cross-ratio of Lemma `lem:schwarz` is therefore
+`ρ₀ = (3ℓ·ℓ/(2ℓ·2ℓ)) · sin(2θ)²/(sin(3θ) sin θ)`.
+
+* `schwarz_const_ratio`: `ρ₀ - 1 = sin²θ/(4cos²θ - 1)` exactly.
+* `schwarz_const_bound`: `|sin²θ/(4cos²θ - 1) - θ²/3| ≤ θ⁴` for `|θ| ≤ 1/2`, that is
+  `ρ₀ = 1 + 𝒦ℓ²/3 + O(ℓ⁴)` with the coefficient `1/3` of the lemma and an explicit remainder.
+
+This is the lemma for constant `𝒦 > 0` only.  NOT formalised: the lemma for a general smooth
+`W` (Taylor expansion with remainder), and the case `𝒦 < 0` (hyperbolic functions). -/
+namespace TimeAppendix
+
+theorem sin_three_factor (θ : ℝ) :
+    Real.sin (3 * θ) = Real.sin θ * (4 * Real.cos θ ^ 2 - 1) := by
+  rw [Real.sin_three_mul, Real.cos_sq']; ring
+
+theorem schwarz_const_ratio (θ : ℝ) (hθ : θ ≠ 0) (hs : Real.sin θ ≠ 0)
+    (hc : 4 * Real.cos θ ^ 2 - 1 ≠ 0) :
+    (3 * θ * θ) / ((2 * θ) * (2 * θ))
+        * (Real.sin (2 * θ) * Real.sin (2 * θ) / (Real.sin (3 * θ) * Real.sin θ)) - 1
+      = Real.sin θ ^ 2 / (4 * Real.cos θ ^ 2 - 1) := by
+  rw [sin_three_factor, Real.sin_two_mul]
+  have h2 : Real.sin θ ^ 2 = 1 - Real.cos θ ^ 2 := by
+    have := Real.sin_sq_add_cos_sq θ; linarith
+  have hA : (3 * θ * θ) / ((2 * θ) * (2 * θ)) = 3 / 4 := by
+    field_simp; ring
+  have hB : 2 * Real.sin θ * Real.cos θ * (2 * Real.sin θ * Real.cos θ)
+      / (Real.sin θ * (4 * Real.cos θ ^ 2 - 1) * Real.sin θ)
+      = 4 * Real.cos θ ^ 2 / (4 * Real.cos θ ^ 2 - 1) := by
+    rw [div_eq_div_iff (mul_ne_zero (mul_ne_zero hs hc) hs) hc]; ring
+  rw [hA, hB, h2, eq_div_iff hc]
+  have e : (3 / 4 * (4 * Real.cos θ ^ 2 / (4 * Real.cos θ ^ 2 - 1)) - 1)
+      * (4 * Real.cos θ ^ 2 - 1)
+      = 3 / 4 * (4 * Real.cos θ ^ 2) - (4 * Real.cos θ ^ 2 - 1) := by
+    rw [sub_mul, mul_assoc, div_mul_cancel₀ _ hc]; ring
+  rw [e]; ring
+
+theorem schwarz_const_bound_nonneg (θ : ℝ) (h0 : 0 ≤ θ) (h1 : θ ≤ 1 / 2) :
+    |Real.sin θ ^ 2 / (4 * Real.cos θ ^ 2 - 1) - θ ^ 2 / 3| ≤ θ ^ 4 := by
+  rcases eq_or_lt_of_le h0 with h | hpos
+  · subst h; simp
+  have hsle : Real.sin θ ≤ θ := (Real.sin_lt hpos).le
+  have hsge : θ - θ ^ 3 / 4 ≤ Real.sin θ := (Real.sin_gt_sub_cube hpos (by linarith)).le
+  have hs0 : 0 ≤ Real.sin θ := by
+    have : 0 ≤ θ - θ ^ 3 / 4 := by nlinarith [pow_pos hpos 2, pow_pos hpos 3]
+    linarith
+  set x := Real.sin θ ^ 2 with hx
+  have hx_le : x ≤ θ ^ 2 := by
+    simp only [hx]; nlinarith
+  have hx_ge : θ ^ 2 - θ ^ 4 / 2 ≤ x := by
+    have hlow : 0 ≤ θ - θ ^ 3 / 4 := by nlinarith [pow_pos hpos 2, pow_pos hpos 3]
+    have h := mul_le_mul hsge hsge hlow hs0
+    simp only [hx]
+    nlinarith [pow_pos hpos 6, pow_pos hpos 4, h]
+  have hx0 : 0 ≤ x := by simp only [hx]; positivity
+  have hden : 4 * Real.cos θ ^ 2 - 1 = 3 - 4 * x := by
+    simp only [hx]; rw [Real.cos_sq']; ring
+  rw [hden]
+  have ht2 : θ ^ 2 ≤ 1 / 4 := by nlinarith
+  have hdpos : 2 ≤ 3 - 4 * x := by linarith
+  have hd0 : 0 < 3 - 4 * x := by linarith
+  have ht4 : 0 ≤ θ ^ 4 := by positivity
+  rw [abs_le]
+  constructor
+  · -- lower bound: x/(3-4x) ≥ x/3 ≥ θ²/3 - θ⁴/6
+    have h1' : x / 3 ≤ x / (3 - 4 * x) := by
+      apply div_le_div_of_nonneg_left hx0 hd0; linarith
+    linarith
+  · -- upper bound
+    have h1' : x / (3 - 4 * x) ≤ θ ^ 2 / (3 - 4 * θ ^ 2) := by
+      rw [div_le_div_iff₀ hd0 (by linarith)]
+      nlinarith
+    have h2' : θ ^ 2 / (3 - 4 * θ ^ 2) - θ ^ 2 / 3 ≤ θ ^ 4 := by
+      have hd2 : 0 < 3 - 4 * θ ^ 2 := by linarith
+      rw [div_sub_div _ _ (ne_of_gt hd2) (by norm_num : (3:ℝ) ≠ 0), div_le_iff₀ (by positivity)]
+      nlinarith [mul_nonneg ht4 (by linarith : (0:ℝ) ≤ 3 - 4 * θ ^ 2 - 2)]
+    linarith
+
+theorem schwarz_const_bound (θ : ℝ) (hθ : |θ| ≤ 1 / 2) :
+    |Real.sin θ ^ 2 / (4 * Real.cos θ ^ 2 - 1) - θ ^ 2 / 3| ≤ θ ^ 4 := by
+  rcases le_total 0 θ with h | h
+  · exact schwarz_const_bound_nonneg θ h (by rwa [abs_of_nonneg h] at hθ)
+  · have h' := schwarz_const_bound_nonneg (-θ) (by linarith) (by rwa [abs_of_nonpos h] at hθ)
+    have e4 : (-θ) ^ 4 = θ ^ 4 := by ring
+    simp only [Real.sin_neg, Real.cos_neg, neg_sq, e4] at h'
+    exact h'
+
+end TimeAppendix
+
+/-! ## Appendix H: analysis steps that are statements about real functions (A79)
+
+Suggested by the second session.
+
+* `landau_interval`: the inequality used in the proof of Proposition `prop:dotL` in a correct form
+  on a finite interval: `|G'(t)| ≤ 2 M₀/l + l M₂` if `|G| ≤ M₀` at `t` and `t + l` and
+  `|G''| ≤ M₂` between (the text has `l/2` in the last term; the weaker constant is enough).
+  `landau_old_form_fails`: the form quoted before, `‖G'‖ ≤ 2 (‖G‖ ‖G''‖)^{1/2}`, fails for
+  `G(t) = t`, where `‖G''‖ = 0`.
+* `min_not_differentiable`: `τ ↦ min(τ, -τ)` is not differentiable at `0`: a minimum of two
+  smooth branches need not be differentiable where the minimiser is not unique.  This is the
+  model of the statement, in the status line of Corollary `cor:dotLN-ae`, that for a fixed sample
+  the distance can fail to be differentiable at sample-dependent times.
+* `kernel_step_one`: Step 1 of the proof of Proposition `prop:dotLN-diff`: if `|h'(s)| ≤ A e^{-s}`
+  and `d e^{-x} ≤ d' ≤ d eˣ` with `0 ≤ x ≤ 1`, then `|h(d') - h(d)| ≤ 2 x A d e^{-d/e}`.
+* `sigma_inverse_sum`: `1/(3ℓ) + 1/ℓ - 1/(2ℓ) - 1/(2ℓ) = 1/(3ℓ)` (the term of order `(m̄ℓ)⁻³`
+  in the remark on the numerical experiment does not cancel in the cross-ratio).
+
+NOT formalised: the positive envelope statement (differentiability of a minimum over a compact
+set at a parameter with a unique minimiser), which is the step "Differentiability" of
+Corollary `cor:dotLN-ae`. -/
+namespace TimeAppendix
+
+theorem mvt_bound (h h' : ℝ → ℝ) (a b M : ℝ) (hab : a < b)
+    (hd : ∀ s, HasDerivAt h (h' s) s) (hM : ∀ s, a < s → s < b → |h' s| ≤ M) :
+    |h b - h a| ≤ M * (b - a) := by
+  obtain ⟨c, hc, hslope⟩ := exists_hasDerivAt_eq_slope h h' hab
+    (fun s _ => (hd s).continuousAt.continuousWithinAt) (fun s _ => hd s)
+  have hba : 0 < b - a := sub_pos.mpr hab
+  have e : h b - h a = h' c * (b - a) := by
+    rw [hslope]; field_simp
+  rw [e, abs_mul, abs_of_pos hba]
+  exact mul_le_mul_of_nonneg_right (hM c hc.1 hc.2) hba.le
+
+theorem landau_interval (G G' G'' : ℝ → ℝ) (t l M0 M2 : ℝ) (hl : 0 < l)
+    (hG : ∀ s, HasDerivAt G (G' s) s) (hG' : ∀ s, HasDerivAt G' (G'' s) s)
+    (h0 : |G t| ≤ M0) (h1 : |G (t + l)| ≤ M0)
+    (h2 : ∀ s, t < s → s < t + l → |G'' s| ≤ M2) :
+    |G' t| ≤ 2 * M0 / l + l * M2 := by
+  have hab : t < t + l := by linarith
+  obtain ⟨c, hc, hslope⟩ := exists_hasDerivAt_eq_slope G G' hab
+    (fun s _ => (hG s).continuousAt.continuousWithinAt) (fun s _ => hG s)
+  have hM2 : 0 ≤ M2 := by
+    have := h2 c hc.1 hc.2; exact le_trans (abs_nonneg _) this
+  have hGc : |G' c| ≤ 2 * M0 / l := by
+    rw [hslope]
+    have e : t + l - t = l := by ring
+    rw [e, abs_div, abs_of_pos hl, div_le_div_iff_of_pos_right hl]
+    have := abs_sub (G (t + l)) (G t)
+    linarith
+  have hdiff : |G' c - G' t| ≤ M2 * (c - t) :=
+    mvt_bound G' G'' t c M2 hc.1 hG' (fun s hs1 hs2 => h2 s hs1 (lt_trans hs2 hc.2))
+  have hct : c - t ≤ l := by linarith [hc.2]
+  have h3 : M2 * (c - t) ≤ l * M2 := by nlinarith
+  have h4 : |G' t| ≤ |G' c| + |G' c - G' t| := by
+    have := abs_sub_abs_le_abs_sub (G' t) (G' c)
+    rw [abs_sub_comm (G' t) (G' c)] at this
+    linarith
+  linarith
+
+/-- For `G(t) = t` on `[0,1]`: `sup|G| = 1`, `sup|G''| = 0`, `G' = 1`; the bound
+`2 (‖G‖ ‖G''‖)^{1/2}` is `0`. -/
+theorem landau_old_form_fails : ¬ ((1 : ℝ) ≤ 2 * Real.sqrt (1 * 0)) := by
+  simp
+
+theorem min_not_differentiable : ¬ DifferentiableAt ℝ (fun τ : ℝ => min τ (-τ)) 0 := by
+  intro h
+  have e : (fun τ : ℝ => min τ (-τ)) = fun τ => -|τ| := by
+    funext τ
+    rcases le_total 0 τ with h0 | h0
+    · rw [abs_of_nonneg h0, min_eq_right (by linarith)]
+    · rw [abs_of_nonpos h0, min_eq_left (by linarith)]; ring
+  rw [e] at h
+  have h' : DifferentiableAt ℝ (fun τ : ℝ => |τ|) 0 := by
+    have := h.neg
+    simpa using this
+  exact not_differentiableAt_abs_zero h'
+
+theorem kernel_step_one (h h' : ℝ → ℝ) (A d d' x : ℝ) (hA : 0 ≤ A) (hd0 : 0 < d)
+    (hx0 : 0 ≤ x) (hx1 : x ≤ 1)
+    (hder : ∀ s, HasDerivAt h (h' s) s) (hbd : ∀ s, 0 ≤ s → |h' s| ≤ A * Real.exp (-s))
+    (hlo : d * Real.exp (-x) ≤ d') (hhi : d' ≤ d * Real.exp x) :
+    |h d' - h d| ≤ 2 * x * A * d * Real.exp (-(d * Real.exp (-1))) := by
+  have hexp_hi : Real.exp x - 1 ≤ 2 * x := by
+    have := Real.abs_exp_sub_one_le (x := x) (by rw [abs_of_nonneg hx0]; exact hx1)
+    rw [abs_of_nonneg hx0] at this
+    exact le_trans (le_abs_self _) this
+  have hexp_lo : 1 - Real.exp (-x) ≤ 2 * x := by
+    have := Real.add_one_le_exp (-x); linarith
+  have he1 : Real.exp (-1) ≤ Real.exp (-x) := Real.exp_le_exp.mpr (by linarith)
+  have hfloor : d * Real.exp (-1) ≤ d * Real.exp (-x) := mul_le_mul_of_nonneg_left he1 hd0.le
+  have hfloor' : d * Real.exp (-1) ≤ d := by
+    have : Real.exp (-1) ≤ 1 := by
+      have := Real.exp_le_exp.mpr (by norm_num : (-1 : ℝ) ≤ 0); simpa using this
+    nlinarith
+  have hE : 0 ≤ Real.exp (-(d * Real.exp (-1))) := (Real.exp_pos _).le
+  -- bound of the derivative on the segment
+  have hseg : ∀ s, d * Real.exp (-1) ≤ s → |h' s| ≤ A * Real.exp (-(d * Real.exp (-1))) := by
+    intro s hs
+    have hs0 : 0 ≤ s := le_trans (by positivity) hs
+    refine le_trans (hbd s hs0) (mul_le_mul_of_nonneg_left ?_ hA)
+    exact Real.exp_le_exp.mpr (by linarith)
+  have hgap_hi : d' - d ≤ 2 * x * d := by nlinarith
+  have hgap_lo : d - d' ≤ 2 * x * d := by nlinarith
+  rcases lt_trichotomy d d' with hlt | heq | hgt
+  · have := mvt_bound h h' d d' (A * Real.exp (-(d * Real.exp (-1)))) hlt hder
+      (fun s hs1 _ => hseg s (by linarith))
+    have hM : 0 ≤ A * Real.exp (-(d * Real.exp (-1))) := mul_nonneg hA hE
+    have h2 : A * Real.exp (-(d * Real.exp (-1))) * (d' - d)
+        ≤ A * Real.exp (-(d * Real.exp (-1))) * (2 * x * d) :=
+      mul_le_mul_of_nonneg_left hgap_hi hM
+    calc |h d' - h d| ≤ A * Real.exp (-(d * Real.exp (-1))) * (d' - d) := this
+      _ ≤ A * Real.exp (-(d * Real.exp (-1))) * (2 * x * d) := h2
+      _ = 2 * x * A * d * Real.exp (-(d * Real.exp (-1))) := by ring
+  · have hnn : 0 ≤ 2 * x * A * d * Real.exp (-(d * Real.exp (-1))) :=
+      mul_nonneg (mul_nonneg (mul_nonneg (mul_nonneg (by norm_num) hx0) hA) hd0.le) hE
+    rw [← heq, sub_self, abs_zero]; exact hnn
+  · have := mvt_bound h h' d' d (A * Real.exp (-(d * Real.exp (-1)))) hgt hder
+      (fun s hs1 _ => hseg s (by linarith))
+    have hM : 0 ≤ A * Real.exp (-(d * Real.exp (-1))) := mul_nonneg hA hE
+    have h2 : A * Real.exp (-(d * Real.exp (-1))) * (d - d')
+        ≤ A * Real.exp (-(d * Real.exp (-1))) * (2 * x * d) :=
+      mul_le_mul_of_nonneg_left hgap_lo hM
+    rw [abs_sub_comm]
+    calc |h d - h d'| ≤ A * Real.exp (-(d * Real.exp (-1))) * (d - d') := this
+      _ ≤ A * Real.exp (-(d * Real.exp (-1))) * (2 * x * d) := h2
+      _ = 2 * x * A * d * Real.exp (-(d * Real.exp (-1))) := by ring
+
+theorem sigma_inverse_sum (l : ℝ) (hl : l ≠ 0) :
+    1 / (3 * l) + 1 / l - 1 / (2 * l) - 1 / (2 * l) = 1 / (3 * l) := by
+  field_simp; ring
+
+end TimeAppendix
+
+
+/-! ## Appendix H: the local solution space in flat space, Corollary `cor:ambiguity` (a) (A80)
+
+Suggested by the second session.
+
+* `local_uniqueness_line`: on the line, a solution of `u'' Ω = Ω'' u` with `u(p) = 0` and
+  `u'(p) = 0` vanishes identically.
+* `local_uniqueness_flat`: in `ℝ^D` with a flat reconstructed metric, a solution of the equation
+  along every line through `p` that vanishes at `p` together with all its directional derivatives
+  vanishes identically.  Hence a solution is determined by its value and its gradient at one
+  point: the solution space has dimension at most `D + 1`.
+* `affine_of_second_deriv_zero`: for `E = 0` (constant `Ω`, or any case with `u'' = 0` along
+  lines) the solutions are affine along every line, `u(p + v) = u(p) + ∂_v u(p)`; so the bound
+  `D + 1` is attained in flat space with `E = 0`, in contrast to the one-dimensional space of
+  global solutions on the flat torus (`lapse_unique_flat_torus`).
+
+The statements are for functions on all of `ℝ^D` (or `ℝ`); a convex open subset is not
+formalised.  The hypotheses are the one-dimensional equations along lines, as in
+`lapse_unique_flat_torus`. -/
+namespace TimeAppendix
+
+theorem local_uniqueness_line (Ω u Ω' Ω'' u' u'' : ℝ → ℝ) (p : ℝ) (hΩ : ∀ x, 0 < Ω x)
+    (hΩ1 : ∀ x, HasDerivAt Ω (Ω' x) x) (hΩ2 : ∀ x, HasDerivAt Ω' (Ω'' x) x)
+    (hu1 : ∀ x, HasDerivAt u (u' x) x) (hu2 : ∀ x, HasDerivAt u' (u'' x) x)
+    (hode : ∀ x, u'' x * Ω x = Ω'' x * u x) (h0 : u p = 0) (h1 : u' p = 0) :
+    ∀ x, u x = 0 := by
+  set w : ℝ → ℝ := fun x => Ω x * u' x - u x * Ω' x with hw
+  have hwd : ∀ x, HasDerivAt w 0 x := by
+    intro x
+    have h := ((hΩ1 x).mul (hu2 x)).sub ((hu1 x).mul (hΩ2 x))
+    have e : Ω' x * u' x + Ω x * u'' x - (u' x * Ω' x + u x * Ω'' x) = 0 := by
+      have := hode x; linarith [mul_comm (u'' x) (Ω x), mul_comm (Ω'' x) (u x),
+        mul_comm (Ω' x) (u' x)]
+    rw [e] at h; exact h
+  have hwc : ∀ x y, w x = w y :=
+    is_const_of_deriv_eq_zero (fun x => (hwd x).differentiableAt) (fun x => (hwd x).deriv)
+  have hw0 : ∀ x, w x = 0 := by
+    intro x; rw [hwc x p]; simp only [hw]; rw [h0, h1]; ring
+  set v : ℝ → ℝ := fun x => u x / Ω x with hv
+  have hvd : ∀ x, HasDerivAt v 0 x := by
+    intro x
+    have h := (hu1 x).div (hΩ1 x) (ne_of_gt (hΩ x))
+    have e : (u' x * Ω x - u x * Ω' x) / (Ω x) ^ 2 = 0 := by
+      have := hw0 x; simp only [hw] at this
+      have e2 : u' x * Ω x - u x * Ω' x = 0 := by linarith [mul_comm (u' x) (Ω x)]
+      rw [e2]; simp
+    rw [e] at h; exact h
+  have hvc : ∀ x y, v x = v y :=
+    is_const_of_deriv_eq_zero (fun x => (hvd x).differentiableAt) (fun x => (hvd x).deriv)
+  intro x
+  have := hvc x p
+  simp only [hv] at this
+  rw [h0, zero_div] at this
+  have hne := ne_of_gt (hΩ x)
+  field_simp at this
+  simpa using this
+
+theorem local_uniqueness_flat {D : ℕ} (Ω u : (Fin D → ℝ) → ℝ) (p : Fin D → ℝ)
+    (hΩ : ∀ x, 0 < Ω x)
+    (hline : ∀ v : Fin D → ℝ, ∃ Ω' Ω'' u' u'' : ℝ → ℝ,
+      (∀ t, HasDerivAt (fun t : ℝ => Ω (p + t • v)) (Ω' t) t) ∧
+      (∀ t, HasDerivAt Ω' (Ω'' t) t) ∧
+      (∀ t, HasDerivAt (fun t : ℝ => u (p + t • v)) (u' t) t) ∧
+      (∀ t, HasDerivAt u' (u'' t) t) ∧
+      (∀ t, u'' t * Ω (p + t • v) = Ω'' t * u (p + t • v)) ∧ u' 0 = 0)
+    (h0 : u p = 0) :
+    ∀ x, u x = 0 := by
+  intro x
+  obtain ⟨Ω', Ω'', u', u'', h1, h2, h3, h4, h5, h6⟩ := hline (x - p)
+  have hz := local_uniqueness_line (fun t : ℝ => Ω (p + t • (x - p)))
+    (fun t : ℝ => u (p + t • (x - p))) Ω' Ω'' u' u'' 0 (fun t => hΩ _) h1 h2 h3 h4 h5
+    (by simp [h0]) h6 1
+  simpa using hz
+
+theorem affine_of_second_deriv_zero (f f' : ℝ → ℝ) (hf : ∀ t, HasDerivAt f (f' t) t)
+    (hf' : ∀ t, HasDerivAt f' 0 t) :
+    ∀ t, f t = f 0 + t * f' 0 := by
+  have hc : ∀ x y, f' x = f' y :=
+    is_const_of_deriv_eq_zero (fun x => (hf' x).differentiableAt) (fun x => (hf' x).deriv)
+  set g : ℝ → ℝ := fun t => f t - t * f' 0 with hg
+  have hgd : ∀ t, HasDerivAt g 0 t := by
+    intro t
+    have h := (hf t).sub ((hasDerivAt_id t).mul_const (f' 0))
+    have e : f' t - 1 * f' 0 = 0 := by rw [hc t 0]; ring
+    rw [e] at h; exact h
+  have hgc : ∀ x y, g x = g y :=
+    is_const_of_deriv_eq_zero (fun x => (hgd x).differentiableAt) (fun x => (hgd x).deriv)
+  intro t
+  have := hgc t 0
+  simp only [hg] at this
+  linarith
+
+end TimeAppendix
+
+/-! ## Appendix H: complements after the reading of the statements by the second session (A81)
+
+* `OmegaW_not_periodic`: for a periodic lapse `Ω > 0` and `W' = Ω⁻²`, the second local solution
+  `Ω W` is NOT periodic.  `periodic_solutions_dependent`: any two periodic solutions of
+  `u'' Ω = Ω'' u` are linearly dependent.  Together with `second_local_solution_ode` this is the
+  formal refutation of the first wording of Corollary `cor:ambiguity` for `D = 1` on a circle
+  ("the solution space is two-dimensional"): locally there are two independent solutions, and
+  only one of them is periodic.
+* `second_local_solution_ode`: `Ω W` satisfies the equation, `(ΩW)'' Ω = Ω'' (ΩW)`.
+* `second_length_deriv`: for `κ ≠ 0`, `W̃ = -1/(κ(α + κW))` has the derivative `(Ω(α + κW))⁻²`,
+  that is `W̃' = Ω̃⁻²` for `Ω̃ = Ω(α + κW)`.
+* `stab_from_log`: `stab_rho` and `stab_final` combined: from `ρ̃ = ρ eˣ` with `|x| ≤ λ ≤ 1`.
+* `D2_K_not_determined`: if some shift has `B β ≠ 0`, there are two pairs with the same datum
+  `A K - B β` and DIFFERENT `K`.  (`D2_not_injective` only says that the pair is not determined.) -/
+namespace TimeAppendix
+
+theorem OmegaW_not_periodic (Ω W : ℝ → ℝ) (L : ℝ) (hL : 0 < L) (hΩ : ∀ x, 0 < Ω x)
+    (hW : ∀ x, HasDerivAt W (1 / (Ω x) ^ 2) x) (hΩper : ∀ x, Ω (x + L) = Ω x) :
+    ¬ (∀ x, Ω (x + L) * W (x + L) = Ω x * W x) := by
+  intro hper
+  have hmono : StrictMono W := by
+    apply strictMono_of_deriv_pos
+    intro x; rw [(hW x).deriv]; exact div_pos one_pos (pow_pos (hΩ x) 2)
+  have h0 := hper 0
+  rw [hΩper 0] at h0
+  have hlt : W 0 < W (0 + L) := hmono (by linarith)
+  have hne := ne_of_gt (hΩ 0)
+  have : W (0 + L) = W 0 := mul_left_cancel₀ hne h0
+  linarith
+
+theorem second_local_solution_ode (Ω Ω'' W : ℝ → ℝ) (x : ℝ) :
+    (Ω'' x * W x) * Ω x = Ω'' x * (Ω x * W x) := by ring
+
+theorem periodic_solutions_dependent (Ω u1 u2 Ω' Ω'' u1' u1'' u2' u2'' : ℝ → ℝ) (L : ℝ)
+    (hL : 0 < L) (hΩ : ∀ x, 0 < Ω x)
+    (hΩ1 : ∀ x, HasDerivAt Ω (Ω' x) x) (hΩ2 : ∀ x, HasDerivAt Ω' (Ω'' x) x)
+    (h11 : ∀ x, HasDerivAt u1 (u1' x) x) (h12 : ∀ x, HasDerivAt u1' (u1'' x) x)
+    (h21 : ∀ x, HasDerivAt u2 (u2' x) x) (h22 : ∀ x, HasDerivAt u2' (u2'' x) x)
+    (hode1 : ∀ x, u1'' x * Ω x = Ω'' x * u1 x) (hode2 : ∀ x, u2'' x * Ω x = Ω'' x * u2 x)
+    (hΩper : ∀ x, Ω (x + L) = Ω x) (hper1 : ∀ x, u1 (x + L) = u1 x)
+    (hper2 : ∀ x, u2 (x + L) = u2 x) :
+    ∃ a b : ℝ, (a ≠ 0 ∨ b ≠ 0) ∧ ∀ x, a * u1 x + b * u2 x = 0 := by
+  obtain ⟨c1, hc1⟩ := lapse_unique_circle Ω u1 Ω' Ω'' u1' u1'' L hL hΩ hΩ1 hΩ2 h11 h12 hode1
+    hΩper hper1
+  obtain ⟨c2, hc2⟩ := lapse_unique_circle Ω u2 Ω' Ω'' u2' u2'' L hL hΩ hΩ1 hΩ2 h21 h22 hode2
+    hΩper hper2
+  by_cases h : c1 = 0 ∧ c2 = 0
+  · refine ⟨1, 0, Or.inl one_ne_zero, fun x => ?_⟩
+    rw [hc1 x, h.1]; ring
+  · refine ⟨c2, -c1, ?_, fun x => ?_⟩
+    · by_contra hcon
+      push Not at hcon
+      exact h ⟨by linarith [hcon.2], hcon.1⟩
+    · rw [hc1 x, hc2 x]; ring
+
+theorem second_length_deriv (Ω W : ℝ → ℝ) (α κ x : ℝ) (hκ : κ ≠ 0) (hΩ : Ω x ≠ 0)
+    (hx : α + κ * W x ≠ 0) (hW : HasDerivAt W (1 / (Ω x) ^ 2) x) :
+    HasDerivAt (fun y => -1 / (κ * (α + κ * W y))) (1 / (Ω x * (α + κ * W x)) ^ 2) x := by
+  have h1 : HasDerivAt (fun y => κ * (α + κ * W y)) (κ * (κ * (1 / (Ω x) ^ 2))) x := by
+    have := ((hW.const_mul κ).const_add α).const_mul κ
+    simpa using this
+  have hden : κ * (α + κ * W x) ≠ 0 := mul_ne_zero hκ hx
+  have h2 := (hasDerivAt_const x (-1 : ℝ)).div h1 hden
+  have e : (0 * (κ * (α + κ * W x)) - -1 * (κ * (κ * (1 / (Ω x) ^ 2)))) / (κ * (α + κ * W x)) ^ 2
+      = 1 / (Ω x * (α + κ * W x)) ^ 2 := by
+    field_simp
+    ring
+  rw [e] at h2
+  exact h2
+
+theorem stab_from_log (ρ x g th ell lam eps : ℝ) (hell : 0 < ell) (hρ : 0 < ρ)
+    (hx : |x| ≤ lam) (hl : lam ≤ 1) (hg : ell ^ 2 / 4 ≤ g) (heps : 0 ≤ eps)
+    (heps' : eps ≤ 1 / 4) (hth : |th| ≤ 3 * eps) :
+    |3 * (ρ * Real.exp x - 1) / (g * (1 + th)) - 3 * (ρ - 1) / g|
+      ≤ 96 * ρ * lam / ell ^ 2 + 12 * eps * |3 * (ρ - 1) / g| :=
+  stab_final ρ (ρ * Real.exp x) g th ell lam eps hell hρ (le_trans (abs_nonneg x) hx) hg heps
+    heps' hth (stab_rho ρ x lam hρ hx hl)
+
+theorem D2_K_not_determined {V U W : Type*} [AddCommGroup V] [Module ℝ V] [AddCommGroup U]
+    [Module ℝ U] [AddCommGroup W] [Module ℝ W] (A : V ≃ₗ[ℝ] W) (B : U →ₗ[ℝ] W)
+    (hB : ∃ β : U, B β ≠ 0) :
+    ∃ p q : V × U, p.1 ≠ q.1 ∧ A p.1 - B p.2 = A q.1 - B q.2 := by
+  obtain ⟨β, hβ⟩ := hB
+  refine ⟨(A.symm (B β), β), (0, 0), ?_, ?_⟩
+  · intro h
+    apply hβ
+    have : A (A.symm (B β)) = A 0 := congrArg A h
+    simpa using this
+  · simp
 
 end TimeAppendix
 
