@@ -26447,4 +26447,438 @@ end Assembly
 
 end SphereOneDim
 
+
+/-! ## Appendix H ("Time and dynamics"): the deterministic cores that can be stated without
+manifolds (A72)
+
+* `cross_quadratic`: for a symmetric bilinear form `B`,
+  `B(d-a,d-a) + B(c-b,c-b) - B(c-a,c-a) - B(d-b,d-b) = 2 B(b-a, d-c)`; the identity behind
+  Proposition "four nodes in general position" (`prop:lapse-cloud`).
+* `line_additive`: for four points on a line the combination `r_ad + r_bc - r_ac - r_bd` of the
+  distances vanishes, and it vanishes for distances of the form `r + c_x + c_y`
+  (`prop:lapse-stab`: the exponential factors cancel in the cross-ratio).
+* `lapse_unique_circle`: on a circle (periodic functions on `ℝ`) the equation
+  `u'' Ω = Ω'' u`, that is `Hess u + E u = 0` with `E = -Ω''/Ω`, has only the periodic solutions
+  `u = c Ω`.  This is Corollary `cor:ambiguity` (b) for `D = 1`.  It FALSIFIES the first wording of
+  that corollary ("for D = 1 the solution space is two-dimensional") for closed manifolds.
+* `cross_ratio_trivial`: if the distances are obtained by inverting the flat profile on the same
+  correlators, the cross-ratio is identically one (status line of `thm:lapse-est`: the distances
+  are a prerequisite).
+
+NOT formalised here: anything on manifolds of dimension `D ≥ 2`, the statements that are
+conditional on Theorem `thm:vargap` (b), and all probabilistic statements of the appendix. -/
+namespace TimeAppendix
+
+theorem cross_quadratic {V : Type*} [AddCommGroup V] [Module ℝ V]
+    (B : V →ₗ[ℝ] V →ₗ[ℝ] ℝ) (hB : ∀ x y, B x y = B y x) (a b c d : V) :
+    B (d - a) (d - a) + B (c - b) (c - b) - B (c - a) (c - a) - B (d - b) (d - b)
+      = 2 * B (b - a) (d - c) := by
+  simp only [map_sub, LinearMap.sub_apply]
+  linarith [hB a d, hB b c, hB a c, hB b d, hB a b, hB c d]
+
+theorem line_additive (sa sb sc sd : ℝ) :
+    (sd - sa) + (sc - sb) - (sc - sa) - (sd - sb) = 0 := by ring
+
+theorem node_shift_additive (rad rbc rac rbd ca cb cc cd : ℝ)
+    (h : rad + rbc - rac - rbd = 0) :
+    (rad + ca + cd) + (rbc + cb + cc) - (rac + ca + cc) - (rbd + cb + cd) = 0 := by linarith
+
+/-- If `Z_xy = x_xy / k(z_xy)` and the distances are chosen so that `k(z_xy) = x_xy / (F_x F_y)`
+(inversion of the flat profile on the same correlators, up to node factors), then the
+cross-ratio is one. -/
+theorem cross_ratio_trivial (Fa Fb Fc Fd xad xbc xac xbd kad kbc kac kbd : ℝ)
+    (hFa : Fa ≠ 0) (hFb : Fb ≠ 0) (hFc : Fc ≠ 0) (hFd : Fd ≠ 0)
+    (hxad : xad ≠ 0) (hxbc : xbc ≠ 0) (hxac : xac ≠ 0) (hxbd : xbd ≠ 0)
+    (had : kad = xad / (Fa * Fd)) (hbc : kbc = xbc / (Fb * Fc))
+    (hac : kac = xac / (Fa * Fc)) (hbd : kbd = xbd / (Fb * Fd)) :
+    ((xad / kad) * (xbc / kbc)) / ((xac / kac) * (xbd / kbd)) = 1 := by
+  subst had hbc hac hbd
+  field_simp
+
+/-- **Corollary `cor:ambiguity` (b) for `D = 1`.**  Periodic lapse `Ω > 0`, periodic `u` with
+`u'' Ω = Ω'' u`: then `u` is a constant multiple of `Ω`. -/
+theorem lapse_unique_circle (Ω u Ω' Ω'' u' u'' : ℝ → ℝ) (L : ℝ) (hL : 0 < L)
+    (hΩ : ∀ x, 0 < Ω x)
+    (hΩ1 : ∀ x, HasDerivAt Ω (Ω' x) x) (hΩ2 : ∀ x, HasDerivAt Ω' (Ω'' x) x)
+    (hu1 : ∀ x, HasDerivAt u (u' x) x) (hu2 : ∀ x, HasDerivAt u' (u'' x) x)
+    (hode : ∀ x, u'' x * Ω x = Ω'' x * u x)
+    (hΩper : ∀ x, Ω (x + L) = Ω x) (huper : ∀ x, u (x + L) = u x) :
+    ∃ c : ℝ, ∀ x, u x = c * Ω x := by
+  -- the Wronskian is constant
+  set w : ℝ → ℝ := fun x => Ω x * u' x - u x * Ω' x with hw
+  have hwd : ∀ x, HasDerivAt w 0 x := by
+    intro x
+    have h := ((hΩ1 x).mul (hu2 x)).sub ((hu1 x).mul (hΩ2 x))
+    have e : Ω' x * u' x + Ω x * u'' x - (u' x * Ω' x + u x * Ω'' x) = 0 := by
+      have := hode x; linarith [mul_comm (u'' x) (Ω x), mul_comm (Ω'' x) (u x),
+        mul_comm (Ω' x) (u' x)]
+    rw [e] at h; exact h
+  have hwc : ∀ x y, w x = w y :=
+    is_const_of_deriv_eq_zero (fun x => (hwd x).differentiableAt) (fun x => (hwd x).deriv)
+  set c1 : ℝ := w 0 with hc1
+  have hwc1 : ∀ x, w x = c1 := fun x => hwc x 0
+  -- the quotient v = u / Ω
+  set v : ℝ → ℝ := fun x => u x / Ω x with hv
+  have hvd : ∀ x, HasDerivAt v (c1 / (Ω x) ^ 2) x := by
+    intro x
+    have h := (hu1 x).div (hΩ1 x) (ne_of_gt (hΩ x))
+    have e : (u' x * Ω x - u x * Ω' x) / (Ω x) ^ 2 = c1 / (Ω x) ^ 2 := by
+      rw [← hwc1 x]; simp only [hw]; ring
+    rw [e] at h; exact h
+  have hvper : v L = v 0 := by
+    simp only [hv]
+    have h1 := huper 0; have h2 := hΩper 0
+    simp only [zero_add] at h1 h2
+    rw [h1, h2]
+  have hpos : ∀ x, 0 < (Ω x) ^ 2 := fun x => pow_pos (hΩ x) 2
+  have hc10 : c1 = 0 := by
+    rcases lt_trichotomy c1 0 with hneg | hzero | hposc
+    · exfalso
+      have hanti : StrictAnti v := by
+        apply strictAnti_of_deriv_neg
+        intro x; rw [(hvd x).deriv]; exact div_neg_of_neg_of_pos hneg (hpos x)
+      have := hanti hL
+      rw [hvper] at this; exact lt_irrefl _ this
+    · exact hzero
+    · exfalso
+      have hmono : StrictMono v := by
+        apply strictMono_of_deriv_pos
+        intro x; rw [(hvd x).deriv]; exact div_pos hposc (hpos x)
+      have := hmono hL
+      rw [hvper] at this; exact lt_irrefl _ this
+  have hvc : ∀ x y, v x = v y := by
+    apply is_const_of_deriv_eq_zero (fun x => (hvd x).differentiableAt)
+    intro x; rw [(hvd x).deriv, hc10]; simp
+  refine ⟨v 0, fun x => ?_⟩
+  have := hvc x 0
+  simp only [hv] at this ⊢
+  have hne := ne_of_gt (hΩ x)
+  field_simp at this ⊢
+  linarith [this]
+
+/-- The local solution space on the line is larger: with `W' = Ω⁻²`, `Ω W` is a second solution
+of `u'' Ω = Ω'' u`.  (So the statement of `lapse_unique_circle` needs periodicity.) -/
+theorem second_local_solution (Ω Ω' Ω'' W : ℝ → ℝ) (hΩ : ∀ x, 0 < Ω x)
+    (hΩ1 : ∀ x, HasDerivAt Ω (Ω' x) x) (hΩ2 : ∀ x, HasDerivAt Ω' (Ω'' x) x)
+    (hW : ∀ x, HasDerivAt W (1 / (Ω x) ^ 2) x) :
+    ∀ x, HasDerivAt (fun y => Ω' y * W y + 1 / Ω y) (Ω'' x * W x) x
+      ∧ HasDerivAt (fun y => Ω y * W y) (Ω' x * W x + 1 / Ω x) x := by
+  intro x
+  have hne := ne_of_gt (hΩ x)
+  constructor
+  · have h := ((hΩ2 x).mul (hW x)).add ((hasDerivAt_const x (1:ℝ)).div (hΩ1 x) hne)
+    have e : Ω'' x * W x + Ω' x * (1 / (Ω x) ^ 2) + (0 * Ω x - 1 * Ω' x) / (Ω x) ^ 2
+        = Ω'' x * W x := by field_simp; ring
+    rw [e] at h; exact h
+  · have h := (hΩ1 x).mul (hW x)
+    have e : Ω' x * W x + Ω x * (1 / (Ω x) ^ 2) = Ω' x * W x + 1 / Ω x := by field_simp
+    rw [e] at h; exact h
+
+end TimeAppendix
+
+
+/-! ## Appendix H: the arithmetic of the lapse estimator (A73)
+
+* `gap_identity`: for gaps `g₁, g₂, g₃`, `r_ad² + r_bc² - r_ac² - r_bd² = 2 g₁ g₃`
+  (the two forms of the estimator in Proposition `prop:lapse-stab` agree; the bracket in the proof
+  of Lemma `lem:schwarz` is `-2 g₁ g₃`, for equal gaps `-2 ℓ²`).
+* `stab_rho`: `|ρ eˣ - ρ| ≤ 2 ρ λ` for `|x| ≤ λ ≤ 1`, `ρ > 0`.
+* `stab_final`: the last step of the proof of Proposition `prop:lapse-stab`:
+  `|K̃ - K̂| ≤ 96 ρ λ / ℓ² + 12 ε |K̂|`.
+
+NOT formalised: the Bessel functions `K₀`, `K₁` and the constant `c₀` (not in Mathlib); the
+statement is the deterministic arithmetic after the bound `|log(ρ̃/ρ)| ≤ λ`. -/
+namespace TimeAppendix
+
+theorem gap_identity (g1 g2 g3 : ℝ) :
+    (g1 + g2 + g3) ^ 2 + g2 ^ 2 - (g1 + g2) ^ 2 - (g2 + g3) ^ 2 = 2 * g1 * g3 := by ring
+
+theorem stab_rho (ρ x lam : ℝ) (hρ : 0 < ρ) (hx : |x| ≤ lam) (hl : lam ≤ 1) :
+    |ρ * Real.exp x - ρ| ≤ 2 * ρ * lam := by
+  have h1 : |Real.exp x - 1| ≤ 2 * |x| := Real.abs_exp_sub_one_le (le_trans hx hl)
+  have e : ρ * Real.exp x - ρ = ρ * (Real.exp x - 1) := by ring
+  rw [e, abs_mul, abs_of_pos hρ]
+  have h2 : ρ * |Real.exp x - 1| ≤ ρ * (2 * |x|) := mul_le_mul_of_nonneg_left h1 hρ.le
+  have h3 : ρ * (2 * |x|) ≤ ρ * (2 * lam) :=
+    mul_le_mul_of_nonneg_left (by linarith) hρ.le
+  linarith
+
+theorem stab_term1 (D g th ell A : ℝ) (hell : 0 < ell) (hg : ell ^ 2 / 4 ≤ g)
+    (hth : 1 / 4 ≤ 1 + th) (hA : 0 ≤ A) (hD : |D| ≤ A) :
+    |3 * D / (g * (1 + th))| ≤ 48 * A / ell ^ 2 := by
+  have hl2 : 0 < ell ^ 2 := by positivity
+  have hg0 : 0 < g := by linarith
+  have hth0 : 0 < 1 + th := by linarith
+  have hden : ell ^ 2 / 16 ≤ g * (1 + th) := by nlinarith
+  have hden0 : 0 < g * (1 + th) := mul_pos hg0 hth0
+  rw [abs_div, abs_of_pos hden0, abs_mul, abs_of_pos (by norm_num : (0:ℝ) < 3)]
+  rw [div_le_div_iff₀ hden0 hl2]
+  have h1 : 3 * |D| ≤ 3 * A := by linarith
+  have h2 : 3 * |D| * ell ^ 2 ≤ 3 * A * ell ^ 2 := mul_le_mul_of_nonneg_right h1 hl2.le
+  have h3 : 3 * A * ell ^ 2 ≤ 48 * A * (g * (1 + th)) := by nlinarith
+  linarith
+
+theorem stab_term2 (Kh th eps : ℝ) (heps : 0 ≤ eps) (hth : |th| ≤ 3 * eps)
+    (hth' : 1 / 4 ≤ 1 + th) :
+    |Kh * (1 / (1 + th) - 1)| ≤ 12 * eps * |Kh| := by
+  have hth0 : 0 < 1 + th := by linarith
+  have e : 1 / (1 + th) - 1 = -th / (1 + th) := by field_simp; ring
+  rw [e, abs_mul, abs_div, abs_neg, abs_of_pos hth0]
+  have h1 : |th| / (1 + th) ≤ 12 * eps := by
+    rw [div_le_iff₀ hth0]; nlinarith [abs_nonneg th]
+  have := mul_le_mul_of_nonneg_left h1 (abs_nonneg Kh)
+  linarith
+
+/-- **Last step of Proposition `prop:lapse-stab`.**  With `K̂ = 3(ρ-1)/g`,
+`K̃ = 3(ρ̃-1)/(g(1+θ))`, `|ρ̃ - ρ| ≤ 2 ρ λ`, `g ≥ ℓ²/4`, `|θ| ≤ 3ε ≤ 3/4`. -/
+theorem stab_final (ρ ρt g th ell lam eps : ℝ) (hell : 0 < ell) (hρ : 0 < ρ) (hlam : 0 ≤ lam)
+    (hg : ell ^ 2 / 4 ≤ g) (heps : 0 ≤ eps) (heps' : eps ≤ 1 / 4) (hth : |th| ≤ 3 * eps)
+    (hρt : |ρt - ρ| ≤ 2 * ρ * lam) :
+    |3 * (ρt - 1) / (g * (1 + th)) - 3 * (ρ - 1) / g|
+      ≤ 96 * ρ * lam / ell ^ 2 + 12 * eps * |3 * (ρ - 1) / g| := by
+  have hth' : 1 / 4 ≤ 1 + th := by
+    have := abs_le.mp hth; linarith [this.1]
+  have hg0 : 0 < g := by nlinarith [sq_nonneg ell, pow_pos hell 2]
+  have hth0 : 0 < 1 + th := by linarith
+  have e : 3 * (ρt - 1) / (g * (1 + th)) - 3 * (ρ - 1) / g
+      = 3 * (ρt - ρ) / (g * (1 + th)) + (3 * (ρ - 1) / g) * (1 / (1 + th) - 1) := by
+    field_simp; ring
+  rw [e]
+  have hA : 0 ≤ 2 * ρ * lam := by positivity
+  have t1 := stab_term1 (ρt - ρ) g th ell (2 * ρ * lam) hell hg hth' hA hρt
+  have t2 := stab_term2 (3 * (ρ - 1) / g) th eps heps hth hth'
+  have e2 : 48 * (2 * ρ * lam) / ell ^ 2 = 96 * ρ * lam / ell ^ 2 := by ring
+  calc |3 * (ρt - ρ) / (g * (1 + th)) + (3 * (ρ - 1) / g) * (1 / (1 + th) - 1)|
+      ≤ |3 * (ρt - ρ) / (g * (1 + th))| + |(3 * (ρ - 1) / g) * (1 / (1 + th) - 1)| :=
+        abs_add_le _ _
+    _ ≤ 48 * (2 * ρ * lam) / ell ^ 2 + 12 * eps * |3 * (ρ - 1) / g| := add_le_add t1 t2
+    _ = 96 * ρ * lam / ell ^ 2 + 12 * eps * |3 * (ρ - 1) / g| := by rw [e2]
+
+end TimeAppendix
+
+/-! ## Appendix H: the shear of Proposition `prop:shear` as a statement about covariance
+matrices (A74)
+
+For `n` nodes with configuration variables `φ` and momenta `π`, the substitution `π ↦ π + S φ`
+with a real symmetric matrix `S` (a local shear is the case of a diagonal `S`) is symplectic,
+`M J Mᵀ = J` for `M = [[1,0],[S,1]]`, and it maps the covariance matrix with blocks
+`X = ⟨φφ⟩`, `Y = ⟨φπ⟩_sym`, `P = ⟨ππ⟩` to one with the same `X` and with `Y' = Y + X S`.
+So the commutators and `X` are unchanged while `Y` changes by `X S`: the polarisation, and not the
+canonical structure, fixes `Y`.  NOT formalised: the identification of the change `X S` with an
+isotropic extrinsic curvature (the statement of the proposition for a power-law profile). -/
+namespace TimeAppendix
+
+open Matrix
+
+theorem shear_symplectic {n : Type*} [Fintype n] [DecidableEq n] (S : Matrix n n ℝ)
+    (hS : Sᵀ = S) :
+    (fromBlocks (1 : Matrix n n ℝ) (0 : Matrix n n ℝ) S (1 : Matrix n n ℝ)) * (fromBlocks (0 : Matrix n n ℝ) (1 : Matrix n n ℝ) (-1 : Matrix n n ℝ) (0 : Matrix n n ℝ))
+        * (fromBlocks (1 : Matrix n n ℝ) (0 : Matrix n n ℝ) S (1 : Matrix n n ℝ))ᵀ
+      = fromBlocks (0 : Matrix n n ℝ) (1 : Matrix n n ℝ) (-1 : Matrix n n ℝ) (0 : Matrix n n ℝ) := by
+  rw [fromBlocks_transpose, fromBlocks_multiply, fromBlocks_multiply]
+  simp [hS]
+
+theorem shear_covariance {n : Type*} [Fintype n] [DecidableEq n]
+    (S X Y P : Matrix n n ℝ) (hS : Sᵀ = S) :
+    (fromBlocks (1 : Matrix n n ℝ) (0 : Matrix n n ℝ) S (1 : Matrix n n ℝ)) * (fromBlocks X Y Yᵀ P)
+        * (fromBlocks (1 : Matrix n n ℝ) (0 : Matrix n n ℝ) S (1 : Matrix n n ℝ))ᵀ
+      = fromBlocks X (Y + X * S) (Yᵀ + S * X) (P + S * Y + Yᵀ * S + S * X * S) := by
+  rw [fromBlocks_transpose, fromBlocks_multiply, fromBlocks_multiply]
+  simp only [one_mul, zero_mul, add_zero, mul_one, mul_zero, transpose_one,
+    transpose_zero, hS]
+  congr 1
+  · rw [add_comm]
+  · rw [add_comm]
+  · simp only [Matrix.add_mul]; abel
+
+end TimeAppendix
+
+
+/-! ## Appendix H: Proposition `prop:tidal` in one dimension and the Möbius family (A75)
+
+* `tidal_1d`: on the line, if `Ω̃'' Ω = Ω'' Ω̃` (equal tidal function `-Ω''/Ω`) and `W' = Ω⁻²`,
+  then `Ω̃ = Ω (α + κ W)` with constants `α, κ` (direction (ii) ⇒ (i) of `prop:tidal`, first step).
+* `second_length_moebius`: for `κ ≠ 0` the function `W̃ = -1/(κ(α + κ W))` satisfies
+  `W̃(y) - W̃(x) = (W(y) - W(x)) / ((α + κ W(x))(α + κ W(y)))`, that is `T̃ = b(x) b(y) T` with
+  `b = 1/(α + κ W) = Ω/Ω̃`.
+* `moebius_diff`, `cross_ratio_moebius`: the cross-ratio of four values of `W` is invariant under
+  `W ↦ (αW + β)/(γW + δ)`: the node-independent data in `D = 1` do not distinguish the lapses of
+  the Möbius family (Proposition `prop:crossratio`, Corollary `cor:ambiguity` (a)).
+
+NOT formalised: the geodesic setting in dimension `D ≥ 2`. -/
+namespace TimeAppendix
+
+theorem tidal_1d (Ω Ωt Ω' Ω'' Ωt' Ωt'' W : ℝ → ℝ) (hΩ : ∀ x, 0 < Ω x)
+    (hΩ1 : ∀ x, HasDerivAt Ω (Ω' x) x) (hΩ2 : ∀ x, HasDerivAt Ω' (Ω'' x) x)
+    (ht1 : ∀ x, HasDerivAt Ωt (Ωt' x) x) (ht2 : ∀ x, HasDerivAt Ωt' (Ωt'' x) x)
+    (hW : ∀ x, HasDerivAt W (1 / (Ω x) ^ 2) x)
+    (hode : ∀ x, Ωt'' x * Ω x = Ω'' x * Ωt x) :
+    ∃ α κ : ℝ, ∀ x, Ωt x = Ω x * (α + κ * W x) := by
+  set w : ℝ → ℝ := fun x => Ω x * Ωt' x - Ωt x * Ω' x with hw
+  have hwd : ∀ x, HasDerivAt w 0 x := by
+    intro x
+    have h := ((hΩ1 x).mul (ht2 x)).sub ((ht1 x).mul (hΩ2 x))
+    have e : Ω' x * Ωt' x + Ω x * Ωt'' x - (Ωt' x * Ω' x + Ωt x * Ω'' x) = 0 := by
+      have := hode x; linarith [mul_comm (Ωt'' x) (Ω x), mul_comm (Ω'' x) (Ωt x),
+        mul_comm (Ω' x) (Ωt' x)]
+    rw [e] at h; exact h
+  have hwc : ∀ x y, w x = w y :=
+    is_const_of_deriv_eq_zero (fun x => (hwd x).differentiableAt) (fun x => (hwd x).deriv)
+  set κ : ℝ := w 0 with hκ
+  have hwκ : ∀ x, w x = κ := fun x => hwc x 0
+  set v : ℝ → ℝ := fun x => Ωt x / Ω x - κ * W x with hv
+  have hvd : ∀ x, HasDerivAt v 0 x := by
+    intro x
+    have hne := ne_of_gt (hΩ x)
+    have h := ((ht1 x).div (hΩ1 x) hne).sub ((hW x).const_mul κ)
+    have e : (Ωt' x * Ω x - Ωt x * Ω' x) / (Ω x) ^ 2 - κ * (1 / (Ω x) ^ 2) = 0 := by
+      rw [← hwκ x]; simp only [hw]; field_simp; ring
+    rw [e] at h; exact h
+  have hvc : ∀ x y, v x = v y :=
+    is_const_of_deriv_eq_zero (fun x => (hvd x).differentiableAt) (fun x => (hvd x).deriv)
+  refine ⟨v 0, κ, fun x => ?_⟩
+  have h := hvc x 0
+  simp only [hv] at h ⊢
+  have hne := ne_of_gt (hΩ x)
+  field_simp at h ⊢
+  linarith [h]
+
+theorem second_length_moebius (α κ Wx Wy : ℝ) (hκ : κ ≠ 0) (hx : α + κ * Wx ≠ 0)
+    (hy : α + κ * Wy ≠ 0) :
+    (-1 / (κ * (α + κ * Wy))) - (-1 / (κ * (α + κ * Wx)))
+      = (Wy - Wx) / ((α + κ * Wx) * (α + κ * Wy)) := by
+  field_simp
+  ring
+
+theorem moebius_diff (α β γ δ x y : ℝ) (hx : γ * x + δ ≠ 0) (hy : γ * y + δ ≠ 0) :
+    (α * x + β) / (γ * x + δ) - (α * y + β) / (γ * y + δ)
+      = (α * δ - β * γ) * (x - y) / ((γ * x + δ) * (γ * y + δ)) := by
+  rw [div_sub_div _ _ hx hy]
+  congr 1
+  ring
+
+/-- The cross-ratio `(c-a)(d-b)/((d-a)(c-b))` is invariant under Möbius maps. -/
+theorem cross_ratio_moebius (α β γ δ a b c d : ℝ) (hdet : α * δ - β * γ ≠ 0)
+    (ha : γ * a + δ ≠ 0) (hb : γ * b + δ ≠ 0) (hc : γ * c + δ ≠ 0) (hd : γ * d + δ ≠ 0)
+    (hda : d - a ≠ 0) (hcb : c - b ≠ 0) :
+    (((α * c + β) / (γ * c + δ) - (α * a + β) / (γ * a + δ))
+        * ((α * d + β) / (γ * d + δ) - (α * b + β) / (γ * b + δ)))
+      / ((((α * d + β) / (γ * d + δ) - (α * a + β) / (γ * a + δ)))
+        * ((α * c + β) / (γ * c + δ) - (α * b + β) / (γ * b + δ)))
+      = ((c - a) * (d - b)) / ((d - a) * (c - b)) := by
+  rw [moebius_diff α β γ δ c a hc ha, moebius_diff α β γ δ d b hd hb,
+    moebius_diff α β γ δ d a hd ha, moebius_diff α β γ δ c b hc hb]
+  field_simp
+
+end TimeAppendix
+
+
+/-! ## Appendix H: what the first time derivative cannot separate (A76)
+
+Proposition `prop:D2` says that `∂_t C` gives `∂_t h = 2ΩK - L_β h` and not `K` and the shift
+separately.  Abstractly: if `A` (here `K ↦ 2ΩK`) is a linear isomorphism and `B` (here
+`β ↦ L_β h`) any linear map, then the map `(K, β) ↦ A K - B β` vanishes on `(A⁻¹ B β, β)` for
+every `β`, so it is not injective as soon as the space of shifts is non-zero: the datum does
+not determine the pair.  This is a formal NEGATIVE statement (the claim "the first time
+derivative of the metric determines `K`" is false without knowledge of the shift), and
+`D2_determined_given_shift` is the positive counterpart of Corollary `cor:shift`: given `β`,
+`K` is determined. -/
+namespace TimeAppendix
+
+theorem D2_kernel {V U W : Type*} [AddCommGroup V] [Module ℝ V] [AddCommGroup U] [Module ℝ U]
+    [AddCommGroup W] [Module ℝ W] (A : V ≃ₗ[ℝ] W) (B : U →ₗ[ℝ] W) (β : U) :
+    A (A.symm (B β)) - B β = 0 := by simp
+
+theorem D2_not_injective {V U W : Type*} [AddCommGroup V] [Module ℝ V] [AddCommGroup U]
+    [Module ℝ U] [AddCommGroup W] [Module ℝ W] (A : V ≃ₗ[ℝ] W) (B : U →ₗ[ℝ] W)
+    (hU : ∃ β : U, β ≠ 0) :
+    ∃ p q : V × U, p ≠ q ∧ A p.1 - B p.2 = A q.1 - B q.2 := by
+  obtain ⟨β, hβ⟩ := hU
+  refine ⟨(A.symm (B β), β), (0, 0), ?_, ?_⟩
+  · intro h
+    exact hβ (congrArg Prod.snd h)
+  · simp
+
+theorem D2_determined_given_shift {V U W : Type*} [AddCommGroup V] [Module ℝ V]
+    [AddCommGroup U] [Module ℝ U] [AddCommGroup W] [Module ℝ W] (A : V ≃ₗ[ℝ] W)
+    (B : U →ₗ[ℝ] W) (β : U) (K K' : V) (h : A K - B β = A K' - B β) : K = K' := by
+  have : A K = A K' := by
+    have := congrArg (fun w => w + B β) h
+    simpa using this
+  exact A.injective this
+
+end TimeAppendix
+
+
+/-! ## Appendix H: Corollary `cor:ambiguity` (b) on the flat torus in every dimension (A77)
+
+For a flat reconstructed metric on the torus `ℝ^d/ℤ^d` the equation `Hess u + E u = 0`,
+`E = -Hess Ω/Ω`, contains for every coordinate direction the one-dimensional equation
+`∂_i² u · Ω = ∂_i² Ω · u` along the lines parallel to the `i`-th axis, which are closed circles.
+By `lapse_unique_circle` the quotient `u/Ω` is constant along each such line, hence constant:
+`u = c Ω`.  Only the diagonal entries of the Hessian equation are used, and no integration.
+This is part (b) of the corollary for the flat torus, `d ≥ 0`, for functions on `ℝ^d` that are
+periodic with period one in every coordinate.  NOT formalised: a curved reconstructed metric,
+and manifolds other than the torus. -/
+namespace TimeAppendix
+
+theorem const_of_coordinatewise {d : ℕ} (v : (Fin d → ℝ) → ℝ)
+    (h : ∀ (i : Fin d) (x : Fin d → ℝ) (a : ℝ), v (Function.update x i a) = v x) :
+    ∀ x y, v x = v y := by
+  have key : ∀ s : Finset (Fin d), ∀ x y : Fin d → ℝ, (∀ i, i ∉ s → x i = y i) → v x = v y := by
+    intro s
+    induction s using Finset.induction_on with
+    | empty =>
+      intro x y hxy
+      have : x = y := funext fun i => hxy i (by simp)
+      rw [this]
+    | insert j s hj ih =>
+      intro x y hxy
+      have h1 : v (Function.update x j (y j)) = v x := h j x (y j)
+      rw [← h1]
+      apply ih
+      intro i hi
+      by_cases hij : i = j
+      · subst hij; simp
+      · rw [Function.update_of_ne hij]
+        exact hxy i (by simp [hij, hi])
+  intro x y
+  exact key Finset.univ x y (fun i hi => absurd (Finset.mem_univ i) hi)
+
+/-- **Corollary `cor:ambiguity` (b) on the flat torus.** -/
+theorem lapse_unique_flat_torus {d : ℕ} (Ω u : (Fin d → ℝ) → ℝ) (hΩ : ∀ x, 0 < Ω x)
+    (hline : ∀ (i : Fin d) (x : Fin d → ℝ), ∃ Ω' Ω'' u' u'' : ℝ → ℝ,
+      (∀ t, HasDerivAt (fun t => Ω (Function.update x i t)) (Ω' t) t) ∧
+      (∀ t, HasDerivAt Ω' (Ω'' t) t) ∧
+      (∀ t, HasDerivAt (fun t => u (Function.update x i t)) (u' t) t) ∧
+      (∀ t, HasDerivAt u' (u'' t) t) ∧
+      (∀ t, u'' t * Ω (Function.update x i t) = Ω'' t * u (Function.update x i t)))
+    (hΩper : ∀ (i : Fin d) (x : Fin d → ℝ) (t : ℝ),
+      Ω (Function.update x i (t + 1)) = Ω (Function.update x i t))
+    (huper : ∀ (i : Fin d) (x : Fin d → ℝ) (t : ℝ),
+      u (Function.update x i (t + 1)) = u (Function.update x i t)) :
+    ∃ c : ℝ, ∀ x, u x = c * Ω x := by
+  have hv : ∀ (i : Fin d) (x : Fin d → ℝ) (a : ℝ),
+      u (Function.update x i a) / Ω (Function.update x i a) = u x / Ω x := by
+    intro i x a
+    obtain ⟨Ω', Ω'', u', u'', h1, h2, h3, h4, h5⟩ := hline i x
+    obtain ⟨c, hc⟩ := lapse_unique_circle (fun t => Ω (Function.update x i t))
+      (fun t => u (Function.update x i t)) Ω' Ω'' u' u'' 1 one_pos
+      (fun t => hΩ _) h1 h2 h3 h4 h5 (hΩper i x) (huper i x)
+    have ha := hc a
+    have hx := hc (x i)
+    simp only [Function.update_eq_self] at hx
+    simp only at ha
+    rw [ha, hx]
+    rw [mul_div_assoc, mul_div_assoc, div_self (ne_of_gt (hΩ _)), div_self (ne_of_gt (hΩ _))]
+  have hconst := const_of_coordinatewise (fun x => u x / Ω x) hv
+  refine ⟨u 0 / Ω 0, fun x => ?_⟩
+  have := hconst x 0
+  simp only at this
+  have hne := ne_of_gt (hΩ x)
+  rw [← this]
+  field_simp
+
+end TimeAppendix
+
 end CTG.Reals2
