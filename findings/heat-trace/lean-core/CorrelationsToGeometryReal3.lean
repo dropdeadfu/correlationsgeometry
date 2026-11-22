@@ -10,6 +10,9 @@ Appendix G of the paper with the constants and exceptional events of these files
 import CorrelationsToGeometryReal2
 import Mathlib.Probability.StrongLaw
 import Mathlib.Analysis.Fourier.AddCircleMulti
+import Mathlib.Analysis.Real.Pi.Wallis
+import Mathlib.Analysis.Real.Pi.Bounds
+import Mathlib.MeasureTheory.Integral.Gamma
 
 open MeasureTheory ProbabilityTheory CTG.Reals Matrix
 
@@ -24520,5 +24523,1928 @@ theorem variance_one_sqrt [IsProbabilityMeasure μ] {σ : ℝ} (hσ : 0 < σ) (h
 end Final3
 
 end VarianceOne
+
+
+namespace SphereOneDim
+
+open Finset
+
+/-! ### Legendre polynomials: coefficients, trigonometric form, Bonnet's recursion -/
+
+/-- `a_k = binom(2k,k)/4^k`, the Taylor coefficients of `(1-z)^{-1/2}`. -/
+noncomputable def lc : ℕ → ℝ
+  | 0 => 1
+  | k + 1 => lc k * (2 * k + 1) / (2 * k + 2)
+
+theorem lc_zero : lc 0 = 1 := rfl
+
+theorem lc_succ (k : ℕ) : lc (k + 1) = lc k * (2 * k + 1) / (2 * k + 2) := rfl
+
+theorem lc_pos : ∀ k, 0 < lc k
+  | 0 => by rw [lc_zero]; exact one_pos
+  | k + 1 => by
+    rw [lc_succ]
+    have := lc_pos k
+    positivity
+
+/-- `S_n[g] = ∑_{i+j=n} a_i a_j g(i-j)`. With `g(m) = cos(mθ)` this is `P_n(cos θ)`
+    (`legP_cos`). -/
+noncomputable def legS (n : ℕ) (g : ℤ → ℝ) : ℝ :=
+  ∑ p ∈ antidiagonal n, lc p.1 * lc p.2 * g ((p.1 : ℤ) - (p.2 : ℤ))
+
+theorem legS_lin (n : ℕ) (a b : ℝ) (g h : ℤ → ℝ) :
+    legS n (fun m => a * g m + b * h m) = a * legS n g + b * legS n h := by
+  unfold legS
+  rw [mul_sum, mul_sum, ← sum_add_distrib]
+  exact sum_congr rfl fun p _ => by ring
+
+theorem legS_congr (n : ℕ) {g h : ℤ → ℝ} (H : ∀ m : ℤ, |m| ≤ n → g m = h m) :
+    legS n g = legS n h := by
+  unfold legS
+  refine sum_congr rfl fun p hp => ?_
+  have hp' := mem_antidiagonal.1 hp
+  have : |(p.1 : ℤ) - (p.2 : ℤ)| ≤ n := by
+    rw [abs_le]; constructor <;> omega
+  rw [H _ this]
+
+theorem legS_mono (n : ℕ) {g h : ℤ → ℝ} (H : ∀ m : ℤ, |m| ≤ n → g m ≤ h m) :
+    legS n g ≤ legS n h := by
+  unfold legS
+  refine sum_le_sum fun p hp => ?_
+  have hp' := mem_antidiagonal.1 hp
+  have : |(p.1 : ℤ) - (p.2 : ℤ)| ≤ n := by
+    rw [abs_le]; constructor <;> omega
+  exact mul_le_mul_of_nonneg_left (H _ this) (mul_pos (lc_pos _) (lc_pos _)).le
+
+theorem bonnet_coeff (a b : ℝ) (i j : ℕ) :
+    ((i + j : ℕ) + 2 : ℝ) * ((a * (2 * i + 1) / (2 * i + 2)) * (b * (2 * j + 1) / (2 * j + 2)))
+      = (2 * (i + j : ℕ) + 3) / 2 * (a * (b * (2 * j + 1) / (2 * j + 2))
+          + (a * (2 * i + 1) / (2 * i + 2)) * b) - ((i + j : ℕ) + 1) * (a * b) := by
+  push_cast
+  field_simp
+  ring
+
+/-- **Bonnet's recursion in functional form:** for every `g : ℤ → ℝ`,
+    `(n+2) S_{n+2}[g] = (2n+3)/2 · S_{n+1}[g(·+1) + g(·-1)] - (n+1) S_n[g]`. -/
+theorem legS_bonnet (n : ℕ) (g : ℤ → ℝ) :
+    ((n : ℝ) + 2) * legS (n + 2) g
+      = (2 * n + 3) / 2 * legS (n + 1) (fun m => g (m + 1) + g (m - 1))
+        - (n + 1) * legS n g := by
+  have e0 : legS (n + 1) (fun m => g (m + 1) + g (m - 1))
+      = legS (n + 1) (fun m => g (m + 1)) + legS (n + 1) (fun m => g (m - 1)) := by
+    have := legS_lin (n + 1) 1 1 (fun m => g (m + 1)) (fun m => g (m - 1))
+    simpa using this
+  have e1 : legS (n + 1) (fun m => g (m + 1))
+      = lc (n + 1) * g ((n : ℤ) + 2)
+        + ∑ p ∈ antidiagonal n, lc p.1 * lc (p.2 + 1) * g ((p.1 : ℤ) - (p.2 : ℤ)) := by
+    unfold legS
+    rw [Nat.sum_antidiagonal_succ']
+    congr 1
+    · simp only [lc_zero, mul_one]
+      congr 2
+    · refine sum_congr rfl fun p _ => ?_
+      congr 2; push_cast; ring_nf
+  have e2 : legS (n + 1) (fun m => g (m - 1))
+      = lc (n + 1) * g (-((n : ℤ) + 2))
+        + ∑ p ∈ antidiagonal n, lc (p.1 + 1) * lc p.2 * g ((p.1 : ℤ) - (p.2 : ℤ)) := by
+    unfold legS
+    rw [Nat.sum_antidiagonal_succ]
+    congr 1
+    · simp only [lc_zero, one_mul]
+      congr 2
+    · refine sum_congr rfl fun p _ => ?_
+      congr 2; push_cast; ring_nf
+  have e3 : legS (n + 2) g
+      = lc (n + 2) * g (-((n : ℤ) + 2)) + lc (n + 2) * g ((n : ℤ) + 2)
+        + ∑ p ∈ antidiagonal n, lc (p.1 + 1) * lc (p.2 + 1) * g ((p.1 : ℤ) - (p.2 : ℤ)) := by
+    unfold legS
+    rw [Nat.sum_antidiagonal_succ, Nat.sum_antidiagonal_succ']
+    simp only [lc_zero, one_mul, mul_one]
+    have a1 : g (((0 : ℕ) : ℤ) - ((n + 1 + 1 : ℕ) : ℤ)) = g (-((n : ℤ) + 2)) := by
+      congr 1
+    have a2 : g (((n + 1 : ℕ) : ℤ) + 1 - ((0 : ℕ) : ℤ)) = g ((n : ℤ) + 2) := by
+      congr 1
+    have a3 : ∑ p ∈ antidiagonal n, lc (p.1 + 1) * lc (p.2 + 1)
+          * g (((p.1 : ℕ) : ℤ) + 1 - ((p.2 + 1 : ℕ) : ℤ))
+        = ∑ p ∈ antidiagonal n, lc (p.1 + 1) * lc (p.2 + 1) * g ((p.1 : ℤ) - (p.2 : ℤ)) := by
+      refine sum_congr rfl fun p _ => ?_
+      congr 2; omega
+    simp only [Nat.cast_add, Nat.cast_one] at a1 a2 a3 ⊢
+    rw [a1, a2, a3]
+    ring
+  have e4 : ∑ p ∈ antidiagonal n, ((n : ℝ) + 2) * (lc (p.1 + 1) * lc (p.2 + 1))
+        * g ((p.1 : ℤ) - (p.2 : ℤ))
+      = ∑ p ∈ antidiagonal n, ((2 * (n : ℝ) + 3) / 2 * (lc p.1 * lc (p.2 + 1)
+          + lc (p.1 + 1) * lc p.2) - ((n : ℝ) + 1) * (lc p.1 * lc p.2))
+        * g ((p.1 : ℤ) - (p.2 : ℤ)) := by
+    refine sum_congr rfl fun p hp => ?_
+    have hp' := mem_antidiagonal.1 hp
+    have := bonnet_coeff (lc p.1) (lc p.2) p.1 p.2
+    rw [hp'] at this
+    rw [lc_succ, lc_succ, this]
+  have e5 : lc (n + 2) * ((n : ℝ) + 2) = (2 * n + 3) / 2 * lc (n + 1) := by
+    rw [lc_succ]; push_cast; field_simp; ring
+  rw [e0, e1, e2, e3]
+  have e6 : ((n : ℝ) + 2) * ∑ p ∈ antidiagonal n, lc (p.1 + 1) * lc (p.2 + 1)
+        * g ((p.1 : ℤ) - (p.2 : ℤ))
+      = (2 * (n : ℝ) + 3) / 2 * (∑ p ∈ antidiagonal n, lc p.1 * lc (p.2 + 1)
+            * g ((p.1 : ℤ) - (p.2 : ℤ))
+          + ∑ p ∈ antidiagonal n, lc (p.1 + 1) * lc p.2 * g ((p.1 : ℤ) - (p.2 : ℤ)))
+        - ((n : ℝ) + 1) * legS n g := by
+    unfold legS
+    rw [mul_sum, ← sum_add_distrib, mul_sum, mul_sum, ← sum_sub_distrib]
+    have := e4
+    refine (sum_congr rfl fun p _ => by ring).trans (this.trans (sum_congr rfl fun p _ => by ring))
+  linear_combination e6 + (g (-((n : ℤ) + 2)) + g ((n : ℤ) + 2)) * e5
+
+theorem legS_zero (g : ℤ → ℝ) : legS 0 g = g 0 := by
+  simp [legS, lc_zero]
+
+theorem legS_one (g : ℤ → ℝ) : legS 1 g = (g 1 + g (-1)) / 2 := by
+  simp [legS, Nat.antidiagonal_succ, lc_zero, lc_succ]
+  ring
+
+/-- Induction with two predecessors. -/
+theorem two_step {P : ℕ → Prop} (h0 : P 0) (h1 : P 1) (h : ∀ n, P n → P (n + 1) → P (n + 2)) :
+    ∀ n, P n := by
+  intro n
+  have : P n ∧ P (n + 1) := by
+    induction n with
+    | zero => exact ⟨h0, h1⟩
+    | succ k ih => exact ⟨ih.2, h k ih.1 ih.2⟩
+  exact this.1
+
+/-- `∑ a_i a_j = 1` (`P_n(1) = 1`). -/
+theorem legS_const (n : ℕ) : legS n (fun _ => 1) = 1 := by
+  refine two_step (P := fun n => legS n (fun _ => 1) = 1) ?_ ?_ ?_ n
+  · beta_reduce; rw [legS_zero]
+  · beta_reduce; rw [legS_one]; norm_num
+  · intro n h0 h1
+    beta_reduce at h0 h1 ⊢
+    have hb := legS_bonnet n (fun _ => 1)
+    have e : legS (n + 1) (fun _ : ℤ => (1 : ℝ) + 1) = 2 := by
+      have := legS_lin (n + 1) 1 1 (fun _ => 1) (fun _ => 1)
+      simp only [one_mul] at this
+      rw [this, h1]; norm_num
+    rw [e, h0] at hb
+    have hn : (0 : ℝ) < (n : ℝ) + 2 := by positivity
+    have : ((n : ℝ) + 2) * legS (n + 2) (fun _ => 1) = ((n : ℝ) + 2) * 1 := by
+      rw [hb]; ring
+    exact mul_left_cancel₀ hn.ne' this
+
+/-- `∑ a_i a_j (i-j)² = n(n+1)/2`. -/
+theorem legS_sq (n : ℕ) : legS n (fun m => (m : ℝ) ^ 2) = (n : ℝ) * (n + 1) / 2 := by
+  refine two_step (P := fun n => legS n (fun m => (m : ℝ) ^ 2) = (n : ℝ) * (n + 1) / 2) ?_ ?_ ?_ n
+  · beta_reduce; rw [legS_zero]; norm_num
+  · beta_reduce; rw [legS_one]; norm_num
+  · intro n h0 h1
+    beta_reduce at h0 h1 ⊢
+    have hb := legS_bonnet n (fun m => (m : ℝ) ^ 2)
+    have e : legS (n + 1) (fun m : ℤ => ((m + 1 : ℤ) : ℝ) ^ 2 + ((m - 1 : ℤ) : ℝ) ^ 2)
+        = 2 * ((n + 1 : ℕ) * ((n + 1 : ℕ) + 1) / 2) + 2 := by
+      have := legS_lin (n + 1) 2 2 (fun m => (m : ℝ) ^ 2) (fun _ => 1)
+      rw [h1, legS_const, mul_one] at this
+      rw [← this]
+      refine legS_congr _ fun m _ => ?_
+      push_cast; ring
+    rw [e, h0] at hb
+    have hn : (0 : ℝ) < (n : ℝ) + 2 := by positivity
+    refine mul_left_cancel₀ hn.ne' ?_
+    rw [hb]; push_cast; ring
+
+/-- `∑ a_i a_j (i-j)⁴ = λ(3λ-2)/8`, `λ = n(n+1)`. -/
+theorem legS_four (n : ℕ) : legS n (fun m => (m : ℝ) ^ 4)
+    = (n : ℝ) * (n + 1) * (3 * ((n : ℝ) * (n + 1)) - 2) / 8 := by
+  refine two_step (P := fun n => legS n (fun m => (m : ℝ) ^ 4)
+    = (n : ℝ) * (n + 1) * (3 * ((n : ℝ) * (n + 1)) - 2) / 8) ?_ ?_ ?_ n
+  · beta_reduce; rw [legS_zero]; norm_num
+  · beta_reduce; rw [legS_one]; norm_num
+  · intro n h0 h1
+    beta_reduce at h0 h1 ⊢
+    have hb := legS_bonnet n (fun m => (m : ℝ) ^ 4)
+    have e : legS (n + 1) (fun m : ℤ => ((m + 1 : ℤ) : ℝ) ^ 4 + ((m - 1 : ℤ) : ℝ) ^ 4)
+        = 2 * (((n + 1 : ℕ) : ℝ) * ((n + 1 : ℕ) + 1)
+            * (3 * (((n + 1 : ℕ) : ℝ) * ((n + 1 : ℕ) + 1)) - 2) / 8)
+          + 12 * (((n + 1 : ℕ) : ℝ) * ((n + 1 : ℕ) + 1) / 2) + 2 := by
+      have t1 := legS_lin (n + 1) 2 12 (fun m => (m : ℝ) ^ 4) (fun m => (m : ℝ) ^ 2)
+      have t2 := legS_lin (n + 1) 1 2
+        (fun m => 2 * (m : ℝ) ^ 4 + 12 * (m : ℝ) ^ 2) (fun _ => 1)
+      rw [t1, h1, legS_sq, legS_const] at t2
+      rw [show (2 : ℝ) * (((n + 1 : ℕ) : ℝ) * ((n + 1 : ℕ) + 1)
+            * (3 * (((n + 1 : ℕ) : ℝ) * ((n + 1 : ℕ) + 1)) - 2) / 8)
+          + 12 * (((n + 1 : ℕ) : ℝ) * ((n + 1 : ℕ) + 1) / 2) + 2
+          = 1 * (2 * (((n + 1 : ℕ) : ℝ) * ((n + 1 : ℕ) + 1)
+            * (3 * (((n + 1 : ℕ) : ℝ) * ((n + 1 : ℕ) + 1)) - 2) / 8)
+          + 12 * (((n + 1 : ℕ) : ℝ) * ((n + 1 : ℕ) + 1) / 2)) + 2 * 1 by ring, ← t2]
+      refine legS_congr _ fun m _ => ?_
+      push_cast; ring
+    rw [e, h0] at hb
+    have hn : (0 : ℝ) < (n : ℝ) + 2 := by positivity
+    refine mul_left_cancel₀ hn.ne' ?_
+    rw [hb]; push_cast; ring
+
+/-- The Legendre polynomials as functions, by Bonnet's recursion
+    `(n+2) P_{n+2}(x) = (2n+3) x P_{n+1}(x) - (n+1) P_n(x)`, `P_0 = 1`, `P_1 = x`. -/
+noncomputable def legP : ℕ → ℝ → ℝ
+  | 0, _ => 1
+  | 1, x => x
+  | n + 2, x => ((2 * (n : ℝ) + 3) * x * legP (n + 1) x - ((n : ℝ) + 1) * legP n x) / ((n : ℝ) + 2)
+
+theorem legP_zero (x : ℝ) : legP 0 x = 1 := by simp [legP]
+
+theorem legP_one (x : ℝ) : legP 1 x = x := by simp [legP]
+
+theorem legP_succ_succ (n : ℕ) (x : ℝ) : legP (n + 2) x
+    = ((2 * (n : ℝ) + 3) * x * legP (n + 1) x - ((n : ℝ) + 1) * legP n x) / ((n : ℝ) + 2) := by
+  simp [legP]
+
+/-- **The trigonometric form of the Legendre polynomials:**
+    `P_n(cos θ) = ∑_{i+j=n} a_i a_j cos((i-j)θ)`, with positive coefficients `a_i a_j`. -/
+theorem legP_cos (n : ℕ) (θ : ℝ) :
+    legP n (Real.cos θ) = legS n (fun m => Real.cos (m * θ)) := by
+  refine two_step (P := fun n => legP n (Real.cos θ) = legS n (fun m => Real.cos (m * θ)))
+    ?_ ?_ ?_ n
+  · beta_reduce; rw [legP_zero, legS_zero]; simp
+  · beta_reduce; rw [legP_one, legS_one]; simp
+  · intro n h0 h1
+    beta_reduce at h0 h1 ⊢
+    have hb := legS_bonnet n (fun m => Real.cos (m * θ))
+    have e : legS (n + 1) (fun m : ℤ => Real.cos (((m + 1 : ℤ) : ℝ) * θ)
+          + Real.cos (((m - 1 : ℤ) : ℝ) * θ))
+        = 2 * Real.cos θ * legS (n + 1) (fun m => Real.cos (m * θ)) := by
+      have := legS_lin (n + 1) (2 * Real.cos θ) 0 (fun m => Real.cos (m * θ)) (fun _ => 0)
+      simp only [zero_mul, mul_zero, add_zero] at this
+      rw [← this]
+      refine legS_congr _ fun m _ => ?_
+      push_cast
+      rw [add_mul, sub_mul, one_mul, Real.cos_add, Real.cos_sub]
+      ring
+    rw [e, ← h0, ← h1] at hb
+    rw [legP_succ_succ]
+    have hn : (0 : ℝ) < (n : ℝ) + 2 := by positivity
+    rw [div_eq_iff hn.ne']
+    linear_combination (-1 : ℝ) * hb
+
+/-! ### Taylor's formula of order six for the cosine -/
+
+/-- A function with `f 0 = 0` and non-negative derivative on `[0, ∞)` is non-negative there. -/
+theorem nonneg_of_deriv_nonneg {f f' : ℝ → ℝ} (h0 : f 0 = 0)
+    (hd : ∀ x, HasDerivAt f (f' x) x) (hp : ∀ x, 0 ≤ x → 0 ≤ f' x) :
+    ∀ x, 0 ≤ x → 0 ≤ f x := by
+  have hm : MonotoneOn f (Set.Ici 0) := by
+    refine monotoneOn_of_deriv_nonneg (convex_Ici 0)
+      (fun x _ => (hd x).continuousAt.continuousWithinAt)
+      (fun x _ => (hd x).differentiableAt.differentiableWithinAt) ?_
+    intro x hx
+    rw [interior_Ici] at hx
+    rw [(hd x).deriv]
+    exact hp x (le_of_lt hx)
+  intro x hx
+  have := hm (Set.mem_Ici.2 le_rfl) (Set.mem_Ici.2 hx) hx
+  rwa [h0] at this
+
+theorem sin_ge_cubic {x : ℝ} (hx : 0 ≤ x) : x - x ^ 3 / 6 ≤ Real.sin x := by
+  have h := nonneg_of_deriv_nonneg (f := fun x => Real.sin x - (x - x ^ 3 / 6))
+    (f' := fun x => Real.cos x - (1 - 3 * x ^ 2 / 6)) (by simp)
+    (fun x => by
+      have h1 := Real.hasDerivAt_sin x
+      have h2 : HasDerivAt (fun x : ℝ => x - x ^ 3 / 6) (1 - 3 * x ^ 2 / 6) x := by
+        have := ((hasDerivAt_id x).sub (((hasDerivAt_id x).pow 3).div_const 6))
+        simpa using this
+      exact h1.sub h2)
+    (fun x _ => by
+      have := Real.one_sub_sq_div_two_le_cos (x := x)
+      linarith) x hx
+  linarith
+
+theorem cos_le_quartic (x : ℝ) : Real.cos x ≤ 1 - x ^ 2 / 2 + x ^ 4 / 24 := by
+  have key : ∀ y : ℝ, 0 ≤ y → Real.cos y ≤ 1 - y ^ 2 / 2 + y ^ 4 / 24 := by
+    intro y hy
+    have h := nonneg_of_deriv_nonneg (f := fun x => (1 - x ^ 2 / 2 + x ^ 4 / 24) - Real.cos x)
+      (f' := fun x => (-(2 * x) / 2 + 4 * x ^ 3 / 24) - (-Real.sin x)) (by simp)
+      (fun x => by
+        have h1 := Real.hasDerivAt_cos x
+        have h2 : HasDerivAt (fun x : ℝ => 1 - x ^ 2 / 2 + x ^ 4 / 24)
+            (-(2 * x) / 2 + 4 * x ^ 3 / 24) x := by
+          have := (((hasDerivAt_const x (1 : ℝ)).sub (((hasDerivAt_id x).pow 2).div_const 2)).add
+            (((hasDerivAt_id x).pow 4).div_const 24))
+          convert this using 1
+          simp; ring
+        exact h2.sub h1)
+      (fun x hx => by
+        have := sin_ge_cubic hx
+        linarith) y hy
+    linarith
+  rcases le_total 0 x with h | h
+  · exact key x h
+  · have := key (-x) (by linarith)
+    rw [Real.cos_neg] at this
+    have e2 : (-x) ^ 2 = x ^ 2 := by ring
+    have e4 : (-x) ^ 4 = x ^ 4 := by ring
+    rwa [e2, e4] at this
+
+theorem sin_le_quintic {x : ℝ} (hx : 0 ≤ x) : Real.sin x ≤ x - x ^ 3 / 6 + x ^ 5 / 120 := by
+  have h := nonneg_of_deriv_nonneg (f := fun x => (x - x ^ 3 / 6 + x ^ 5 / 120) - Real.sin x)
+    (f' := fun x => (1 - 3 * x ^ 2 / 6 + 5 * x ^ 4 / 120) - Real.cos x) (by simp)
+    (fun x => by
+      have h1 := Real.hasDerivAt_sin x
+      have h2 : HasDerivAt (fun x : ℝ => x - x ^ 3 / 6 + x ^ 5 / 120)
+          (1 - 3 * x ^ 2 / 6 + 5 * x ^ 4 / 120) x := by
+        have := ((hasDerivAt_id x).sub (((hasDerivAt_id x).pow 3).div_const 6)).add
+          (((hasDerivAt_id x).pow 5).div_const 120)
+        simpa using this
+      exact h2.sub h1)
+    (fun x _ => by
+      have := cos_le_quartic x
+      linarith) x hx
+  linarith
+
+theorem cos_ge_sextic (x : ℝ) : 1 - x ^ 2 / 2 + x ^ 4 / 24 - x ^ 6 / 720 ≤ Real.cos x := by
+  have key : ∀ y : ℝ, 0 ≤ y → 1 - y ^ 2 / 2 + y ^ 4 / 24 - y ^ 6 / 720 ≤ Real.cos y := by
+    intro y hy
+    have h := nonneg_of_deriv_nonneg
+      (f := fun x => Real.cos x - (1 - x ^ 2 / 2 + x ^ 4 / 24 - x ^ 6 / 720))
+      (f' := fun x => -Real.sin x - (-(2 * x) / 2 + 4 * x ^ 3 / 24 - 6 * x ^ 5 / 720)) (by simp)
+      (fun x => by
+        have h1 := Real.hasDerivAt_cos x
+        have h2 : HasDerivAt (fun x : ℝ => 1 - x ^ 2 / 2 + x ^ 4 / 24 - x ^ 6 / 720)
+            (-(2 * x) / 2 + 4 * x ^ 3 / 24 - 6 * x ^ 5 / 720) x := by
+          have := ((((hasDerivAt_const x (1 : ℝ)).sub
+            (((hasDerivAt_id x).pow 2).div_const 2)).add
+            (((hasDerivAt_id x).pow 4).div_const 24)).sub
+            (((hasDerivAt_id x).pow 6).div_const 720))
+          convert this using 1
+          simp; ring
+        exact h1.sub h2)
+      (fun x hx => by
+        have := sin_le_quintic hx
+        linarith) y hy
+    linarith
+  rcases le_total 0 x with h | h
+  · exact key x h
+  · have := key (-x) (by linarith)
+    rw [Real.cos_neg] at this
+    have e2 : (-x) ^ 2 = x ^ 2 := by ring
+    have e4 : (-x) ^ 4 = x ^ 4 := by ring
+    have e6 : (-x) ^ 6 = x ^ 6 := by ring
+    rwa [e2, e4, e6] at this
+
+/-! ### The facts on `P_n` used in the proof of `prop:sphere` -/
+
+/-- `P_n(1) = 1`. -/
+theorem legP_at_one (n : ℕ) : legP n 1 = 1 := by
+  have := legP_cos n 0
+  simp only [Real.cos_zero, mul_zero] at this
+  rw [this, legS_const]
+
+/-- `|P_n(cos θ)| ≤ 1`. -/
+theorem abs_legP_cos_le (n : ℕ) (θ : ℝ) : |legP n (Real.cos θ)| ≤ 1 := by
+  rw [legP_cos, abs_le]
+  constructor
+  · have := legS_mono n (g := fun _ => -1) (h := fun m => Real.cos (m * θ))
+      (fun m _ => Real.neg_one_le_cos _)
+    have e := legS_lin n (-1) 0 (fun _ => 1) (fun _ => 0)
+    simp only [mul_zero, add_zero, mul_one, zero_mul] at e
+    rw [e, legS_const] at this
+    linarith
+  · have := legS_mono n (g := fun m => Real.cos (m * θ)) (h := fun _ => 1)
+      (fun m _ => Real.cos_le_one _)
+    rwa [legS_const] at this
+
+/-- `|P_n(x)| ≤ 1` on `[-1, 1]`. -/
+theorem abs_legP_le {x : ℝ} (h1 : -1 ≤ x) (h2 : x ≤ 1) (n : ℕ) : |legP n x| ≤ 1 := by
+  have := abs_legP_cos_le n (Real.arccos x)
+  rwa [Real.cos_arccos h1 h2] at this
+
+theorem cube_bound (n : ℕ) : (n : ℝ) ^ 6 ≤ ((n : ℝ) * (n + 1)) ^ 3 := by
+  have h : (0 : ℝ) ≤ n := Nat.cast_nonneg n
+  have : (n : ℝ) ^ 2 ≤ (n : ℝ) * (n + 1) := by nlinarith
+  calc (n : ℝ) ^ 6 = ((n : ℝ) ^ 2) ^ 3 := by ring
+    _ ≤ ((n : ℝ) * (n + 1)) ^ 3 := pow_le_pow_left₀ (by positivity) this 3
+
+/-- **Taylor's formula of order six for `f(θ) = P_n(cos θ)`,** with `λ = n(n+1)`:
+    `1 - (λ/4)θ² + (λ(3λ-2)/192)θ⁴ - (λ³/720)θ⁶ ≤ P_n(cos θ) ≤ 1 - (λ/4)θ² + (λ(3λ-2)/192)θ⁴`.
+    The coefficients are those of the paper; the remainder has a sign. -/
+theorem legP_cos_taylor (n : ℕ) (θ : ℝ) :
+    1 - (n : ℝ) * (n + 1) / 4 * θ ^ 2
+        + (n : ℝ) * (n + 1) * (3 * ((n : ℝ) * (n + 1)) - 2) / 192 * θ ^ 4
+        - ((n : ℝ) * (n + 1)) ^ 3 / 720 * θ ^ 6 ≤ legP n (Real.cos θ) ∧
+    legP n (Real.cos θ) ≤ 1 - (n : ℝ) * (n + 1) / 4 * θ ^ 2
+        + (n : ℝ) * (n + 1) * (3 * ((n : ℝ) * (n + 1)) - 2) / 192 * θ ^ 4 := by
+  rw [legP_cos]
+  have t1 := legS_lin n (-(θ ^ 2 / 2)) (θ ^ 4 / 24) (fun m => (m : ℝ) ^ 2) (fun m => (m : ℝ) ^ 4)
+  have t2 := legS_lin n 1 1 (fun _ => 1)
+    (fun m => -(θ ^ 2 / 2) * (m : ℝ) ^ 2 + θ ^ 4 / 24 * (m : ℝ) ^ 4)
+  rw [t1, legS_sq, legS_four, legS_const] at t2
+  constructor
+  · have hm := legS_mono n (g := fun m => (1 * 1 + 1 * (-(θ ^ 2 / 2) * (m : ℝ) ^ 2
+        + θ ^ 4 / 24 * (m : ℝ) ^ 4)) + (-(θ ^ 6 / 720) * (n : ℝ) ^ 6) * 1)
+      (h := fun m => Real.cos (m * θ)) (fun m hm => by
+        have := cos_ge_sextic ((m : ℝ) * θ)
+        have hm' : |(m : ℝ)| ≤ n := by exact_mod_cast hm
+        have h6 : (m : ℝ) ^ 6 ≤ (n : ℝ) ^ 6 := by
+          have : |(m : ℝ)| ^ 6 ≤ (n : ℝ) ^ 6 := pow_le_pow_left₀ (abs_nonneg _) hm' 6
+          have e : |(m : ℝ)| ^ 6 = (m : ℝ) ^ 6 := by
+            rw [show (6 : ℕ) = 2 * 3 by norm_num, pow_mul, pow_mul, sq_abs]
+          rwa [e] at this
+        have hθ : 0 ≤ θ ^ 6 / 720 := by positivity
+        nlinarith [mul_le_mul_of_nonneg_left h6 hθ])
+    have t3 := legS_lin n 1 (-(θ ^ 6 / 720) * (n : ℝ) ^ 6)
+      (fun m => 1 * 1 + 1 * (-(θ ^ 2 / 2) * (m : ℝ) ^ 2 + θ ^ 4 / 24 * (m : ℝ) ^ 4)) (fun _ => 1)
+    simp only [one_mul] at t3 hm t2
+    rw [t3, t2, legS_const] at hm
+    have hc := cube_bound n
+    have hθ : 0 ≤ θ ^ 6 / 720 := by positivity
+    nlinarith [mul_le_mul_of_nonneg_left hc hθ]
+  · have hm := legS_mono n (g := fun m => Real.cos (m * θ))
+      (h := fun m => 1 * 1 + 1 * (-(θ ^ 2 / 2) * (m : ℝ) ^ 2 + θ ^ 4 / 24 * (m : ℝ) ^ 4))
+      (fun m _ => by
+        have := cos_le_quartic ((m : ℝ) * θ)
+        nlinarith)
+    rw [t2] at hm
+    linarith
+
+/-! ### The distribution of the angle: `s_l`, the moments, `eq:sphereF1` -/
+
+open MeasureTheory Set
+
+/-- The weight `e^{-θ²/2ξ²} sin θ` of the angle `θ ∈ [0, π]`. -/
+noncomputable def sw (ξ θ : ℝ) : ℝ := Real.exp (-(θ ^ 2 / (2 * ξ ^ 2))) * Real.sin θ
+
+theorem sw_continuous (ξ : ℝ) : Continuous (sw ξ) := by
+  unfold sw
+  exact (Real.continuous_exp.comp (((continuous_id.pow 2).div_const _).neg)).mul
+    Real.continuous_sin
+
+theorem sw_nonneg (ξ : ℝ) {θ : ℝ} (h0 : 0 ≤ θ) (h1 : θ ≤ Real.pi) : 0 ≤ sw ξ θ :=
+  mul_nonneg (Real.exp_pos _).le (Real.sin_nonneg_of_nonneg_of_le_pi h0 h1)
+
+/-- `I_ξ[g] = ∫_0^π g(θ) e^{-θ²/2ξ²} sin θ dθ`. -/
+noncomputable def sphI (ξ : ℝ) (g : ℝ → ℝ) : ℝ := ∫ θ in (0 : ℝ)..Real.pi, g θ * sw ξ θ
+
+theorem sphI_mono (ξ : ℝ) {g h : ℝ → ℝ} (hg : Continuous g) (hh : Continuous h)
+    (H : ∀ θ, 0 ≤ θ → θ ≤ Real.pi → g θ ≤ h θ) : sphI ξ g ≤ sphI ξ h := by
+  unfold sphI
+  refine intervalIntegral.integral_mono_on Real.pi_pos.le
+    ((hg.mul (sw_continuous ξ)).intervalIntegrable _ _)
+    ((hh.mul (sw_continuous ξ)).intervalIntegrable _ _) fun θ hθ => ?_
+  exact mul_le_mul_of_nonneg_right (H θ hθ.1 hθ.2) (sw_nonneg ξ hθ.1 hθ.2)
+
+theorem sphI_lin (ξ a b : ℝ) {g h : ℝ → ℝ} (hg : Continuous g) (hh : Continuous h) :
+    sphI ξ (fun θ => a * g θ + b * h θ) = a * sphI ξ g + b * sphI ξ h := by
+  unfold sphI
+  have e : ∀ θ, (a * g θ + b * h θ) * sw ξ θ = a * (g θ * sw ξ θ) + b * (h θ * sw ξ θ) := by
+    intro θ; ring
+  simp only [e]
+  have i1 : IntervalIntegrable (fun θ => a * (g θ * sw ξ θ)) volume 0 Real.pi :=
+    (continuous_const.mul (hg.mul (sw_continuous ξ))).intervalIntegrable _ _
+  have i2 : IntervalIntegrable (fun θ => b * (h θ * sw ξ θ)) volume 0 Real.pi :=
+    (continuous_const.mul (hh.mul (sw_continuous ξ))).intervalIntegrable _ _
+  rw [intervalIntegral.integral_add i1 i2, intervalIntegral.integral_const_mul,
+    intervalIntegral.integral_const_mul]
+
+/-- The normalisation `Z = ∫_0^π e^{-θ²/2ξ²} sin θ dθ`. -/
+noncomputable def sphZ (ξ : ℝ) : ℝ := sphI ξ (fun _ => 1)
+
+theorem sphZ_pos (ξ : ℝ) : 0 < sphZ ξ := by
+  unfold sphZ sphI
+  refine intervalIntegral.intervalIntegral_pos_of_pos_on
+    ((continuous_const.mul (sw_continuous ξ)).intervalIntegrable _ _) (fun θ hθ => ?_)
+    Real.pi_pos
+  rw [one_mul]
+  exact mul_pos (Real.exp_pos _) (Real.sin_pos_of_pos_of_lt_pi hθ.1 hθ.2)
+
+/-- The expectation with respect to the density proportional to `e^{-θ²/2ξ²} sin θ` on
+    `[0, π]`. -/
+noncomputable def sphE (ξ : ℝ) (g : ℝ → ℝ) : ℝ := sphI ξ g / sphZ ξ
+
+theorem sphE_one (ξ : ℝ) : sphE ξ (fun _ => 1) = 1 := div_self (sphZ_pos ξ).ne'
+
+theorem sphE_mono (ξ : ℝ) {g h : ℝ → ℝ} (hg : Continuous g) (hh : Continuous h)
+    (H : ∀ θ, 0 ≤ θ → θ ≤ Real.pi → g θ ≤ h θ) : sphE ξ g ≤ sphE ξ h :=
+  div_le_div_of_nonneg_right (sphI_mono ξ hg hh H) (sphZ_pos ξ).le
+
+theorem sphE_lin (ξ a b : ℝ) {g h : ℝ → ℝ} (hg : Continuous g) (hh : Continuous h) :
+    sphE ξ (fun θ => a * g θ + b * h θ) = a * sphE ξ g + b * sphE ξ h := by
+  unfold sphE
+  rw [sphI_lin ξ a b hg hh]
+  ring
+
+theorem legP_continuous (n : ℕ) : Continuous (legP n) := by
+  refine two_step (P := fun n => Continuous (legP n)) ?_ ?_ ?_ n
+  · beta_reduce
+    have : legP 0 = fun _ => 1 := funext legP_zero
+    rw [this]; exact continuous_const
+  · beta_reduce
+    have : legP 1 = fun x => x := funext legP_one
+    rw [this]; exact continuous_id
+  · intro n h0 h1
+    beta_reduce at h0 h1 ⊢
+    have : legP (n + 2) = fun x => ((2 * (n : ℝ) + 3) * x * legP (n + 1) x
+        - ((n : ℝ) + 1) * legP n x) / ((n : ℝ) + 2) := funext (legP_succ_succ n)
+    rw [this]
+    exact ((((continuous_const.mul continuous_id).mul h1).sub
+      (continuous_const.mul h0)).div_const _)
+
+theorem legP_cos_continuous (n : ℕ) : Continuous fun θ : ℝ => legP n (Real.cos θ) :=
+  (legP_continuous n).comp Real.continuous_cos
+
+/-- `s_l = E[P_l(cos θ)]`. By the Funk–Hecke formula (NOT formalised) this is the eigenvalue of
+    the population operator `P_∞` of the Gaussian kernel on `S²` on the harmonics of degree
+    `l`. -/
+noncomputable def sphS (ξ : ℝ) (l : ℕ) : ℝ := sphE ξ (fun θ => legP l (Real.cos θ))
+
+/-- The moments `𝗆_n = E[θ^n]`. -/
+noncomputable def sphM (ξ : ℝ) (n : ℕ) : ℝ := sphE ξ (fun θ => θ ^ n)
+
+theorem sphE_poly (ξ c0 c2 c4 c6 : ℝ) :
+    sphE ξ (fun θ => 1 * (c0 * 1 + c2 * θ ^ 2) + 1 * (c4 * θ ^ 4 + c6 * θ ^ 6))
+      = c0 + c2 * sphM ξ 2 + c4 * sphM ξ 4 + c6 * sphM ξ 6 := by
+  have l1 := sphE_lin ξ c0 c2 (g := fun _ => 1) (h := fun θ => θ ^ 2) continuous_const
+    (continuous_id.pow 2)
+  have l2 := sphE_lin ξ c4 c6 (g := fun θ => θ ^ 4) (h := fun θ => θ ^ 6) (continuous_id.pow 4)
+    (continuous_id.pow 6)
+  have l3 := sphE_lin ξ 1 1 (g := fun θ => c0 * 1 + c2 * θ ^ 2)
+    (h := fun θ => c4 * θ ^ 4 + c6 * θ ^ 6)
+    ((continuous_const.mul continuous_const).add (continuous_const.mul (continuous_id.pow 2)))
+    ((continuous_const.mul (continuous_id.pow 4)).add (continuous_const.mul (continuous_id.pow 6)))
+  rw [l3, l1, l2, sphE_one]
+  unfold sphM
+  ring
+
+theorem poly_cont (c0 c2 c4 c6 : ℝ) :
+    Continuous fun θ : ℝ => 1 * (c0 * 1 + c2 * θ ^ 2) + 1 * (c4 * θ ^ 4 + c6 * θ ^ 6) :=
+  (continuous_const.mul ((continuous_const.mul continuous_const).add
+    (continuous_const.mul (continuous_id.pow 2)))).add
+  (continuous_const.mul ((continuous_const.mul (continuous_id.pow 4)).add
+    (continuous_const.mul (continuous_id.pow 6))))
+
+/-- **The Taylor estimate behind `eq:sphereF1`, for the true integrals** (the HYPOTHESIS `hT` of
+    `OlderParts2.sphere_F1`, `sphere_F1_u`, `sphere_sequence`): with `λ = l(l+1)`,
+    `|s_l - (1 - (λ/4) 𝗆₂ + (λ(3λ-2)/192) 𝗆₄)| ≤ (𝗆₆/720) λ³`, for every `ξ` and every `l`. -/
+theorem sphS_taylor (ξ : ℝ) (l : ℕ) :
+    |sphS ξ l - (1 + (-(((l : ℝ) * (l + 1)) / 4)) * sphM ξ 2
+        + (((l : ℝ) * (l + 1)) * (3 * ((l : ℝ) * (l + 1)) - 2) / 192) * sphM ξ 4)|
+      ≤ sphM ξ 6 / 720 * ((l : ℝ) * (l + 1)) ^ 3 := by
+  have hu := sphE_mono ξ (legP_cos_continuous l)
+    (poly_cont 1 (-(((l : ℝ) * (l + 1)) / 4))
+      (((l : ℝ) * (l + 1)) * (3 * ((l : ℝ) * (l + 1)) - 2) / 192) 0)
+    (fun θ _ _ => by
+      have := (legP_cos_taylor l θ).2
+      linarith)
+  have hl := sphE_mono ξ
+    (poly_cont 1 (-(((l : ℝ) * (l + 1)) / 4))
+      (((l : ℝ) * (l + 1)) * (3 * ((l : ℝ) * (l + 1)) - 2) / 192)
+      (-(((l : ℝ) * (l + 1)) ^ 3 / 720))) (legP_cos_continuous l)
+    (fun θ _ _ => by
+      have := (legP_cos_taylor l θ).1
+      linarith)
+  rw [sphE_poly] at hu hl
+  unfold sphS
+  rw [abs_le]
+  constructor <;> linarith
+
+/-- **`eq:sphereF1` as a theorem:** `|s_l - 1 + σ_ξ λ_l - (𝗆₄/64) λ_l²| ≤ (𝗆₆/720) λ_l³` for all
+    `l ≥ 0`, `σ_ξ = 𝗆₂/4 + 𝗆₄/96`, for every `ξ`. -/
+theorem sphere_F1_true (ξ : ℝ) (l : ℕ) :
+    |sphS ξ l - 1 + (sphM ξ 2 / 4 + sphM ξ 4 / 96) * ((l : ℝ) * (l + 1))
+        - sphM ξ 4 / 64 * ((l : ℝ) * (l + 1)) ^ 2|
+      ≤ sphM ξ 6 / 720 * ((l : ℝ) * (l + 1)) ^ 3 := by
+  have h := sphS_taylor ξ l
+  have e : sphS ξ l - 1 + (sphM ξ 2 / 4 + sphM ξ 4 / 96) * ((l : ℝ) * (l + 1))
+        - sphM ξ 4 / 64 * ((l : ℝ) * (l + 1)) ^ 2
+      = sphS ξ l - (1 + (-(((l : ℝ) * (l + 1)) / 4)) * sphM ξ 2
+        + (((l : ℝ) * (l + 1)) * (3 * ((l : ℝ) * (l + 1)) - 2) / 192) * sphM ξ 4) := by ring
+  rw [e]; exact h
+
+/-! ### Gaussian moments on the half-line and bounds for the integrals `I_ξ[θ^{2k}]` -/
+
+theorem gauss_moment {b : ℝ} (hb : 0 < b) (k : ℕ) :
+    IntegrableOn (fun x : ℝ => x ^ (2 * k + 1) * Real.exp (-b * x ^ 2)) (Ioi 0) ∧
+    ∫ x in Ioi (0 : ℝ), x ^ (2 * k + 1) * Real.exp (-b * x ^ 2)
+      = (k.factorial : ℝ) / (2 * b ^ (k + 1)) := by
+  have hq : (-1 : ℝ) < ((2 * k + 1 : ℕ) : ℝ) := by
+    have : (0 : ℝ) ≤ ((2 * k + 1 : ℕ) : ℝ) := Nat.cast_nonneg _
+    linarith
+  have h1 := integrableOn_rpow_mul_exp_neg_mul_sq hb hq
+  have h2 := integral_rpow_mul_exp_neg_mul_rpow (p := 2) (by norm_num) hq hb
+  simp_rw [Real.rpow_natCast] at h1 h2
+  simp_rw [Real.rpow_two] at h2
+  refine ⟨h1, ?_⟩
+  rw [h2]
+  have e : (((2 * k + 1 : ℕ) : ℝ) + 1) / 2 = (k : ℝ) + 1 := by push_cast; ring
+  have e' : -(((2 * k + 1 : ℕ) : ℝ) + 1) / 2 = -((k + 1 : ℕ) : ℝ) := by push_cast; ring
+  rw [e, e', Real.Gamma_nat_eq_factorial, Real.rpow_neg hb.le, Real.rpow_natCast]
+  field_simp
+
+theorem gauss3 {b : ℝ} (hb : 0 < b) (k : ℕ) (c0 c1 c2 : ℝ) :
+    IntegrableOn (fun x : ℝ => (c0 * x ^ (2 * k + 1) + c1 * x ^ (2 * (k + 1) + 1)
+        + c2 * x ^ (2 * (k + 2) + 1)) * Real.exp (-b * x ^ 2)) (Ioi 0) ∧
+    ∫ x in Ioi (0 : ℝ), (c0 * x ^ (2 * k + 1) + c1 * x ^ (2 * (k + 1) + 1)
+        + c2 * x ^ (2 * (k + 2) + 1)) * Real.exp (-b * x ^ 2)
+      = c0 * ((k.factorial : ℝ) / (2 * b ^ (k + 1)))
+        + c1 * (((k + 1).factorial : ℝ) / (2 * b ^ (k + 1 + 1)))
+        + c2 * (((k + 2).factorial : ℝ) / (2 * b ^ (k + 2 + 1))) := by
+  obtain ⟨i0, v0⟩ := gauss_moment hb k
+  obtain ⟨i1, v1⟩ := gauss_moment hb (k + 1)
+  obtain ⟨i2, v2⟩ := gauss_moment hb (k + 2)
+  have e : (fun x : ℝ => (c0 * x ^ (2 * k + 1) + c1 * x ^ (2 * (k + 1) + 1)
+        + c2 * x ^ (2 * (k + 2) + 1)) * Real.exp (-b * x ^ 2))
+      = fun x : ℝ => c0 * (x ^ (2 * k + 1) * Real.exp (-b * x ^ 2))
+        + c1 * (x ^ (2 * (k + 1) + 1) * Real.exp (-b * x ^ 2))
+        + c2 * (x ^ (2 * (k + 2) + 1) * Real.exp (-b * x ^ 2)) := by
+    funext x; ring
+  rw [e]
+  have j0 : IntegrableOn (fun x : ℝ => c0 * (x ^ (2 * k + 1) * Real.exp (-b * x ^ 2))) (Ioi 0) :=
+    i0.const_mul c0
+  have j1 : IntegrableOn (fun x : ℝ => c1 * (x ^ (2 * (k + 1) + 1) * Real.exp (-b * x ^ 2)))
+      (Ioi 0) := i1.const_mul c1
+  have j2 : IntegrableOn (fun x : ℝ => c2 * (x ^ (2 * (k + 2) + 1) * Real.exp (-b * x ^ 2)))
+      (Ioi 0) := i2.const_mul c2
+  have j01 : IntegrableOn (fun x : ℝ => c0 * (x ^ (2 * k + 1) * Real.exp (-b * x ^ 2))
+      + c1 * (x ^ (2 * (k + 1) + 1) * Real.exp (-b * x ^ 2))) (Ioi 0) := j0.add j1
+  have j012 : IntegrableOn (fun x : ℝ => c0 * (x ^ (2 * k + 1) * Real.exp (-b * x ^ 2))
+      + c1 * (x ^ (2 * (k + 1) + 1) * Real.exp (-b * x ^ 2))
+      + c2 * (x ^ (2 * (k + 2) + 1) * Real.exp (-b * x ^ 2))) (Ioi 0) := j01.add j2
+  refine ⟨j012, ?_⟩
+  rw [integral_add j01 j2, integral_add j0 j1, integral_const_mul, integral_const_mul,
+    integral_const_mul, v0, v1, v2]
+
+theorem tail_split {f : ℝ → ℝ} (hf : IntegrableOn f (Ioi 0)) :
+    ∫ x in Ioi (0 : ℝ), f x = (∫ x in (0 : ℝ)..Real.pi, f x) + ∫ x in Ioi Real.pi, f x := by
+  rw [intervalIntegral.integral_of_le Real.pi_pos.le,
+    ← setIntegral_union (Ioc_disjoint_Ioi le_rfl) measurableSet_Ioi
+      (hf.mono_set Ioc_subset_Ioi_self) (hf.mono_set (Ioi_subset_Ioi Real.pi_pos.le)),
+    Ioc_union_Ioi_eq_Ioi Real.pi_pos.le]
+
+theorem interval_le_Ioi {f : ℝ → ℝ} (hf : IntegrableOn f (Ioi 0))
+    (hp : ∀ x, Real.pi < x → 0 ≤ f x) :
+    ∫ x in (0 : ℝ)..Real.pi, f x ≤ ∫ x in Ioi (0 : ℝ), f x := by
+  rw [tail_split hf]
+  have := setIntegral_nonneg (μ := volume) measurableSet_Ioi (fun x hx => hp x hx)
+  linarith
+
+theorem Ioi_le_interval {f : ℝ → ℝ} (hf : IntegrableOn f (Ioi 0))
+    (hp : ∀ x, Real.pi < x → f x ≤ 0) :
+    ∫ x in Ioi (0 : ℝ), f x ≤ ∫ x in (0 : ℝ)..Real.pi, f x := by
+  rw [tail_split hf]
+  have := setIntegral_nonpos (μ := volume) measurableSet_Ioi (fun x hx => hp x hx)
+  linarith
+
+theorem sw_eq {ξ : ℝ} (θ : ℝ) :
+    sw ξ θ = Real.exp (-(1 / (2 * ξ ^ 2)) * θ ^ 2) * Real.sin θ := by
+  unfold sw
+  congr 2
+  ring
+
+/-- `G_k = ∫_0^∞ θ^{2k+1} e^{-θ²/2ξ²} dθ = 2^k k! ξ^{2k+2}`. -/
+noncomputable def gm (ξ : ℝ) (k : ℕ) : ℝ := (k.factorial : ℝ) * 2 ^ k * (ξ ^ 2) ^ (k + 1)
+
+theorem gm_eq {ξ : ℝ} (hξ : 0 < ξ) (k : ℕ) :
+    (k.factorial : ℝ) / (2 * (1 / (2 * ξ ^ 2)) ^ (k + 1)) = gm ξ k := by
+  unfold gm
+  have : (0 : ℝ) < ξ ^ 2 := by positivity
+  rw [one_div, inv_pow, mul_pow, pow_succ (2 : ℝ) k]
+  field_simp
+
+/-- **Two-sided bounds for `I_ξ[θ^{2k}] = ∫_0^π θ^{2k} e^{-θ²/2ξ²} sin θ dθ`:**
+    `G_k - G_{k+1}/6 ≤ I_ξ[θ^{2k}] ≤ G_k - G_{k+1}/6 + G_{k+2}/120`, from
+    `θ - θ³/6 ≤ sin θ ≤ θ - θ³/6 + θ⁵/120`; the tails beyond `π` have the right signs, so that no
+    exponentially small term appears. -/
+theorem sphI_pow_bounds {ξ : ℝ} (hξ : 0 < ξ) (k : ℕ) :
+    gm ξ k - gm ξ (k + 1) / 6 ≤ sphI ξ (fun θ => θ ^ (2 * k)) ∧
+    sphI ξ (fun θ => θ ^ (2 * k)) ≤ gm ξ k - gm ξ (k + 1) / 6 + gm ξ (k + 2) / 120 := by
+  have hb : (0 : ℝ) < 1 / (2 * ξ ^ 2) := by positivity
+  obtain ⟨iL, vL⟩ := gauss3 hb k 1 (-(1 / 6)) 0
+  obtain ⟨iU, vU⟩ := gauss3 hb k 1 (-(1 / 6)) (1 / 120)
+  rw [gm_eq hξ, gm_eq hξ, gm_eq hξ] at vL vU
+  have cE : Continuous fun x : ℝ => Real.exp (-(1 / (2 * ξ ^ 2)) * x ^ 2) :=
+    Real.continuous_exp.comp (continuous_const.mul (continuous_id.pow 2))
+  have cP : ∀ c0 c1 c2 : ℝ, Continuous fun x : ℝ => (c0 * x ^ (2 * k + 1)
+      + c1 * x ^ (2 * (k + 1) + 1) + c2 * x ^ (2 * (k + 2) + 1))
+        * Real.exp (-(1 / (2 * ξ ^ 2)) * x ^ 2) := fun c0 c1 c2 =>
+    (((continuous_const.mul (continuous_id.pow _)).add
+      (continuous_const.mul (continuous_id.pow _))).add
+      (continuous_const.mul (continuous_id.pow _))).mul cE
+  have cS : Continuous fun θ : ℝ => θ ^ (2 * k) * sw ξ θ :=
+    (continuous_id.pow _).mul (sw_continuous ξ)
+  constructor
+  · have h1 := Ioi_le_interval iL (fun x hx => by
+      have hx0 : 0 < x := Real.pi_pos.trans hx
+      have h3 : 3 < x := lt_trans Real.pi_gt_three hx
+      have hE := Real.exp_pos (-(1 / (2 * ξ ^ 2)) * x ^ 2)
+      have e : (1 * x ^ (2 * k + 1) + -(1 / 6) * x ^ (2 * (k + 1) + 1)
+          + 0 * x ^ (2 * (k + 2) + 1)) = x ^ (2 * k + 1) * (1 - x ^ 2 / 6) := by ring
+      rw [e]
+      have : 1 - x ^ 2 / 6 ≤ 0 := by nlinarith
+      exact mul_nonpos_of_nonpos_of_nonneg
+        (mul_nonpos_of_nonneg_of_nonpos (by positivity) this) hE.le)
+    have h2 : ∫ x in (0 : ℝ)..Real.pi, (1 * x ^ (2 * k + 1) + -(1 / 6) * x ^ (2 * (k + 1) + 1)
+          + 0 * x ^ (2 * (k + 2) + 1)) * Real.exp (-(1 / (2 * ξ ^ 2)) * x ^ 2)
+        ≤ sphI ξ (fun θ => θ ^ (2 * k)) := by
+      unfold sphI
+      refine intervalIntegral.integral_mono_on Real.pi_pos.le ((cP _ _ _).intervalIntegrable _ _)
+        (cS.intervalIntegrable _ _) fun x hx => ?_
+      rw [sw_eq]
+      have hE := Real.exp_pos (-(1 / (2 * ξ ^ 2)) * x ^ 2)
+      have hs := sin_ge_cubic hx.1
+      have e : (1 * x ^ (2 * k + 1) + -(1 / 6) * x ^ (2 * (k + 1) + 1)
+          + 0 * x ^ (2 * (k + 2) + 1)) * Real.exp (-(1 / (2 * ξ ^ 2)) * x ^ 2)
+          = x ^ (2 * k) * (Real.exp (-(1 / (2 * ξ ^ 2)) * x ^ 2) * (x - x ^ 3 / 6)) := by ring
+      rw [e]
+      exact mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_left hs hE.le)
+        (pow_nonneg hx.1 _)
+    rw [vL] at h1
+    linarith
+  · have h1 := interval_le_Ioi iU (fun x hx => by
+      have hx0 : 0 < x := Real.pi_pos.trans hx
+      have hE := Real.exp_pos (-(1 / (2 * ξ ^ 2)) * x ^ 2)
+      have e : (1 * x ^ (2 * k + 1) + -(1 / 6) * x ^ (2 * (k + 1) + 1)
+          + 1 / 120 * x ^ (2 * (k + 2) + 1))
+          = x ^ (2 * k + 1) * (1 - x ^ 2 / 6 + x ^ 4 / 120) := by ring
+      rw [e]
+      have : 0 ≤ 1 - x ^ 2 / 6 + x ^ 4 / 120 := by nlinarith [sq_nonneg (x ^ 2 - 10)]
+      exact mul_nonneg (mul_nonneg (by positivity) this) hE.le)
+    have h2 : sphI ξ (fun θ => θ ^ (2 * k))
+        ≤ ∫ x in (0 : ℝ)..Real.pi, (1 * x ^ (2 * k + 1) + -(1 / 6) * x ^ (2 * (k + 1) + 1)
+          + 1 / 120 * x ^ (2 * (k + 2) + 1)) * Real.exp (-(1 / (2 * ξ ^ 2)) * x ^ 2) := by
+      unfold sphI
+      refine intervalIntegral.integral_mono_on Real.pi_pos.le (cS.intervalIntegrable _ _)
+        ((cP _ _ _).intervalIntegrable _ _) fun x hx => ?_
+      rw [sw_eq]
+      have hE := Real.exp_pos (-(1 / (2 * ξ ^ 2)) * x ^ 2)
+      have hs := sin_le_quintic hx.1
+      have e : (1 * x ^ (2 * k + 1) + -(1 / 6) * x ^ (2 * (k + 1) + 1)
+          + 1 / 120 * x ^ (2 * (k + 2) + 1)) * Real.exp (-(1 / (2 * ξ ^ 2)) * x ^ 2)
+          = x ^ (2 * k) * (Real.exp (-(1 / (2 * ξ ^ 2)) * x ^ 2)
+            * (x - x ^ 3 / 6 + x ^ 5 / 120)) := by ring
+      rw [e]
+      exact mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_left hs hE.le)
+        (pow_nonneg hx.1 _)
+    rw [vU] at h1
+    linarith
+
+/-! ### The differential equation, the Sonin function and the inequality of Bernstein type
+`sin θ · P_n(cos θ)² ≤ 2/(π n)` (Szegő, inequality (7.3.8), non-strict) -/
+
+/-- `f_n'(θ)` for `f_n(θ) = P_n(cos θ)`. -/
+noncomputable def legD (n : ℕ) (θ : ℝ) : ℝ := legS n (fun m => -((m : ℝ) * Real.sin (m * θ)))
+
+/-- `f_n''(θ)`. -/
+noncomputable def legDD (n : ℕ) (θ : ℝ) : ℝ :=
+  legS n (fun m => -((m : ℝ) ^ 2 * Real.cos (m * θ)))
+
+theorem legS_hasDerivAt (n : ℕ) {g g' : ℤ → ℝ → ℝ} {θ : ℝ}
+    (h : ∀ m, HasDerivAt (g m) (g' m θ) θ) :
+    HasDerivAt (fun θ => legS n (fun m => g m θ)) (legS n (fun m => g' m θ)) θ := by
+  unfold legS
+  refine HasDerivAt.fun_sum fun p _ => ?_
+  exact (h _).const_mul _
+
+theorem legP_cos_hasDerivAt (n : ℕ) (θ : ℝ) :
+    HasDerivAt (fun θ => legP n (Real.cos θ)) (legD n θ) θ := by
+  have e : (fun θ => legP n (Real.cos θ)) = fun θ => legS n (fun m => Real.cos (m * θ)) :=
+    funext (legP_cos n)
+  rw [e]
+  refine legS_hasDerivAt n (g := fun m θ => Real.cos (m * θ))
+    (g' := fun m θ => -((m : ℝ) * Real.sin (m * θ))) fun m => ?_
+  have := (Real.hasDerivAt_cos ((m : ℝ) * θ)).comp θ ((hasDerivAt_id θ).const_mul (m : ℝ))
+  convert this using 1
+  simp
+  ring
+
+theorem legD_hasDerivAt (n : ℕ) (θ : ℝ) : HasDerivAt (legD n) (legDD n θ) θ := by
+  unfold legD legDD
+  refine legS_hasDerivAt n (g := fun m θ => -((m : ℝ) * Real.sin (m * θ)))
+    (g' := fun m θ => -((m : ℝ) ^ 2 * Real.cos (m * θ))) fun m => ?_
+  have := (((Real.hasDerivAt_sin ((m : ℝ) * θ)).comp θ
+    ((hasDerivAt_id θ).const_mul (m : ℝ))).const_mul (m : ℝ)).neg
+  convert this using 1
+  simp
+  ring
+
+theorem ode_coeff (a b s1 s2 : ℝ) (i j : ℕ) :
+    (((i : ℝ) + 1) * (a * (2 * i + 1) / (2 * i + 2)) * (b * (2 * ((j : ℝ))))) * s1
+      - ((i : ℝ) * a * ((b * (2 * j + 1) / (2 * j + 2)) * (2 * ((j : ℝ) + 1)))) * s2
+    = a * b * ((j : ℝ) * (2 * i + 1) * s1 - (i : ℝ) * (2 * j + 1) * s2) := by
+  field_simp
+
+/-- **The Legendre differential equation in the angle:**
+    `sin θ · f'' + cos θ · f' + n(n+1) sin θ · f = 0` for `f(θ) = P_n(cos θ)`. -/
+theorem legendre_ode (n : ℕ) (θ : ℝ) :
+    Real.sin θ * legDD n θ + Real.cos θ * legD n θ
+      + (n : ℝ) * (n + 1) * Real.sin θ * legP n (Real.cos θ) = 0 := by
+  rw [legP_cos]
+  unfold legDD legD
+  have l1 := legS_lin n (Real.sin θ) (Real.cos θ)
+    (fun m => -((m : ℝ) ^ 2 * Real.cos (m * θ))) (fun m => -((m : ℝ) * Real.sin (m * θ)))
+  have l2 := legS_lin n 1 ((n : ℝ) * (n + 1) * Real.sin θ)
+    (fun m => Real.sin θ * -((m : ℝ) ^ 2 * Real.cos (m * θ))
+      + Real.cos θ * -((m : ℝ) * Real.sin (m * θ))) (fun m => Real.cos (m * θ))
+  rw [l1, one_mul] at l2
+  rw [← l2]
+  -- the sum telescopes
+  set V : ℕ → ℝ := fun i => (i : ℝ) * lc i * (lc (n + 1 - i) * (2 * ((n + 1 - i : ℕ) : ℝ)))
+    * Real.sin ((2 * (i : ℝ) - n - 1) * θ) with hV
+  have tel : ∑ i ∈ range (n + 1), (V (i + 1) - V i) = V (n + 1) - V 0 := sum_range_sub V (n + 1)
+  have hV0 : V 0 = 0 := by simp [hV]
+  have hVn : V (n + 1) = 0 := by simp [hV]
+  unfold legS
+  rw [Nat.sum_antidiagonal_eq_sum_range_succ_mk]
+  have t0 : ∑ i ∈ range (n + 1), (V (i + 1) - V i) = 0 := by rw [tel, hVn, hV0, sub_self]
+  refine Eq.trans ?_ t0
+  refine sum_congr rfl fun i hi => ?_
+  have hi' : i ≤ n := Nat.lt_succ_iff.1 (mem_range.1 hi)
+  obtain ⟨j, rfl⟩ := Nat.exists_eq_add_of_le hi'
+  have e1 : i + j + 1 - (i + 1) = j := by omega
+  have e2 : i + j + 1 - i = j + 1 := by omega
+  have e3 : i + j - i = j := by omega
+  simp only [hV, e1, e2, e3, lc_succ]
+  have s1 : Real.sin ((2 * ((i + 1 : ℕ) : ℝ) - ((i + j : ℕ) : ℝ) - 1) * θ)
+      = Real.sin ((i : ℝ) * θ - j * θ) * Real.cos θ + Real.cos ((i : ℝ) * θ - j * θ) * Real.sin θ := by
+    rw [← Real.sin_add]; congr 1; push_cast; ring
+  have s2 : Real.sin ((2 * (i : ℝ) - ((i + j : ℕ) : ℝ) - 1) * θ)
+      = Real.sin ((i : ℝ) * θ - j * θ) * Real.cos θ - Real.cos ((i : ℝ) * θ - j * θ) * Real.sin θ := by
+    rw [← Real.sin_sub]; congr 1; push_cast; ring
+  have e4 : (((i : ℕ) : ℤ) - ((j : ℕ) : ℤ) : ℤ) = (i : ℤ) - (j : ℤ) := rfl
+  have e5 : (((((i : ℕ) : ℤ) - ((j : ℕ) : ℤ) : ℤ) : ℝ)) * θ = (i : ℝ) * θ - j * θ := by
+    push_cast; ring
+  have key := ode_coeff (lc i) (lc j)
+    (Real.sin ((i : ℝ) * θ - j * θ) * Real.cos θ + Real.cos ((i : ℝ) * θ - j * θ) * Real.sin θ)
+    (Real.sin ((i : ℝ) * θ - j * θ) * Real.cos θ - Real.cos ((i : ℝ) * θ - j * θ) * Real.sin θ)
+    i j
+  rw [s1, s2, e5]
+  push_cast
+  push_cast at key
+  rw [key]
+  ring
+
+theorem sonin_alg (s c f fd lam : ℝ) (h : s ^ 2 + c ^ 2 = 1) :
+    (c * f ^ 2 + 2 * s * f * fd) * ((4 * lam + 1) * s ^ 2 + 1)
+      + 2 * s * (2 * s * fd + c * f) * (c * fd - (2 * lam + 1) * s * f)
+      - c * (2 * s * fd + c * f) ^ 2 = 0 := by
+  linear_combination (-(2 * s * f * fd + c * f ^ 2)) * h
+
+theorem sonin_alg2 (s c f fd lam D : ℝ) (h : s ^ 2 + c ^ 2 = 1) (hD : D = (4 * lam + 1) * s ^ 2 + 1)
+    (hD0 : D ≠ 0) :
+    c * f ^ 2 + s * (2 * f * fd)
+      + ((c * (2 * s * fd + c * f) ^ 2
+            + s * (2 * (2 * s * fd + c * f) * (c * fd - (2 * lam + 1) * s * f))) * D
+          - s * (2 * s * fd + c * f) ^ 2 * ((4 * lam + 1) * (2 * s * c))) / D ^ 2
+      = 2 * c * (2 * s * fd + c * f) ^ 2 / D ^ 2 := by
+  have hD2 : D ^ 2 ≠ 0 := pow_ne_zero 2 hD0
+  rw [eq_div_iff hD2, add_mul, div_mul_cancel₀ _ hD2]
+  have := sonin_alg s c f fd lam h
+  subst hD
+  linear_combination ((4 * lam + 1) * s ^ 2 + 1) * this
+
+/-- The Sonin function `S = sin θ [f² + (2 sin θ f' + cos θ f)²/((2n+1)² sin²θ + 1)]`
+    (`= u² + u'²/φ` for `u = (sin θ)^{1/2} f`, `u'' + φ u = 0`). -/
+noncomputable def sonin (n : ℕ) (θ : ℝ) : ℝ :=
+  Real.sin θ * legP n (Real.cos θ) ^ 2
+    + Real.sin θ * (2 * Real.sin θ * legD n θ + Real.cos θ * legP n (Real.cos θ)) ^ 2
+      / ((4 * ((n : ℝ) * (n + 1)) + 1) * Real.sin θ ^ 2 + 1)
+
+theorem sonin_hasDerivAt (n : ℕ) (θ : ℝ) :
+    HasDerivAt (sonin n)
+      (2 * Real.cos θ * (2 * Real.sin θ * legD n θ + Real.cos θ * legP n (Real.cos θ)) ^ 2
+        / ((4 * ((n : ℝ) * (n + 1)) + 1) * Real.sin θ ^ 2 + 1) ^ 2) θ := by
+  have hlam : (0 : ℝ) ≤ (n : ℝ) * (n + 1) := by positivity
+  have hDpos : 0 < (4 * ((n : ℝ) * (n + 1)) + 1) * Real.sin θ ^ 2 + 1 := by positivity
+  have hs := Real.hasDerivAt_sin θ
+  have hc := Real.hasDerivAt_cos θ
+  have hf := legP_cos_hasDerivAt n θ
+  have hfd := legD_hasDerivAt n θ
+  have hode := legendre_ode n θ
+  have hw : HasDerivAt (fun θ => 2 * Real.sin θ * legD n θ + Real.cos θ * legP n (Real.cos θ))
+      (Real.cos θ * legD n θ - (2 * ((n : ℝ) * (n + 1)) + 1) * Real.sin θ
+        * legP n (Real.cos θ)) θ := by
+    have := ((hs.const_mul 2).mul hfd).add (hc.mul hf)
+    convert this using 1
+    linear_combination (-2 : ℝ) * hode
+  have hD : HasDerivAt (fun θ => (4 * ((n : ℝ) * (n + 1)) + 1) * Real.sin θ ^ 2 + 1)
+      ((4 * ((n : ℝ) * (n + 1)) + 1) * (2 * Real.sin θ * Real.cos θ)) θ := by
+    have := ((hs.pow 2).const_mul (4 * ((n : ℝ) * (n + 1)) + 1)).add_const 1
+    convert this using 1
+    simp
+  have h1 : HasDerivAt (fun θ => Real.sin θ * legP n (Real.cos θ) ^ 2)
+      (Real.cos θ * legP n (Real.cos θ) ^ 2
+        + Real.sin θ * (2 * legP n (Real.cos θ) * legD n θ)) θ := by
+    have := hs.mul (hf.pow 2)
+    convert this using 1
+    simp
+  have h2 : HasDerivAt (fun θ => Real.sin θ
+        * (2 * Real.sin θ * legD n θ + Real.cos θ * legP n (Real.cos θ)) ^ 2)
+      (Real.cos θ * (2 * Real.sin θ * legD n θ + Real.cos θ * legP n (Real.cos θ)) ^ 2
+        + Real.sin θ * (2 * (2 * Real.sin θ * legD n θ + Real.cos θ * legP n (Real.cos θ))
+          * (Real.cos θ * legD n θ - (2 * ((n : ℝ) * (n + 1)) + 1) * Real.sin θ
+            * legP n (Real.cos θ)))) θ := by
+    have := hs.mul (hw.pow 2)
+    convert this using 1
+    simp
+  have h3 := h1.add (h2.div hD hDpos.ne')
+  have e := sonin_alg2 (Real.sin θ) (Real.cos θ) (legP n (Real.cos θ)) (legD n θ)
+    ((n : ℝ) * (n + 1)) _ (Real.sin_sq_add_cos_sq θ) rfl hDpos.ne'
+  unfold sonin
+  convert h3 using 1
+  rw [← e]
+
+theorem sonin_mono (n : ℕ) : MonotoneOn (sonin n) (Icc 0 (Real.pi / 2)) := by
+  refine monotoneOn_of_deriv_nonneg (convex_Icc _ _)
+    (fun x _ => (sonin_hasDerivAt n x).continuousAt.continuousWithinAt)
+    (fun x _ => (sonin_hasDerivAt n x).differentiableAt.differentiableWithinAt) ?_
+  intro x hx
+  rw [interior_Icc] at hx
+  rw [(sonin_hasDerivAt n x).deriv]
+  have hc : 0 ≤ Real.cos x :=
+    Real.cos_nonneg_of_neg_pi_div_two_le_of_le (by linarith [hx.1, Real.pi_pos]) hx.2.le
+  positivity
+
+/-- `P_n(-x) = (-1)^n P_n(x)`. -/
+theorem legP_neg (n : ℕ) (x : ℝ) : legP n (-x) = (-1) ^ n * legP n x := by
+  refine two_step (P := fun n => legP n (-x) = (-1) ^ n * legP n x) ?_ ?_ ?_ n
+  · beta_reduce; rw [legP_zero, legP_zero]; simp
+  · beta_reduce; rw [legP_one, legP_one]; simp
+  · intro n h0 h1
+    beta_reduce at h0 h1 ⊢
+    rw [legP_succ_succ, legP_succ_succ, h0, h1]
+    have hn : (0 : ℝ) < (n : ℝ) + 2 := by positivity
+    field_simp
+    ring
+
+/-- Bonnet's recursion for the derivatives `f_n'(θ)`. -/
+theorem legD_bonnet (n : ℕ) (θ : ℝ) :
+    ((n : ℝ) + 2) * legD (n + 2) θ
+      = (2 * n + 3) * (Real.cos θ * legD (n + 1) θ - Real.sin θ * legP (n + 1) (Real.cos θ))
+        - (n + 1) * legD n θ := by
+  unfold legD
+  rw [legP_cos]
+  have hb := legS_bonnet n (fun m => -((m : ℝ) * Real.sin (m * θ)))
+  have e : legS (n + 1) (fun m : ℤ => -(((m + 1 : ℤ) : ℝ) * Real.sin (((m + 1 : ℤ) : ℝ) * θ))
+        + -(((m - 1 : ℤ) : ℝ) * Real.sin (((m - 1 : ℤ) : ℝ) * θ)))
+      = 2 * Real.cos θ * legS (n + 1) (fun m => -((m : ℝ) * Real.sin (m * θ)))
+        + (-(2 * Real.sin θ)) * legS (n + 1) (fun m => Real.cos (m * θ)) := by
+    rw [← legS_lin]
+    refine legS_congr _ fun m _ => ?_
+    push_cast
+    have a1 : Real.sin (((m : ℝ) + 1) * θ)
+        = Real.sin (m * θ) * Real.cos θ + Real.cos (m * θ) * Real.sin θ := by
+      rw [add_mul, one_mul, Real.sin_add]
+    have a2 : Real.sin (((m : ℝ) - 1) * θ)
+        = Real.sin (m * θ) * Real.cos θ - Real.cos (m * θ) * Real.sin θ := by
+      rw [sub_mul, one_mul, Real.sin_sub]
+    rw [a1, a2]
+    ring
+  rw [e] at hb
+  rw [hb]
+  ring
+
+/-- The values at `θ = π/2`: `P_{2k}(0) = (-1)^k a_k`, `P_{2k+1}(0) = 0`, `f_{2k}'(π/2) = 0`,
+    `f_{2k+1}'(π/2) = -(2k+1)(-1)^k a_k`. -/
+theorem leg_at_half_pi (k : ℕ) :
+    legP (2 * k) 0 = (-1) ^ k * lc k ∧ legP (2 * k + 1) 0 = 0 ∧
+    legD (2 * k) (Real.pi / 2) = 0 ∧
+    legD (2 * k + 1) (Real.pi / 2) = -((2 * (k : ℝ) + 1) * ((-1) ^ k * lc k)) := by
+  induction k with
+  | zero =>
+    refine ⟨by simp [legP_zero, lc_zero], by simp [legP_one], ?_, ?_⟩
+    · unfold legD; rw [Nat.mul_zero, legS_zero]; simp
+    · unfold legD; rw [Nat.mul_zero, Nat.zero_add, legS_one]; simp [lc_zero]
+  | succ k ih =>
+    obtain ⟨a, b, c, d⟩ := ih
+    have e1 : 2 * (k + 1) = 2 * k + 2 := by ring
+    have e2 : 2 * k + 2 + 1 = (2 * k + 1) + 2 := by ring
+    have hp1 : legP (2 * k + 2) 0 = (-1) ^ (k + 1) * lc (k + 1) := by
+      rw [legP_succ_succ, a, b, lc_succ]
+      push_cast
+      field_simp
+      ring
+    have hp2 : legP (2 * k + 1 + 2) 0 = 0 := by
+      rw [legP_succ_succ, b]; simp
+    have hd1 : legD (2 * k + 2) (Real.pi / 2) = 0 := by
+      have := legD_bonnet (2 * k) (Real.pi / 2)
+      rw [Real.cos_pi_div_two, Real.sin_pi_div_two, c, b] at this
+      have hn : (0 : ℝ) < ((2 * k : ℕ) : ℝ) + 2 := by positivity
+      have h0 : (((2 * k : ℕ) : ℝ) + 2) * legD (2 * k + 2) (Real.pi / 2) = 0 := by
+        rw [this]; ring
+      exact (mul_eq_zero.1 h0).resolve_left hn.ne'
+    have hd2 : legD (2 * k + 1 + 2) (Real.pi / 2)
+        = -((2 * ((k + 1 : ℕ) : ℝ) + 1) * ((-1) ^ (k + 1) * lc (k + 1))) := by
+      have := legD_bonnet (2 * k + 1) (Real.pi / 2)
+      rw [Real.cos_pi_div_two, Real.sin_pi_div_two, d, hp1] at this
+      have hn : (0 : ℝ) < ((2 * k + 1 : ℕ) : ℝ) + 2 := by positivity
+      refine mul_left_cancel₀ hn.ne' ?_
+      rw [this, lc_succ]
+      push_cast
+      field_simp
+      ring
+    rw [e1, e2]
+    exact ⟨hp1, hp2, hd1, hd2⟩
+
+/-- `a_k² (2k+1) W_k = 1` for the Wallis product `W_k`. -/
+theorem lc_sq_wallis (k : ℕ) : lc k ^ 2 * (2 * k + 1) * Real.Wallis.W k = 1 := by
+  induction k with
+  | zero => simp [lc_zero, Real.Wallis.W]
+  | succ k ih =>
+    rw [Real.Wallis.W_succ, lc_succ]
+    push_cast
+    have h1 : (0 : ℝ) < 2 * k + 1 := by positivity
+    have h2 : (0 : ℝ) < 2 * k + 2 := by positivity
+    have h3 : (0 : ℝ) < 2 * k + 3 := by positivity
+    have : (lc k * (2 * k + 1) / (2 * k + 2)) ^ 2 * (2 * ((k : ℝ) + 1) + 1)
+          * (Real.Wallis.W k * ((2 * k + 2) / (2 * k + 1) * ((2 * k + 2) / (2 * k + 3))))
+        = lc k ^ 2 * (2 * k + 1) * Real.Wallis.W k := by
+      field_simp
+      ring
+    rw [this, ih]
+
+/-- `a_k² ≤ 2(2k+2)/(π(2k+1)²)` (Wallis). -/
+theorem lc_sq_le (k : ℕ) : lc k ^ 2 ≤ 2 * (2 * k + 2) / (Real.pi * (2 * k + 1) ^ 2) := by
+  have h := lc_sq_wallis k
+  have hw := Real.Wallis.le_W k
+  have h1 : (0 : ℝ) < 2 * k + 1 := by positivity
+  have h2 : (0 : ℝ) < 2 * k + 2 := by positivity
+  have hpi := Real.pi_pos
+  have hl : 0 ≤ lc k ^ 2 * (2 * k + 1) := by positivity
+  have h3 : lc k ^ 2 * (2 * k + 1) * ((2 * (k : ℝ) + 1) / (2 * k + 2) * (Real.pi / 2)) ≤ 1 := by
+    exact (mul_le_mul_of_nonneg_left hw hl).trans h.le
+  rw [le_div_iff₀ (by positivity)]
+  have e : lc k ^ 2 * (2 * k + 1) * ((2 * (k : ℝ) + 1) / (2 * k + 2) * (Real.pi / 2))
+      = lc k ^ 2 * (Real.pi * (2 * k + 1) ^ 2) / (2 * (2 * k + 2)) := by
+    field_simp
+  rw [e, div_le_one (by positivity)] at h3
+  exact h3
+
+theorem sonin_half_pi_even (k : ℕ) (hk : 1 ≤ k) :
+    sonin (2 * k) (Real.pi / 2) ≤ 2 / (Real.pi * ((2 * k : ℕ) : ℝ)) := by
+  obtain ⟨a, _, c, _⟩ := leg_at_half_pi k
+  unfold sonin
+  rw [Real.cos_pi_div_two, Real.sin_pi_div_two, a, c]
+  have hl := lc_sq_le k
+  have hk' : (1 : ℝ) ≤ k := by exact_mod_cast hk
+  have hpi := Real.pi_pos
+  have e : (1 : ℝ) * ((-1) ^ k * lc k) ^ 2 + 1 * (2 * 1 * 0 + 0 * ((-1) ^ k * lc k)) ^ 2
+      / ((4 * (((2 * k : ℕ) : ℝ) * (((2 * k : ℕ) : ℝ) + 1)) + 1) * 1 ^ 2 + 1) = lc k ^ 2 := by
+    rw [mul_pow, ← pow_mul, mul_comm k 2, pow_mul]
+    simp
+  rw [e]
+  refine hl.trans ?_
+  push_cast
+  rw [div_le_div_iff₀ (by positivity) (by positivity)]
+  nlinarith [hpi]
+
+theorem sonin_half_pi_odd (k : ℕ) :
+    sonin (2 * k + 1) (Real.pi / 2) ≤ 2 / (Real.pi * ((2 * k + 1 : ℕ) : ℝ)) := by
+  obtain ⟨_, b, _, d⟩ := leg_at_half_pi k
+  unfold sonin
+  rw [Real.cos_pi_div_two, Real.sin_pi_div_two, b, d]
+  have hl := lc_sq_le k
+  have hpi := Real.pi_pos
+  have hk0 : (0 : ℝ) ≤ k := Nat.cast_nonneg k
+  have e : (1 : ℝ) * (0 : ℝ) ^ 2 + 1 * (2 * 1 * -((2 * (k : ℝ) + 1) * ((-1) ^ k * lc k)) + 0 * 0) ^ 2
+      / ((4 * (((2 * k + 1 : ℕ) : ℝ) * (((2 * k + 1 : ℕ) : ℝ) + 1)) + 1) * 1 ^ 2 + 1)
+      = 4 * (2 * (k : ℝ) + 1) ^ 2 * lc k ^ 2
+        / (4 * ((2 * (k : ℝ) + 1) * (2 * k + 2)) + 2) := by
+    have : ((-1 : ℝ) ^ k) ^ 2 = 1 := by rw [← pow_mul, mul_comm, pow_mul]; simp
+    push_cast
+    have e2 : (2 * 1 * -((2 * (k : ℝ) + 1) * ((-1) ^ k * lc k)) + 0 * 0) ^ 2
+        = 4 * (2 * (k : ℝ) + 1) ^ 2 * (((-1 : ℝ) ^ k) ^ 2 * lc k ^ 2) := by ring
+    rw [e2, this]
+    ring
+  rw [e]
+  push_cast
+  rw [div_le_div_iff₀ (by positivity) (by positivity)]
+  have h4 : 4 * (2 * (k : ℝ) + 1) ^ 2 * lc k ^ 2
+      ≤ 4 * (2 * (k : ℝ) + 1) ^ 2 * (2 * (2 * k + 2) / (Real.pi * (2 * k + 1) ^ 2)) :=
+    mul_le_mul_of_nonneg_left hl (by positivity)
+  have e3 : 4 * (2 * (k : ℝ) + 1) ^ 2 * (2 * (2 * k + 2) / (Real.pi * (2 * k + 1) ^ 2))
+      = 8 * (2 * k + 2) / Real.pi := by
+    field_simp; ring
+  rw [e3] at h4
+  have h5 : 8 * (2 * (k : ℝ) + 2) / Real.pi * (Real.pi * (2 * (k : ℝ) + 1))
+      = 8 * (2 * k + 2) * (2 * k + 1) := by
+    field_simp
+  have h6 := mul_le_mul_of_nonneg_right h4
+    (show (0 : ℝ) ≤ Real.pi * (2 * (k : ℝ) + 1) by positivity)
+  rw [h5] at h6
+  nlinarith [h6]
+
+/-- **Inequality of Bernstein type for Legendre polynomials (Szegő (7.3.8), non-strict form):**
+    `sin θ · P_n(cos θ)² ≤ 2/(π n)` for `0 ≤ θ ≤ π` and `n ≥ 1`. -/
+theorem legendre_bernstein (n : ℕ) (hn : 1 ≤ n) {θ : ℝ} (h0 : 0 ≤ θ) (h1 : θ ≤ Real.pi) :
+    Real.sin θ * legP n (Real.cos θ) ^ 2 ≤ 2 / (Real.pi * (n : ℝ)) := by
+  have key : ∀ φ : ℝ, 0 ≤ φ → φ ≤ Real.pi / 2 →
+      Real.sin φ * legP n (Real.cos φ) ^ 2 ≤ 2 / (Real.pi * (n : ℝ)) := by
+    intro φ hφ0 hφ1
+    have hpi := Real.pi_pos
+    have hm := sonin_mono n (mem_Icc.2 ⟨hφ0, hφ1⟩) (mem_Icc.2 ⟨by linarith, le_rfl⟩) hφ1
+    have hs : 0 ≤ Real.sin φ := Real.sin_nonneg_of_nonneg_of_le_pi hφ0 (by linarith)
+    have hle : Real.sin φ * legP n (Real.cos φ) ^ 2 ≤ sonin n φ := by
+      unfold sonin
+      have hlam : (0 : ℝ) ≤ (n : ℝ) * (n + 1) := by positivity
+      have : 0 ≤ Real.sin φ * (2 * Real.sin φ * legD n φ
+          + Real.cos φ * legP n (Real.cos φ)) ^ 2
+          / ((4 * ((n : ℝ) * (n + 1)) + 1) * Real.sin φ ^ 2 + 1) := by positivity
+      linarith
+    refine hle.trans (hm.trans ?_)
+    rcases Nat.even_or_odd' n with ⟨k, rfl | rfl⟩
+    · exact sonin_half_pi_even k (by omega)
+    · exact sonin_half_pi_odd k
+  rcases le_total θ (Real.pi / 2) with h | h
+  · exact key θ h0 h
+  · have := key (Real.pi - θ) (by linarith) (by linarith)
+    rw [Real.sin_pi_sub, Real.cos_pi_sub, legP_neg, mul_pow] at this
+    have e : ((-1 : ℝ) ^ n) ^ 2 = 1 := by rw [← pow_mul, mul_comm, pow_mul]; simp
+    rwa [e, one_mul] at this
+
+/-! ### The moments: `eq:spheresigma` with explicit constants -/
+
+theorem gm_vals (ξ : ℝ) :
+    gm ξ 0 = ξ ^ 2 ∧ gm ξ 1 = 2 * (ξ ^ 2) ^ 2 ∧ gm ξ 2 = 8 * (ξ ^ 2) ^ 3 ∧
+    gm ξ 3 = 48 * (ξ ^ 2) ^ 4 ∧ gm ξ 4 = 384 * (ξ ^ 2) ^ 5 ∧ gm ξ 5 = 3840 * (ξ ^ 2) ^ 6 := by
+  unfold gm
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩ <;> norm_num [Nat.factorial]
+
+theorem div_bounds {Z J lo hi cl cu : ℝ} (hZ : 0 < Z) (hcl : 0 ≤ cl) (hcu : 0 ≤ cu)
+    {Zl Zu : ℝ} (hZl : Zl ≤ Z) (hZu : Z ≤ Zu) (hl : lo ≤ J) (hu : J ≤ hi)
+    (h1 : cl * Zu ≤ lo) (h2 : hi ≤ cu * Zl) : cl ≤ J / Z ∧ J / Z ≤ cu := by
+  constructor
+  · rw [le_div_iff₀ hZ]
+    exact (mul_le_mul_of_nonneg_left hZu hcl).trans (h1.trans hl)
+  · rw [div_le_iff₀ hZ]
+    exact hu.trans (h2.trans (mul_le_mul_of_nonneg_left hZl hcu))
+
+theorem mom_arith {x Z J2 J4 J6 : ℝ} (hx : 0 < x) (hx1 : x ≤ 1 / 4)
+    (hZl : x - x ^ 2 / 3 ≤ Z) (hZu : Z ≤ x - x ^ 2 / 3 + x ^ 3 / 15)
+    (hJ2l : 2 * x ^ 2 - 4 * x ^ 3 / 3 ≤ J2) (hJ2u : J2 ≤ 2 * x ^ 2 - 4 * x ^ 3 / 3 + 2 * x ^ 4 / 5)
+    (hJ4l : 8 * x ^ 3 - 8 * x ^ 4 ≤ J4) (hJ4u : J4 ≤ 8 * x ^ 3 - 8 * x ^ 4 + 16 * x ^ 5 / 5)
+    (hJ6l : 0 ≤ J6) (hJ6u : J6 ≤ 48 * x ^ 4 - 64 * x ^ 5 + 32 * x ^ 6) :
+    (2 * x - 2 * x ^ 2 / 3 - x ^ 3 / 2 ≤ J2 / Z ∧ J2 / Z ≤ 2 * x - 2 * x ^ 2 / 3 + x ^ 3 / 4) ∧
+    (8 * x ^ 2 - 8 * x ^ 3 ≤ J4 / Z ∧ J4 / Z ≤ 8 * x ^ 2) ∧
+    (0 ≤ J6 / Z ∧ J6 / Z ≤ 48 * x ^ 3) := by
+  have hx2 : 0 < x ^ 2 := by positivity
+  have hx4 : 0 ≤ x ^ 4 := by positivity
+  have hx5 : 0 ≤ x ^ 5 := by positivity
+  have hxx : x ^ 2 ≤ x / 4 := by nlinarith
+  have hZ : 0 < Z := by nlinarith
+  have hx3 : x ^ 3 ≤ x / 16 := by nlinarith
+  refine ⟨?_, ?_, ?_⟩
+  · refine div_bounds hZ (by nlinarith) (by nlinarith [pow_pos hx 3]) hZl hZu hJ2l hJ2u ?_ ?_
+    · have e : 2 * x ^ 2 - 4 * x ^ 3 / 3
+          - (2 * x - 2 * x ^ 2 / 3 - x ^ 3 / 2) * (x - x ^ 2 / 3 + x ^ 3 / 15)
+          = x ^ 4 * (13 / 90 - 11 * x / 90 + x ^ 2 / 30) := by ring
+      have : 0 ≤ x ^ 4 * (13 / 90 - 11 * x / 90 + x ^ 2 / 30) :=
+        mul_nonneg hx4 (by nlinarith)
+      linarith
+    · have e : (2 * x - 2 * x ^ 2 / 3 + x ^ 3 / 4) * (x - x ^ 2 / 3)
+          - (2 * x ^ 2 - 4 * x ^ 3 / 3 + 2 * x ^ 4 / 5) = x ^ 4 * (13 / 180 - x / 12) := by ring
+      have : 0 ≤ x ^ 4 * (13 / 180 - x / 12) := mul_nonneg hx4 (by linarith)
+      linarith
+  · refine div_bounds hZ (by nlinarith [pow_pos hx 3]) (by positivity) hZl hZu hJ4l hJ4u ?_ ?_
+    · have e : 8 * x ^ 3 - 8 * x ^ 4 - (8 * x ^ 2 - 8 * x ^ 3) * (x - x ^ 2 / 3 + x ^ 3 / 15)
+          = x ^ 4 * (8 / 3 - 16 * x / 5 + 8 * x ^ 2 / 15) := by ring
+      have : 0 ≤ x ^ 4 * (8 / 3 - 16 * x / 5 + 8 * x ^ 2 / 15) :=
+        mul_nonneg hx4 (by nlinarith)
+      linarith
+    · have e : 8 * x ^ 2 * (x - x ^ 2 / 3) - (8 * x ^ 3 - 8 * x ^ 4 + 16 * x ^ 5 / 5)
+          = x ^ 4 * (16 / 3 - 16 * x / 5) := by ring
+      have : 0 ≤ x ^ 4 * (16 / 3 - 16 * x / 5) := mul_nonneg hx4 (by linarith)
+      linarith
+  · refine ⟨div_nonneg hJ6l hZ.le, ?_⟩
+    rw [div_le_iff₀ hZ]
+    have e : 48 * x ^ 3 * (x - x ^ 2 / 3) - (48 * x ^ 4 - 64 * x ^ 5 + 32 * x ^ 6)
+        = x ^ 5 * (48 - 32 * x) := by ring
+    have : 0 ≤ x ^ 5 * (48 - 32 * x) := mul_nonneg hx5 (by linarith)
+    have h3 : 48 * x ^ 3 * (x - x ^ 2 / 3) ≤ 48 * x ^ 3 * Z :=
+      mul_le_mul_of_nonneg_left hZl (by positivity)
+    linarith
+
+/-- `ξ² - ξ⁴/3 ≤ Z ≤ ξ² - ξ⁴/3 + ξ⁶/15`. -/
+theorem sphZ_bounds {ξ : ℝ} (hξ : 0 < ξ) :
+    ξ ^ 2 - (ξ ^ 2) ^ 2 / 3 ≤ sphZ ξ ∧ sphZ ξ ≤ ξ ^ 2 - (ξ ^ 2) ^ 2 / 3 + (ξ ^ 2) ^ 3 / 15 := by
+  obtain ⟨g0, g1, g2, -, -, -⟩ := gm_vals ξ
+  have h := sphI_pow_bounds hξ 0
+  have e : (fun θ : ℝ => θ ^ (2 * 0)) = fun _ => 1 := by funext θ; simp
+  rw [e, g0, g1, g2] at h
+  unfold sphZ
+  constructor <;> linarith [h.1, h.2]
+
+/-- **The moments, `eq:spheresigma` with explicit constants** (`x = ξ²`, `0 < ξ ≤ 1/2`):
+    `2x - 2x²/3 - x³/2 ≤ 𝗆₂ ≤ 2x - 2x²/3 + x³/4`, `8x² - 8x³ ≤ 𝗆₄ ≤ 8x²`, `0 ≤ 𝗆₆ ≤ 48x³`. -/
+theorem sphere_moments {ξ : ℝ} (hξ : 0 < ξ) (hξ1 : ξ ≤ 1 / 2) :
+    (2 * ξ ^ 2 - 2 * (ξ ^ 2) ^ 2 / 3 - (ξ ^ 2) ^ 3 / 2 ≤ sphM ξ 2 ∧
+      sphM ξ 2 ≤ 2 * ξ ^ 2 - 2 * (ξ ^ 2) ^ 2 / 3 + (ξ ^ 2) ^ 3 / 4) ∧
+    (8 * (ξ ^ 2) ^ 2 - 8 * (ξ ^ 2) ^ 3 ≤ sphM ξ 4 ∧ sphM ξ 4 ≤ 8 * (ξ ^ 2) ^ 2) ∧
+    (0 ≤ sphM ξ 6 ∧ sphM ξ 6 ≤ 48 * (ξ ^ 2) ^ 3) := by
+  obtain ⟨g0, g1, g2, g3, g4, g5⟩ := gm_vals ξ
+  obtain ⟨z1, z2⟩ := sphZ_bounds hξ
+  have h1 := sphI_pow_bounds hξ 1
+  have h2 := sphI_pow_bounds hξ 2
+  have h3 := sphI_pow_bounds hξ 3
+  have e1 : (fun θ : ℝ => θ ^ (2 * 1)) = fun θ => θ ^ 2 := rfl
+  have e2 : (fun θ : ℝ => θ ^ (2 * 2)) = fun θ => θ ^ 4 := rfl
+  have e3 : (fun θ : ℝ => θ ^ (2 * 3)) = fun θ => θ ^ 6 := rfl
+  rw [e1, g1, g2, g3] at h1
+  rw [e2, g2, g3, g4] at h2
+  rw [e3, g3, g4, g5] at h3
+  have hx : 0 < ξ ^ 2 := by positivity
+  have hx1 : ξ ^ 2 ≤ 1 / 4 := by nlinarith
+  have h6 : 0 ≤ sphI ξ (fun θ => θ ^ 6) := by
+    have e0 : sphI ξ (fun _ => 0) = 0 := by simp [sphI]
+    rw [← e0]
+    exact sphI_mono ξ continuous_const (continuous_id.pow 6) (fun θ h0 _ => pow_nonneg h0 6)
+  unfold sphM sphE
+  exact mom_arith hx hx1 z1 z2 (by linarith [h1.1]) (by linarith [h1.2]) (by linarith [h2.1])
+    (by linarith [h2.2]) h6 (by linarith [h3.2])
+
+/-- `σ_ξ = 𝗆₂/4 + 𝗆₄/96`. -/
+noncomputable def sphSigma (ξ : ℝ) : ℝ := sphM ξ 2 / 4 + sphM ξ 4 / 96
+
+theorem sigma_arith {x m2 m4 : ℝ} (hx : 0 < x) (hx1 : x ≤ 1 / 4)
+    (h2l : 2 * x - 2 * x ^ 2 / 3 - x ^ 3 / 2 ≤ m2) (h2u : m2 ≤ 2 * x - 2 * x ^ 2 / 3 + x ^ 3 / 4)
+    (h4l : 8 * x ^ 2 - 8 * x ^ 3 ≤ m4) (h4u : m4 ≤ 8 * x ^ 2) :
+    |m2 / 4 + m4 / 96 - x / 2 * (1 - x / 6)| ≤ 5 / 24 * x ^ 3 ∧
+    |m4 / 64 - (m2 / 4 + m4 / 96) ^ 2 / 2| ≤ x ^ 3 / 8 := by
+  have hx3 : 0 < x ^ 3 := by positivity
+  have hx2 : 0 < x ^ 2 := by positivity
+  have hxx : x ^ 2 ≤ x / 4 := by nlinarith
+  have hxxx : x ^ 3 ≤ x ^ 2 / 4 := by nlinarith
+  have hx4 : x ^ 4 ≤ x ^ 3 / 4 := by nlinarith
+  have hsl : x / 2 - x ^ 2 / 12 - 5 / 24 * x ^ 3 ≤ m2 / 4 + m4 / 96 := by linarith
+  have hsu : m2 / 4 + m4 / 96 ≤ x / 2 - x ^ 2 / 12 + x ^ 3 / 16 := by linarith
+  constructor
+  · rw [abs_le]; constructor <;> linarith
+  · set s := m2 / 4 + m4 / 96 with hs
+    have hs0 : 0 ≤ s := by nlinarith
+    have hsx : s ≤ x / 2 := by nlinarith
+    have hsq1 : s ^ 2 ≤ (x / 2) ^ 2 := pow_le_pow_left₀ hs0 hsx 2
+    have hlow : x / 2 * (1 - x / 6 - 5 / 12 * x ^ 2) ≤ s := by nlinarith
+    have hlow0 : 0 ≤ x / 2 * (1 - x / 6 - 5 / 12 * x ^ 2) :=
+      mul_nonneg (by positivity) (by nlinarith)
+    have hsq2 : (x / 2 * (1 - x / 6 - 5 / 12 * x ^ 2)) ^ 2 ≤ s ^ 2 := pow_le_pow_left₀ hlow0 hlow 2
+    have e : (x / 2 * (1 - x / 6 - 5 / 12 * x ^ 2)) ^ 2
+        = x ^ 2 / 4 - x ^ 3 / 12 - 5 * x ^ 4 / 24 + x ^ 2 / 4 * (x / 6 + 5 / 12 * x ^ 2) ^ 2 := by
+      ring
+    have hp : 0 ≤ x ^ 2 / 4 * (x / 6 + 5 / 12 * x ^ 2) ^ 2 := by positivity
+    rw [abs_le]
+    constructor <;> nlinarith
+
+/-- **`eq:spheresigma` with explicit constants,** `0 < ξ ≤ 1/2`:
+    `|σ_ξ - (ξ²/2)(1 - ξ²/6)| ≤ (5/24) ξ⁶` and `|𝗆₄/64 - σ_ξ²/2| ≤ ξ⁶/8`. -/
+theorem sphSigma_expansion {ξ : ℝ} (hξ : 0 < ξ) (hξ1 : ξ ≤ 1 / 2) :
+    |sphSigma ξ - ξ ^ 2 / 2 * (1 - ξ ^ 2 / 6)| ≤ 5 / 24 * (ξ ^ 2) ^ 3 ∧
+    |sphM ξ 4 / 64 - sphSigma ξ ^ 2 / 2| ≤ (ξ ^ 2) ^ 3 / 8 := by
+  obtain ⟨⟨a, b⟩, ⟨c, d⟩, -⟩ := sphere_moments hξ hξ1
+  exact sigma_arith (by positivity) (by nlinarith) a b c d
+
+theorem const_arith {x m2 m4 m6 : ℝ} (hx : 0 < x) (hx1 : x ≤ 1 / 400)
+    (h2l : 2 * x - 2 * x ^ 2 / 3 - x ^ 3 / 2 ≤ m2) (h2u : m2 ≤ 2 * x - 2 * x ^ 2 / 3 + x ^ 3 / 4)
+    (h4l : 8 * x ^ 2 - 8 * x ^ 3 ≤ m4) (h4u : m4 ≤ 8 * x ^ 2)
+    (h6l : 0 ≤ m6) (h6u : m6 ≤ 48 * x ^ 3) :
+    0 < m2 / 4 + m4 / 96 ∧ m2 / 4 + m4 / 96 ≤ x / 2 ∧
+    0 ≤ m4 / (32 * (m2 / 4 + m4 / 96) ^ 2) ∧ m4 / (32 * (m2 / 4 + m4 / 96) ^ 2) ≤ 51 / 50 ∧
+    0 ≤ m6 / (720 * (m2 / 4 + m4 / 96) ^ 3) ∧ m6 / (720 * (m2 / 4 + m4 / 96) ^ 3) ≤ 27 / 50 := by
+  have hx2 : 0 < x ^ 2 := by positivity
+  have hx3 : 0 < x ^ 3 := by positivity
+  have hxx : x ^ 2 ≤ x / 400 := by nlinarith
+  have hxxx : x ^ 3 ≤ x ^ 2 / 400 := by nlinarith
+  set s := m2 / 4 + m4 / 96 with hs
+  have hsl : 999 / 2000 * x ≤ s := by linarith
+  have hsu : s ≤ x / 2 := by linarith
+  have hs0 : 0 < s := by nlinarith
+  have hm4 : 0 ≤ m4 := by nlinarith
+  have hq2 : (999 / 2000 * x) ^ 2 ≤ s ^ 2 := pow_le_pow_left₀ (by positivity) hsl 2
+  have hq3 : (999 / 2000 * x) ^ 3 ≤ s ^ 3 := pow_le_pow_left₀ (by positivity) hsl 3
+  refine ⟨hs0, hsu, by positivity, ?_, by positivity, ?_⟩
+  · rw [div_le_iff₀ (by positivity)]
+    nlinarith
+  · rw [div_le_iff₀ (by positivity)]
+    nlinarith
+
+/-- **The constants of (F1) on the sphere, `0 < ξ ≤ 1/20`:** `0 < σ_ξ ≤ ξ²/2`,
+    `0 ≤ β_ξ = 𝗆₄/(32σ_ξ²) ≤ 51/50` and `0 ≤ c₃ = 𝗆₆/(720σ_ξ³) ≤ 27/50`. -/
+theorem sphere_constants {ξ : ℝ} (hξ : 0 < ξ) (hξ1 : ξ ≤ 1 / 20) :
+    0 < sphSigma ξ ∧ sphSigma ξ ≤ ξ ^ 2 / 2 ∧
+    0 ≤ sphM ξ 4 / (32 * sphSigma ξ ^ 2) ∧ sphM ξ 4 / (32 * sphSigma ξ ^ 2) ≤ 51 / 50 ∧
+    0 ≤ sphM ξ 6 / (720 * sphSigma ξ ^ 3) ∧ sphM ξ 6 / (720 * sphSigma ξ ^ 3) ≤ 27 / 50 := by
+  obtain ⟨⟨a, b⟩, ⟨c, d⟩, e, f⟩ := sphere_moments hξ (by linarith)
+  exact const_arith (by positivity) (by nlinarith) a b c d e f
+
+/-! ### The high modes -/
+
+theorem sphI_nonneg (ξ : ℝ) {g : ℝ → ℝ} (hg : Continuous g)
+    (H : ∀ θ, 0 ≤ θ → θ ≤ Real.pi → 0 ≤ g θ) : 0 ≤ sphI ξ g := by
+  have e0 : sphI ξ (fun _ => 0) = 0 := by simp [sphI]
+  rw [← e0]
+  exact sphI_mono ξ continuous_const hg H
+
+/-- Jensen (Cauchy–Schwarz): `I[g]² ≤ I[g²] · Z`. -/
+theorem sphI_sq_le (ξ : ℝ) {g : ℝ → ℝ} (hg : Continuous g) :
+    sphI ξ g ^ 2 ≤ sphI ξ (fun θ => g θ ^ 2) * sphZ ξ := by
+  have hZ := sphZ_pos ξ
+  set c := sphI ξ g / sphZ ξ with hc
+  have hI : sphI ξ g = c * sphZ ξ := by rw [hc, div_mul_cancel₀ _ hZ.ne']
+  have l1 := sphI_lin ξ 1 (-(2 * c)) (g := fun θ => g θ ^ 2) (h := g) (hg.pow 2) hg
+  have l2 := sphI_lin ξ 1 (c ^ 2) (g := fun θ => 1 * g θ ^ 2 + -(2 * c) * g θ) (h := fun _ => 1)
+    ((continuous_const.mul (hg.pow 2)).add (continuous_const.mul hg)) continuous_const
+  have h0 := sphI_nonneg ξ (g := fun θ => 1 * (1 * g θ ^ 2 + -(2 * c) * g θ) + c ^ 2 * 1)
+    ((continuous_const.mul ((continuous_const.mul (hg.pow 2)).add
+      (continuous_const.mul hg))).add (continuous_const.mul continuous_const))
+    (fun θ _ _ => by nlinarith [_root_.sq_nonneg (g θ - c)])
+  rw [l2, l1] at h0
+  unfold sphZ at hI hZ ⊢
+  rw [hI] at h0 ⊢
+  nlinarith [mul_le_mul_of_nonneg_right
+    (show c ^ 2 * sphI ξ (fun _ => 1) ≤ sphI ξ (fun θ => g θ ^ 2) by nlinarith) hZ.le]
+
+theorem gauss_interval_le {ξ : ℝ} (hξ : 0 < ξ) :
+    ∫ θ in (0 : ℝ)..Real.pi, Real.exp (-(1 / (2 * ξ ^ 2)) * θ ^ 2)
+      ≤ 399 / 1000 * Real.pi * ξ := by
+  have hb : (0 : ℝ) < 1 / (2 * ξ ^ 2) := by positivity
+  have hi : IntegrableOn (fun θ : ℝ => Real.exp (-(1 / (2 * ξ ^ 2)) * θ ^ 2)) (Ioi 0) :=
+    (integrable_exp_neg_mul_sq hb).integrableOn
+  have h1 := interval_le_Ioi hi (fun x _ => (Real.exp_pos _).le)
+  rw [integral_gaussian_Ioi] at h1
+  refine h1.trans ?_
+  have hpi := Real.pi_gt_d4
+  have hpi0 := Real.pi_pos
+  have e : Real.pi / (1 / (2 * ξ ^ 2)) = 2 * Real.pi * ξ ^ 2 := by field_simp
+  rw [e]
+  have : Real.sqrt (2 * Real.pi * ξ ^ 2) ≤ 399 / 500 * Real.pi * ξ := by
+    rw [Real.sqrt_le_iff]
+    refine ⟨by positivity, ?_⟩
+    have h2 : (2 : ℝ) ≤ (399 / 500) ^ 2 * Real.pi := by nlinarith
+    have : (399 / 500 * Real.pi * ξ) ^ 2 = ((399 / 500) ^ 2 * Real.pi) * (Real.pi * ξ ^ 2) := by
+      ring
+    rw [this]
+    have h3 : 0 ≤ Real.pi * ξ ^ 2 := by positivity
+    nlinarith [mul_le_mul_of_nonneg_right h2 h3]
+  linarith
+
+/-- **Bound for the high modes:** `s_l² · l · Z ≤ (399/500) ξ` for `l ≥ 1`
+    (the paper: `|s_l| ≤ 0.8222/(√(lξ)(1 - ξ²/2))`, with Hölder in place of Jensen). -/
+theorem sphS_sq_le {ξ : ℝ} (hξ : 0 < ξ) {l : ℕ} (hl : 1 ≤ l) :
+    sphS ξ l ^ 2 * ((l : ℝ) * sphZ ξ) ≤ 399 / 500 * ξ := by
+  have hZ := sphZ_pos ξ
+  have hl0 : (0 : ℝ) < l := by exact_mod_cast hl
+  have hpi := Real.pi_pos
+  have hJ := sphI_sq_le ξ (legP_cos_continuous l)
+  have cE : Continuous fun x : ℝ => Real.exp (-(1 / (2 * ξ ^ 2)) * x ^ 2) :=
+    Real.continuous_exp.comp (continuous_const.mul (continuous_id.pow 2))
+  have hB : sphI ξ (fun θ => legP l (Real.cos θ) ^ 2)
+      ≤ ∫ θ in (0 : ℝ)..Real.pi,
+          2 / (Real.pi * (l : ℝ)) * Real.exp (-(1 / (2 * ξ ^ 2)) * θ ^ 2) := by
+    unfold sphI
+    refine intervalIntegral.integral_mono_on Real.pi_pos.le
+      ((((legP_cos_continuous l).pow 2).mul (sw_continuous ξ)).intervalIntegrable _ _)
+      ((continuous_const.mul cE).intervalIntegrable _ _) fun θ hθ => ?_
+    rw [sw_eq]
+    have hb := legendre_bernstein l hl hθ.1 hθ.2
+    have hE := Real.exp_pos (-(1 / (2 * ξ ^ 2)) * θ ^ 2)
+    have e : legP l (Real.cos θ) ^ 2 * (Real.exp (-(1 / (2 * ξ ^ 2)) * θ ^ 2) * Real.sin θ)
+        = Real.sin θ * legP l (Real.cos θ) ^ 2 * Real.exp (-(1 / (2 * ξ ^ 2)) * θ ^ 2) := by ring
+    rw [e]
+    exact mul_le_mul_of_nonneg_right hb hE.le
+  rw [intervalIntegral.integral_const_mul] at hB
+  have hG := gauss_interval_le hξ
+  have h2 : 2 / (Real.pi * (l : ℝ)) * ∫ θ in (0 : ℝ)..Real.pi,
+      Real.exp (-(1 / (2 * ξ ^ 2)) * θ ^ 2) ≤ 2 / (Real.pi * (l : ℝ)) * (399 / 1000 * Real.pi * ξ) :=
+    mul_le_mul_of_nonneg_left hG (by positivity)
+  have e2 : 2 / (Real.pi * (l : ℝ)) * (399 / 1000 * Real.pi * ξ) = 399 / 500 * ξ / l := by
+    field_simp; ring
+  rw [e2] at h2
+  have h3 : sphI ξ (fun θ => legP l (Real.cos θ) ^ 2) * l ≤ 399 / 500 * ξ := by
+    have := mul_le_mul_of_nonneg_right (hB.trans h2) hl0.le
+    rwa [div_mul_cancel₀ _ hl0.ne'] at this
+  unfold sphS sphE
+  have e3 : (sphI ξ (fun θ => legP l (Real.cos θ)) / sphZ ξ) ^ 2 * ((l : ℝ) * sphZ ξ)
+      = sphI ξ (fun θ => legP l (Real.cos θ)) ^ 2 / sphZ ξ * l := by
+    field_simp
+  rw [e3]
+  have h4 : sphI ξ (fun θ => legP l (Real.cos θ)) ^ 2 / sphZ ξ
+      ≤ sphI ξ (fun θ => legP l (Real.cos θ) ^ 2) := by
+    rw [div_le_iff₀ hZ]; exact hJ
+  exact (mul_le_mul_of_nonneg_right h4 hl0.le).trans h3
+
+theorem high_arith {ξ L Z s : ℝ} (hξ : 0 < ξ) (hξ1 : ξ ≤ 1 / 20) (hL : 0 ≤ L)
+    (hlam : 1 ≤ ξ ^ 2 * (L * (L + 1))) (hZ : ξ ^ 2 - (ξ ^ 2) ^ 2 / 3 ≤ Z)
+    (hs : s ^ 2 * (L * Z) ≤ 399 / 500 * ξ) : |s| ≤ 23 / 25 := by
+  have h1 : 1 ≤ (ξ * (L + 1)) ^ 2 := by nlinarith [mul_nonneg hL (sq_nonneg ξ)]
+  have h2 : 1 ≤ ξ * (L + 1) := by
+    by_contra h
+    rw [not_le] at h
+    have h0 : 0 ≤ ξ * (L + 1) := by positivity
+    nlinarith
+  have h3 : 19 / 20 ≤ ξ * L := by nlinarith
+  have hx : ξ ^ 2 ≤ 1 / 400 := by nlinarith
+  have h4 : 1199 / 1200 * ξ ^ 2 ≤ Z := by nlinarith [sq_nonneg (ξ ^ 2)]
+  have h5 : 19 / 20 * (1199 / 1200) * ξ ≤ L * Z := by
+    have a : 19 / 20 * (1199 / 1200 * ξ ^ 2) ≤ ξ * L * Z :=
+      mul_le_mul h3 h4 (by positivity) (by positivity)
+    have b : ξ * (L * Z) = ξ * L * Z := by ring
+    have c : ξ * (19 / 20 * (1199 / 1200) * ξ) ≤ ξ * (L * Z) := by rw [b]; nlinarith
+    exact le_of_mul_le_mul_left c hξ
+  have h6 : s ^ 2 * (19 / 20 * (1199 / 1200) * ξ) ≤ 399 / 500 * ξ :=
+    (mul_le_mul_of_nonneg_left h5 (sq_nonneg s)).trans hs
+  have h7 : s ^ 2 * (19 / 20 * (1199 / 1200)) ≤ 399 / 500 := by
+    have : ξ * (s ^ 2 * (19 / 20 * (1199 / 1200))) ≤ ξ * (399 / 500) := by nlinarith
+    exact le_of_mul_le_mul_left this hξ
+  have h8 : s ^ 2 ≤ (23 / 25) ^ 2 := by nlinarith
+  exact abs_le_of_sq_le_sq' h8 (by norm_num) |> abs_le.2
+
+/-! ### Orthogonality, norms and Bessel's inequality: (F3') -/
+
+/-- The inner product of `L²([0, π], sin θ dθ)` on continuous functions. -/
+noncomputable def ip (g h : ℝ → ℝ) : ℝ := ∫ θ in (0 : ℝ)..Real.pi, g θ * h θ * Real.sin θ
+
+theorem ip_comm (g h : ℝ → ℝ) : ip g h = ip h g := by
+  unfold ip
+  refine intervalIntegral.integral_congr fun θ _ => ?_
+  ring
+
+theorem ip_lin (a b : ℝ) {g1 g2 h : ℝ → ℝ} (h1 : Continuous g1) (h2 : Continuous g2)
+    (hh : Continuous h) :
+    ip (fun θ => a * g1 θ + b * g2 θ) h = a * ip g1 h + b * ip g2 h := by
+  unfold ip
+  have e : ∀ θ, (a * g1 θ + b * g2 θ) * h θ * Real.sin θ
+      = a * (g1 θ * h θ * Real.sin θ) + b * (g2 θ * h θ * Real.sin θ) := by
+    intro θ; ring
+  simp only [e]
+  have i1 : IntervalIntegrable (fun θ => a * (g1 θ * h θ * Real.sin θ)) volume 0 Real.pi :=
+    (continuous_const.mul ((h1.mul hh).mul Real.continuous_sin)).intervalIntegrable _ _
+  have i2 : IntervalIntegrable (fun θ => b * (g2 θ * h θ * Real.sin θ)) volume 0 Real.pi :=
+    (continuous_const.mul ((h2.mul hh).mul Real.continuous_sin)).intervalIntegrable _ _
+  rw [intervalIntegral.integral_add i1 i2, intervalIntegral.integral_const_mul,
+    intervalIntegral.integral_const_mul]
+
+theorem ip_self_nonneg {g : ℝ → ℝ} (hg : Continuous g) : 0 ≤ ip g g := by
+  unfold ip
+  refine intervalIntegral.integral_nonneg Real.pi_pos.le fun θ hθ => ?_
+  have := Real.sin_nonneg_of_nonneg_of_le_pi hθ.1 hθ.2
+  have h2 : 0 ≤ g θ * g θ := mul_self_nonneg (g θ)
+  exact mul_nonneg h2 this
+
+/-- `f_n(θ) = P_n(cos θ)`. -/
+noncomputable def lf (n : ℕ) : ℝ → ℝ := fun θ => legP n (Real.cos θ)
+
+theorem lf_continuous (n : ℕ) : Continuous (lf n) := legP_cos_continuous n
+
+theorem lam_ne {m n : ℕ} (h : m ≠ n) : (n : ℝ) * (n + 1) - (m : ℝ) * (m + 1) ≠ 0 := by
+  intro h0
+  have h1 : (n : ℝ) * (n + 1) = (m : ℝ) * (m + 1) := by linarith
+  have h2 : n * (n + 1) = m * (m + 1) := by exact_mod_cast h1
+  rcases lt_or_gt_of_ne h with h3 | h3
+  · have : m * (m + 1) < n * (n + 1) := Nat.mul_lt_mul'' h3 (by omega)
+    omega
+  · have : n * (n + 1) < m * (m + 1) := Nat.mul_lt_mul'' h3 (by omega)
+    omega
+
+/-- **Orthogonality of the Legendre polynomials,** from the differential equation. -/
+theorem ip_orth {m n : ℕ} (h : m ≠ n) : ip (lf m) (lf n) = 0 := by
+  have hd : ∀ θ : ℝ, HasDerivAt
+      (fun θ => Real.sin θ * (legD m θ * legP n (Real.cos θ) - legP m (Real.cos θ) * legD n θ))
+      (((n : ℝ) * (n + 1) - (m : ℝ) * (m + 1))
+        * (legP m (Real.cos θ) * legP n (Real.cos θ) * Real.sin θ)) θ := by
+    intro θ
+    have h1 := (Real.hasDerivAt_sin θ).mul
+      (((legD_hasDerivAt m θ).mul (legP_cos_hasDerivAt n θ)).sub
+        ((legP_cos_hasDerivAt m θ).mul (legD_hasDerivAt n θ)))
+    convert h1 using 1
+    have om := legendre_ode m θ
+    have on := legendre_ode n θ
+    simp only [Pi.mul_apply, Pi.sub_apply]
+    linear_combination legP m (Real.cos θ) * on - legP n (Real.cos θ) * om
+  have hc : Continuous fun θ : ℝ => ((n : ℝ) * (n + 1) - (m : ℝ) * (m + 1))
+      * (legP m (Real.cos θ) * legP n (Real.cos θ) * Real.sin θ) :=
+    continuous_const.mul (((lf_continuous m).mul (lf_continuous n)).mul Real.continuous_sin)
+  have h2 := intervalIntegral.integral_eq_sub_of_hasDerivAt (a := 0) (b := Real.pi)
+    (fun θ _ => hd θ) (hc.intervalIntegrable _ _)
+  rw [intervalIntegral.integral_const_mul] at h2
+  simp only [Real.sin_pi, Real.sin_zero, zero_mul, sub_self] at h2
+  unfold ip lf
+  exact (mul_eq_zero.1 h2).resolve_left (lam_ne h)
+
+theorem lf_bonnet (n : ℕ) (θ : ℝ) :
+    ((n : ℝ) + 2) * lf (n + 2) θ = (2 * n + 3) * (Real.cos θ * lf (n + 1) θ) - (n + 1) * lf n θ := by
+  unfold lf
+  rw [legP_succ_succ]
+  have hn : (0 : ℝ) < (n : ℝ) + 2 := by positivity
+  field_simp
+
+/-- **The norms:** `∫_0^π P_n(cos θ)² sin θ dθ = 2/(2n+1)`. -/
+theorem ip_norm (n : ℕ) : ip (lf n) (lf n) = 2 / (2 * (n : ℝ) + 1) := by
+  have step : ∀ n : ℕ, (2 * (n : ℝ) + 5) * ip (lf (n + 2)) (lf (n + 2))
+      = (2 * n + 3) * ip (lf (n + 1)) (lf (n + 1)) := by
+    intro n
+    have cc : ∀ k, Continuous fun θ : ℝ => Real.cos θ * lf k θ := fun k =>
+      Real.continuous_cos.mul (lf_continuous k)
+    -- (n+2) N_{n+2} = (2n+3) X,  X = ip (cos · f_{n+1}) f_{n+2}
+    have a1 : ip (fun θ => ((n : ℝ) + 2) * lf (n + 2) θ + 0 * lf n θ) (lf (n + 2))
+        = ip (fun θ => (2 * (n : ℝ) + 3) * (Real.cos θ * lf (n + 1) θ)
+            + (-((n : ℝ) + 1)) * lf n θ) (lf (n + 2)) := by
+      congr 1
+      funext θ
+      have := lf_bonnet n θ
+      linarith
+    rw [ip_lin _ _ (lf_continuous _) (lf_continuous _) (lf_continuous _),
+      ip_lin _ _ (cc _) (lf_continuous _) (lf_continuous _),
+      ip_orth (show n ≠ n + 2 by omega)] at a1
+    -- (2n+5) X = (n+2) N_{n+1}
+    have a2 : ip (fun θ => (2 * (n : ℝ) + 5) * (Real.cos θ * lf (n + 2) θ)
+          + 0 * lf n θ) (lf (n + 1))
+        = ip (fun θ => (((n : ℝ) + 3)) * lf (n + 3) θ
+            + ((n : ℝ) + 2) * lf (n + 1) θ) (lf (n + 1)) := by
+      congr 1
+      funext θ
+      have := lf_bonnet (n + 1) θ
+      push_cast at this
+      linarith
+    rw [ip_lin _ _ (cc _) (lf_continuous _) (lf_continuous _),
+      ip_lin _ _ (lf_continuous _) (lf_continuous _) (lf_continuous _),
+      ip_orth (show n + 3 ≠ n + 1 by omega), ip_orth (show n ≠ n + 1 by omega)] at a2
+    have a3 : ip (fun θ => Real.cos θ * lf (n + 2) θ) (lf (n + 1))
+        = ip (fun θ => Real.cos θ * lf (n + 1) θ) (lf (n + 2)) := by
+      unfold ip
+      refine intervalIntegral.integral_congr fun θ _ => ?_
+      ring
+    rw [a3] at a2
+    have hn : (0 : ℝ) < (n : ℝ) + 2 := by positivity
+    have : ((n : ℝ) + 2) * ((2 * (n : ℝ) + 5) * ip (lf (n + 2)) (lf (n + 2)))
+        = ((n : ℝ) + 2) * ((2 * n + 3) * ip (lf (n + 1)) (lf (n + 1))) := by
+      linear_combination (2 * (n : ℝ) + 5) * a1 + (2 * (n : ℝ) + 3) * a2
+    exact mul_left_cancel₀ hn.ne' this
+  have b0 : ip (lf 0) (lf 0) = 2 := by
+    unfold ip lf
+    simp only [legP_zero, one_mul]
+    rw [integral_sin]
+    simp
+    norm_num
+  have b1 : ip (lf 1) (lf 1) = 2 / 3 := by
+    unfold ip lf
+    simp only [legP_one]
+    have hd : ∀ θ : ℝ, HasDerivAt (fun θ => -(Real.cos θ ^ 3 / 3))
+        (Real.cos θ * Real.cos θ * Real.sin θ) θ := by
+      intro θ
+      have := (((Real.hasDerivAt_cos θ).pow 3).div_const 3).neg
+      convert this using 1
+      simp
+      ring
+    have hc : Continuous fun θ : ℝ => Real.cos θ * Real.cos θ * Real.sin θ :=
+      (Real.continuous_cos.mul Real.continuous_cos).mul Real.continuous_sin
+    rw [intervalIntegral.integral_eq_sub_of_hasDerivAt (fun θ _ => hd θ)
+      (hc.intervalIntegrable _ _)]
+    simp
+    norm_num
+  induction n with
+  | zero => rw [b0]; norm_num
+  | succ k ih =>
+    cases k with
+    | zero => rw [b1]; norm_num
+    | succ j =>
+      have s := step j
+      rw [ih] at s
+      have h5 : (0 : ℝ) < 2 * (j : ℝ) + 5 := by positivity
+      have h3 : (0 : ℝ) < 2 * (j : ℝ) + 3 := by positivity
+      push_cast at s ⊢
+      rw [eq_div_iff (by positivity)]
+      have e : (2 * (j : ℝ) + 3) * (2 / (2 * ((j : ℝ) + 1) + 1)) = 2 := by
+        field_simp
+        ring
+      rw [e] at s
+      linarith
+
+/-- **Bessel's inequality for the Legendre system:** for continuous `g`,
+    `∑_{l<L} (2l+1)/2 · ⟨g, f_l⟩² ≤ ⟨g, g⟩`. -/
+theorem bessel {g : ℝ → ℝ} (hg : Continuous g) (L : ℕ) :
+    ∑ l ∈ range L, (2 * (l : ℝ) + 1) / 2 * ip g (lf l) ^ 2 ≤ ip g g := by
+  have key : ∃ r : ℝ → ℝ, Continuous r ∧ (∀ m, L ≤ m → ip r (lf m) = ip g (lf m)) ∧
+      ip r r = ip g g - ∑ l ∈ range L, (2 * (l : ℝ) + 1) / 2 * ip g (lf l) ^ 2 := by
+    induction L with
+    | zero => exact ⟨g, hg, fun _ _ => rfl, by simp⟩
+    | succ L ih =>
+      obtain ⟨r, hr, h1, h2⟩ := ih
+      set G := ip g (lf L) with hG
+      set c := (2 * (L : ℝ) + 1) / 2 * G with hc
+      have hN := ip_norm L
+      have hcN : c * (2 / (2 * (L : ℝ) + 1)) = G := by
+        rw [hc]; field_simp
+      have hrc : Continuous fun θ => 1 * r θ + (-c) * lf L θ :=
+        (continuous_const.mul hr).add (continuous_const.mul (lf_continuous L))
+      have e1 : ∀ h : ℝ → ℝ, Continuous h →
+          ip (fun θ => 1 * r θ + (-c) * lf L θ) h = ip r h - c * ip (lf L) h := by
+        intro h hh
+        rw [ip_lin 1 (-c) hr (lf_continuous L) hh]; ring
+      refine ⟨fun θ => 1 * r θ + (-c) * lf L θ, hrc, ?_, ?_⟩
+      · intro m hm
+        rw [e1 _ (lf_continuous m), ip_orth (show L ≠ m by omega), h1 m (by omega)]
+        ring
+      · have t1 : ip (fun θ => 1 * r θ + (-c) * lf L θ) (lf L) = G - c * (2 / (2 * (L : ℝ) + 1)) := by
+          rw [e1 _ (lf_continuous L), hN, h1 L le_rfl]
+        have t2 : ip (fun θ => 1 * r θ + (-c) * lf L θ) r = ip r r - c * G := by
+          rw [e1 _ hr, ip_comm (lf L) r, h1 L le_rfl]
+        have t3 : ip (fun θ => 1 * r θ + (-c) * lf L θ) (fun θ => 1 * r θ + (-c) * lf L θ)
+            = ip (fun θ => 1 * r θ + (-c) * lf L θ) r
+              - c * ip (fun θ => 1 * r θ + (-c) * lf L θ) (lf L) := by
+          rw [e1 _ hrc, ip_comm r _, ip_comm (lf L) _]
+        rw [t3, t2, t1, h2, sum_range_succ]
+        have : c * G = (2 * (L : ℝ) + 1) / 2 * G ^ 2 := by rw [hc]; ring
+        linear_combination c * hcN - this
+  obtain ⟨r, hr, -, h2⟩ := key
+  have := ip_self_nonneg hr
+  linarith
+
+theorem ip_gauss_eq (ξ : ℝ) (l : ℕ) :
+    ip (fun θ => Real.exp (-(θ ^ 2 / (2 * ξ ^ 2)))) (lf l) = sphI ξ (lf l) := by
+  unfold ip sphI sw
+  refine intervalIntegral.integral_congr fun θ _ => ?_
+  ring
+
+theorem ip_gauss_self_le {ξ : ℝ} (hξ : 0 < ξ) :
+    ip (fun θ => Real.exp (-(θ ^ 2 / (2 * ξ ^ 2)))) (fun θ => Real.exp (-(θ ^ 2 / (2 * ξ ^ 2))))
+      ≤ ξ ^ 2 / 2 := by
+  have hb : (0 : ℝ) < 1 / ξ ^ 2 := by positivity
+  obtain ⟨i0, v0⟩ := gauss_moment hb 0
+  have cE : Continuous fun x : ℝ => x ^ (2 * 0 + 1) * Real.exp (-(1 / ξ ^ 2) * x ^ 2) :=
+    (continuous_id.pow _).mul
+      (Real.continuous_exp.comp (continuous_const.mul (continuous_id.pow 2)))
+  have cG : Continuous fun θ : ℝ => Real.exp (-(θ ^ 2 / (2 * ξ ^ 2))) :=
+    Real.continuous_exp.comp (((continuous_id.pow 2).div_const _).neg)
+  have h1 := interval_le_Ioi i0 (fun x hx => by
+    have : 0 < x := Real.pi_pos.trans hx
+    positivity)
+  rw [v0] at h1
+  have h2 : ip (fun θ => Real.exp (-(θ ^ 2 / (2 * ξ ^ 2))))
+      (fun θ => Real.exp (-(θ ^ 2 / (2 * ξ ^ 2))))
+      ≤ ∫ x in (0 : ℝ)..Real.pi, x ^ (2 * 0 + 1) * Real.exp (-(1 / ξ ^ 2) * x ^ 2) := by
+    unfold ip
+    refine intervalIntegral.integral_mono_on Real.pi_pos.le
+      (((cG.mul cG).mul Real.continuous_sin).intervalIntegrable _ _)
+      (cE.intervalIntegrable _ _) fun x hx => ?_
+    have e : Real.exp (-(x ^ 2 / (2 * ξ ^ 2))) * Real.exp (-(x ^ 2 / (2 * ξ ^ 2)))
+        = Real.exp (-(1 / ξ ^ 2) * x ^ 2) := by
+      rw [← Real.exp_add]; congr 1; field_simp; ring
+    rw [e]
+    have hs : Real.sin x ≤ x := Real.sin_le hx.1
+    have hE := Real.exp_pos (-(1 / ξ ^ 2) * x ^ 2)
+    have : x ^ (2 * 0 + 1) = x := by simp
+    rw [this, mul_comm x]
+    exact mul_le_mul_of_nonneg_left hs hE.le
+  refine h2.trans (h1.trans (le_of_eq ?_))
+  simp
+  field_simp
+
+/-- **(F3') on the sphere:** every partial sum of `∑_l (2l+1) s_l²` is at most `ξ²/Z²`
+    (the paper: the sum is the squared Hilbert–Schmidt norm of `P_∞`,
+    `ξ^{-2}(1 + O(ξ²))`). -/
+theorem sphS_sq_sum {ξ : ℝ} (hξ : 0 < ξ) (L : ℕ) :
+    ∑ l ∈ range L, (2 * (l : ℝ) + 1) * sphS ξ l ^ 2 ≤ ξ ^ 2 / sphZ ξ ^ 2 := by
+  have hZ := sphZ_pos ξ
+  have cG : Continuous fun θ : ℝ => Real.exp (-(θ ^ 2 / (2 * ξ ^ 2))) :=
+    Real.continuous_exp.comp (((continuous_id.pow 2).div_const _).neg)
+  have hb := (bessel cG L).trans (ip_gauss_self_le hξ)
+  have e : ∑ l ∈ range L, (2 * (l : ℝ) + 1) * sphS ξ l ^ 2
+      = 2 / sphZ ξ ^ 2 * ∑ l ∈ range L, (2 * (l : ℝ) + 1) / 2
+          * ip (fun θ => Real.exp (-(θ ^ 2 / (2 * ξ ^ 2)))) (lf l) ^ 2 := by
+    rw [mul_sum]
+    refine sum_congr rfl fun l _ => ?_
+    rw [ip_gauss_eq]
+    unfold sphS sphE lf
+    field_simp
+  rw [e]
+  have := mul_le_mul_of_nonneg_left hb (show 0 ≤ 2 / sphZ ξ ^ 2 by positivity)
+  refine this.trans (le_of_eq ?_)
+  field_simp
+
+/-- `∑_{l<L} (2l+1) s_l² ≤ 2/ξ²` for `0 < ξ ≤ 1/20`. -/
+theorem sphS_sq_sum_le {ξ : ℝ} (hξ : 0 < ξ) (hξ1 : ξ ≤ 1 / 20) (L : ℕ) :
+    ∑ l ∈ range L, (2 * (l : ℝ) + 1) * sphS ξ l ^ 2 ≤ 2 / ξ ^ 2 := by
+  refine (sphS_sq_sum hξ L).trans ?_
+  obtain ⟨z1, -⟩ := sphZ_bounds hξ
+  have hx : 0 < ξ ^ 2 := by positivity
+  have hx1 : ξ ^ 2 ≤ 1 / 400 := by nlinarith
+  have h4 : 1199 / 1200 * ξ ^ 2 ≤ sphZ ξ := by nlinarith [sq_nonneg (ξ ^ 2)]
+  have h5 : (1199 / 1200 * ξ ^ 2) ^ 2 ≤ sphZ ξ ^ 2 := pow_le_pow_left₀ (by positivity) h4 2
+  rw [div_le_div_iff₀ (by have := sphZ_pos ξ; positivity) hx]
+  nlinarith
+
+/-! ### `prop:spheregap` and `cor:sphere` for the abstract list `λ_l = l(l+1)`, multiplicity
+`2l+1` -/
+
+section Assembly
+
+open PopulationRate OlderParts OlderParts2
+
+/-- **`prop:spheregap`, first display, with `23/25` in place of `17/20`:** for `0 < ξ ≤ 1/20`
+    and every `l`, with `u = σ_ξ l(l+1)`: `2/5 ≤ s_l ≤ 1 - (3/5)u` if `u ≤ 1/2`, and
+    `|s_l| ≤ 23/25` if `u ≥ 1/2`. No hypothesis. -/
+theorem sphere_gap {ξ : ℝ} (hξ : 0 < ξ) (hξ1 : ξ ≤ 1 / 20) (l : ℕ) :
+    (sphSigma ξ * ((l : ℝ) * (l + 1)) ≤ 1 / 2 →
+      2 / 5 ≤ sphS ξ l ∧ sphS ξ l ≤ 1 - 3 / 5 * (sphSigma ξ * ((l : ℝ) * (l + 1)))) ∧
+    (1 / 2 ≤ sphSigma ξ * ((l : ℝ) * (l + 1)) → |sphS ξ l| ≤ 23 / 25) := by
+  obtain ⟨hσ0, hσ1, hb0, hb1, hc0, hc1⟩ := sphere_constants hξ hξ1
+  have hlam : (0 : ℝ) ≤ (l : ℝ) * (l + 1) := by positivity
+  constructor
+  · intro hu
+    exact sphere_low_gap (mul_nonneg hσ0.le hlam) hu hb0 hb1 hc0 hc1
+      (sphere_F1_u (σ := sphSigma ξ) rfl hσ0 (sphS_taylor ξ l))
+  · intro hu
+    have hl : 1 ≤ l := by
+      rcases Nat.eq_zero_or_pos l with h | h
+      · subst h
+        norm_num at hu
+      · exact h
+    have h1 : 1 ≤ ξ ^ 2 * ((l : ℝ) * (l + 1)) := by nlinarith
+    exact high_arith hξ hξ1 (Nat.cast_nonneg l) h1 (sphZ_bounds hξ).1 (sphS_sq_le hξ hl)
+
+/-- The list of eigenvalues `λ = l(l+1)` with multiplicity `2l+1` (that this is the spectrum of
+    `-Δ` on `S²` is NOT formalised). -/
+noncomputable def sphLam : (Σ l : ℕ, Fin (2 * l + 1)) → ℝ := fun k => (k.1 : ℝ) * (k.1 + 1)
+
+theorem sph_sigma_sum {f : ℕ → ℝ} (hs : Summable fun k : (Σ l : ℕ, Fin (2 * l + 1)) => f k.1) :
+    ∑' k : (Σ l : ℕ, Fin (2 * l + 1)), f k.1 = ∑' l : ℕ, (2 * (l : ℝ) + 1) * f l := by
+  rw [hs.tsum_sigma' (fun _ => Summable.of_finite)]
+  refine tsum_congr fun l => ?_
+  rw [tsum_fintype]
+  simp
+
+theorem sph_sigma_summable {f : ℕ → ℝ} (hf : ∀ l, 0 ≤ f l)
+    (hs : Summable fun l : ℕ => (2 * (l : ℝ) + 1) * f l) :
+    Summable fun k : (Σ l : ℕ, Fin (2 * l + 1)) => f k.1 := by
+  rw [summable_sigma_of_nonneg (fun k => hf k.1)]
+  refine ⟨fun _ => Summable.of_finite, ?_⟩
+  have e : (fun l : ℕ => ∑' _ : Fin (2 * l + 1), f l) = fun l : ℕ => (2 * (l : ℝ) + 1) * f l := by
+    funext l
+    rw [tsum_fintype]
+    simp
+  rw [e]
+  exact hs
+
+theorem sphLam_isSpectrum : IsSpectrum sphLam where
+  nonneg := fun k => by unfold sphLam; positivity
+  summable := fun s hs => by
+    have h1 : ‖Real.exp (-s)‖ < 1 := by
+      rw [Real.norm_eq_abs, abs_of_pos (Real.exp_pos _)]
+      rw [← Real.exp_zero]
+      exact Real.exp_lt_exp.2 (by linarith)
+    have s1 := summable_pow_mul_geometric_of_norm_lt_one 1 h1
+    have s0 := summable_geometric_of_norm_lt_one h1
+    have s2 : Summable fun l : ℕ => 2 * ((l : ℝ) ^ 1 * Real.exp (-s) ^ l) + Real.exp (-s) ^ l :=
+      (s1.mul_left 2).add s0
+    have key : Summable fun l : ℕ => (2 * (l : ℝ) + 1) * Real.exp (-(s * ((l : ℝ) * (l + 1)))) := by
+      refine Summable.of_nonneg_of_le (fun l => by positivity) (fun l => ?_) s2
+      have hl : (0 : ℝ) ≤ l := Nat.cast_nonneg l
+      have : Real.exp (-(s * ((l : ℝ) * (l + 1)))) ≤ Real.exp (-s) ^ l := by
+        rw [← Real.exp_nat_mul]
+        apply Real.exp_le_exp.2
+        nlinarith [mul_nonneg hs.le (mul_nonneg hl hl)]
+      have h2 : (2 * (l : ℝ) + 1) * Real.exp (-(s * ((l : ℝ) * (l + 1))))
+          ≤ (2 * (l : ℝ) + 1) * Real.exp (-s) ^ l :=
+        mul_le_mul_of_nonneg_left this (by positivity)
+      refine h2.trans (le_of_eq ?_)
+      ring
+    exact sph_sigma_summable (f := fun l => Real.exp (-(s * ((l : ℝ) * (l + 1)))))
+      (fun l => (Real.exp_pos _).le) key
+
+open Classical in
+/-- A function `F_ξ` on `[0, ∞)` with `F_ξ(σ_ξ l(l+1)) = s_l` (the paper defines `F_ξ` only on
+    these points; elsewhere it is filled so that (F1), (F2) hold trivially). -/
+noncomputable def sphF (ξ : ℝ) (u : ℝ) : ℝ :=
+  if h : ∃ l : ℕ, u = sphSigma ξ * ((l : ℝ) * (l + 1)) then sphS ξ h.choose
+  else if u ≤ 1 / 28 then 1 - u + sphM ξ 4 / (32 * sphSigma ξ ^ 2) * u ^ 2 / 2 else 0
+
+theorem sphF_eigen {ξ : ℝ} (hσ : 0 < sphSigma ξ) (l : ℕ) :
+    sphF ξ (sphSigma ξ * ((l : ℝ) * (l + 1))) = sphS ξ l := by
+  have h : ∃ l' : ℕ, sphSigma ξ * ((l : ℝ) * (l + 1)) = sphSigma ξ * ((l' : ℝ) * (l' + 1)) :=
+    ⟨l, rfl⟩
+  unfold sphF
+  rw [dif_pos h]
+  have hs := h.choose_spec
+  have h2 : (l : ℝ) * (l + 1) = (h.choose : ℝ) * (h.choose + 1) := mul_left_cancel₀ hσ.ne' hs
+  have : h.choose = l := by
+    by_contra hne
+    exact lam_ne hne (by linarith)
+  rw [this]
+
+/-- **(F1), (F2) on the sphere, uniformly in `0 < ξ ≤ 1/20`** (`prop:sphere`,
+    `prop:spheregap`): `ProfileHypHS F_ξ β_ξ c₃ (1/28) (3/140)` with `β_ξ = 𝗆₄/(32σ_ξ²)`,
+    `c₃ = 𝗆₆/(720σ_ξ³)`. -/
+theorem sphF_hyp {ξ : ℝ} (hξ : 0 < ξ) (hξ1 : ξ ≤ 1 / 20) :
+    ProfileHypHS (sphF ξ) (sphM ξ 4 / (32 * sphSigma ξ ^ 2))
+      (sphM ξ 6 / (720 * sphSigma ξ ^ 3)) (1 / 28) (3 / 140) := by
+  obtain ⟨hσ0, hσ1, hb0, hb1, hc0, hc1⟩ := sphere_constants hξ hξ1
+  refine ⟨hc0, by norm_num, ?_, by norm_num, ?_, ?_⟩
+  · rw [abs_of_nonneg hb0]; linarith
+  · intro u hu0 hu1
+    by_cases h : ∃ l : ℕ, u = sphSigma ξ * ((l : ℝ) * (l + 1))
+    · obtain ⟨l, rfl⟩ := h
+      rw [sphF_eigen hσ0]
+      exact sphere_F1_u (σ := sphSigma ξ) rfl hσ0 (sphS_taylor ξ l)
+    · unfold sphF
+      rw [dif_neg h, if_pos hu1, sub_self, abs_zero]
+      positivity
+  · intro u hu
+    by_cases h : ∃ l : ℕ, u = sphSigma ξ * ((l : ℝ) * (l + 1))
+    · obtain ⟨l, rfl⟩ := h
+      rw [sphF_eigen hσ0]
+      obtain ⟨g1, g2⟩ := sphere_gap hξ hξ1 l
+      rcases le_total (sphSigma ξ * ((l : ℝ) * (l + 1))) (1 / 2) with h2 | h2
+      · obtain ⟨a, b⟩ := g1 h2
+        rw [abs_le]; constructor <;> linarith
+      · have := g2 h2
+        linarith
+    · unfold sphF
+      rw [dif_neg h]
+      split_ifs with h3
+      · have hu' : u = 1 / 28 := le_antisymm h3 hu
+        rw [hu']
+        have hb : sphM ξ 4 / (32 * sphSigma ξ ^ 2) * (1 / 28) ^ 2 / 2 ≤ 1 / 1000 := by nlinarith
+        have hb' : 0 ≤ sphM ξ 4 / (32 * sphSigma ξ ^ 2) * (1 / 28 : ℝ) ^ 2 / 2 := by positivity
+        rw [abs_le]; constructor <;> linarith
+      · rw [abs_zero]; norm_num
+
+/-- **(F3') on the sphere:** `∑_l (2l+1) s_l²` converges and `Q(σ_ξ) ≤ 2/ξ²`, for
+    `0 < ξ ≤ 1/20`. -/
+theorem sphF_F3' {ξ : ℝ} (hξ : 0 < ξ) (hξ1 : ξ ≤ 1 / 20) :
+    Summable (fun k => sphF ξ (sphSigma ξ * sphLam k) ^ 2) ∧
+    sqSum sphLam (sphF ξ) (sphSigma ξ) ≤ 2 / ξ ^ 2 := by
+  obtain ⟨hσ0, -⟩ := sphere_constants hξ hξ1
+  have e : (fun k => sphF ξ (sphSigma ξ * sphLam k) ^ 2)
+      = fun k : (Σ l : ℕ, Fin (2 * l + 1)) => sphS ξ k.1 ^ 2 := by
+    funext k
+    unfold sphLam
+    rw [sphF_eigen hσ0]
+  have hn : ∀ l : ℕ, 0 ≤ (2 * (l : ℝ) + 1) * sphS ξ l ^ 2 := fun l => by positivity
+  have hs : Summable fun l : ℕ => (2 * (l : ℝ) + 1) * sphS ξ l ^ 2 :=
+    summable_of_sum_range_le hn (sphS_sq_sum_le hξ hξ1)
+  have hS := sph_sigma_summable (f := fun l => sphS ξ l ^ 2) (fun l => sq_nonneg _) hs
+  unfold sqSum
+  rw [e]
+  refine ⟨hS, ?_⟩
+  rw [sph_sigma_sum (f := fun l => sphS ξ l ^ 2) hS]
+  exact Real.tsum_le_of_sum_range_le hn (sphS_sq_sum_le hξ hξ1)
+
+/-- **`cor:sphere`(i) for the abstract list `λ_l = l(l+1)` with multiplicity `2l+1`,** with the
+    explicit remainders of `OlderParts2.profileHS_paper`, uniformly in `0 < ξ ≤ 1/20`.
+    With `σ = σ_ξ`, `β = β_ξ`, `c₃`, `B = 3/ξ²`, `Θ(t) = ∑_l (2l+1) e^{-t l(l+1)}` and any number
+    `m₁` with `|m₁| ≤ 3/ξ²` (the paper: `m₁ = p(x,x) = 2/Z`, see `sph_m1_le`), for `t ≥ σ_ξ`:
+    (i) `|T^F_σ(t) - Θ(t) - β (σt/2) Θ''(t)| ≤ 𝓡₁`;
+    (ii) `|∑_l (2l+1) s_l^n - Θ(t) - (β-1)(σt/2) Θ''(t)| ≤ 𝓡₂` for `t = nσ`, `n ≥ 2`. -/
+theorem sphere_profile {ξ t m1 : ℝ} (hξ : 0 < ξ) (hξ1 : ξ ≤ 1 / 20) (hts : sphSigma ξ ≤ t)
+    (hm : |m1| ≤ 3 / ξ ^ 2) :
+    |profTrHS sphLam (sphF ξ) (sphSigma ξ) t m1 - heatTr sphLam t
+        - sphM ξ 4 / (32 * sphSigma ξ ^ 2) * (sphSigma ξ * t / 2) * heatMom sphLam 2 t|
+      ≤ (sphSigma ξ / t) ^ 2
+          * (profB (sphM ξ 4 / (32 * sphSigma ξ ^ 2)) (sphM ξ 6 / (720 * sphSigma ξ ^ 3)) ^ 2 / 2
+              * t ^ 4 * heatMom sphLam 4 (t / 2)
+            + sphM ξ 6 / (720 * sphSigma ξ ^ 3) * t ^ 3 * heatMom sphLam 3 (t / 2))
+        + (profKHS (sphM ξ 4 / (32 * sphSigma ξ ^ 2)) (3 / 140) + 1) * (1 + t / sphSigma ξ)
+            * Real.exp (-(profcHS (1 / 28) (3 / 140) * (t / sphSigma ξ)))
+            * (3 / ξ ^ 2 + heatTr sphLam (t / 4))
+    ∧ ∀ n : ℕ, 2 ≤ n → (n : ℝ) * sphSigma ξ = t →
+      |∑' l : ℕ, (2 * (l : ℝ) + 1) * sphS ξ l ^ n - heatTr sphLam t
+          - (sphM ξ 4 / (32 * sphSigma ξ ^ 2) - 1) * (sphSigma ξ * t / 2) * heatMom sphLam 2 t|
+        ≤ (sphSigma ξ / t) ^ 2
+            * (profB2 (sphM ξ 4 / (32 * sphSigma ξ ^ 2))
+                  (sphM ξ 6 / (720 * sphSigma ξ ^ 3)) ^ 2 / 2 * t ^ 4 * heatMom sphLam 4 (t / 2)
+              + profCt (sphM ξ 4 / (32 * sphSigma ξ ^ 2)) (sphM ξ 6 / (720 * sphSigma ξ ^ 3))
+                  * t ^ 3 * heatMom sphLam 3 (t / 2))
+          + profKHS2 (sphM ξ 4 / (32 * sphSigma ξ ^ 2)) * (1 + t / sphSigma ξ)
+              * Real.exp (-(profcHS (1 / 28) (3 / 140) * (t / sphSigma ξ)))
+              * (3 / ξ ^ 2 + heatTr sphLam (t / 4)) := by
+  obtain ⟨hσ0, -⟩ := sphere_constants hξ hξ1
+  obtain ⟨hs, hb⟩ := sphF_F3' hξ hξ1
+  have hx : 0 < ξ ^ 2 := by positivity
+  have hb' : sqSum sphLam (sphF ξ) (sphSigma ξ) ≤ 3 / ξ ^ 2 :=
+    hb.trans (div_le_div_of_nonneg_right (by norm_num) hx.le)
+  obtain ⟨p1, p2⟩ := profileHS_paper sphLam_isSpectrum (sphF_hyp hξ hξ1) hσ0 hts hs hb' hm
+  refine ⟨p1, fun n hn hnt => ?_⟩
+  have q := p2 n hn hnt
+  have hsum := (profileHS_ii sphLam_isSpectrum (sphF_hyp hξ hξ1) hσ0 n hn hnt hs).1
+  have e : (fun k => sphF ξ (sphSigma ξ * sphLam k) ^ n)
+      = fun k : (Σ l : ℕ, Fin (2 * l + 1)) => sphS ξ k.1 ^ n := by
+    funext k
+    unfold sphLam
+    rw [sphF_eigen hσ0]
+  have e2 : discTr sphLam (sphF ξ) (sphSigma ξ) n
+      = ∑' l : ℕ, (2 * (l : ℝ) + 1) * sphS ξ l ^ n := by
+    unfold discTr
+    rw [e] at hsum ⊢
+    exact sph_sigma_sum (f := fun l => sphS ξ l ^ n) hsum
+  rw [e2] at q
+  exact q
+
+/-- `m₁ = 2/Z` (the diagonal value `p(x,x) = 1/∫k dμ` of the paper; NOT formalised as such)
+    satisfies `|m₁| ≤ 3/ξ²` for `0 < ξ ≤ 1/20`. -/
+theorem sph_m1_le {ξ : ℝ} (hξ : 0 < ξ) (hξ1 : ξ ≤ 1 / 20) : |2 / sphZ ξ| ≤ 3 / ξ ^ 2 := by
+  obtain ⟨z1, -⟩ := sphZ_bounds hξ
+  have hx : 0 < ξ ^ 2 := by positivity
+  have hx1 : ξ ^ 2 ≤ 1 / 400 := by nlinarith
+  have hZ := sphZ_pos ξ
+  rw [abs_of_pos (by positivity), div_le_div_iff₀ hZ hx]
+  nlinarith [sq_nonneg (ξ ^ 2)]
+
+end Assembly
+
+end SphereOneDim
 
 end CTG.Reals2
