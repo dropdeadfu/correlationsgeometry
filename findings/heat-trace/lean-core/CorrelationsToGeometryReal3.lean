@@ -11116,4 +11116,1846 @@ theorem oraclemoments_two {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure 
 
 end OracleMomentsTwo
 
+
+/-! ## Lemma "oraclemoments" and Proposition "oracle" for EVERY number of steps (A59)
+
+The walk with exact normalisation `P̃_{ab} = p(x_a - x_b)/N` on `N` independent uniform points of
+the flat torus, `p = pker d σ` the periodised Gaussian kernel of variance `σ`, `M = p(0) = m₁`,
+`m_k = p^{*k}(0) = torusM d σ k`.  For every `k ≥ 1` with `k² M ≤ N`:
+
+* `oraclemoments_torus`:       `E |Tr P̃^k - m_k| ≤ 3 k² M²/N`   (Lemma "oraclemoments"; the paper
+  has the constant 4);
+* `oraclemoments_bias_torus`:  `|E Tr P̃^k - m_k| ≤ k² M²/N`;
+* `oracle_torus` (`k ≥ 2`):    `E (Tr P̃^k - m_k)² ≤ (3 k² M^k/N)²`   (the form of Proposition
+  "oracle", in the regime `k² M ≤ N` instead of `k ≤ N/2`).
+
+`Tr P̃^k` is the trace of the `k`-th power of the matrix `Matrix.of fun a b : Fin N => p(X_a - X_b)/N`.
+The three statements are instances of `RK.oraclemoments`, which holds for any family of kernels
+`q_i(x,y)` on a probability space `(G, ν)` satisfying the HYPOTHESES collected in the structure
+`RK` (measurable, nonnegative, `q_1 ≤ M`, mass one, semigroup, constant diagonal `m_i`, `1 ≤ M`,
+`0 ≤ m_i ≤ M`); `torusRK` proves them for the Gaussian kernel on the flat torus, so the three
+statements on the torus carry no hypothesis beyond: independent, measurable, uniform points, `σ > 0`,
+`k² M ≤ N`.
+
+How the proof follows the paper, and where it deviates:
+* `Tr P̃^k = N^{-k} ∑` over the lists `I` of `k` indices of the closed-walk products `cyc q x I`
+  (`trace_walk_pow`); the lists with distinct entries give `D_k` (`Dsum`).
+* Distinct entries: the expectation is `m_k` (`RK.int_nodup`), by integrating out one vertex after
+  the other with the semigroup (`ch_marginal`, `ch_integral`).  The same computation next to a
+  factor depending on at most one vertex of the walk (`cyc_integral_spect`) is the degeneracy
+  "the conditional expectation of `g_I` given one of its points is `m_k`"; it gives
+  `E g_I g_J = m_k²` for two walks with at most one common index (`RK.pair_eq`).
+* Spanning tree: instead of choosing a spanning tree of the image multigraph, the walk is explored
+  from its first vertex; an edge to a vertex that does not occur later (and not in a second walk
+  `J`) is integrated out with `∫ p = 1`, every other edge is bounded by `M` (`op_integral_le`).
+  This gives `E g_I ≤ M · wt(I)` (`RK.int_le`), `wt(I) = M^{#repeated entries}`, which is the bound
+  `M^{c+1}` of the paper, and `E g_I g_J ≤ M² · M^{#common indices}` (`RK.pair_le`), ONE FACTOR `M`
+  MORE than the `M^{c+1}` of the paper (both closing edges are bounded by `M`).
+* Counting: NO partitions.  The weights are multiplicative along the list, so their sums over all
+  lists satisfy one-step recursions (`sum_LL_succ`): `#distinct = ∏(N - l)` (`aN_succ`,
+  `aN_bounds`), `∑ wt ≤ N^k (1 + k²(M-1)/N)` (`bN_bound`), and for the pairs with at least two
+  common indices two marked entries (`w1`, `w2`, `s_bounds`).  The bounds are
+  `E[Tr P̃^k - D_k] ≤ k² M²/N` (as in the paper) and `Var`-type bound
+  `E (D_k - m_k)² ≤ (2 k² M²/N)²` (the paper: `Var D_k ≤ 2 k⁴ M³/N²`).
+* NOT formalised: the count of the coincidence patterns by partitions (`binom(k,2)^c / c!`), the
+  bound `M^{c+1}` for pairs, Hoeffding's variance formula used in the proof of Proposition
+  "oracle" of the paper, the range `k ≤ N/2` with `k² M > N` of that proposition, and a second
+  moment of `Tr P̃^k` on the scale `k² M²/N` (`oracle_torus` bounds the walks with repeated
+  indices pointwise by `M^k`, as the paper does).  Evenness of `p` is not used. -/
+
+
+namespace WalkCount
+
+open MeasureTheory Function
+open scoped ENNReal
+
+/-! ### Lists of a fixed length as a finite set -/
+
+section Lists
+
+variable {ι : Type*} [Fintype ι] [DecidableEq ι]
+
+/-- All lists of length `n` over `ι`. -/
+def LL (ι : Type*) [Fintype ι] [DecidableEq ι] : ℕ → Finset (List ι)
+  | 0 => {[]}
+  | n + 1 => Finset.univ.biUnion fun a : ι => (LL ι n).image (List.cons a)
+
+theorem mem_LL {n : ℕ} {L : List ι} : L ∈ LL ι n ↔ L.length = n := by
+  induction n generalizing L with
+  | zero => simp [LL]
+  | succ n ih =>
+    simp only [LL, Finset.mem_biUnion, Finset.mem_univ, true_and, Finset.mem_image]
+    constructor
+    · rintro ⟨a, L', hL', rfl⟩
+      simp [ih.mp hL']
+    · intro h
+      cases L with
+      | nil => simp at h
+      | cons a L' => exact ⟨a, L', ih.mpr (by simpa using h), rfl⟩
+
+theorem sum_LL_succ {R : Type*} [AddCommMonoid R] (n : ℕ) (F : List ι → R) :
+    ∑ L ∈ LL ι (n + 1), F L = ∑ L ∈ LL ι n, ∑ a : ι, F (a :: L) := by
+  rw [Finset.sum_comm]
+  show ∑ L ∈ Finset.univ.biUnion (fun a : ι => (LL ι n).image (List.cons a)), F L = _
+  rw [Finset.sum_biUnion]
+  · refine Finset.sum_congr rfl fun a _ => ?_
+    rw [Finset.sum_image]
+    intro L _ L' _ h
+    exact (List.cons.inj h).2
+  · intro a _ b _ hab
+    show Disjoint ((LL ι n).image (List.cons a)) ((LL ι n).image (List.cons b))
+    rw [Finset.disjoint_left]
+    intro L hL hL'
+    simp only [Finset.mem_image] at hL hL'
+    obtain ⟨L1, _, rfl⟩ := hL
+    obtain ⟨L2, _, h2⟩ := hL'
+    exact hab (List.cons.inj h2).1.symm
+
+theorem exists_cons_of_mem_LL {n : ℕ} {I : List ι} (h : I ∈ LL ι (n + 1)) :
+    ∃ a L, I = a :: L ∧ L.length = n := by
+  have hl := mem_LL.mp h
+  cases I with
+  | nil => simp at hl
+  | cons a L => exact ⟨a, L, rfl, by simpa using hl⟩
+
+/-- `∑_a (if a ∈ L then u else w) = |L| u + (N - |L|) w`, `|L|` the number of distinct entries. -/
+theorem sum_ite_mem (L : List ι) (u w : ℝ) :
+    ∑ a : ι, (if a ∈ L then u else w)
+      = (L.toFinset.card : ℝ) * u + ((Fintype.card ι : ℝ) - L.toFinset.card) * w := by
+  have h1 : ∀ a : ι, (if a ∈ L then u else w) = w + (if a ∈ L then (u - w) else 0) := by
+    intro a; split_ifs <;> ring
+  have h2 : (Finset.univ.filter fun a : ι => a ∈ L) = L.toFinset := by
+    ext a; simp
+  simp_rw [h1]
+  rw [Finset.sum_add_distrib, ← Finset.sum_filter, h2, Finset.sum_const, Finset.sum_const,
+    Finset.card_univ, nsmul_eq_mul, nsmul_eq_mul]
+  ring
+
+end Lists
+
+/-! ### Chains, open paths, cycles and weights -/
+
+section Chains
+
+variable {ι : Type*} {G : Type*} {R : Type*} [CommSemiring R]
+
+/-- `ch Q x i a [c₁,…,cₙ] b = Q_i(x_a,x_{c₁}) Q_1(x_{c₁},x_{c₂}) ⋯ Q_1(x_{cₙ},x_b)`. -/
+def ch (Q : ℕ → G → G → R) (x : ι → G) : ℕ → ι → List ι → ι → R
+  | i, a, [], b => Q i (x a) (x b)
+  | i, a, c :: L, b => Q i (x a) (x c) * ch Q x 1 c L b
+
+/-- The open path `Q_1(x_a,x_{c₁}) ⋯ Q_1(x_{cₙ₋₁},x_{cₙ})`. -/
+def op (Q : ℕ → G → G → R) (x : ι → G) : ι → List ι → R
+  | _, [] => 1
+  | a, c :: L => Q 1 (x a) (x c) * op Q x c L
+
+/-- The closed walk through the entries of a list. -/
+def cyc (Q : ℕ → G → G → R) (x : ι → G) : List ι → R
+  | [] => 0
+  | a :: L => ch Q x 1 a L a
+
+theorem ch_nil (Q : ℕ → G → G → R) (x : ι → G) (i : ℕ) (a b : ι) :
+    ch Q x i a [] b = Q i (x a) (x b) := rfl
+
+theorem ch_cons (Q : ℕ → G → G → R) (x : ι → G) (i : ℕ) (a c : ι) (L : List ι) (b : ι) :
+    ch Q x i a (c :: L) b = Q i (x a) (x c) * ch Q x 1 c L b := rfl
+
+theorem op_nil (Q : ℕ → G → G → R) (x : ι → G) (a : ι) : op Q x a [] = 1 := rfl
+
+theorem op_cons (Q : ℕ → G → G → R) (x : ι → G) (a c : ι) (L : List ι) :
+    op Q x a (c :: L) = Q 1 (x a) (x c) * op Q x c L := rfl
+
+theorem cyc_cons (Q : ℕ → G → G → R) (x : ι → G) (a : ι) (L : List ι) :
+    cyc Q x (a :: L) = ch Q x 1 a L a := rfl
+
+theorem ch_append (Q : ℕ → G → G → R) (x : ι → G) (i : ℕ) (a : ι) (L1 : List ι) (v : ι)
+    (L2 : List ι) (b : ι) :
+    ch Q x i a (L1 ++ v :: L2) b = ch Q x i a L1 v * ch Q x 1 v L2 b := by
+  induction L1 generalizing i a with
+  | nil => rfl
+  | cons c L ih => rw [List.cons_append, ch_cons, ch_cons, ih, mul_assoc]
+
+theorem ch_update [DecidableEq ι] (Q : ℕ → G → G → R) (x : ι → G) (v : ι) (y : G) (i : ℕ)
+    (a : ι) (L : List ι) (b : ι) (ha : v ≠ a) (hb : v ≠ b) (hL : v ∉ L) :
+    ch Q (update x v y) i a L b = ch Q x i a L b := by
+  induction L generalizing i a with
+  | nil => rw [ch_nil, ch_nil, update_of_ne ha.symm, update_of_ne hb.symm]
+  | cons c L ih =>
+    have hc : v ≠ c := fun h => hL (by rw [h]; exact List.mem_cons_self)
+    have hL' : v ∉ L := fun h => hL (List.mem_cons_of_mem _ h)
+    rw [ch_cons, ch_cons, ih 1 c hc hL', update_of_ne ha.symm, update_of_ne hc.symm]
+
+theorem op_update [DecidableEq ι] (Q : ℕ → G → G → R) (x : ι → G) (v : ι) (y : G)
+    (a : ι) (L : List ι) (ha : v ≠ a) (hL : v ∉ L) :
+    op Q (update x v y) a L = op Q x a L := by
+  induction L generalizing a with
+  | nil => rfl
+  | cons c L ih =>
+    have hc : v ≠ c := fun h => hL (by rw [h]; exact List.mem_cons_self)
+    have hL' : v ∉ L := fun h => hL (List.mem_cons_of_mem _ h)
+    rw [op_cons, op_cons, ih c hc hL', update_of_ne ha.symm, update_of_ne hc.symm]
+
+theorem cyc_update [DecidableEq ι] (Q : ℕ → G → G → R) (x : ι → G) (v : ι) (y : G)
+    (J : List ι) (hJ : v ∉ J) : cyc Q (update x v y) J = cyc Q x J := by
+  cases J with
+  | nil => rfl
+  | cons a L =>
+    have ha : v ≠ a := fun h => hJ (by rw [h]; exact List.mem_cons_self)
+    have hL' : v ∉ L := fun h => hJ (List.mem_cons_of_mem _ h)
+    exact ch_update Q x v y 1 a L a ha ha hL'
+
+/-- The weight of a list relative to a list `J`: a factor `M` for every entry that occurs again
+    later in the list or lies in `J`. -/
+def wt [DecidableEq ι] (M : R) (J : List ι) : List ι → R
+  | [] => 1
+  | a :: L => (if a ∈ L ∨ a ∈ J then M else 1) * wt M J L
+
+theorem wt_cons [DecidableEq ι] (M : R) (J : List ι) (a : ι) (L : List ι) :
+    wt M J (a :: L) = (if a ∈ L ∨ a ∈ J then M else 1) * wt M J L := rfl
+
+omit [CommSemiring R] in
+theorem meas2 {α : Type*} [MeasurableSpace α] [MeasurableSpace G] [MeasurableSpace R]
+    {Q : ℕ → G → G → R} (hQ : ∀ i, Measurable fun p : G × G => Q i p.1 p.2) (i : ℕ)
+    {f g : α → G} (hf : Measurable f) (hg : Measurable g) :
+    Measurable fun x => Q i (f x) (g x) :=
+  (hQ i).comp (hf.prodMk hg)
+
+theorem ch_meas [MeasurableSpace G] [MeasurableSpace R] [MeasurableMul₂ R]
+    {Q : ℕ → G → G → R} (hQ : ∀ i, Measurable fun p : G × G => Q i p.1 p.2)
+    (i : ℕ) (a : ι) (L : List ι) (b : ι) : Measurable fun x : ι → G => ch Q x i a L b := by
+  induction L generalizing i a with
+  | nil => exact meas2 hQ i (measurable_pi_apply a) (measurable_pi_apply b)
+  | cons c L ih =>
+    exact (meas2 hQ i (measurable_pi_apply a) (measurable_pi_apply c)).mul (ih 1 c)
+
+theorem op_meas [MeasurableSpace G] [MeasurableSpace R] [MeasurableMul₂ R]
+    {Q : ℕ → G → G → R} (hQ : ∀ i, Measurable fun p : G × G => Q i p.1 p.2)
+    (a : ι) (L : List ι) : Measurable fun x : ι → G => op Q x a L := by
+  induction L generalizing a with
+  | nil => exact measurable_const
+  | cons c L ih =>
+    exact (meas2 hQ 1 (measurable_pi_apply a) (measurable_pi_apply c)).mul (ih c)
+
+theorem cyc_meas [MeasurableSpace G] [MeasurableSpace R] [MeasurableMul₂ R]
+    {Q : ℕ → G → G → R} (hQ : ∀ i, Measurable fun p : G × G => Q i p.1 p.2)
+    (J : List ι) : Measurable fun x : ι → G => cyc Q x J := by
+  cases J with
+  | nil => exact measurable_const
+  | cons a L => exact ch_meas hQ 1 a L a
+
+end Chains
+
+/-! ### Integration over the product measure, one coordinate at a time -/
+
+section Integrals
+
+variable {ι : Type*} [Fintype ι] [DecidableEq ι] {G : Type*} [MeasurableSpace G]
+  (ν : Measure G) [IsProbabilityMeasure ν]
+
+/-- Integrate out one coordinate first. -/
+theorem lintegral_pi_coord (v : ι) {F : (ι → G) → ℝ≥0∞} (hF : Measurable F) :
+    ∫⁻ x, F x ∂Measure.pi (fun _ : ι => ν)
+      = ∫⁻ x, ∫⁻ y, F (update x v y) ∂ν ∂Measure.pi (fun _ : ι => ν) := by
+  have h1 : (∫⋯∫⁻_{v}, F ∂(fun _ : ι => ν)) = fun x => ∫⁻ y, F (update x v y) ∂ν :=
+    lmarginal_singleton F v
+  have hg : Measurable fun x : ι → G => ∫⁻ y, F (update x v y) ∂ν := by
+    rw [← h1]; exact hF.lmarginal _
+  refine lintegral_eq_of_lmarginal_eq {v} hF hg ?_
+  rw [h1, lmarginal_singleton]
+  funext x
+  simp [update_idem]
+
+variable (Q : ℕ → G → G → ℝ≥0∞)
+
+omit [Fintype ι] [DecidableEq ι] [MeasurableSpace G] in
+theorem ch_le_op (M : ℝ≥0∞) (hb : ∀ x y, Q 1 x y ≤ M) (x : ι → G) (a : ι) (L : List ι) (b : ι) :
+    ch Q x 1 a L b ≤ op Q x a L * M := by
+  induction L generalizing a with
+  | nil => rw [ch_nil, op_nil, one_mul]; exact hb _ _
+  | cons c L ih =>
+    rw [ch_cons, op_cons, mul_assoc]
+    exact mul_le_mul' le_rfl (ih c)
+
+/-- **Open paths (spanning-tree integration).** -/
+theorem op_integral_le (hQ : ∀ i, Measurable fun p : G × G => Q i p.1 p.2) (M : ℝ≥0∞)
+    (hM1 : 1 ≤ M) (hb : ∀ x y, Q 1 x y ≤ M) (hmass : ∀ z, ∫⁻ y, Q 1 y z ∂ν = 1)
+    (J : List ι) {h : (ι → G) → ℝ≥0∞} (hh : Measurable h)
+    (hind : ∀ c, c ∉ J → ∀ x y, h (update x c y) = h x) (a : ι) (L : List ι) :
+    ∫⁻ x, op Q x a L * h x ∂Measure.pi (fun _ : ι => ν)
+      ≤ wt M J (a :: L) * ∫⁻ x, h x ∂Measure.pi (fun _ : ι => ν) := by
+  induction L generalizing a with
+  | nil =>
+    have h1 : (1 : ℝ≥0∞) ≤ wt M J [a] := by
+      rw [wt_cons]
+      show (1 : ℝ≥0∞) ≤ (if a ∈ ([] : List ι) ∨ a ∈ J then M else 1) * 1
+      rw [mul_one]
+      split_ifs
+      · exact hM1
+      · exact le_rfl
+    simp only [op_nil, one_mul]
+    calc ∫⁻ x, h x ∂Measure.pi (fun _ : ι => ν)
+        = 1 * ∫⁻ x, h x ∂Measure.pi (fun _ : ι => ν) := (one_mul _).symm
+      _ ≤ wt M J [a] * ∫⁻ x, h x ∂Measure.pi (fun _ : ι => ν) := mul_le_mul' h1 le_rfl
+  | cons c L ih =>
+    have hm : Measurable fun x : ι → G => op Q x c L * h x := (op_meas hQ c L).mul hh
+    by_cases hcase : a ∈ c :: L ∨ a ∈ J
+    · calc ∫⁻ x, op Q x a (c :: L) * h x ∂Measure.pi (fun _ : ι => ν)
+          ≤ ∫⁻ x, M * (op Q x c L * h x) ∂Measure.pi (fun _ : ι => ν) :=
+            lintegral_mono fun x => by
+              rw [op_cons, mul_assoc]
+              exact mul_le_mul' (hb _ _) le_rfl
+        _ = M * ∫⁻ x, op Q x c L * h x ∂Measure.pi (fun _ : ι => ν) := lintegral_const_mul _ hm
+        _ ≤ M * (wt M J (c :: L) * ∫⁻ x, h x ∂Measure.pi (fun _ : ι => ν)) :=
+            mul_le_mul' le_rfl (ih c)
+        _ = wt M J (a :: c :: L) * ∫⁻ x, h x ∂Measure.pi (fun _ : ι => ν) := by
+            rw [wt_cons M J a, if_pos hcase, mul_assoc]
+    · have hacL : a ∉ c :: L := fun h' => hcase (Or.inl h')
+      have haJ : a ∉ J := fun h' => hcase (Or.inr h')
+      have hac : a ≠ c := fun h' => hacL (by rw [h']; exact List.mem_cons_self)
+      have haL : a ∉ L := fun h' => hacL (List.mem_cons_of_mem _ h')
+      have hF : Measurable fun x : ι → G => op Q x a (c :: L) * h x :=
+        (op_meas hQ a (c :: L)).mul hh
+      rw [lintegral_pi_coord ν a hF]
+      have inner : ∀ x : ι → G,
+          ∫⁻ y, op Q (update x a y) a (c :: L) * h (update x a y) ∂ν = op Q x c L * h x := by
+        intro x
+        have e : ∀ y, op Q (update x a y) a (c :: L) * h (update x a y)
+            = Q 1 y (x c) * (op Q x c L * h x) := by
+          intro y
+          rw [hind a haJ x y, op_cons, update_self, update_of_ne (Ne.symm hac),
+            op_update Q x a y c L hac haL, mul_assoc]
+        simp_rw [e]
+        have hmy : Measurable fun y : G => Q 1 y (x c) := meas2 hQ 1 measurable_id measurable_const
+        rw [lintegral_mul_const _ hmy, hmass, one_mul]
+      simp_rw [inner]
+      calc ∫⁻ x, op Q x c L * h x ∂Measure.pi (fun _ : ι => ν)
+          ≤ wt M J (c :: L) * ∫⁻ x, h x ∂Measure.pi (fun _ : ι => ν) := ih c
+        _ = wt M J (a :: c :: L) * ∫⁻ x, h x ∂Measure.pi (fun _ : ι => ν) := by
+            rw [wt_cons M J a, if_neg hcase, one_mul]
+
+omit [Fintype ι] [IsProbabilityMeasure ν] in
+/-- Integrating out the first inner vertex of a chain merges two steps (semigroup). -/
+theorem ch_marginal (hQ : ∀ i, Measurable fun p : G × G => Q i p.1 p.2)
+    (hsemi : ∀ i j x z, 1 ≤ i → 1 ≤ j → ∫⁻ y, Q i x y * Q j y z ∂ν = Q (i + j) x z)
+    (x : ι → G) (i : ℕ) (hi : 1 ≤ i) (a c : ι) (L : List ι) (b : ι) (hca : c ≠ a) (hcb : c ≠ b)
+    (hcL : c ∉ L) :
+    ∫⁻ y, ch Q (update x c y) i a (c :: L) b ∂ν = ch Q x (i + 1) a L b := by
+  cases L with
+  | nil =>
+    have e : ∀ y, ch Q (update x c y) i a [c] b = Q i (x a) y * Q 1 y (x b) := by
+      intro y
+      rw [ch_cons, ch_nil, update_self, update_of_ne hca.symm, update_of_ne hcb.symm]
+    simp_rw [e]
+    exact hsemi i 1 _ _ hi le_rfl
+  | cons c' L' =>
+    have hcc' : c ≠ c' := fun h => hcL (by rw [h]; exact List.mem_cons_self)
+    have hcL' : c ∉ L' := fun h => hcL (List.mem_cons_of_mem _ h)
+    have e : ∀ y, ch Q (update x c y) i a (c :: c' :: L') b
+        = Q i (x a) y * Q 1 y (x c') * ch Q x 1 c' L' b := by
+      intro y
+      rw [ch_cons, ch_cons, update_self, update_of_ne hca.symm, update_of_ne hcc'.symm,
+        ch_update Q x c y 1 c' L' b hcc' hcb hcL', mul_assoc]
+    simp_rw [e]
+    have hmy : Measurable fun y : G => Q i (x a) y * Q 1 y (x c') :=
+      (meas2 hQ i measurable_const measurable_id).mul (meas2 hQ 1 measurable_id measurable_const)
+    rw [lintegral_mul_const _ hmy, hsemi i 1 _ _ hi le_rfl, ch_cons]
+
+/-- **A chain through distinct vertices collapses to one kernel**, next to a factor that does
+    not depend on the inner vertices. -/
+theorem ch_integral (hQ : ∀ i, Measurable fun p : G × G => Q i p.1 p.2)
+    (hsemi : ∀ i j x z, 1 ≤ i → 1 ≤ j → ∫⁻ y, Q i x y * Q j y z ∂ν = Q (i + j) x z)
+    {h : (ι → G) → ℝ≥0∞} (hh : Measurable h) (L : List ι) (hnd : L.Nodup) (i : ℕ) (hi : 1 ≤ i)
+    (a b : ι) (ha : a ∉ L) (hb : b ∉ L) (hind : ∀ c ∈ L, ∀ x y, h (update x c y) = h x) :
+    ∫⁻ x, ch Q x i a L b * h x ∂Measure.pi (fun _ : ι => ν)
+      = ∫⁻ x, Q (i + L.length) (x a) (x b) * h x ∂Measure.pi (fun _ : ι => ν) := by
+  induction L generalizing i with
+  | nil => rfl
+  | cons c L ih =>
+    have hcL : c ∉ L := (List.nodup_cons.mp hnd).1
+    have hca : c ≠ a := fun e => ha (by rw [← e]; exact List.mem_cons_self)
+    have hcb : c ≠ b := fun e => hb (by rw [← e]; exact List.mem_cons_self)
+    have hF : Measurable fun x : ι → G => ch Q x i a (c :: L) b * h x :=
+      (ch_meas hQ i a (c :: L) b).mul hh
+    rw [lintegral_pi_coord ν c hF]
+    have inner : ∀ x : ι → G,
+        ∫⁻ y, ch Q (update x c y) i a (c :: L) b * h (update x c y) ∂ν
+          = ch Q x (i + 1) a L b * h x := by
+      intro x
+      simp_rw [hind c List.mem_cons_self x]
+      have hmy : Measurable fun y : G => ch Q (update x c y) i a (c :: L) b :=
+        (ch_meas hQ i a (c :: L) b).comp (measurable_update x)
+      rw [lintegral_mul_const _ hmy,
+        ch_marginal ν Q hQ hsemi x i hi a c L b hca hcb hcL]
+    simp_rw [inner]
+    rw [ih (List.nodup_cons.mp hnd).2 (i + 1) (by omega)
+      (fun hm => ha (List.mem_cons_of_mem _ hm)) (fun hm => hb (List.mem_cons_of_mem _ hm))
+      (fun c' hc' => hind c' (List.mem_cons_of_mem _ hc'))]
+    have hlen : i + 1 + L.length = i + (c :: L).length := by simp; omega
+    rw [hlen]
+
+end Integrals
+
+section Integrals2
+
+variable {ι : Type*} [Fintype ι] [DecidableEq ι] {G : Type*} [MeasurableSpace G]
+  (ν : Measure G) [IsProbabilityMeasure ν] (Q : ℕ → G → G → ℝ≥0∞)
+
+/-- **Degeneracy of the cycle.** A closed walk through distinct vertices, next to a factor `h`
+    that depends on at most one of its vertices, integrates to `m_k ∫ h`. -/
+theorem cyc_integral_spect (hQ : ∀ i, Measurable fun p : G × G => Q i p.1 p.2)
+    (hsemi : ∀ i j x z, 1 ≤ i → 1 ≤ j → ∫⁻ y, Q i x y * Q j y z ∂ν = Q (i + j) x z)
+    (mE : ℕ → ℝ≥0∞) (hdiag : ∀ i x, 1 ≤ i → Q i x x = mE i)
+    {h : (ι → G) → ℝ≥0∞} (hh : Measurable h) (a : ι) (L : List ι) (hnd : (a :: L).Nodup)
+    (v : ι) (hv : v ∈ a :: L)
+    (hind : ∀ c ∈ a :: L, c ≠ v → ∀ x y, h (update x c y) = h x) :
+    ∫⁻ x, ch Q x 1 a L a * h x ∂Measure.pi (fun _ : ι => ν)
+      = mE (L.length + 1) * ∫⁻ x, h x ∂Measure.pi (fun _ : ι => ν) := by
+  have haL : a ∉ L := (List.nodup_cons.mp hnd).1
+  have hL : L.Nodup := (List.nodup_cons.mp hnd).2
+  rcases List.mem_cons.mp hv with hva | hvL
+  · rw [ch_integral ν Q hQ hsemi hh L hL 1 le_rfl a a haL haL
+      (fun c hc => hind c (List.mem_cons_of_mem _ hc)
+        (fun e => haL (by rw [← hva, ← e]; exact hc)))]
+    simp_rw [hdiag _ _ (by omega : 1 ≤ 1 + L.length)]
+    rw [lintegral_const_mul _ hh, add_comm]
+  · obtain ⟨L1, L2, rfl⟩ := List.append_of_mem hvL
+    have hav : a ≠ v := fun e => haL (by rw [e]; exact hvL)
+    obtain ⟨hL1, hvL2nd, hdisj⟩ := List.nodup_append.mp hL
+    have hvL2 : v ∉ L2 := (List.nodup_cons.mp hvL2nd).1
+    have hL2 : L2.Nodup := (List.nodup_cons.mp hvL2nd).2
+    have hvL1 : v ∉ L1 := fun hm => hdisj v hm v List.mem_cons_self rfl
+    have haL1 : a ∉ L1 := fun hm => haL (List.mem_append_left _ hm)
+    have haL2 : a ∉ L2 :=
+      fun hm => haL (List.mem_append_right _ (List.mem_cons_of_mem _ hm))
+    have hL21 : ∀ c ∈ L2, c ∉ L1 :=
+      fun c hc hm => hdisj c hm c (List.mem_cons_of_mem _ hc) rfl
+    have hmemL1 : ∀ c ∈ L1, c ∈ a :: (L1 ++ v :: L2) :=
+      fun c hc => List.mem_cons_of_mem _ (List.mem_append_left _ hc)
+    have hmemL2 : ∀ c ∈ L2, c ∈ a :: (L1 ++ v :: L2) :=
+      fun c hc => List.mem_cons_of_mem _ (List.mem_append_right _ (List.mem_cons_of_mem _ hc))
+    have hneL1 : ∀ c ∈ L1, c ≠ v := fun c hc e => hvL1 (by rw [← e]; exact hc)
+    have hneL2 : ∀ c ∈ L2, c ≠ v := fun c hc e => hvL2 (by rw [← e]; exact hc)
+    have hneaL1 : ∀ c ∈ L1, c ≠ a := fun c hc e => haL1 (by rw [← e]; exact hc)
+    have hneaL2 : ∀ c ∈ L2, c ≠ a := fun c hc e => haL2 (by rw [← e]; exact hc)
+    -- step 1: integrate out `L2`
+    have s1 : ∀ x : ι → G, ch Q x 1 a (L1 ++ v :: L2) a * h x
+        = ch Q x 1 v L2 a * (ch Q x 1 a L1 v * h x) := by
+      intro x; rw [ch_append]; ring
+    simp_rw [s1]
+    have hh1 : Measurable fun x : ι → G => ch Q x 1 a L1 v * h x := (ch_meas hQ 1 a L1 v).mul hh
+    rw [ch_integral ν Q hQ hsemi hh1 L2 hL2 1 le_rfl v a hvL2 haL2
+      (fun c hc x y => by
+        rw [ch_update Q x c y 1 a L1 v (hneaL2 c hc) (hneL2 c hc) (hL21 c hc),
+          hind c (hmemL2 c hc) (hneL2 c hc) x y])]
+    -- step 2: integrate out `L1`
+    have s2 : ∀ x : ι → G, Q (1 + L2.length) (x v) (x a) * (ch Q x 1 a L1 v * h x)
+        = ch Q x 1 a L1 v * (Q (1 + L2.length) (x v) (x a) * h x) := by
+      intro x; ring
+    simp_rw [s2]
+    have hh2 : Measurable fun x : ι → G => Q (1 + L2.length) (x v) (x a) * h x :=
+      (meas2 hQ _ (measurable_pi_apply v) (measurable_pi_apply a)).mul hh
+    rw [ch_integral ν Q hQ hsemi hh2 L1 hL1 1 le_rfl a v haL1 hvL1
+      (fun c hc x y => by
+        rw [update_of_ne (hneL1 c hc).symm, update_of_ne (hneaL1 c hc).symm,
+          hind c (hmemL1 c hc) (hneL1 c hc) x y])]
+    -- step 3: integrate out `a`
+    have hF : Measurable fun x : ι → G =>
+        Q (1 + L1.length) (x a) (x v) * (Q (1 + L2.length) (x v) (x a) * h x) :=
+      (meas2 hQ _ (measurable_pi_apply a) (measurable_pi_apply v)).mul hh2
+    rw [lintegral_pi_coord ν a hF]
+    have inner : ∀ x : ι → G,
+        ∫⁻ y, Q (1 + L1.length) (update x a y a) (update x a y v)
+            * (Q (1 + L2.length) (update x a y v) (update x a y a) * h (update x a y)) ∂ν
+          = mE ((L1 ++ v :: L2).length + 1) * h x := by
+      intro x
+      have e : ∀ y, Q (1 + L1.length) (update x a y a) (update x a y v)
+            * (Q (1 + L2.length) (update x a y v) (update x a y a) * h (update x a y))
+          = Q (1 + L2.length) (x v) y * Q (1 + L1.length) y (x v) * h x := by
+        intro y
+        rw [update_self, update_of_ne hav.symm, hind a List.mem_cons_self hav x y]
+        ring
+      simp_rw [e]
+      have hmy : Measurable fun y : G => Q (1 + L2.length) (x v) y * Q (1 + L1.length) y (x v) :=
+        (meas2 hQ _ measurable_const measurable_id).mul (meas2 hQ _ measurable_id measurable_const)
+      rw [lintegral_mul_const _ hmy, hsemi _ _ _ _ (by omega) (by omega),
+        hdiag _ _ (by omega)]
+      have hlen : 1 + L2.length + (1 + L1.length) = (L1 ++ v :: L2).length + 1 := by
+        simp; omega
+      rw [hlen]
+    simp_rw [inner]
+    rw [lintegral_const_mul _ hh]
+
+/-- A closed walk through distinct vertices has expectation `m_k`. -/
+theorem cyc_integral_nodup (hQ : ∀ i, Measurable fun p : G × G => Q i p.1 p.2)
+    (hsemi : ∀ i j x z, 1 ≤ i → 1 ≤ j → ∫⁻ y, Q i x y * Q j y z ∂ν = Q (i + j) x z)
+    (mE : ℕ → ℝ≥0∞) (hdiag : ∀ i x, 1 ≤ i → Q i x x = mE i)
+    (a : ι) (L : List ι) (hnd : (a :: L).Nodup) :
+    ∫⁻ x, cyc Q x (a :: L) ∂Measure.pi (fun _ : ι => ν) = mE (L.length + 1) := by
+  have h := cyc_integral_spect ν Q hQ hsemi mE hdiag (h := fun _ => 1) measurable_const a L hnd
+    a List.mem_cons_self (fun _ _ _ _ _ => rfl)
+  simpa [cyc_cons] using h
+
+/-- Every closed walk has expectation at most `M` times its weight. -/
+theorem cyc_integral_le (hQ : ∀ i, Measurable fun p : G × G => Q i p.1 p.2) (M : ℝ≥0∞)
+    (hM1 : 1 ≤ M) (hb : ∀ x y, Q 1 x y ≤ M) (hmass : ∀ z, ∫⁻ y, Q 1 y z ∂ν = 1)
+    (a : ι) (L : List ι) :
+    ∫⁻ x, cyc Q x (a :: L) ∂Measure.pi (fun _ : ι => ν) ≤ M * wt M [] (a :: L) := by
+  have h := op_integral_le ν Q hQ M hM1 hb hmass [] (h := fun _ => 1) measurable_const
+    (fun _ _ _ _ => rfl) a L
+  calc ∫⁻ x, cyc Q x (a :: L) ∂Measure.pi (fun _ : ι => ν)
+      ≤ ∫⁻ x, M * (op Q x a L * 1) ∂Measure.pi (fun _ : ι => ν) :=
+        lintegral_mono fun x => by
+          rw [cyc_cons, mul_one, mul_comm]; exact ch_le_op Q M hb x a L a
+    _ = M * ∫⁻ x, op Q x a L * 1 ∂Measure.pi (fun _ : ι => ν) :=
+        lintegral_const_mul _ ((op_meas hQ a L).mul measurable_const)
+    _ ≤ M * (wt M [] (a :: L) * ∫⁻ _, 1 ∂Measure.pi (fun _ : ι => ν)) := mul_le_mul' le_rfl h
+    _ = M * wt M [] (a :: L) := by simp
+
+/-- Two closed walks: the product has expectation at most `M² wt_J(I) wt(J)`. -/
+theorem pair_integral_le (hQ : ∀ i, Measurable fun p : G × G => Q i p.1 p.2) (M : ℝ≥0∞)
+    (hM1 : 1 ≤ M) (hb : ∀ x y, Q 1 x y ≤ M) (hmass : ∀ z, ∫⁻ y, Q 1 y z ∂ν = 1)
+    (a : ι) (L : List ι) (a' : ι) (L' : List ι) :
+    ∫⁻ x, cyc Q x (a :: L) * cyc Q x (a' :: L') ∂Measure.pi (fun _ : ι => ν)
+      ≤ M * (wt M (a' :: L') (a :: L) * (M * wt M [] (a' :: L'))) := by
+  have hJm : Measurable fun x : ι → G => cyc Q x (a' :: L') := cyc_meas hQ _
+  have h := op_integral_le ν Q hQ M hM1 hb hmass (a' :: L') hJm
+    (fun c hc x y => cyc_update Q x c y _ hc) a L
+  calc ∫⁻ x, cyc Q x (a :: L) * cyc Q x (a' :: L') ∂Measure.pi (fun _ : ι => ν)
+      ≤ ∫⁻ x, M * (op Q x a L * cyc Q x (a' :: L')) ∂Measure.pi (fun _ : ι => ν) :=
+        lintegral_mono fun x => by
+          rw [cyc_cons Q x a L, ← mul_assoc, mul_comm M]
+          exact mul_le_mul' (ch_le_op Q M hb x a L a) le_rfl
+    _ = M * ∫⁻ x, op Q x a L * cyc Q x (a' :: L') ∂Measure.pi (fun _ : ι => ν) :=
+        lintegral_const_mul _ ((op_meas hQ a L).mul hJm)
+    _ ≤ M * (wt M (a' :: L') (a :: L) * ∫⁻ x, cyc Q x (a' :: L') ∂Measure.pi (fun _ : ι => ν)) :=
+        mul_le_mul' le_rfl h
+    _ ≤ M * (wt M (a' :: L') (a :: L) * (M * wt M [] (a' :: L'))) :=
+        mul_le_mul' le_rfl (mul_le_mul' le_rfl (cyc_integral_le ν Q hQ M hM1 hb hmass a' L'))
+
+/-- Two closed walks through distinct vertices with at most one common vertex are uncorrelated. -/
+theorem pair_integral_eq (hQ : ∀ i, Measurable fun p : G × G => Q i p.1 p.2)
+    (hsemi : ∀ i j x z, 1 ≤ i → 1 ≤ j → ∫⁻ y, Q i x y * Q j y z ∂ν = Q (i + j) x z)
+    (mE : ℕ → ℝ≥0∞) (hdiag : ∀ i x, 1 ≤ i → Q i x x = mE i)
+    (a : ι) (L : List ι) (hnd : (a :: L).Nodup) (a' : ι) (L' : List ι)
+    (hnd' : (a' :: L').Nodup) (v : ι) (hv : v ∈ a :: L)
+    (hcommon : ∀ c ∈ a :: L, c ∈ a' :: L' → c = v) :
+    ∫⁻ x, cyc Q x (a :: L) * cyc Q x (a' :: L') ∂Measure.pi (fun _ : ι => ν)
+      = mE (L.length + 1) * mE (L'.length + 1) := by
+  have hJm : Measurable fun x : ι → G => cyc Q x (a' :: L') := cyc_meas hQ _
+  have h := cyc_integral_spect ν Q hQ hsemi mE hdiag hJm a L hnd v hv
+    (fun c hc hcv x y => cyc_update Q x c y _ (fun hcJ => hcv (hcommon c hc hcJ)))
+  rw [← cyc_integral_nodup ν Q hQ hsemi mE hdiag a' L' hnd']
+  exact h
+
+end Integrals2
+
+/-! ### Real kernels: the hypotheses and the moments of single closed walks and of pairs -/
+
+section RealKernels
+
+variable {ι : Type*} [Fintype ι] [DecidableEq ι] {G : Type*} [MeasurableSpace G]
+  {ν : Measure G} [IsProbabilityMeasure ν] {q : ℕ → G → G → ℝ} {M : ℝ} {m : ℕ → ℝ}
+
+/-- HYPOTHESES on a family of kernels `q_i(x,y)` (`q_1` is the kernel of the walk, `q_i` its
+    `i`-fold convolution): measurable, nonnegative, `q_1 ≤ M`, mass one, semigroup, constant
+    diagonal `q_i(x,x) = m_i`, `1 ≤ M`, `0 ≤ m_i ≤ M` (for `i ≥ 1`). -/
+structure RK (ν : Measure G) (q : ℕ → G → G → ℝ) (M : ℝ) (m : ℕ → ℝ) : Prop where
+  meas : ∀ i, Measurable fun p : G × G => q i p.1 p.2
+  nonneg : ∀ i x y, 0 ≤ q i x y
+  bound : ∀ x y, q 1 x y ≤ M
+  mass : ∀ z, ∫⁻ y, ENNReal.ofReal (q 1 y z) ∂ν = 1
+  semi : ∀ i j x z, 1 ≤ i → 1 ≤ j →
+    ∫⁻ y, ENNReal.ofReal (q i x y) * ENNReal.ofReal (q j y z) ∂ν = ENNReal.ofReal (q (i + j) x z)
+  diag : ∀ i x, 1 ≤ i → q i x x = m i
+  M_ge : 1 ≤ M
+  m_nonneg : ∀ i, 1 ≤ i → 0 ≤ m i
+  m_le : ∀ i, 1 ≤ i → m i ≤ M
+
+/-- The kernels with values in `ℝ≥0∞`. -/
+noncomputable def QE (q : ℕ → G → G → ℝ) : ℕ → G → G → ℝ≥0∞ :=
+  fun i x y => ENNReal.ofReal (q i x y)
+
+omit [Fintype ι] [DecidableEq ι] [MeasurableSpace G] in
+theorem ch_nonneg (hq : ∀ i x y, 0 ≤ q i x y) (x : ι → G) (i : ℕ) (a : ι) (L : List ι) (b : ι) :
+    0 ≤ ch q x i a L b := by
+  induction L generalizing i a with
+  | nil => exact hq _ _ _
+  | cons c L ih => rw [ch_cons]; exact mul_nonneg (hq _ _ _) (ih 1 c)
+
+omit [Fintype ι] [DecidableEq ι] [MeasurableSpace G] in
+theorem cyc_nonneg (hq : ∀ i x y, 0 ≤ q i x y) (x : ι → G) (J : List ι) : 0 ≤ cyc q x J := by
+  cases J with
+  | nil => exact le_rfl
+  | cons a L => exact ch_nonneg hq x 1 a L a
+
+omit [Fintype ι] [DecidableEq ι] [MeasurableSpace G] in
+theorem ofReal_ch (hq : ∀ i x y, 0 ≤ q i x y) (x : ι → G) (i : ℕ) (a : ι) (L : List ι) (b : ι) :
+    ENNReal.ofReal (ch q x i a L b) = ch (QE q) x i a L b := by
+  induction L generalizing i a with
+  | nil => rfl
+  | cons c L ih =>
+    rw [ch_cons, ch_cons, ENNReal.ofReal_mul (hq _ _ _), ih]
+    rfl
+
+omit [Fintype ι] [DecidableEq ι] [MeasurableSpace G] in
+theorem ofReal_cyc (hq : ∀ i x y, 0 ≤ q i x y) (x : ι → G) (J : List ι) :
+    ENNReal.ofReal (cyc q x J) = cyc (QE q) x J := by
+  cases J with
+  | nil => exact ENNReal.ofReal_zero
+  | cons a L => exact ofReal_ch hq x 1 a L a
+
+omit [Fintype ι] in
+theorem wt_nonneg (hM : 0 ≤ M) (J L : List ι) : 0 ≤ wt M J L := by
+  induction L with
+  | nil => exact zero_le_one
+  | cons a L ih =>
+    rw [wt_cons]
+    refine mul_nonneg ?_ ih
+    split_ifs
+    · exact hM
+    · exact zero_le_one
+
+omit [Fintype ι] in
+theorem ofReal_wt (hM : 0 ≤ M) (J L : List ι) :
+    ENNReal.ofReal (wt M J L) = wt (ENNReal.ofReal M) J L := by
+  induction L with
+  | nil => exact ENNReal.ofReal_one
+  | cons a L ih =>
+    have h0 : (0 : ℝ) ≤ (if a ∈ L ∨ a ∈ J then M else 1) := by
+      split_ifs
+      · exact hM
+      · exact zero_le_one
+    rw [wt_cons, wt_cons, ENNReal.ofReal_mul h0, ih]
+    congr 1
+    split_ifs
+    · rfl
+    · exact ENNReal.ofReal_one
+
+omit [Fintype ι] in
+theorem wt_nodup (L : List ι) (h : L.Nodup) : wt M [] L = 1 := by
+  induction L with
+  | nil => rfl
+  | cons a L ih =>
+    have haL : a ∉ L := (List.nodup_cons.mp h).1
+    have hc : ¬ (a ∈ L ∨ a ∈ ([] : List ι)) := by simp [haL]
+    rw [wt_cons, if_neg hc, one_mul, ih (List.nodup_cons.mp h).2]
+
+omit [Fintype ι] [DecidableEq ι] [MeasurableSpace G] in
+theorem ch_le_pow (hq : ∀ i x y, 0 ≤ q i x y) (hb : ∀ x y, q 1 x y ≤ M) (x : ι → G) (a : ι)
+    (L : List ι) (b : ι) : ch q x 1 a L b ≤ M ^ (L.length + 1) := by
+  induction L generalizing a with
+  | nil => simpa [ch_nil] using hb (x a) (x b)
+  | cons c L ih =>
+    rw [ch_cons, List.length_cons, pow_succ' M (L.length + 1)]
+    exact mul_le_mul (hb _ _) (ih c) (ch_nonneg hq x 1 c L b) ((hq 1 (x a) (x c)).trans (hb _ _))
+
+omit [Fintype ι] [DecidableEq ι] [MeasurableSpace G] in
+theorem cyc_abs_le (hq : ∀ i x y, 0 ≤ q i x y) (hb : ∀ x y, q 1 x y ≤ M) (_hM : 1 ≤ M)
+    (x : ι → G) (J : List ι) : |cyc q x J| ≤ M ^ J.length := by
+  rw [abs_of_nonneg (cyc_nonneg hq x J)]
+  cases J with
+  | nil => simp [cyc]
+  | cons a L => exact ch_le_pow hq hb x a L a
+
+theorem integral_le_of_lintegral_le {α : Type*} [MeasurableSpace α] {μ : Measure α} {f : α → ℝ}
+    (hf0 : ∀ x, 0 ≤ f x) (hfm : Measurable f) {C : ℝ} (hC : 0 ≤ C)
+    (h : ∫⁻ x, ENNReal.ofReal (f x) ∂μ ≤ ENNReal.ofReal C) : ∫ x, f x ∂μ ≤ C := by
+  rw [integral_eq_lintegral_of_nonneg_ae (Filter.Eventually.of_forall hf0)
+    hfm.aestronglyMeasurable]
+  calc (∫⁻ x, ENNReal.ofReal (f x) ∂μ).toReal ≤ (ENNReal.ofReal C).toReal :=
+        ENNReal.toReal_mono ENNReal.ofReal_ne_top h
+    _ = C := ENNReal.toReal_ofReal hC
+
+theorem integral_eq_of_lintegral_eq {α : Type*} [MeasurableSpace α] {μ : Measure α} {f : α → ℝ}
+    (hf0 : ∀ x, 0 ≤ f x) (hfm : Measurable f) {C : ℝ} (hC : 0 ≤ C)
+    (h : ∫⁻ x, ENNReal.ofReal (f x) ∂μ = ENNReal.ofReal C) : ∫ x, f x ∂μ = C := by
+  rw [integral_eq_lintegral_of_nonneg_ae (Filter.Eventually.of_forall hf0)
+    hfm.aestronglyMeasurable, h, ENNReal.toReal_ofReal hC]
+
+namespace RK
+
+variable (S : RK ν q M m)
+include S
+
+omit [IsProbabilityMeasure ν] in
+theorem measE (i : ℕ) : Measurable fun p : G × G => QE q i p.1 p.2 :=
+  ENNReal.measurable_ofReal.comp (S.meas i)
+
+omit [IsProbabilityMeasure ν] in
+theorem M_nonneg : 0 ≤ M := zero_le_one.trans S.M_ge
+
+omit [IsProbabilityMeasure ν] in
+theorem M1E : (1 : ℝ≥0∞) ≤ ENNReal.ofReal M := by
+  rw [← ENNReal.ofReal_one]; exact ENNReal.ofReal_le_ofReal S.M_ge
+
+omit [IsProbabilityMeasure ν] in
+theorem boundE (x y : G) : QE q 1 x y ≤ ENNReal.ofReal M := ENNReal.ofReal_le_ofReal (S.bound x y)
+
+omit [IsProbabilityMeasure ν] in
+theorem diagE (i : ℕ) (x : G) (hi : 1 ≤ i) : QE q i x x = ENNReal.ofReal (m i) := by
+  show ENNReal.ofReal (q i x x) = _
+  rw [S.diag i x hi]
+
+omit [Fintype ι] [DecidableEq ι] [IsProbabilityMeasure ν] in
+theorem cyc_measurable (J : List ι) : Measurable fun x : ι → G => cyc q x J := cyc_meas S.meas J
+
+omit [DecidableEq ι] in
+theorem cyc_integrable (J : List ι) :
+    Integrable (fun x : ι → G => cyc q x J) (Measure.pi fun _ : ι => ν) :=
+  Integrable.of_bound (S.cyc_measurable J).aestronglyMeasurable (M ^ J.length)
+    (Filter.Eventually.of_forall fun x => by
+      rw [Real.norm_eq_abs]; exact cyc_abs_le S.nonneg S.bound S.M_ge x J)
+
+omit [DecidableEq ι] in
+theorem pair_integrable (I J : List ι) :
+    Integrable (fun x : ι → G => cyc q x I * cyc q x J) (Measure.pi fun _ : ι => ν) :=
+  Integrable.of_bound ((S.cyc_measurable I).mul (S.cyc_measurable J)).aestronglyMeasurable
+    (M ^ I.length * M ^ J.length)
+    (Filter.Eventually.of_forall fun x => by
+      rw [Real.norm_eq_abs, abs_mul]
+      exact mul_le_mul (cyc_abs_le S.nonneg S.bound S.M_ge x I)
+        (cyc_abs_le S.nonneg S.bound S.M_ge x J) (abs_nonneg _)
+        (pow_nonneg S.M_nonneg _))
+
+/-- Stage (1): a closed walk through distinct points has expectation `m_k`. -/
+theorem int_nodup (a : ι) (L : List ι) (hnd : (a :: L).Nodup) :
+    ∫ x, cyc q x (a :: L) ∂Measure.pi (fun _ : ι => ν) = m (L.length + 1) := by
+  refine integral_eq_of_lintegral_eq (fun x => cyc_nonneg S.nonneg x _) (S.cyc_measurable _)
+    (S.m_nonneg _ (by omega)) ?_
+  simp_rw [ofReal_cyc S.nonneg]
+  exact cyc_integral_nodup ν (QE q) S.measE S.semi (fun i => ENNReal.ofReal (m i)) S.diagE a L hnd
+
+/-- Stage (2): every closed walk has expectation at most `M` times its weight. -/
+theorem int_le (a : ι) (L : List ι) :
+    ∫ x, cyc q x (a :: L) ∂Measure.pi (fun _ : ι => ν) ≤ M * wt M [] (a :: L) := by
+  refine integral_le_of_lintegral_le (fun x => cyc_nonneg S.nonneg x _) (S.cyc_measurable _)
+    (mul_nonneg S.M_nonneg (wt_nonneg S.M_nonneg _ _)) ?_
+  simp_rw [ofReal_cyc S.nonneg]
+  rw [ENNReal.ofReal_mul S.M_nonneg, ofReal_wt S.M_nonneg]
+  exact cyc_integral_le ν (QE q) S.measE _ S.M1E S.boundE S.mass a L
+
+theorem pair_le (a : ι) (L : List ι) (a' : ι) (L' : List ι) :
+    ∫ x, cyc q x (a :: L) * cyc q x (a' :: L') ∂Measure.pi (fun _ : ι => ν)
+      ≤ M * (wt M (a' :: L') (a :: L) * (M * wt M [] (a' :: L'))) := by
+  have hM := S.M_nonneg
+  refine integral_le_of_lintegral_le
+    (fun x => mul_nonneg (cyc_nonneg S.nonneg x _) (cyc_nonneg S.nonneg x _))
+    ((S.cyc_measurable _).mul (S.cyc_measurable _))
+    (mul_nonneg hM (mul_nonneg (wt_nonneg hM _ _) (mul_nonneg hM (wt_nonneg hM _ _)))) ?_
+  simp_rw [ENNReal.ofReal_mul (cyc_nonneg S.nonneg _ _), ofReal_cyc S.nonneg]
+  rw [ENNReal.ofReal_mul hM, ENNReal.ofReal_mul (wt_nonneg hM _ _), ENNReal.ofReal_mul hM,
+    ofReal_wt hM, ofReal_wt hM]
+  exact pair_integral_le ν (QE q) S.measE _ S.M1E S.boundE S.mass a L a' L'
+
+theorem pair_eq (a : ι) (L : List ι) (hnd : (a :: L).Nodup) (a' : ι) (L' : List ι)
+    (hnd' : (a' :: L').Nodup) (v : ι) (hv : v ∈ a :: L)
+    (hcommon : ∀ c ∈ a :: L, c ∈ a' :: L' → c = v) :
+    ∫ x, cyc q x (a :: L) * cyc q x (a' :: L') ∂Measure.pi (fun _ : ι => ν)
+      = m (L.length + 1) * m (L'.length + 1) := by
+  refine integral_eq_of_lintegral_eq
+    (fun x => mul_nonneg (cyc_nonneg S.nonneg x _) (cyc_nonneg S.nonneg x _))
+    ((S.cyc_measurable _).mul (S.cyc_measurable _))
+    (mul_nonneg (S.m_nonneg _ (by omega)) (S.m_nonneg _ (by omega))) ?_
+  simp_rw [ENNReal.ofReal_mul (cyc_nonneg S.nonneg _ _), ofReal_cyc S.nonneg]
+  rw [ENNReal.ofReal_mul (S.m_nonneg _ (by omega))]
+  exact pair_integral_eq ν (QE q) S.measE S.semi (fun i => ENNReal.ofReal (m i)) S.diagE a L hnd
+    a' L' hnd' v hv hcommon
+
+end RK
+
+end RealKernels
+
+/-! ### Counting: weighted sums over the lists of a fixed length -/
+
+section Counting
+
+variable {ι : Type*} [Fintype ι] [DecidableEq ι]
+
+/-- The number of lists of length `n` with distinct entries, as a real number. -/
+noncomputable def aN (ι : Type*) [Fintype ι] [DecidableEq ι] (n : ℕ) : ℝ :=
+  ∑ I ∈ LL ι n, if I.Nodup then (1 : ℝ) else 0
+
+theorem aN_nonneg (n : ℕ) : 0 ≤ aN ι n :=
+  Finset.sum_nonneg fun _ _ => by split_ifs <;> norm_num
+
+theorem aN_zero : aN ι 0 = 1 := by
+  unfold aN
+  rw [show LL ι 0 = {[]} from rfl, Finset.sum_singleton]
+  simp
+
+theorem aN_succ (n : ℕ) : aN ι (n + 1) = ((Fintype.card ι : ℝ) - n) * aN ι n := by
+  unfold aN
+  rw [sum_LL_succ, Finset.mul_sum]
+  refine Finset.sum_congr rfl fun L hL => ?_
+  have hlen := mem_LL.mp hL
+  by_cases hnd : L.Nodup
+  · have h1 : ∀ a : ι, (if (a :: L).Nodup then (1 : ℝ) else 0) = if a ∈ L then 0 else 1 := by
+      intro a
+      by_cases ha : a ∈ L <;> simp [List.nodup_cons, ha, hnd]
+    simp_rw [h1]
+    rw [sum_ite_mem, if_pos hnd, List.toFinset_card_of_nodup hnd, hlen]
+    ring
+  · have h1 : ∀ a : ι, (if (a :: L).Nodup then (1 : ℝ) else 0) = 0 := by
+      intro a
+      rw [if_neg]
+      intro h
+      exact hnd (List.nodup_cons.mp h).2
+    simp_rw [h1]
+    simp [hnd]
+
+/-- `N^n (1 - n²/(2N)) ≤ #{distinct lists} ≤ N^n`, written without division. -/
+theorem aN_bounds (n : ℕ) (hn : n ≤ Fintype.card ι) :
+    aN ι n ≤ (Fintype.card ι : ℝ) ^ n ∧
+      (2 * (Fintype.card ι : ℝ) - (n : ℝ) ^ 2) * (Fintype.card ι : ℝ) ^ n
+        ≤ 2 * (Fintype.card ι : ℝ) * aN ι n := by
+  induction n with
+  | zero => simp [aN_zero]
+  | succ n ih =>
+    obtain ⟨ih1, ih2⟩ := ih (by omega)
+    have hNn : (n : ℝ) + 1 ≤ (Fintype.card ι : ℝ) := by exact_mod_cast hn
+    have hn0 : (0 : ℝ) ≤ (n : ℝ) := Nat.cast_nonneg n
+    have ha := aN_nonneg (ι := ι) n
+    have ht : (0 : ℝ) ≤ (Fintype.card ι : ℝ) ^ n := pow_nonneg (Nat.cast_nonneg _) n
+    rw [aN_succ, pow_succ]
+    generalize (Fintype.card ι : ℝ) = N at *
+    generalize aN ι n = a at *
+    generalize N ^ n = t at *
+    push_cast
+    have hN0 : 0 ≤ N := by linarith
+    constructor
+    · have h1 : n * a ≥ 0 := mul_nonneg hn0 ha
+      have h2 : N * a ≤ N * t := mul_le_mul_of_nonneg_left ih1 hN0
+      linarith
+    · have h1 : (N - n) * ((2 * N - (n : ℝ) ^ 2) * t) ≤ (N - n) * (2 * N * a) :=
+        mul_le_mul_of_nonneg_left ih2 (by linarith)
+      have h2 : 0 ≤ ((n : ℝ) ^ 3 + N) * t := mul_nonneg (by positivity) ht
+      linarith
+
+theorem card_LL (n : ℕ) : ∑ _I ∈ LL ι n, (1 : ℝ) = (Fintype.card ι : ℝ) ^ n := by
+  induction n with
+  | zero => simp [LL]
+  | succ n ih =>
+    rw [sum_LL_succ, pow_succ, ← ih, Finset.sum_mul]
+    refine Finset.sum_congr rfl fun L _ => ?_
+    simp
+
+/-- The sum of the weights `wt M []` over all lists of length `n`. -/
+noncomputable def bN (ι : Type*) [Fintype ι] [DecidableEq ι] (M : ℝ) (n : ℕ) : ℝ :=
+  ∑ I ∈ LL ι n, wt M [] I
+
+theorem bN_nonneg {M : ℝ} (hM : 0 ≤ M) (n : ℕ) : 0 ≤ bN ι M n :=
+  Finset.sum_nonneg fun _ _ => wt_nonneg hM _ _
+
+theorem bN_zero (M : ℝ) : bN ι M 0 = 1 := by simp [bN, LL, wt]
+
+theorem bN_succ_le {M : ℝ} (hM : 1 ≤ M) (n : ℕ) :
+    bN ι M (n + 1) ≤ ((Fintype.card ι : ℝ) + n * (M - 1)) * bN ι M n := by
+  unfold bN
+  rw [sum_LL_succ, Finset.mul_sum]
+  refine Finset.sum_le_sum fun L hL => ?_
+  have hlen := mem_LL.mp hL
+  have h1 : ∀ a : ι, wt M [] (a :: L) = (if a ∈ L then M else 1) * wt M [] L := by
+    intro a
+    rw [wt_cons]
+    simp
+  simp_rw [h1]
+  rw [← Finset.sum_mul, sum_ite_mem]
+  refine mul_le_mul_of_nonneg_right ?_ (wt_nonneg (by linarith) _ _)
+  have hc : (L.toFinset.card : ℝ) ≤ n := by
+    have := List.toFinset_card_le L
+    rw [hlen] at this
+    exact_mod_cast this
+  have h2 : (L.toFinset.card : ℝ) * (M - 1) ≤ n * (M - 1) :=
+    mul_le_mul_of_nonneg_right hc (by linarith)
+  linarith
+
+/-- `∑ wt ≤ N^n (1 + n²(M-1)/N)` as long as `n²(M-1) ≤ N`, written without division. -/
+theorem bN_bound {M : ℝ} (hM : 1 ≤ M) (n : ℕ)
+    (h : (n : ℝ) ^ 2 * (M - 1) ≤ (Fintype.card ι : ℝ)) :
+    (Fintype.card ι : ℝ) * bN ι M n
+      ≤ ((Fintype.card ι : ℝ) + (n : ℝ) ^ 2 * (M - 1)) * (Fintype.card ι : ℝ) ^ n := by
+  induction n with
+  | zero => simp [bN_zero]
+  | succ n ih =>
+    have hu : 0 ≤ M - 1 := by linarith
+    have hn0 : (0 : ℝ) ≤ (n : ℝ) := Nat.cast_nonneg n
+    push_cast at h
+    have hn : (n : ℝ) ^ 2 * (M - 1) ≤ (Fintype.card ι : ℝ) := by nlinarith
+    have ih' := ih hn
+    have hb := bN_nonneg (ι := ι) (by linarith : 0 ≤ M) n
+    have hb' := bN_succ_le (ι := ι) hM n
+    have ht : (0 : ℝ) ≤ (Fintype.card ι : ℝ) ^ n := pow_nonneg (Nat.cast_nonneg _) n
+    have hN0 : (0 : ℝ) ≤ (Fintype.card ι : ℝ) := Nat.cast_nonneg _
+    rw [pow_succ (Fintype.card ι : ℝ) n]
+    push_cast
+    generalize (Fintype.card ι : ℝ) = N at *
+    generalize bN ι M n = b at *
+    generalize bN ι M (n + 1) = b' at *
+    generalize N ^ n = t at *
+    generalize M - 1 = u at *
+    have f1 : N * b' ≤ N * ((N + n * u) * b) := mul_le_mul_of_nonneg_left hb' hN0
+    have f2 : (N + n * u) * (N * b) ≤ (N + n * u) * ((N + (n : ℝ) ^ 2 * u) * t) :=
+      mul_le_mul_of_nonneg_left ih' (by positivity)
+    have f3 : (n : ℝ) * ((n : ℝ) ^ 2 * u) ≤ n * N := mul_le_mul_of_nonneg_left hn hn0
+    have f4 : 0 ≤ u * (N * (n + 1) - n * ((n : ℝ) ^ 2 * u)) * t :=
+      mul_nonneg (mul_nonneg hu (by nlinarith)) ht
+    linarith
+
+theorem wbad_eq (M : ℝ) (n : ℕ) :
+    ∑ I ∈ LL ι n, (if ¬ I.Nodup then wt M [] I else 0) = bN ι M n - aN ι n := by
+  unfold bN aN
+  rw [← Finset.sum_sub_distrib]
+  refine Finset.sum_congr rfl fun I _ => ?_
+  by_cases hnd : I.Nodup
+  · simp [hnd, wt_nodup I hnd]
+  · simp [hnd]
+
+/-! Weights for the pairs: `w0` is the weight of a list with distinct entries relative to `J`,
+`w1`, `w2` the same with one resp. two marked entries in `J`. -/
+
+/-- The factor of one entry: zero if it repeats, `M` if it lies in `J`, one otherwise. -/
+noncomputable def ee (M : ℝ) (J : List ι) (a : ι) (L : List ι) : ℝ :=
+  if a ∈ L then 0 else if a ∈ J then M else 1
+
+noncomputable def w0 (M : ℝ) (J : List ι) : List ι → ℝ
+  | [] => 1
+  | a :: L => ee M J a L * w0 M J L
+
+noncomputable def w1 (M : ℝ) (J : List ι) : List ι → ℝ
+  | [] => 0
+  | a :: L => ee M J a L * w1 M J L + (if a ∈ J then ee M J a L * w0 M J L else 0)
+
+noncomputable def w2 (M : ℝ) (J : List ι) : List ι → ℝ
+  | [] => 0
+  | a :: L => ee M J a L * w2 M J L + (if a ∈ J then ee M J a L * w1 M J L else 0)
+
+omit [Fintype ι] in
+theorem ee_nonneg {M : ℝ} (hM : 0 ≤ M) (J : List ι) (a : ι) (L : List ι) : 0 ≤ ee M J a L := by
+  unfold ee
+  split_ifs
+  · exact le_rfl
+  · exact hM
+  · exact zero_le_one
+
+omit [Fintype ι] in
+theorem w0_nonneg {M : ℝ} (hM : 0 ≤ M) (J L : List ι) : 0 ≤ w0 M J L := by
+  induction L with
+  | nil => exact zero_le_one
+  | cons a L ih => exact mul_nonneg (ee_nonneg hM J a L) ih
+
+omit [Fintype ι] in
+theorem w1_nonneg {M : ℝ} (hM : 0 ≤ M) (J L : List ι) : 0 ≤ w1 M J L := by
+  induction L with
+  | nil => exact le_rfl
+  | cons a L ih =>
+    show 0 ≤ ee M J a L * w1 M J L + (if a ∈ J then ee M J a L * w0 M J L else 0)
+    have h1 := mul_nonneg (ee_nonneg hM J a L) ih
+    have h2 := mul_nonneg (ee_nonneg hM J a L) (w0_nonneg hM J L)
+    split_ifs <;> linarith
+
+omit [Fintype ι] in
+theorem w2_nonneg {M : ℝ} (hM : 0 ≤ M) (J L : List ι) : 0 ≤ w2 M J L := by
+  induction L with
+  | nil => exact le_rfl
+  | cons a L ih =>
+    show 0 ≤ ee M J a L * w2 M J L + (if a ∈ J then ee M J a L * w1 M J L else 0)
+    have h1 := mul_nonneg (ee_nonneg hM J a L) ih
+    have h2 := mul_nonneg (ee_nonneg hM J a L) (w1_nonneg hM J L)
+    split_ifs <;> linarith
+
+omit [Fintype ι] in
+theorem wt_eq_w0 (M : ℝ) (J I : List ι) (hnd : I.Nodup) : wt M J I = w0 M J I := by
+  induction I with
+  | nil => rfl
+  | cons a L ih =>
+    have haL : a ∉ L := (List.nodup_cons.mp hnd).1
+    show (if a ∈ L ∨ a ∈ J then M else 1) * wt M J L = ee M J a L * w0 M J L
+    rw [ih (List.nodup_cons.mp hnd).2]
+    unfold ee
+    simp [haL]
+
+omit [Fintype ι] in
+theorem w0_le_w1 {M : ℝ} (hM : 0 ≤ M) (J I : List ι) (h : 1 ≤ I.countP (· ∈ J)) :
+    w0 M J I ≤ w1 M J I := by
+  induction I with
+  | nil => simp at h
+  | cons a L ih =>
+    show ee M J a L * w0 M J L
+      ≤ ee M J a L * w1 M J L + (if a ∈ J then ee M J a L * w0 M J L else 0)
+    have h1 := mul_nonneg (ee_nonneg hM J a L) (w1_nonneg hM J L)
+    by_cases haJ : a ∈ J
+    · rw [if_pos haJ]; linarith
+    · rw [if_neg haJ, add_zero]
+      rw [List.countP_cons] at h
+      simp only [haJ, decide_false, Bool.false_eq_true, if_false, add_zero] at h
+      exact mul_le_mul_of_nonneg_left (ih h) (ee_nonneg hM J a L)
+
+omit [Fintype ι] in
+theorem w0_le_w2 {M : ℝ} (hM : 0 ≤ M) (J I : List ι) (h : 2 ≤ I.countP (· ∈ J)) :
+    w0 M J I ≤ w2 M J I := by
+  induction I with
+  | nil => simp at h
+  | cons a L ih =>
+    show ee M J a L * w0 M J L
+      ≤ ee M J a L * w2 M J L + (if a ∈ J then ee M J a L * w1 M J L else 0)
+    have h2 := mul_nonneg (ee_nonneg hM J a L) (w2_nonneg hM J L)
+    rw [List.countP_cons] at h
+    by_cases haJ : a ∈ J
+    · rw [if_pos haJ]
+      simp only [haJ, decide_true, if_true] at h
+      have h1 := mul_le_mul_of_nonneg_left (w0_le_w1 hM J L (by omega)) (ee_nonneg hM J a L)
+      linarith
+    · rw [if_neg haJ, add_zero]
+      simp only [haJ, decide_false, Bool.false_eq_true, if_false, add_zero] at h
+      exact mul_le_mul_of_nonneg_left (ih h) (ee_nonneg hM J a L)
+
+theorem sum_ee_le {M : ℝ} (hM : 0 ≤ M) (J L : List ι) :
+    ∑ a : ι, ee M J a L ≤ (Fintype.card ι : ℝ) + J.length * M := by
+  have h1 : ∀ a : ι, ee M J a L ≤ if a ∈ J then M else 1 := by
+    intro a
+    unfold ee
+    split_ifs <;> linarith
+  refine (Finset.sum_le_sum fun a _ => h1 a).trans ?_
+  rw [sum_ite_mem]
+  have hc : (J.toFinset.card : ℝ) ≤ J.length := by exact_mod_cast List.toFinset_card_le J
+  have h2 : (J.toFinset.card : ℝ) * M ≤ J.length * M := mul_le_mul_of_nonneg_right hc hM
+  have h3 : (0 : ℝ) ≤ (J.toFinset.card : ℝ) := Nat.cast_nonneg _
+  linarith
+
+theorem sum_eeJ_le {M : ℝ} (hM : 0 ≤ M) (J L : List ι) :
+    ∑ a : ι, (if a ∈ J then ee M J a L else 0) ≤ J.length * M := by
+  have h1 : ∀ a : ι, (if a ∈ J then ee M J a L else 0) ≤ if a ∈ J then M else 0 := by
+    intro a
+    unfold ee
+    split_ifs <;> linarith
+  refine (Finset.sum_le_sum fun a _ => h1 a).trans ?_
+  rw [sum_ite_mem]
+  have hc : (J.toFinset.card : ℝ) ≤ J.length := by exact_mod_cast List.toFinset_card_le J
+  have h2 : (J.toFinset.card : ℝ) * M ≤ J.length * M := mul_le_mul_of_nonneg_right hc hM
+  linarith
+
+theorem s0_succ {M : ℝ} (hM : 0 ≤ M) (J : List ι) (n : ℕ) :
+    ∑ I ∈ LL ι (n + 1), w0 M J I
+      ≤ ((Fintype.card ι : ℝ) + J.length * M) * ∑ I ∈ LL ι n, w0 M J I := by
+  rw [sum_LL_succ, Finset.mul_sum]
+  refine Finset.sum_le_sum fun L _ => ?_
+  show ∑ a : ι, ee M J a L * w0 M J L ≤ _
+  rw [← Finset.sum_mul]
+  exact mul_le_mul_of_nonneg_right (sum_ee_le hM J L) (w0_nonneg hM J L)
+
+theorem s1_succ {M : ℝ} (hM : 0 ≤ M) (J : List ι) (n : ℕ) :
+    ∑ I ∈ LL ι (n + 1), w1 M J I
+      ≤ ((Fintype.card ι : ℝ) + J.length * M) * ∑ I ∈ LL ι n, w1 M J I
+        + J.length * M * ∑ I ∈ LL ι n, w0 M J I := by
+  rw [sum_LL_succ, Finset.mul_sum, Finset.mul_sum, ← Finset.sum_add_distrib]
+  refine Finset.sum_le_sum fun L _ => ?_
+  show ∑ a : ι, (ee M J a L * w1 M J L + (if a ∈ J then ee M J a L * w0 M J L else 0)) ≤ _
+  have e : ∀ a : ι, (if a ∈ J then ee M J a L * w0 M J L else 0)
+      = (if a ∈ J then ee M J a L else 0) * w0 M J L := by
+    intro a; split_ifs <;> simp
+  simp_rw [e]
+  rw [Finset.sum_add_distrib, ← Finset.sum_mul, ← Finset.sum_mul]
+  exact add_le_add (mul_le_mul_of_nonneg_right (sum_ee_le hM J L) (w1_nonneg hM J L))
+    (mul_le_mul_of_nonneg_right (sum_eeJ_le hM J L) (w0_nonneg hM J L))
+
+theorem s2_succ {M : ℝ} (hM : 0 ≤ M) (J : List ι) (n : ℕ) :
+    ∑ I ∈ LL ι (n + 1), w2 M J I
+      ≤ ((Fintype.card ι : ℝ) + J.length * M) * ∑ I ∈ LL ι n, w2 M J I
+        + J.length * M * ∑ I ∈ LL ι n, w1 M J I := by
+  rw [sum_LL_succ, Finset.mul_sum, Finset.mul_sum, ← Finset.sum_add_distrib]
+  refine Finset.sum_le_sum fun L _ => ?_
+  show ∑ a : ι, (ee M J a L * w2 M J L + (if a ∈ J then ee M J a L * w1 M J L else 0)) ≤ _
+  have e : ∀ a : ι, (if a ∈ J then ee M J a L * w1 M J L else 0)
+      = (if a ∈ J then ee M J a L else 0) * w1 M J L := by
+    intro a; split_ifs <;> simp
+  simp_rw [e]
+  rw [Finset.sum_add_distrib, ← Finset.sum_mul, ← Finset.sum_mul]
+  exact add_le_add (mul_le_mul_of_nonneg_right (sum_ee_le hM J L) (w2_nonneg hM J L))
+    (mul_le_mul_of_nonneg_right (sum_eeJ_le hM J L) (w1_nonneg hM J L))
+
+/-- Closed forms: with `B = N + |J| M`, `c = |J| M`:
+    `∑ w0 ≤ Bⁿ`, `N ∑ w1 ≤ n c Bⁿ`, `2 N² ∑ w2 ≤ n² c² Bⁿ`. -/
+theorem s_bounds {M : ℝ} (hM : 0 ≤ M) (J : List ι) (n : ℕ) :
+    ∑ I ∈ LL ι n, w0 M J I ≤ ((Fintype.card ι : ℝ) + J.length * M) ^ n ∧
+    (Fintype.card ι : ℝ) * ∑ I ∈ LL ι n, w1 M J I
+      ≤ n * (J.length * M) * ((Fintype.card ι : ℝ) + J.length * M) ^ n ∧
+    2 * (Fintype.card ι : ℝ) ^ 2 * ∑ I ∈ LL ι n, w2 M J I
+      ≤ (n : ℝ) ^ 2 * (J.length * M) ^ 2 * ((Fintype.card ι : ℝ) + J.length * M) ^ n := by
+  induction n with
+  | zero => simp [LL, w0, w1, w2]
+  | succ n ih =>
+    obtain ⟨i0, i1, i2⟩ := ih
+    have h0 := s0_succ (ι := ι) hM J n
+    have h1 := s1_succ (ι := ι) hM J n
+    have h2 := s2_succ (ι := ι) hM J n
+    have p0 : 0 ≤ ∑ I ∈ LL ι n, w0 M J I := Finset.sum_nonneg fun I _ => w0_nonneg hM J I
+    have p1 : 0 ≤ ∑ I ∈ LL ι n, w1 M J I := Finset.sum_nonneg fun I _ => w1_nonneg hM J I
+    have hN0 : (0 : ℝ) ≤ (Fintype.card ι : ℝ) := Nat.cast_nonneg _
+    have hc0 : (0 : ℝ) ≤ (J.length : ℝ) * M := mul_nonneg (Nat.cast_nonneg _) hM
+    have hn0 : (0 : ℝ) ≤ (n : ℝ) := Nat.cast_nonneg n
+    rw [pow_succ]
+    push_cast
+    generalize (Fintype.card ι : ℝ) = N at *
+    generalize (J.length : ℝ) * M = c at *
+    generalize ∑ I ∈ LL ι n, w0 M J I = s0 at *
+    generalize ∑ I ∈ LL ι n, w1 M J I = s1 at *
+    generalize ∑ I ∈ LL ι n, w2 M J I = s2 at *
+    generalize ∑ I ∈ LL ι (n + 1), w0 M J I = s0' at *
+    generalize ∑ I ∈ LL ι (n + 1), w1 M J I = s1' at *
+    generalize ∑ I ∈ LL ι (n + 1), w2 M J I = s2' at *
+    have hB0 : 0 ≤ N + c := by linarith
+    have ht : 0 ≤ (N + c) ^ n := pow_nonneg hB0 n
+    generalize (N + c) ^ n = t at *
+    refine ⟨?_, ?_, ?_⟩
+    · have := mul_le_mul_of_nonneg_left i0 hB0
+      linarith
+    · have a1 : N * s1' ≤ N * ((N + c) * s1 + c * s0) := mul_le_mul_of_nonneg_left h1 hN0
+      have a2 : (N + c) * (N * s1) ≤ (N + c) * (n * c * t) := mul_le_mul_of_nonneg_left i1 hB0
+      have a3 : c * N * s0 ≤ c * N * t := mul_le_mul_of_nonneg_left i0 (mul_nonneg hc0 hN0)
+      have a4 : 0 ≤ c * c * t := mul_nonneg (mul_nonneg hc0 hc0) ht
+      linarith
+    · have a1 : 2 * N ^ 2 * s2' ≤ 2 * N ^ 2 * ((N + c) * s2 + c * s1) :=
+        mul_le_mul_of_nonneg_left h2 (by positivity)
+      have a2 : (N + c) * (2 * N ^ 2 * s2) ≤ (N + c) * ((n : ℝ) ^ 2 * c ^ 2 * t) :=
+        mul_le_mul_of_nonneg_left i2 hB0
+      have a3 : 2 * N * c * (N * s1) ≤ 2 * N * c * (n * c * t) :=
+        mul_le_mul_of_nonneg_left i1 (by positivity)
+      have a4 : 0 ≤ c * c * c * t * (2 * n + 1) := by positivity
+      have a5 : 0 ≤ N * (c * c * t) := by positivity
+      linarith
+
+/-- Lists with distinct entries of which at least two lie in `J`: the weights sum to at most
+    `∑ w2`. -/
+theorem pair_count_le {M : ℝ} (hM : 0 ≤ M) (J : List ι) (n : ℕ) :
+    ∑ I ∈ LL ι n, (if I.Nodup then (if 2 ≤ I.countP (· ∈ J) then wt M J I else 0) else 0)
+      ≤ ∑ I ∈ LL ι n, w2 M J I := by
+  refine Finset.sum_le_sum fun I _ => ?_
+  by_cases hnd : I.Nodup
+  · rw [if_pos hnd]
+    by_cases h2 : 2 ≤ I.countP (· ∈ J)
+    · rw [if_pos h2, wt_eq_w0 M J I hnd]
+      exact w0_le_w2 hM J I h2
+    · rw [if_neg h2]; exact w2_nonneg hM J I
+  · rw [if_neg hnd]; exact w2_nonneg hM J I
+
+omit [Fintype ι] in
+/-- At most one entry of `I` in `J`: all such entries coincide. -/
+theorem common_unique (J I : List ι) (h : I.countP (· ∈ J) ≤ 1) :
+    ∀ c ∈ I, ∀ c' ∈ I, c ∈ J → c' ∈ J → c = c' := by
+  induction I with
+  | nil => intro c hc; simp at hc
+  | cons a L ih =>
+    rw [List.countP_cons] at h
+    by_cases haJ : a ∈ J
+    · simp only [haJ, decide_true, if_true] at h
+      have h0 : L.countP (· ∈ J) = 0 := by omega
+      have hno : ∀ c ∈ L, c ∉ J := by
+        intro c hc hcJ
+        have := List.countP_eq_zero.mp h0 c hc
+        simp [hcJ] at this
+      intro c hc c' hc' hcJ hc'J
+      rcases List.mem_cons.mp hc with rfl | hcL
+      · rcases List.mem_cons.mp hc' with rfl | hc'L
+        · rfl
+        · exact absurd hc'J (hno c' hc'L)
+      · exact absurd hcJ (hno c hcL)
+    · simp only [haJ, decide_false, Bool.false_eq_true, if_false, add_zero] at h
+      intro c hc c' hc' hcJ hc'J
+      rcases List.mem_cons.mp hc with rfl | hcL
+      · exact absurd hcJ haJ
+      · rcases List.mem_cons.mp hc' with rfl | hc'L
+        · exact absurd hc'J haJ
+        · exact ih h c hcL c' hc'L hcJ hc'J
+
+end Counting
+
+/-! ### Assembly on the product space -/
+
+section Assembly
+
+variable {ι : Type*} [Fintype ι] [DecidableEq ι] {G : Type*} [MeasurableSpace G]
+  {ν : Measure G} [IsProbabilityMeasure ν] {q : ℕ → G → G → ℝ} {M : ℝ} {m : ℕ → ℝ}
+
+/-- `N^k Tr P̃^k`: the sum over all closed walks of `k = n + 1` steps. -/
+noncomputable def Tsum (q : ℕ → G → G → ℝ) (n : ℕ) (x : ι → G) : ℝ :=
+  ∑ I ∈ LL ι (n + 1), cyc q x I
+
+/-- The part of `Tsum` from the walks through distinct indices (`N^k D_k` of the paper). -/
+noncomputable def Dsum (q : ℕ → G → G → ℝ) (n : ℕ) (x : ι → G) : ℝ :=
+  ∑ I ∈ (LL ι (n + 1)).filter (fun I => I.Nodup), cyc q x I
+
+omit [MeasurableSpace G] in
+theorem Dsum_sq (n : ℕ) (x : ι → G) :
+    Dsum q n x ^ 2 = ∑ I ∈ (LL ι (n + 1)).filter (fun I => I.Nodup),
+      ∑ J ∈ (LL ι (n + 1)).filter (fun I => I.Nodup), cyc q x I * cyc q x J := by
+  unfold Dsum
+  rw [pow_two, Finset.sum_mul_sum]
+
+omit [MeasurableSpace G] in
+theorem Tsum_sub (n : ℕ) (x : ι → G) :
+    Tsum q n x - Dsum q n x = ∑ I ∈ LL ι (n + 1), (if ¬ I.Nodup then cyc q x I else 0) := by
+  unfold Tsum Dsum
+  rw [Finset.sum_filter, ← Finset.sum_sub_distrib]
+  refine Finset.sum_congr rfl fun I _ => ?_
+  by_cases hnd : I.Nodup <;> simp [hnd]
+
+theorem int_abs_le_of_sq {α : Type*} [MeasurableSpace α] {μ : Measure α} [IsProbabilityMeasure μ]
+    {f : α → ℝ} (hf : Integrable f μ) (hf2 : Integrable (fun x => f x ^ 2) μ) {t : ℝ}
+    (ht : 0 < t) (h : ∫ x, f x ^ 2 ∂μ ≤ t ^ 2) : ∫ x, |f x| ∂μ ≤ t := by
+  have hp : ∀ x, |f x| ≤ (f x ^ 2 + t ^ 2) / (2 * t) := by
+    intro x
+    rw [le_div_iff₀ (by positivity)]
+    nlinarith [pow_two_nonneg (|f x| - t), _root_.sq_abs (f x)]
+  have hi : Integrable (fun x => (f x ^ 2 + t ^ 2) / (2 * t)) μ :=
+    (hf2.add (integrable_const _)).div_const _
+  calc ∫ x, |f x| ∂μ ≤ ∫ x, (f x ^ 2 + t ^ 2) / (2 * t) ∂μ := integral_mono hf.abs hi hp
+    _ = ((∫ x, f x ^ 2 ∂μ) + t ^ 2) / (2 * t) := by
+        rw [integral_div, integral_add hf2 (integrable_const _)]
+        simp
+    _ ≤ (t ^ 2 + t ^ 2) / (2 * t) := by gcongr
+    _ = t := by field_simp; ring
+
+theorem ER_arith {N M Nk b a kk : ℝ} (hN : 0 < N) (hNk : 0 < Nk) (hM : 1 ≤ M) (hkk : 0 ≤ kk)
+    (h : 2 * N * (b - a) ≤ kk * (2 * M - 1) * Nk) : M * (b - a) / Nk ≤ kk * M ^ 2 / N := by
+  rw [div_le_div_iff₀ hNk hN]
+  have h1 := mul_le_mul_of_nonneg_left h (by linarith : 0 ≤ M)
+  have h2 : 0 ≤ kk * M * Nk := by positivity
+  linarith
+
+theorem V_arith {N M mk α w kk V : ℝ} (hN : 0 < N) (hM : 1 ≤ M) (hmk0 : 0 ≤ mk) (hmk : mk ≤ M)
+    (hα1 : α ≤ 1) (hα0 : 1 - kk / (2 * N) ≤ α) (hkk : 0 ≤ kk)
+    (hw : w ≤ 3 * kk ^ 2 * M ^ 2 / (2 * N ^ 2))
+    (hV : V ≤ mk ^ 2 * α ^ 2 + M ^ 2 * w - 2 * mk ^ 2 * α + mk ^ 2) :
+    V ≤ (2 * kk * M ^ 2 / N) ^ 2 := by
+  have hr0 : 0 ≤ kk / N := div_nonneg hkk hN.le
+  have e1 : kk / (2 * N) = kk / N / 2 := by ring
+  have e2 : 3 * kk ^ 2 * M ^ 2 / (2 * N ^ 2) = 3 / 2 * (kk / N) ^ 2 * M ^ 2 := by ring
+  have e3 : (2 * kk * M ^ 2 / N) ^ 2 = 4 * (kk / N) ^ 2 * M ^ 4 := by ring
+  rw [e1] at hα0
+  rw [e2] at hw
+  rw [e3]
+  generalize kk / N = r at *
+  have h1 : 0 ≤ 1 - α := by linarith
+  have h2 : (1 - α) ^ 2 ≤ (r / 2) ^ 2 := pow_le_pow_left₀ h1 (by linarith) 2
+  have h3 : mk ^ 2 ≤ M ^ 2 := pow_le_pow_left₀ hmk0 hmk 2
+  have h4 : mk ^ 2 * (1 - α) ^ 2 ≤ M ^ 2 * (r / 2) ^ 2 :=
+    mul_le_mul h3 h2 (by positivity) (by positivity)
+  have h5 : M ^ 2 * w ≤ M ^ 2 * (3 / 2 * r ^ 2 * M ^ 2) :=
+    mul_le_mul_of_nonneg_left hw (by positivity)
+  have hM2 : 1 ≤ M ^ 2 := by nlinarith
+  have h6 : M ^ 2 ≤ M ^ 4 := by nlinarith [mul_nonneg (pow_two_nonneg M) (sub_nonneg.mpr hM2)]
+  have h7 : r ^ 2 * M ^ 2 ≤ r ^ 2 * M ^ 4 := mul_le_mul_of_nonneg_left h6 (by positivity)
+  have h8 : 0 ≤ r ^ 2 * M ^ 4 := by positivity
+  linarith
+
+theorem bias_arith {N M mk α kk e : ℝ} (hN : 0 < N) (hM : 1 ≤ M) (hmk0 : 0 ≤ mk) (hmk : mk ≤ M)
+    (hα1 : α ≤ 1) (hα0 : 1 - kk / (2 * N) ≤ α) (hkk : 0 ≤ kk) (he0 : 0 ≤ e)
+    (he : e ≤ kk * M ^ 2 / N) : |e + α * mk - mk| ≤ kk * M ^ 2 / N := by
+  have hr0 : 0 ≤ kk / N := div_nonneg hkk hN.le
+  have e1 : kk / (2 * N) = kk / N / 2 := by ring
+  have e2 : kk * M ^ 2 / N = kk / N * M ^ 2 := by ring
+  rw [e1] at hα0
+  rw [e2] at he ⊢
+  generalize kk / N = r at *
+  have h2 : (1 - α) * mk ≤ r / 2 * M := mul_le_mul (by linarith) hmk hmk0 (by positivity)
+  have hMM : M ≤ M ^ 2 := by nlinarith
+  have h3 : r * M ≤ r * M ^ 2 := mul_le_mul_of_nonneg_left hMM hr0
+  have h4 : 0 ≤ (1 - α) * mk := mul_nonneg (by linarith) hmk0
+  have h5 : 0 ≤ r * M := mul_nonneg hr0 (by linarith)
+  rw [abs_le]
+  constructor <;> linarith
+
+theorem sq_arith {N M kk Mk : ℝ} (hMk : M ^ 2 ≤ Mk) :
+    2 * (kk * Mk / (2 * N)) ^ 2 + 2 * (2 * kk * M ^ 2 / N) ^ 2 ≤ (3 * kk * Mk / N) ^ 2 := by
+  have e1 : 2 * (kk * Mk / (2 * N)) ^ 2 + 2 * (2 * kk * M ^ 2 / N) ^ 2
+      = (kk / N) ^ 2 * (Mk ^ 2 / 2 + 8 * (M ^ 2) ^ 2) := by ring
+  have e2 : (3 * kk * Mk / N) ^ 2 = (kk / N) ^ 2 * (9 * Mk ^ 2) := by ring
+  rw [e1, e2]
+  have h1 : (M ^ 2) ^ 2 ≤ Mk ^ 2 := pow_le_pow_left₀ (by positivity) hMk 2
+  refine mul_le_mul_of_nonneg_left ?_ (by positivity)
+  have h2 : 0 ≤ Mk ^ 2 := by positivity
+  linarith
+
+theorem pow_bound {N y : ℝ} (hN : 0 < N) (hy : 0 ≤ y) (k : ℕ) (h : k * y ≤ N) :
+    (N + y) ^ k ≤ 3 * N ^ k := by
+  have h1 : N + y = N * (1 + y / N) := by field_simp
+  have h2 : (1 + y / N) ^ k ≤ 3 :=
+    calc (1 + y / N) ^ k ≤ (Real.exp (y / N)) ^ k :=
+          pow_le_pow_left₀ (by positivity) (by linarith [Real.add_one_le_exp (y / N)]) k
+      _ = Real.exp (k * (y / N)) := (Real.exp_nat_mul _ _).symm
+      _ ≤ Real.exp 1 := Real.exp_le_exp.mpr (by
+          rw [← mul_div_assoc, div_le_one hN]; exact h)
+      _ ≤ 3 := by have := Real.exp_one_lt_d9; linarith
+  rw [h1, mul_pow, mul_comm]
+  exact mul_le_mul_of_nonneg_right h2 (by positivity)
+
+namespace RK
+
+variable (S : RK ν q M m)
+include S
+
+theorem Dsum_integrable (n : ℕ) :
+    Integrable (fun x : ι → G => Dsum q n x) (Measure.pi fun _ : ι => ν) :=
+  integrable_finset_sum _ fun I _ => S.cyc_integrable I
+
+theorem Tsum_integrable (n : ℕ) :
+    Integrable (fun x : ι → G => Tsum q n x) (Measure.pi fun _ : ι => ν) :=
+  integrable_finset_sum _ fun I _ => S.cyc_integrable I
+
+theorem Dsum_sq_integrable (n : ℕ) :
+    Integrable (fun x : ι → G => Dsum q n x ^ 2) (Measure.pi fun _ : ι => ν) := by
+  simp_rw [Dsum_sq (q := q) n]
+  exact integrable_finset_sum _ fun I _ => integrable_finset_sum _ fun J _ =>
+    S.pair_integrable I J
+
+/-- Stage (1), summed: `E D = #{distinct tuples} · m_k`. -/
+theorem int_Dsum (n : ℕ) :
+    ∫ x, Dsum q n x ∂Measure.pi (fun _ : ι => ν) = aN ι (n + 1) * m (n + 1) := by
+  unfold Dsum
+  rw [integral_finset_sum _ (fun I _ => S.cyc_integrable I)]
+  have h : ∀ I ∈ (LL ι (n + 1)).filter (fun I => I.Nodup),
+      ∫ x, cyc q x I ∂Measure.pi (fun _ : ι => ν) = m (n + 1) := by
+    intro I hI
+    obtain ⟨hI1, hnd⟩ := Finset.mem_filter.mp hI
+    obtain ⟨a, L, rfl, hlen⟩ := exists_cons_of_mem_LL hI1
+    rw [S.int_nodup a L hnd, hlen]
+  rw [Finset.sum_congr rfl h, Finset.sum_const, nsmul_eq_mul, aN, Finset.natCast_card_filter]
+
+omit [IsProbabilityMeasure ν] in
+theorem Tsum_sub_nonneg (n : ℕ) (x : ι → G) : 0 ≤ Tsum q n x - Dsum q n x := by
+  rw [Tsum_sub]
+  refine Finset.sum_nonneg fun I _ => ?_
+  by_cases hnd : I.Nodup <;> simp [hnd, cyc_nonneg S.nonneg x I]
+
+/-- Stages (2), (3): the walks with a repeated index. -/
+theorem int_Tsum_sub (n : ℕ) :
+    ∫ x, (Tsum q n x - Dsum q n x) ∂Measure.pi (fun _ : ι => ν)
+      ≤ M * (bN ι M (n + 1) - aN ι (n + 1)) := by
+  simp_rw [Tsum_sub (q := q) n]
+  have hint : ∀ I ∈ LL ι (n + 1), Integrable
+      (fun x : ι → G => if ¬ I.Nodup then cyc q x I else 0) (Measure.pi fun _ : ι => ν) := by
+    intro I _
+    by_cases hnd : I.Nodup
+    · simp [hnd]
+    · simpa [hnd] using S.cyc_integrable I
+  rw [integral_finset_sum _ hint, ← wbad_eq, Finset.mul_sum]
+  refine Finset.sum_le_sum fun I hI => ?_
+  by_cases hnd : I.Nodup
+  · simp [hnd]
+  · obtain ⟨a, L, rfl, _⟩ := exists_cons_of_mem_LL hI
+    simpa [hnd] using S.int_le a L
+
+/-- Second moment of the distinct part. -/
+theorem int_Dsum_sq (n : ℕ) :
+    ∫ x, Dsum q n x ^ 2 ∂Measure.pi (fun _ : ι => ν)
+      ≤ aN ι (n + 1) ^ 2 * m (n + 1) ^ 2
+        + M ^ 2 * ∑ J ∈ LL ι (n + 1), (if J.Nodup then
+            ∑ I ∈ LL ι (n + 1), (if I.Nodup then
+              (if 2 ≤ I.countP (· ∈ J) then wt M J I else 0) else 0) else 0) := by
+  have hM := S.M_nonneg
+  simp_rw [Dsum_sq (q := q) n]
+  rw [integral_finset_sum _ (fun I _ => integrable_finset_sum _ fun J _ =>
+    S.pair_integrable I J)]
+  have hterm : ∀ I ∈ (LL ι (n + 1)).filter (fun I => I.Nodup),
+      ∀ J ∈ (LL ι (n + 1)).filter (fun I => I.Nodup),
+      ∫ x, cyc q x I * cyc q x J ∂Measure.pi (fun _ : ι => ν)
+        ≤ m (n + 1) ^ 2 + M ^ 2 * (if 2 ≤ I.countP (· ∈ J) then wt M J I else 0) := by
+    intro I hI J hJ
+    obtain ⟨hI1, hndI⟩ := Finset.mem_filter.mp hI
+    obtain ⟨hJ1, hndJ⟩ := Finset.mem_filter.mp hJ
+    obtain ⟨a, L, rfl, hlen⟩ := exists_cons_of_mem_LL hI1
+    obtain ⟨a', L', rfl, hlen'⟩ := exists_cons_of_mem_LL hJ1
+    by_cases h2 : 2 ≤ (a :: L).countP (· ∈ a' :: L')
+    · rw [if_pos h2]
+      have h := S.pair_le a L a' L'
+      rw [wt_nodup _ hndJ] at h
+      have h0 : 0 ≤ m (n + 1) ^ 2 := by positivity
+      have e : M * (wt M (a' :: L') (a :: L) * (M * 1)) = M ^ 2 * wt M (a' :: L') (a :: L) := by
+        ring
+      linarith
+    · rw [if_neg h2, mul_zero, add_zero]
+      have hu := common_unique (a' :: L') (a :: L) (by omega)
+      have hv : ∃ v ∈ a :: L, ∀ c ∈ a :: L, c ∈ a' :: L' → c = v := by
+        by_cases hex : ∃ c ∈ a :: L, c ∈ a' :: L'
+        · obtain ⟨v, hv1, hv2⟩ := hex
+          exact ⟨v, hv1, fun c hc hcJ => hu c hc v hv1 hcJ hv2⟩
+        · exact ⟨a, List.mem_cons_self, fun c hc hcJ => absurd ⟨c, hc, hcJ⟩ hex⟩
+      obtain ⟨v, hv1, hv2⟩ := hv
+      rw [S.pair_eq a L hndI a' L' hndJ v hv1 hv2, hlen, hlen', pow_two]
+  have hsum := Finset.sum_le_sum fun I hI =>
+    (integral_finset_sum _ (fun J _ => S.pair_integrable I J)).le.trans
+      (Finset.sum_le_sum fun J hJ => hterm I hI J hJ)
+  refine hsum.trans (le_of_eq ?_)
+  have hA : (((LL ι (n + 1)).filter (fun I => I.Nodup)).card : ℝ) = aN ι (n + 1) := by
+    rw [aN, Finset.natCast_card_filter]
+  simp_rw [Finset.sum_add_distrib]
+  congr 1
+  · simp only [Finset.sum_const, nsmul_eq_mul]
+    rw [hA]; ring
+  · rw [Finset.sum_comm, Finset.mul_sum, Finset.sum_filter]
+    refine Finset.sum_congr rfl fun J _ => ?_
+    by_cases hJ : J.Nodup
+    · rw [if_pos hJ, if_pos hJ, Finset.sum_filter, Finset.mul_sum]
+      refine Finset.sum_congr rfl fun I _ => ?_
+      by_cases hI : I.Nodup <;> simp [hI]
+    · rw [if_neg hJ, if_neg hJ, mul_zero]
+
+/-- **Main statement on the product space.** For `k = n + 1` with `k² M ≤ N`:
+    `E |N^{-k} T - m_k| ≤ 3 k² M²/N`, `|E N^{-k} T - m_k| ≤ k² M²/N` and, for the part `D` from
+    the walks through distinct indices, `E (N^{-k} D - m_k)² ≤ (2 k² M²/N)²`. -/
+theorem main_pi (n : ℕ) (hk : ((n : ℝ) + 1) ^ 2 * M ≤ (Fintype.card ι : ℝ)) :
+    ∫ x, |Tsum q n x / (Fintype.card ι : ℝ) ^ (n + 1) - m (n + 1)|
+        ∂Measure.pi (fun _ : ι => ν)
+      ≤ 3 * ((n : ℝ) + 1) ^ 2 * M ^ 2 / (Fintype.card ι : ℝ) ∧
+    |∫ x, Tsum q n x / (Fintype.card ι : ℝ) ^ (n + 1) ∂Measure.pi (fun _ : ι => ν) - m (n + 1)|
+      ≤ ((n : ℝ) + 1) ^ 2 * M ^ 2 / (Fintype.card ι : ℝ) ∧
+    ∫ x, (Dsum q n x / (Fintype.card ι : ℝ) ^ (n + 1) - m (n + 1)) ^ 2
+        ∂Measure.pi (fun _ : ι => ν)
+      ≤ (2 * ((n : ℝ) + 1) ^ 2 * M ^ 2 / (Fintype.card ι : ℝ)) ^ 2 := by
+  have hM1 := S.M_ge
+  have hM0 := S.M_nonneg
+  have hmk0 := S.m_nonneg (n + 1) (by omega)
+  have hmk := S.m_le (n + 1) (by omega)
+  have hn0 : (0 : ℝ) ≤ (n : ℝ) := Nat.cast_nonneg n
+  have hkk1 : (1 : ℝ) ≤ ((n : ℝ) + 1) ^ 2 := by nlinarith
+  have hkkM : ((n : ℝ) + 1) ^ 2 ≤ ((n : ℝ) + 1) ^ 2 * M := by nlinarith
+  have hN1 : (1 : ℝ) ≤ (Fintype.card ι : ℝ) := by linarith
+  have hNpos : (0 : ℝ) < (Fintype.card ι : ℝ) := by linarith
+  have hkN : n + 1 ≤ Fintype.card ι := by
+    have : ((n : ℝ) + 1) ≤ (Fintype.card ι : ℝ) := by nlinarith
+    exact_mod_cast this
+  have hNk : (0 : ℝ) < (Fintype.card ι : ℝ) ^ (n + 1) := pow_pos hNpos _
+  obtain ⟨hA1, hA2⟩ := aN_bounds (ι := ι) (n + 1) hkN
+  have hB := bN_bound (ι := ι) hM1 (n + 1) (by push_cast; nlinarith)
+  have ha0 := aN_nonneg (ι := ι) (n + 1)
+  have hE1 := S.int_Tsum_sub (ι := ι) n
+  have hE2 := S.int_Dsum (ι := ι) n
+  have hE3 := S.int_Dsum_sq (ι := ι) n
+  have hTi := S.Tsum_integrable (ι := ι) n
+  have hDi := S.Dsum_integrable (ι := ι) n
+  have hD2i := S.Dsum_sq_integrable (ι := ι) n
+  -- the pair sum
+  have hW : 2 * (Fintype.card ι : ℝ) ^ 2 * ∑ J ∈ LL ι (n + 1), (if J.Nodup then
+            ∑ I ∈ LL ι (n + 1), (if I.Nodup then
+              (if 2 ≤ I.countP (· ∈ J) then wt M J I else 0) else 0) else 0)
+      ≤ 3 * (((n : ℝ) + 1) ^ 2) ^ 2 * M ^ 2 * ((Fintype.card ι : ℝ) ^ (n + 1)) ^ 2 := by
+    have hC : ∀ J ∈ LL ι (n + 1), 2 * (Fintype.card ι : ℝ) ^ 2 * (if J.Nodup then
+            ∑ I ∈ LL ι (n + 1), (if I.Nodup then
+              (if 2 ≤ I.countP (· ∈ J) then wt M J I else 0) else 0) else 0)
+        ≤ (if J.Nodup then (1 : ℝ) else 0)
+          * (3 * (((n : ℝ) + 1) ^ 2) ^ 2 * M ^ 2 * (Fintype.card ι : ℝ) ^ (n + 1)) := by
+      intro J hJ
+      have hlen := mem_LL.mp hJ
+      by_cases hnd : J.Nodup
+      · rw [if_pos hnd, if_pos hnd, one_mul]
+        have h1 := pair_count_le (ι := ι) hM0 J (n + 1)
+        have h2 := (s_bounds (ι := ι) hM0 J (n + 1)).2.2
+        rw [hlen] at h2
+        push_cast at h2
+        have h3 := pow_bound hNpos (mul_nonneg (by positivity : (0 : ℝ) ≤ (n : ℝ) + 1) hM0)
+          (n + 1) (by push_cast; nlinarith)
+        have h4 : ((n : ℝ) + 1) ^ 2 * (((n : ℝ) + 1) * M) ^ 2
+              * ((Fintype.card ι : ℝ) + ((n : ℝ) + 1) * M) ^ (n + 1)
+            ≤ ((n : ℝ) + 1) ^ 2 * (((n : ℝ) + 1) * M) ^ 2
+              * (3 * (Fintype.card ι : ℝ) ^ (n + 1)) :=
+          mul_le_mul_of_nonneg_left h3 (by positivity)
+        have h5 := mul_le_mul_of_nonneg_left h1
+          (by positivity : (0 : ℝ) ≤ 2 * (Fintype.card ι : ℝ) ^ 2)
+        calc _ ≤ _ := h5
+          _ ≤ _ := h2
+          _ ≤ _ := h4
+          _ = _ := by ring
+      · rw [if_neg hnd, if_neg hnd]; simp
+    rw [Finset.mul_sum]
+    refine (Finset.sum_le_sum hC).trans ?_
+    rw [← Finset.sum_mul]
+    have : ∑ J ∈ LL ι (n + 1), (if J.Nodup then (1 : ℝ) else 0) = aN ι (n + 1) := rfl
+    rw [this]
+    have h6 := mul_le_mul_of_nonneg_right hA1
+      (by positivity : (0 : ℝ) ≤ 3 * (((n : ℝ) + 1) ^ 2) ^ 2 * M ^ 2
+        * (Fintype.card ι : ℝ) ^ (n + 1))
+    refine h6.trans (le_of_eq ?_)
+    ring
+  push_cast at hA2 hB
+  generalize hWdef : (∑ J ∈ LL ι (n + 1), (if J.Nodup then
+            ∑ I ∈ LL ι (n + 1), (if I.Nodup then
+              (if 2 ≤ I.countP (· ∈ J) then wt M J I else 0) else 0) else 0)) = W at hW hE3
+  generalize hadef : aN ι (n + 1) = a at *
+  generalize hbdef : bN ι M (n + 1) = b at *
+  generalize hmdef : m (n + 1) = mk at *
+  generalize hkkdef : ((n : ℝ) + 1) ^ 2 = kk at *
+  generalize hNdef : (Fintype.card ι : ℝ) = N at *
+  generalize hNkdef : N ^ (n + 1) = Nk at *
+  have hkk0 : 0 ≤ kk := by linarith
+  -- E (T - D)/Nk
+  have hER : (∫ x, (Tsum q n x - Dsum q n x) ∂Measure.pi (fun _ : ι => ν)) / Nk
+      ≤ kk * M ^ 2 / N := by
+    refine (div_le_div_of_nonneg_right hE1 hNk.le).trans ?_
+    exact ER_arith hNpos hNk hM1 hkk0 (by linarith)
+  have hER0 : 0 ≤ ∫ x, (Tsum q n x - Dsum q n x) ∂Measure.pi (fun _ : ι => ν) :=
+    integral_nonneg fun x => S.Tsum_sub_nonneg n x
+  have hα1 : a / Nk ≤ 1 := (div_le_one hNk).mpr hA1
+  have hα0 : 1 - kk / (2 * N) ≤ a / Nk := by
+    rw [le_div_iff₀ hNk]
+    have e : (1 - kk / (2 * N)) * Nk = (2 * N - kk) * Nk / (2 * N) := by field_simp
+    rw [e, div_le_iff₀ (by linarith)]
+    linarith
+  have hf : Integrable (fun x : ι → G => Dsum q n x / Nk - mk) (Measure.pi fun _ : ι => ν) :=
+    (hDi.div_const _).sub (integrable_const _)
+  have e2 : ∀ x : ι → G, (Dsum q n x / Nk - mk) ^ 2
+      = 1 / Nk ^ 2 * Dsum q n x ^ 2 - 2 * mk / Nk * Dsum q n x + mk ^ 2 := by
+    intro x; ring
+  have hf2 : Integrable (fun x : ι → G => (Dsum q n x / Nk - mk) ^ 2)
+      (Measure.pi fun _ : ι => ν) := by
+    simp_rw [e2]
+    exact ((hD2i.const_mul _).sub (hDi.const_mul _)).add (integrable_const _)
+  have hV : ∫ x, (Dsum q n x / Nk - mk) ^ 2 ∂Measure.pi (fun _ : ι => ν)
+      ≤ (2 * kk * M ^ 2 / N) ^ 2 := by
+    simp_rw [e2]
+    have j1 : Integrable (fun x : ι → G => 1 / Nk ^ 2 * Dsum q n x ^ 2)
+        (Measure.pi fun _ : ι => ν) := hD2i.const_mul _
+    have j2 : Integrable (fun x : ι → G => 2 * mk / Nk * Dsum q n x)
+        (Measure.pi fun _ : ι => ν) := hDi.const_mul _
+    have j3 : Integrable (fun x : ι → G => 1 / Nk ^ 2 * Dsum q n x ^ 2
+        - 2 * mk / Nk * Dsum q n x) (Measure.pi fun _ : ι => ν) := j1.sub j2
+    rw [integral_add j3 (integrable_const _), integral_sub j1 j2, integral_const_mul,
+      integral_const_mul, hE2]
+    simp only [integral_const, probReal_univ, one_smul]
+    have hw : W / Nk ^ 2 ≤ 3 * kk ^ 2 * M ^ 2 / (2 * N ^ 2) := by
+      rw [div_le_div_iff₀ (by positivity) (by positivity)]
+      linarith
+    refine V_arith hNpos hM1 hmk0 hmk hα1 hα0 hkk0 hw ?_
+    have h1 := mul_le_mul_of_nonneg_left hE3 (by positivity : (0 : ℝ) ≤ 1 / Nk ^ 2)
+    have e3 : 1 / Nk ^ 2 * (a ^ 2 * mk ^ 2 + M ^ 2 * W) - 2 * mk / Nk * (a * mk) + mk ^ 2
+        = mk ^ 2 * (a / Nk) ^ 2 + M ^ 2 * (W / Nk ^ 2) - 2 * mk ^ 2 * (a / Nk) + mk ^ 2 := by
+      ring
+    linarith
+  refine ⟨?_, ?_, hV⟩
+  · -- the L¹ bound
+    have hkkN : 0 < 2 * kk * M ^ 2 / N := by positivity
+    have hD1 := int_abs_le_of_sq hf hf2 hkkN hV
+    have hp : ∀ x : ι → G, |Tsum q n x / Nk - mk|
+        ≤ (Tsum q n x - Dsum q n x) / Nk + |Dsum q n x / Nk - mk| := by
+      intro x
+      have e : Tsum q n x / Nk - mk = (Tsum q n x - Dsum q n x) / Nk + (Dsum q n x / Nk - mk) := by
+        ring
+      rw [e]
+      refine (abs_add_le _ _).trans ?_
+      rw [abs_of_nonneg (div_nonneg (S.Tsum_sub_nonneg n x) hNk.le)]
+    have hi1 : Integrable (fun x : ι → G => (Tsum q n x - Dsum q n x) / Nk)
+        (Measure.pi fun _ : ι => ν) := (hTi.sub hDi).div_const _
+    calc ∫ x, |Tsum q n x / Nk - mk| ∂Measure.pi (fun _ : ι => ν)
+        ≤ ∫ x, ((Tsum q n x - Dsum q n x) / Nk + |Dsum q n x / Nk - mk|)
+            ∂Measure.pi (fun _ : ι => ν) :=
+          integral_mono (((hTi.div_const _).sub (integrable_const _)).abs) (hi1.add hf.abs) hp
+      _ = (∫ x, (Tsum q n x - Dsum q n x) ∂Measure.pi (fun _ : ι => ν)) / Nk
+            + ∫ x, |Dsum q n x / Nk - mk| ∂Measure.pi (fun _ : ι => ν) := by
+          rw [integral_add hi1 hf.abs, integral_div]
+      _ ≤ kk * M ^ 2 / N + 2 * kk * M ^ 2 / N := add_le_add hER hD1
+      _ = 3 * kk * M ^ 2 / N := by ring
+  · -- the bias
+    have e : ∀ x : ι → G, Tsum q n x / Nk = (Tsum q n x - Dsum q n x) / Nk + Dsum q n x / Nk := by
+      intro x; ring
+    simp_rw [e]
+    have j1 : Integrable (fun x : ι → G => (Tsum q n x - Dsum q n x) / Nk)
+        (Measure.pi fun _ : ι => ν) := (hTi.sub hDi).div_const _
+    have j2 : Integrable (fun x : ι → G => Dsum q n x / Nk)
+        (Measure.pi fun _ : ι => ν) := hDi.div_const _
+    rw [integral_add j1 j2, integral_div, integral_div, hE2]
+    have h1 : 0 ≤ (∫ x, (Tsum q n x - Dsum q n x) ∂Measure.pi (fun _ : ι => ν)) / Nk :=
+      div_nonneg hER0 hNk.le
+    have e4 : a * mk / Nk = a / Nk * mk := by ring
+    rw [e4]
+    exact bias_arith hNpos hM1 hmk0 hmk hα1 hα0 hkk0 h1 hER
+
+omit [IsProbabilityMeasure ν] in
+/-- The walks with a repeated index, pointwise: `0 ≤ T - D ≤ M^k (N^k - #distinct)`. -/
+theorem Tsum_sub_le (n : ℕ) (x : ι → G) :
+    Tsum q n x - Dsum q n x
+      ≤ M ^ (n + 1) * ((Fintype.card ι : ℝ) ^ (n + 1) - aN ι (n + 1)) := by
+  rw [Tsum_sub, ← card_LL (ι := ι) (n + 1), aN, ← Finset.sum_sub_distrib, Finset.mul_sum]
+  refine Finset.sum_le_sum fun I hI => ?_
+  have hlen := mem_LL.mp hI
+  by_cases hnd : I.Nodup
+  · simp [hnd]
+  · have h := (le_abs_self _).trans (cyc_abs_le S.nonneg S.bound S.M_ge x I)
+    rw [hlen] at h
+    simpa [hnd] using h
+
+/-- **Second moment on the product space** (the form of Proposition "oracle"). For `k = n + 1 ≥ 2`
+    with `k² M ≤ N`: `E (N^{-k} T - m_k)² ≤ (3 k² M^k/N)²`. -/
+theorem main_pi_sq (n : ℕ) (hn : 1 ≤ n)
+    (hk : ((n : ℝ) + 1) ^ 2 * M ≤ (Fintype.card ι : ℝ)) :
+    ∫ x, (Tsum q n x / (Fintype.card ι : ℝ) ^ (n + 1) - m (n + 1)) ^ 2
+        ∂Measure.pi (fun _ : ι => ν)
+      ≤ (3 * ((n : ℝ) + 1) ^ 2 * M ^ (n + 1) / (Fintype.card ι : ℝ)) ^ 2 := by
+  have hM1 := S.M_ge
+  have hM0 := S.M_nonneg
+  have hn0 : (0 : ℝ) ≤ (n : ℝ) := Nat.cast_nonneg n
+  have hkk1 : (1 : ℝ) ≤ ((n : ℝ) + 1) ^ 2 := by nlinarith
+  have hkkM : ((n : ℝ) + 1) ^ 2 ≤ ((n : ℝ) + 1) ^ 2 * M := by nlinarith
+  have hNpos : (0 : ℝ) < (Fintype.card ι : ℝ) := by linarith
+  have hkN : n + 1 ≤ Fintype.card ι := by
+    have : ((n : ℝ) + 1) ≤ (Fintype.card ι : ℝ) := by nlinarith
+    exact_mod_cast this
+  have hNk : (0 : ℝ) < (Fintype.card ι : ℝ) ^ (n + 1) := pow_pos hNpos _
+  obtain ⟨-, hA2⟩ := aN_bounds (ι := ι) (n + 1) hkN
+  obtain ⟨-, -, hV⟩ := S.main_pi (ι := ι) n hk
+  have hDi := S.Dsum_integrable (ι := ι) n
+  have hD2i := S.Dsum_sq_integrable (ι := ι) n
+  have hMk : M ^ 2 ≤ M ^ (n + 1) := pow_le_pow_right₀ hM1 (by omega)
+  have hsub := S.Tsum_sub_le (ι := ι) n
+  have hsub0 := S.Tsum_sub_nonneg (ι := ι) n
+  have hMk0 : 0 ≤ M ^ (n + 1) := pow_nonneg hM0 _
+  push_cast at hA2
+  generalize aN ι (n + 1) = a at *
+  generalize m (n + 1) = mk at *
+  generalize ((n : ℝ) + 1) ^ 2 = kk at *
+  generalize (Fintype.card ι : ℝ) = N at *
+  generalize N ^ (n + 1) = Nk at *
+  generalize M ^ (n + 1) = Mk at *
+  have hkk0 : 0 ≤ kk := by linarith
+  have hR : ∀ x : ι → G, (Tsum q n x - Dsum q n x) / Nk ≤ kk * Mk / (2 * N) := by
+    intro x
+    rw [div_le_div_iff₀ hNk (by linarith)]
+    have h1 : (Tsum q n x - Dsum q n x) * (2 * N) ≤ Mk * (Nk - a) * (2 * N) :=
+      mul_le_mul_of_nonneg_right (hsub x) (by linarith)
+    have h2 : Mk * (2 * N * (Nk - a)) ≤ Mk * (kk * Nk) :=
+      mul_le_mul_of_nonneg_left (by linarith) hMk0
+    linarith
+  have e2 : ∀ x : ι → G, (Dsum q n x / Nk - mk) ^ 2
+      = 1 / Nk ^ 2 * Dsum q n x ^ 2 - 2 * mk / Nk * Dsum q n x + mk ^ 2 := by
+    intro x; ring
+  have hf2 : Integrable (fun x : ι → G => (Dsum q n x / Nk - mk) ^ 2)
+      (Measure.pi fun _ : ι => ν) := by
+    simp_rw [e2]
+    exact ((hD2i.const_mul _).sub (hDi.const_mul _)).add (integrable_const _)
+  have hp : ∀ x : ι → G, (Tsum q n x / Nk - mk) ^ 2
+      ≤ 2 * (kk * Mk / (2 * N)) ^ 2 + 2 * (Dsum q n x / Nk - mk) ^ 2 := by
+    intro x
+    have e : Tsum q n x / Nk - mk = (Tsum q n x - Dsum q n x) / Nk + (Dsum q n x / Nk - mk) := by
+      ring
+    have h0 : 0 ≤ (Tsum q n x - Dsum q n x) / Nk := div_nonneg (hsub0 x) hNk.le
+    have h1 : ((Tsum q n x - Dsum q n x) / Nk) ^ 2 ≤ (kk * Mk / (2 * N)) ^ 2 :=
+      pow_le_pow_left₀ h0 (hR x) 2
+    rw [e]
+    nlinarith [pow_two_nonneg ((Tsum q n x - Dsum q n x) / Nk - (Dsum q n x / Nk - mk))]
+  have hg : Integrable (fun x : ι → G => 2 * (kk * Mk / (2 * N)) ^ 2
+      + 2 * (Dsum q n x / Nk - mk) ^ 2) (Measure.pi fun _ : ι => ν) :=
+    (integrable_const _).add (hf2.const_mul 2)
+  have hmono := integral_mono_of_nonneg
+    (Filter.Eventually.of_forall fun x : ι → G => pow_two_nonneg (Tsum q n x / Nk - mk)) hg
+    (Filter.Eventually.of_forall hp)
+  refine hmono.trans ?_
+  have hc : ∫ x : ι → G, 2 * (Dsum q n x / Nk - mk) ^ 2 ∂Measure.pi (fun _ : ι => ν)
+      = 2 * ∫ x : ι → G, (Dsum q n x / Nk - mk) ^ 2 ∂Measure.pi (fun _ : ι => ν) :=
+    integral_const_mul _ _
+  rw [integral_add (integrable_const _) (hf2.const_mul 2), hc]
+  simp only [integral_const, probReal_univ, one_smul]
+  have := sq_arith (N := N) (kk := kk) hMk
+  linarith
+
+end RK
+
+end Assembly
+
+/-! ### The trace of a power of the walk matrix as a sum over closed walks -/
+
+section Trace
+
+variable {ι : Type*} [Fintype ι] [DecidableEq ι] {G : Type*}
+
+/-- The kernel matrix `q_1(x_a, x_b)`. -/
+def Amat (q : ℕ → G → G → ℝ) (x : ι → G) : Matrix ι ι ℝ := fun a b => q 1 (x a) (x b)
+
+theorem Amat_pow_apply (q : ℕ → G → G → ℝ) (x : ι → G) (n : ℕ) (a b : ι) :
+    ((Amat q x) ^ (n + 1)) a b = ∑ L ∈ LL ι n, ch q x 1 a L b := by
+  induction n generalizing a with
+  | zero =>
+    rw [zero_add, pow_one, show LL ι 0 = {[]} from rfl, Finset.sum_singleton]
+    rfl
+  | succ n ih =>
+    rw [pow_succ', Matrix.mul_apply, sum_LL_succ, Finset.sum_comm]
+    refine Finset.sum_congr rfl fun c _ => ?_
+    rw [ih, Finset.mul_sum]
+    rfl
+
+theorem trace_Amat_pow (q : ℕ → G → G → ℝ) (x : ι → G) (n : ℕ) :
+    Matrix.trace ((Amat q x) ^ (n + 1)) = Tsum q n x := by
+  unfold Tsum Matrix.trace
+  rw [sum_LL_succ, Finset.sum_comm]
+  refine Finset.sum_congr rfl fun a _ => ?_
+  rw [Matrix.diag_apply, Amat_pow_apply]
+  rfl
+
+/-- `Tr P̃^k = N^{-k} ∑_{closed walks}` for `P̃_{ab} = q_1(x_a,x_b)/N`. -/
+theorem trace_walk_pow (q : ℕ → G → G → ℝ) (x : ι → G) (n : ℕ) (N : ℝ) :
+    Matrix.trace ((Matrix.of fun a b : ι => q 1 (x a) (x b) / N) ^ (n + 1))
+      = Tsum q n x / N ^ (n + 1) := by
+  have h : (Matrix.of fun a b : ι => q 1 (x a) (x b) / N) = (1 / N) • Amat q x := by
+    ext a b
+    simp [Amat, Matrix.smul_apply, div_eq_inv_mul]
+  rw [h, smul_pow, Matrix.trace_smul, trace_Amat_pow, smul_eq_mul, one_div, inv_pow]
+  ring
+
+end Trace
+
+/-! ### From independent sample points to the product measure -/
+
+section Sample
+
+variable {G : Type*} [MeasurableSpace G] {ν : Measure G} [IsProbabilityMeasure ν]
+  {q : ℕ → G → G → ℝ} {M : ℝ} {m : ℕ → ℝ}
+
+/-- **Moments of the walk with exact normalisation, general `k = n + 1`** (abstract kernel).
+    Under the HYPOTHESES `RK` on the kernel family, for independent points `X_j` with law `ν`,
+    `P̃_{ab} = q_1(X_a, X_b)/N` (`a, b < N`) and `k² M ≤ N`:
+    `E |Tr P̃^k - m_k| ≤ 3 k² M²/N`, `|E Tr P̃^k - m_k| ≤ k² M²/N` and, for `k ≥ 2`,
+    `E (Tr P̃^k - m_k)² ≤ (3 k² M^k/N)²`. -/
+theorem RK.oraclemoments (S : RK ν q M m) {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] (X : ℕ → Ω → G) (h_indep : ProbabilityTheory.iIndepFun X μ)
+    (hX : ∀ j, Measurable (X j)) (hlaw : ∀ j, μ.map (X j) = ν) (N n : ℕ)
+    (hk : ((n : ℝ) + 1) ^ 2 * M ≤ N) :
+    ∫ ω, |Matrix.trace ((Matrix.of fun a b : Fin N => q 1 (X a ω) (X b ω) / N) ^ (n + 1))
+        - m (n + 1)| ∂μ ≤ 3 * ((n : ℝ) + 1) ^ 2 * M ^ 2 / N ∧
+    |∫ ω, Matrix.trace ((Matrix.of fun a b : Fin N => q 1 (X a ω) (X b ω) / N) ^ (n + 1)) ∂μ
+        - m (n + 1)| ≤ ((n : ℝ) + 1) ^ 2 * M ^ 2 / N ∧
+    (1 ≤ n → ∫ ω, (Matrix.trace ((Matrix.of fun a b : Fin N => q 1 (X a ω) (X b ω) / N) ^ (n + 1))
+        - m (n + 1)) ^ 2 ∂μ ≤ (3 * ((n : ℝ) + 1) ^ 2 * M ^ (n + 1) / N) ^ 2) := by
+  have hmap : μ.map (fun ω (j : Fin N) => X j ω) = Measure.pi (fun _ : Fin N => ν) := by
+    have hi : ProbabilityTheory.iIndepFun (fun j : Fin N => X j) μ :=
+      h_indep.precomp Fin.val_injective
+    have h := (ProbabilityTheory.iIndepFun_iff_map_fun_eq_pi_map
+      (fun j : Fin N => (hX j).aemeasurable)).mp hi
+    simp_rw [hlaw] at h
+    exact h
+  have hΦ : Measurable (fun ω (j : Fin N) => X j ω) := measurable_pi_lambda _ fun j => hX j
+  have hT : Measurable fun x : Fin N → G => Tsum q n x :=
+    Finset.measurable_sum _ fun I _ => S.cyc_measurable I
+  obtain ⟨h1, h2, -⟩ := S.main_pi (ι := Fin N) n (by simpa using hk)
+  have h3 := fun hn : 1 ≤ n => S.main_pi_sq (ι := Fin N) n hn (by simpa using hk)
+  simp only [Fintype.card_fin] at h1 h2 h3
+  rw [← hmap] at h3
+  simp_rw [integral_map hΦ.aemeasurable
+    (((hT.div_const _).sub_const _).pow_const 2).aestronglyMeasurable] at h3
+  rw [← hmap, integral_map hΦ.aemeasurable
+    (((hT.div_const _).sub_const _).abs).aestronglyMeasurable] at h1
+  rw [← hmap, integral_map hΦ.aemeasurable (hT.div_const _).aestronglyMeasurable] at h2
+  simp_rw [trace_walk_pow]
+  exact ⟨h1, h2, h3⟩
+
+end Sample
+
+/-! ### The flat torus with the Gaussian kernel -/
+
+section Torus
+
+open PiBound CTG.Reals.TorusReduction
+
+/-- The hypotheses `RK` hold for the periodised Gaussian kernel of variance `σ` on the flat torus:
+    `q_i(x,y) = p_{iσ}(x - y)`, `M = m_1 = p_σ(0)`, `m_i = p_{iσ}(0)`. -/
+theorem torusRK {σ : ℝ} (hσ : 0 < σ) (d : ℕ) :
+    RK (flatTorusMeasure d) (fun i (x y : FlatTorus d) => heatP d σ i (x - y)) (torusM d σ 1)
+      (fun i => torusM d σ i) := by
+  have hmeas : ∀ i, Measurable fun p : FlatTorus d × FlatTorus d => heatP d σ i (p.1 - p.2) := by
+    intro i
+    by_cases hi : i = 0
+    · have : (fun p : FlatTorus d × FlatTorus d => heatP d σ i (p.1 - p.2)) = fun _ => 0 := by
+        funext p; simp [heatP, hi]
+      rw [this]; exact measurable_const
+    · exact (heatP_cont hσ d (by omega : 1 ≤ i)).measurable.comp (measurable_fst.sub measurable_snd)
+  have hint : ∀ (i : ℕ), 1 ≤ i → ∀ x : FlatTorus d,
+      Integrable (fun y : FlatTorus d => heatP d σ i (x - y)) (flatTorusMeasure d) := by
+    intro i hi x
+    refine Integrable.of_bound (((heatP_cont hσ d hi).measurable.comp
+      (measurable_const.sub measurable_id)).aestronglyMeasurable) (torusM d σ i)
+      (Filter.Eventually.of_forall fun y => ?_)
+    rw [Real.norm_eq_abs, abs_of_nonneg (heatP_nonneg hσ d i _)]
+    exact heatP_le hσ d hi _
+  refine
+    { meas := hmeas
+      nonneg := fun i x y => heatP_nonneg hσ d i _
+      bound := fun x y => heatP_le hσ d le_rfl _
+      mass := ?_
+      semi := ?_
+      diag := ?_
+      M_ge := torusM_ge_one hσ d le_rfl
+      m_nonneg := fun i hi => (torusM_pos hσ d hi).le
+      m_le := fun i hi => torusM_anti hσ d le_rfl hi }
+  · intro z
+    have e : ∀ y : FlatTorus d, heatP d σ 1 (y - z) = heatP d σ 1 (z - y) :=
+      fun y => heatP_flip d σ 1 y z
+    simp_rw [e]
+    rw [← ofReal_integral_eq_lintegral_ofReal (hint 1 le_rfl z)
+      (Filter.Eventually.of_forall fun y => heatP_nonneg hσ d 1 _), heatP_mass hσ d le_rfl z,
+      ENNReal.ofReal_one]
+  · intro i j x z hi hj
+    simp_rw [← ENNReal.ofReal_mul (heatP_nonneg hσ d i _)]
+    have hprod : Integrable (fun y : FlatTorus d => heatP d σ i (x - y) * heatP d σ j (y - z))
+        (flatTorusMeasure d) := by
+      refine Integrable.of_bound ((((heatP_cont hσ d hi).measurable.comp
+        (measurable_const.sub measurable_id)).mul ((heatP_cont hσ d hj).measurable.comp
+        (measurable_id.sub measurable_const))).aestronglyMeasurable)
+        (torusM d σ i * torusM d σ j) (Filter.Eventually.of_forall fun y => ?_)
+      rw [Real.norm_eq_abs, abs_of_nonneg
+        (mul_nonneg (heatP_nonneg hσ d i _) (heatP_nonneg hσ d j _))]
+      exact mul_le_mul (heatP_le hσ d hi _) (heatP_le hσ d hj _) (heatP_nonneg hσ d j _)
+        (torusM_pos hσ d hi).le
+    rw [← ofReal_integral_eq_lintegral_ofReal hprod
+      (Filter.Eventually.of_forall fun y =>
+        mul_nonneg (heatP_nonneg hσ d i _) (heatP_nonneg hσ d j _)), heatP_semi hσ d hi hj x z]
+  · intro i x hi
+    show heatP d σ i (x - x) = torusM d σ i
+    rw [sub_self, heatP_zero d σ hi]
+
+/-- **Lemma "oraclemoments" on the flat torus, every `k ≥ 1`.** Independent uniform points,
+    `p = pker d σ` the periodised Gaussian kernel of variance `σ`, `M = p(0) = m₁`,
+    `P̃_{ab} = p(X_a - X_b)/N`. If `k² M ≤ N` then `E |Tr P̃^k - m_k| ≤ 3 k² M²/N`. -/
+theorem oraclemoments_torus {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {d : ℕ} (X : ℕ → Ω → FlatTorus d)
+    (h_indep : ProbabilityTheory.iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) {σ : ℝ} (hσ : 0 < σ) (N k : ℕ) (hk : 1 ≤ k)
+    (hkN : (k : ℝ) ^ 2 * torusM d σ 1 ≤ N) :
+    ∫ ω, |Matrix.trace ((Matrix.of fun a b : Fin N => pker d σ (X a ω - X b ω) / N) ^ k)
+        - torusM d σ k| ∂μ ≤ 3 * (k : ℝ) ^ 2 * torusM d σ 1 ^ 2 / N := by
+  obtain ⟨n, rfl⟩ : ∃ n, k = n + 1 := ⟨k - 1, by omega⟩
+  have h := ((torusRK hσ d).oraclemoments X h_indep hX hlaw N n (by exact_mod_cast hkN)).1
+  simp only [heatP_one] at h
+  push_cast
+  exact h
+
+/-- **The bias of `Tr P̃^k` on the flat torus:** `|E Tr P̃^k - m_k| ≤ k² M²/N` if `k² M ≤ N`. -/
+theorem oraclemoments_bias_torus {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {d : ℕ} (X : ℕ → Ω → FlatTorus d)
+    (h_indep : ProbabilityTheory.iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) {σ : ℝ} (hσ : 0 < σ) (N k : ℕ) (hk : 1 ≤ k)
+    (hkN : (k : ℝ) ^ 2 * torusM d σ 1 ≤ N) :
+    |∫ ω, Matrix.trace ((Matrix.of fun a b : Fin N => pker d σ (X a ω - X b ω) / N) ^ k) ∂μ
+        - torusM d σ k| ≤ (k : ℝ) ^ 2 * torusM d σ 1 ^ 2 / N := by
+  obtain ⟨n, rfl⟩ : ∃ n, k = n + 1 := ⟨k - 1, by omega⟩
+  have h := ((torusRK hσ d).oraclemoments X h_indep hX hlaw N n (by exact_mod_cast hkN)).2.1
+  simp only [heatP_one] at h
+  push_cast
+  exact h
+
+/-- **Proposition "oracle" on the flat torus with the Gaussian kernel**, in the regime
+    `k² M ≤ N`, `k ≥ 2`: `E (Tr P̃^k - m_k)² ≤ (3 k² M^k/N)²`. -/
+theorem oracle_torus {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {d : ℕ} (X : ℕ → Ω → FlatTorus d)
+    (h_indep : ProbabilityTheory.iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) {σ : ℝ} (hσ : 0 < σ) (N k : ℕ) (hk : 2 ≤ k)
+    (hkN : (k : ℝ) ^ 2 * torusM d σ 1 ≤ N) :
+    ∫ ω, (Matrix.trace ((Matrix.of fun a b : Fin N => pker d σ (X a ω - X b ω) / N) ^ k)
+        - torusM d σ k) ^ 2 ∂μ ≤ (3 * (k : ℝ) ^ 2 * torusM d σ 1 ^ k / N) ^ 2 := by
+  obtain ⟨n, rfl⟩ : ∃ n, k = n + 1 := ⟨k - 1, by omega⟩
+  have h := ((torusRK hσ d).oraclemoments X h_indep hX hlaw N n (by exact_mod_cast hkN)).2.2
+    (by omega)
+  simp only [heatP_one] at h
+  push_cast
+  exact h
+
+end Torus
+
+end WalkCount
+
 end CTG.Reals2
