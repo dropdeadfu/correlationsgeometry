@@ -10,7 +10,7 @@ This branch does not touch `main` or the Mathlib project in `CorrelationsGeometr
 ## The paper (working version)
 
 `paper/correlations_to_geometry.tex`, `paper/correlations_to_geometry.pdf` and `paper/figures/` are the
-authors' working version of the whole paper (157 pages, built on 22 November 2026; since that evening with a new Appendix H, ``Time and dynamics: which data fix K and the lapse'', which is the former working draft `drafts/time_and_dynamics.tex` with a status line after every statement and has been read by AI sessions only; since that day with two authors, see the paragraph ``Author contributions'' after the abstract), placed here on
+authors' working version of the whole paper (159 pages, built on 22 November 2026; since that evening with a new Appendix H, ``Time and dynamics: which data fix K and the lapse'', which is the former working draft `drafts/time_and_dynamics.tex` with a status line after every statement and has been read by AI sessions only; since that day with two authors, see the paragraph ``Author contributions'' after the abstract), placed here on
 21 November 2026 at the author's wish and with the agreement of the owner of this repository, so that
 the state can be followed in public. It is NOT the version on Zenodo (version 3,
 doi:10.5281/zenodo.24273022) and it changes with the work. As its abstract says, none of the proofs
@@ -65,6 +65,7 @@ unless the table says otherwise, has been read formula by formula by a second AI
 - `scripts/profile_counterexample.py` — counterexample to the earlier wording of the theorem on other profiles (hypothesis (F2) was incomplete; corrected in the paper on 17 November 2026); `scripts/sphere_beta_check.py` — the quartic coefficient of the population walk on the sphere.
 - `scripts/rate_exact_large_t.py` — deterministic: `t^2 Theta''(t)/Theta(t)` and `T_sigma/Theta - 1` on the unit torus for `t` up to 1; source of the numbers in the paragraph after Theorem G.4 (the coefficient `d(d+2)/(8 tau)` is the leading term only for small `t`).
 - `scripts/lean_third_file_constants.py` — evaluates explicit constants of the third Lean file (`eigC9`, `eigC10`, `kernelQC`, `eigL1C`, the constant of `torus_reduction_paper`) and the smallest sample sizes (powers of ten) at which the hypotheses of `eig_G44_ii` can hold; none of these numbers is in the paper.
+- `scripts/tidal_cross_ratio_sphere.py` — the same check on the unit sphere (a curved reconstructed metric); `scripts/bessel_ratio_check.py` — `z (K_1/K_0 - 1)` by quadrature, for the constant of the stability statement of the lapse estimator.
 - `scripts/tidal_cross_ratio_check.py` — deterministic check, in the flat plane, of the identity `log rho = E(p_b - p_a, p_d - p_c)/3 + O(ell^3)` for the cross-ratio of four nodes in general position (Appendix H); it does not test the model error.
 - `scripts/lapse_tidal_estimator.py`, `scripts/differentiated_pipeline_npoint.py` — numerics for the draft `drafts/time_and_dynamics.tex` (lapse estimator from cross-ratios on a chain; N-point version of the differentiated pipeline on a torus); single runs, not part of the paper.
 - `scripts/pi_k_bound_mc.py` — Monte Carlo attempt to falsify G.34: `E|Pi_k| / ((M/N) k m_k)` stays between 0.19 and 0.29 for `k = 1` and falls to about 0.01 for `k = 32` (`d = 2`, `N` from 300 to 1200); no contradiction.
