@@ -27824,4 +27824,189 @@ theorem exp_small_le_pow (c ξ : ℝ) (hc : 0 < c) (hξ : 0 < ξ) (n : ℕ) :
 
 end TimeAppendix5
 
+/-! ### Appendix H, continued (A86): the remainder `O(ℓ⁴)` of `lem:schwarz` -/
+namespace TimeAppendix6
+
+open Filter
+
+set_option maxRecDepth 20000 in
+set_option maxHeartbeats 1600000 in
+/-- Core: from the fifth-order Peano expansion of `W` at `τ` (HYPOTHESIS `hP`) and
+`W1 ≠ 0`, the quotient `(ρ₀ − 1 − S ℓ²/6)/ℓ⁴` has a finite limit as `ℓ → 0`. -/
+theorem schwarz_remainder_core (W : ℝ → ℝ) (τ W0 W1 W2 W3 W4 W5 : ℝ) (h1 : W1 ≠ 0)
+    (hP : Tendsto (fun h => (W (τ + h) - W0 - W1 * h - W2 * h ^ 2 / 2 - W3 * h ^ 3 / 6
+        - W4 * h ^ 4 / 24 - W5 * h ^ 5 / 120) / h ^ 5) (nhdsWithin 0 {0}ᶜ) (nhds 0)) :
+    ∃ c4 : ℝ, Tendsto (fun ℓ => ((3 * ℓ * ℓ) / ((2 * ℓ) * (2 * ℓ)) *
+        (((W (τ + ℓ / 2) - W (τ - 3 * ℓ / 2)) * (W (τ + 3 * ℓ / 2) - W (τ - ℓ / 2))) /
+         ((W (τ + 3 * ℓ / 2) - W (τ - 3 * ℓ / 2)) * (W (τ + ℓ / 2) - W (τ - ℓ / 2)))) - 1
+        - (W3 / W1 - 3 / 2 * (W2 / W1) ^ 2) / 6 * ℓ ^ 2) / ℓ ^ 4)
+      (nhdsWithin 0 {0}ᶜ) (nhds c4) := by
+  set S : ℝ := W3 / W1 - 3 / 2 * (W2 / W1) ^ 2 with hS
+  set E : ℝ → ℝ := fun h => (W (τ + h) - W0 - W1 * h - W2 * h ^ 2 / 2 - W3 * h ^ 3 / 6
+        - W4 * h ^ 4 / 24 - W5 * h ^ 5 / 120) / h ^ 5 with hE
+  have hℓ : Tendsto (fun ℓ : ℝ => ℓ) (nhdsWithin 0 {0}ᶜ) (nhds 0) :=
+    tendsto_nhdsWithin_of_tendsto_nhds tendsto_id
+  have hne : ∀ᶠ ℓ : ℝ in nhdsWithin 0 {0}ᶜ, ℓ ≠ 0 := eventually_mem_nhdsWithin
+  have hsc : ∀ s : ℝ, s ≠ 0 → Tendsto (fun ℓ => E (s * ℓ)) (nhdsWithin 0 {0}ᶜ) (nhds 0) := by
+    intro s hs
+    refine hP.comp ?_
+    refine tendsto_nhdsWithin_iff.mpr ⟨?_, ?_⟩
+    · have := hℓ.const_mul s
+      simpa using this
+    · filter_upwards [hne] with ℓ hl
+      exact mul_ne_zero hs hl
+  have e1 := hsc (1 / 2) (by norm_num)
+  have e2 := hsc (-(1 / 2)) (by norm_num)
+  have e3 := hsc (3 / 2) (by norm_num)
+  have e4 := hsc (-(3 / 2)) (by norm_num)
+  set qcb : ℝ → ℝ := fun ℓ => W5 / 1920 + (E (1 / 2 * ℓ) + E (-(1 / 2) * ℓ)) / 32 with hqcb
+  set qda : ℝ → ℝ := fun ℓ =>
+    243 * W5 / 1920 + 243 * (E (3 / 2 * ℓ) + E (-(3 / 2) * ℓ)) / 32 with hqda
+  set qca : ℝ → ℝ := fun ℓ =>
+    244 * W5 / 3840 + (E (1 / 2 * ℓ) + 243 * E (-(3 / 2) * ℓ)) / 32 with hqca
+  set qdb : ℝ → ℝ := fun ℓ =>
+    244 * W5 / 3840 + (243 * E (3 / 2 * ℓ) + E (-(1 / 2) * ℓ)) / 32 with hqdb
+  have tcb : Tendsto qcb (nhdsWithin 0 {0}ᶜ) (nhds (W5 / 1920)) := by
+    have := ((e1.add e2).div_const 32).const_add (W5 / 1920)
+    convert this using 2
+    all_goals simp
+  have tda : Tendsto qda (nhdsWithin 0 {0}ᶜ) (nhds (243 * W5 / 1920)) := by
+    have := (((e3.add e4).const_mul 243).div_const 32).const_add (243 * W5 / 1920)
+    convert this using 2
+    all_goals simp
+  have tca : Tendsto qca (nhdsWithin 0 {0}ᶜ) (nhds (244 * W5 / 3840)) := by
+    have := ((e1.add (e4.const_mul 243)).div_const 32).const_add (244 * W5 / 3840)
+    convert this using 2
+    all_goals simp
+  have tdb : Tendsto qdb (nhdsWithin 0 {0}ᶜ) (nhds (244 * W5 / 3840)) := by
+    have := (((e3.const_mul 243).add e2).div_const 32).const_add (244 * W5 / 3840)
+    convert this using 2
+    all_goals simp
+  have val : ∀ ℓ s : ℝ, ℓ ≠ 0 → s ≠ 0 →
+      W (τ + s * ℓ) = W0 + W1 * (s * ℓ) + W2 * (s * ℓ) ^ 2 / 2 + W3 * (s * ℓ) ^ 3 / 6
+        + W4 * (s * ℓ) ^ 4 / 24 + W5 * (s * ℓ) ^ 5 / 120 + (s * ℓ) ^ 5 * E (s * ℓ) := by
+    intro ℓ s hl hs
+    have : s * ℓ ≠ 0 := mul_ne_zero hs hl
+    simp only [hE]
+    field_simp
+    ring
+  have a1 : ∀ ℓ : ℝ, τ + ℓ / 2 = τ + 1 / 2 * ℓ := fun ℓ => by ring
+  have a2 : ∀ ℓ : ℝ, τ - ℓ / 2 = τ + -(1 / 2) * ℓ := fun ℓ => by ring
+  have a3 : ∀ ℓ : ℝ, τ + 3 * ℓ / 2 = τ + 3 / 2 * ℓ := fun ℓ => by ring
+  have a4 : ∀ ℓ : ℝ, τ - 3 * ℓ / 2 = τ + -(3 / 2) * ℓ := fun ℓ => by ring
+  -- p = (ℓ, qcb, qda, qca, qdb)
+  set Gf : ℝ × ℝ × ℝ × ℝ × ℝ → ℝ := fun p =>
+    3 * W3 ^ 2 / 64 + (3 * W1 + 9 * W3 * p.1 ^ 2 / 8) * p.2.1
+      + (W1 + W3 * p.1 ^ 2 / 24) * p.2.2.1 + p.1 ^ 4 * p.2.2.1 * p.2.1 with hGf
+  set Nf : ℝ × ℝ × ℝ × ℝ × ℝ → ℝ := fun p =>
+    49 * W3 ^ 2 / 48 - 5 * W2 * W4 / 4 - 25 * W4 ^ 2 * p.1 ^ 2 / 192
+      + 3 * ((2 * W1 + 7 * W3 * p.1 ^ 2 / 12 + (W2 * p.1 + 5 * W4 * p.1 ^ 3 / 24)) * p.2.2.2.1
+           + (2 * W1 + 7 * W3 * p.1 ^ 2 / 12 - (W2 * p.1 + 5 * W4 * p.1 ^ 3 / 24)) * p.2.2.2.2)
+      + 3 * p.1 ^ 4 * p.2.2.2.1 * p.2.2.2.2 - 4 * Gf p
+      - 5 / 6 * S * W1 * W3 - 2 * S / 3 * p.1 ^ 2 * Gf p with hNf
+  set Df : ℝ × ℝ × ℝ × ℝ × ℝ → ℝ := fun p =>
+    4 * ((3 * W1 + 9 * W3 * p.1 ^ 2 / 8 + p.1 ^ 4 * p.2.2.1)
+      * (W1 + W3 * p.1 ^ 2 / 24 + p.1 ^ 4 * p.2.1)) with hDf
+  have hcG : Continuous Gf := by simp only [hGf]; fun_prop
+  have hcN : Continuous Nf := by simp only [hNf]; fun_prop
+  have hcD : Continuous Df := by simp only [hDf]; fun_prop
+  have tup := hℓ.prodMk_nhds (tcb.prodMk_nhds (tda.prodMk_nhds (tca.prodMk_nhds tdb)))
+  set pt : ℝ × ℝ × ℝ × ℝ × ℝ :=
+    (0, W5 / 1920, 243 * W5 / 1920, 244 * W5 / 3840, 244 * W5 / 3840) with hpt
+  have tN := (hcN.tendsto pt).comp tup
+  have tD := (hcD.tendsto pt).comp tup
+  have hD0 : Df pt ≠ 0 := by
+    simp only [hDf, hpt]
+    have : W1 ^ 2 ≠ 0 := pow_ne_zero 2 h1
+    intro h
+    apply this
+    nlinarith
+  have hDne := tD.eventually_ne hD0
+  refine ⟨Nf pt / Df pt, (tN.div tD hD0).congr' ?_⟩
+  filter_upwards [hne, hDne] with ℓ hl hd
+  set p : ℝ × ℝ × ℝ × ℝ × ℝ := (ℓ, qcb ℓ, qda ℓ, qca ℓ, qdb ℓ) with hp
+  have hd' : Df p ≠ 0 := hd
+  have hA : 3 * W1 + 9 * W3 * ℓ ^ 2 / 8 + ℓ ^ 4 * qda ℓ ≠ 0 := fun h => hd' (by simp [hDf, hp, h])
+  have hB : W1 + W3 * ℓ ^ 2 / 24 + ℓ ^ 4 * qcb ℓ ≠ 0 := fun h => hd' (by simp [hDf, hp, h])
+  have dcb : W (τ + ℓ / 2) - W (τ - ℓ / 2) = ℓ * (W1 + W3 * ℓ ^ 2 / 24 + ℓ ^ 4 * qcb ℓ) := by
+    rw [a1, a2, val ℓ (1 / 2) hl (by norm_num), val ℓ (-(1 / 2)) hl (by norm_num)]
+    simp only [hqcb]; ring
+  have dda : W (τ + 3 * ℓ / 2) - W (τ - 3 * ℓ / 2)
+      = ℓ * (3 * W1 + 9 * W3 * ℓ ^ 2 / 8 + ℓ ^ 4 * qda ℓ) := by
+    rw [a3, a4, val ℓ (3 / 2) hl (by norm_num), val ℓ (-(3 / 2)) hl (by norm_num)]
+    simp only [hqda]; ring
+  have dca : W (τ + ℓ / 2) - W (τ - 3 * ℓ / 2)
+      = ℓ * (2 * W1 + 7 * W3 * ℓ ^ 2 / 12 - (W2 * ℓ + 5 * W4 * ℓ ^ 3 / 24) + ℓ ^ 4 * qca ℓ) := by
+    rw [a1, a4, val ℓ (1 / 2) hl (by norm_num), val ℓ (-(3 / 2)) hl (by norm_num)]
+    simp only [hqca]; ring
+  have ddb : W (τ + 3 * ℓ / 2) - W (τ - ℓ / 2)
+      = ℓ * (2 * W1 + 7 * W3 * ℓ ^ 2 / 12 + (W2 * ℓ + 5 * W4 * ℓ ^ 3 / 24) + ℓ ^ 4 * qdb ℓ) := by
+    rw [a3, a2, val ℓ (3 / 2) hl (by norm_num), val ℓ (-(1 / 2)) hl (by norm_num)]
+    simp only [hqdb]; ring
+  have hSW : S * W1 ^ 2 = W1 * W3 - 3 / 2 * W2 ^ 2 := by
+    simp only [hS]; field_simp
+  have gen : ∀ a b c d : ℝ, c ≠ 0 → d ≠ 0 →
+      ((3 * ℓ * ℓ) / ((2 * ℓ) * (2 * ℓ)) * (((ℓ * a) * (ℓ * b)) / ((ℓ * c) * (ℓ * d))) - 1
+        - S / 6 * ℓ ^ 2) / ℓ ^ 4
+      = (3 * a * b - 4 * (c * d) - 2 * S / 3 * ℓ ^ 2 * (c * d)) / ℓ ^ 4 / (4 * (c * d)) := by
+    intro a b c d hc hd
+    field_simp
+    ring
+  have key : 3 * (2 * W1 + 7 * W3 * ℓ ^ 2 / 12 - (W2 * ℓ + 5 * W4 * ℓ ^ 3 / 24) + ℓ ^ 4 * qca ℓ)
+        * (2 * W1 + 7 * W3 * ℓ ^ 2 / 12 + (W2 * ℓ + 5 * W4 * ℓ ^ 3 / 24) + ℓ ^ 4 * qdb ℓ)
+      - 4 * ((3 * W1 + 9 * W3 * ℓ ^ 2 / 8 + ℓ ^ 4 * qda ℓ)
+          * (W1 + W3 * ℓ ^ 2 / 24 + ℓ ^ 4 * qcb ℓ))
+      - 2 * S / 3 * ℓ ^ 2 * ((3 * W1 + 9 * W3 * ℓ ^ 2 / 8 + ℓ ^ 4 * qda ℓ)
+          * (W1 + W3 * ℓ ^ 2 / 24 + ℓ ^ 4 * qcb ℓ)) = ℓ ^ 4 * Nf p := by
+    simp only [hNf, hGf, hp]
+    linear_combination (-2 * ℓ ^ 2) * hSW
+  rw [dcb, dda, dca, ddb, gen _ _ _ _ hA hB, key, mul_div_cancel_left₀ _ (pow_ne_zero 4 hl)]
+  rfl
+
+/-- `lem:schwarz` with its remainder, for `W ∈ C⁵` and `W'(τ) ≠ 0`: there are `C` and
+`ℓ₀ > 0` with `|ρ₀ − 1 − S(W)(τ) ℓ²/6| ≤ C ℓ⁴` for `0 < |ℓ| < ℓ₀`.  NOT proven: that `C`
+and `ℓ₀` depend only on bounds for the derivatives and a lower bound for `W'`. -/
+theorem schwarz_remainder (W : ℝ → ℝ) (τ : ℝ) (hW : ContDiff ℝ 5 W)
+    (h1 : iteratedDeriv 1 W τ ≠ 0) :
+    ∃ C ℓ0 : ℝ, 0 < ℓ0 ∧ ∀ ℓ : ℝ, ℓ ≠ 0 → |ℓ| < ℓ0 →
+      |(3 * ℓ * ℓ) / ((2 * ℓ) * (2 * ℓ)) *
+        (((W (τ + ℓ / 2) - W (τ - 3 * ℓ / 2)) * (W (τ + 3 * ℓ / 2) - W (τ - ℓ / 2))) /
+         ((W (τ + 3 * ℓ / 2) - W (τ - 3 * ℓ / 2)) * (W (τ + ℓ / 2) - W (τ - ℓ / 2)))) - 1
+        - (iteratedDeriv 3 W τ / iteratedDeriv 1 W τ
+            - 3 / 2 * (iteratedDeriv 2 W τ / iteratedDeriv 1 W τ) ^ 2) / 6 * ℓ ^ 2|
+        ≤ C * ℓ ^ 4 := by
+  have hP : Tendsto (fun h => (W (τ + h) - W τ - iteratedDeriv 1 W τ * h
+        - iteratedDeriv 2 W τ * h ^ 2 / 2 - iteratedDeriv 3 W τ * h ^ 3 / 6
+        - iteratedDeriv 4 W τ * h ^ 4 / 24 - iteratedDeriv 5 W τ * h ^ 5 / 120) / h ^ 5)
+      (nhdsWithin 0 {0}ᶜ) (nhds 0) := by
+    have ho := taylor_isLittleO_univ (x₀ := τ) (n := 5) (f := W) (by exact_mod_cast hW)
+    have ht := ho.tendsto_div_nhds_zero
+    have hsh : Tendsto (fun h : ℝ => τ + h) (nhdsWithin 0 {0}ᶜ) (nhds τ) := by
+      have : Tendsto (fun h : ℝ => τ + h) (nhds 0) (nhds (τ + 0)) :=
+        (continuous_const.add continuous_id).tendsto 0
+      rw [add_zero] at this
+      exact tendsto_nhdsWithin_of_tendsto_nhds this
+    refine (ht.comp hsh).congr' ?_
+    filter_upwards with h
+    simp [taylor_within_apply, Finset.sum_range_succ, iteratedDerivWithin_univ, Nat.factorial]
+    ring
+  obtain ⟨c4, hc4⟩ := schwarz_remainder_core W τ (W τ) _ _ _ _ _ h1 hP
+  obtain ⟨δ, hδ, hδ'⟩ := (Metric.tendsto_nhdsWithin_nhds.mp hc4) 1 one_pos
+  refine ⟨|c4| + 1, δ, hδ, fun ℓ hl hlt => ?_⟩
+  have h := hδ' (x := ℓ) hl (by simpa [Real.dist_eq] using hlt)
+  rw [Real.dist_eq] at h
+  have hp : 0 < ℓ ^ 4 := by positivity
+  set R := (3 * ℓ * ℓ) / ((2 * ℓ) * (2 * ℓ)) *
+        (((W (τ + ℓ / 2) - W (τ - 3 * ℓ / 2)) * (W (τ + 3 * ℓ / 2) - W (τ - ℓ / 2))) /
+         ((W (τ + 3 * ℓ / 2) - W (τ - 3 * ℓ / 2)) * (W (τ + ℓ / 2) - W (τ - ℓ / 2)))) - 1
+        - (iteratedDeriv 3 W τ / iteratedDeriv 1 W τ
+            - 3 / 2 * (iteratedDeriv 2 W τ / iteratedDeriv 1 W τ) ^ 2) / 6 * ℓ ^ 2 with hR
+  have hb : |R / ℓ ^ 4| ≤ |c4| + 1 := by
+    have := abs_sub_abs_le_abs_sub (R / ℓ ^ 4) c4
+    linarith
+  rw [abs_div, abs_of_pos hp, div_le_iff₀ hp] at hb
+  exact hb
+
+end TimeAppendix6
+
 end CTG.Reals2
