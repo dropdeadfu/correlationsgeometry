@@ -198,4 +198,49 @@ theorem riemannianEDist_ne_top {M' : Type*} [PseudoEMetricSpace M'] [ChartedSpac
   rw [← IsRiemannianManifold.out (I := I) x y]
   exact edist_ne_top_of_preconnected x y
 
+/-- Interval form of `norm_growth`: the hypotheses are only required on a convex set `s` of times
+(for instance `[-τ₀, τ₀]`), with derivatives within `s`. -/
+theorem norm_growth_on (s : Set ℝ) (hs : Convex ℝ s) (f f' : ℝ → ℝ) (κ : ℝ)
+    (hpos : ∀ t ∈ s, 0 < f t) (hd : ∀ t ∈ s, HasDerivWithinAt f (f' t) s t)
+    (hb : ∀ t ∈ s, |f' t| ≤ 2 * κ * f t) {a b : ℝ} (ha : a ∈ s) (hb' : b ∈ s) :
+    Real.sqrt (f b) ≤ Real.exp (κ * |b - a|) * Real.sqrt (f a) := by
+  have hg : ∀ t ∈ s, HasDerivWithinAt (fun u => Real.log (f u)) (f' t / f t) s t := fun t ht =>
+    (hd t ht).log (hpos t ht).ne'
+  have hbd : ∀ t ∈ s, ‖f' t / f t‖ ≤ 2 * κ := fun t ht => by
+    rw [Real.norm_eq_abs, abs_div, abs_of_pos (hpos t ht), div_le_iff₀ (hpos t ht)]
+    exact hb t ht
+  have h := hs.norm_image_sub_le_of_norm_hasDerivWithin_le hg hbd ha hb'
+  rw [Real.norm_eq_abs, Real.norm_eq_abs] at h
+  have h2 : Real.log (f b) ≤ 2 * κ * |b - a| + Real.log (f a) := by
+    have := le_abs_self (Real.log (f b) - Real.log (f a)); linarith
+  have h3 := Real.exp_le_exp.mpr h2
+  rw [Real.exp_add, Real.exp_log (hpos b hb'), Real.exp_log (hpos a ha)] at h3
+  have e : Real.exp (2 * κ * |b - a|) = Real.exp (κ * |b - a|) ^ 2 := by
+    rw [← Real.exp_nat_mul]; congr 1; push_cast; ring
+  have h4 : Real.sqrt (f b) ≤ Real.sqrt (Real.exp (κ * |b - a|) ^ 2 * f a) :=
+    Real.sqrt_le_sqrt (by rw [← e]; exact h3)
+  rwa [Real.sqrt_mul (sq_nonneg _), Real.sqrt_sq (Real.exp_pos _).le] at h4
+
+/-- Interval form of `riemannianEDist_time`: the family of norms and the bound `|∂_τ g| ≤ 2κ g` are
+only required for times in a convex set `s`; for `a, b ∈ s`, `d_b ≤ e^{κ|b−a|} d_a`. -/
+theorem riemannianEDist_time_on (s : Set ℝ) (hs : Convex ℝ s)
+    (n : ℝ → ∀ x : M, ENorm (TangentSpace I x))
+    (g g' : ℝ → (x : M) → TangentSpace I x → ℝ) (κ : ℝ)
+    (hn : ∀ τ ∈ s, ∀ x v, @enorm _ (n τ x) v = ENNReal.ofReal (Real.sqrt (g τ x v)))
+    (hcase : ∀ x v, (∀ τ ∈ s, g τ x v = 0) ∨ (∀ τ ∈ s, 0 < g τ x v))
+    (hd : ∀ τ ∈ s, ∀ x v, HasDerivWithinAt (fun u => g u x v) (g' τ x v) s τ)
+    (hb : ∀ τ ∈ s, ∀ x v, |g' τ x v| ≤ 2 * κ * g τ x v) {a b : ℝ} (ha : a ∈ s) (hb' : b ∈ s)
+    (p q : M) :
+    (letI := n b; Manifold.riemannianEDist I p q)
+      ≤ ENNReal.ofReal (Real.exp (κ * |b - a|)) * (letI := n a; Manifold.riemannianEDist I p q) := by
+  refine riemannianEDist_le_mul (n a) (n b) _ (by simp [Real.exp_pos]) ENNReal.ofReal_ne_top
+    (fun x v => ?_) p q
+  rw [hn b hb', hn a ha]
+  rcases hcase x v with h0 | hpos
+  · simp [h0 a ha, h0 b hb']
+  · rw [← ENNReal.ofReal_mul (Real.exp_pos _).le]
+    exact ENNReal.ofReal_le_ofReal
+      (norm_growth_on s hs (fun u => g u x v) (fun u => g' u x v) κ hpos (fun t ht => hd t ht x v)
+        (fun t ht => hb t ht x v) ha hb')
+
 end CTG.ManifoldDistance
