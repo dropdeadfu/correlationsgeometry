@@ -106,7 +106,8 @@ theorem norm_growth (f f' : ℝ → ℝ) (κ : ℝ) (hpos : ∀ t, 0 < f t)
 if `‖v‖_τ = (g τ x v)^{1/2}` with `g` either identically zero in `τ` or positive, differentiable in `τ`
 with `|∂_τ g| ≤ 2κ g`, then the Riemannian distances at two times satisfy
 `d_b ≤ e^{κ|b−a|} d_a`.  With `a` and `b` exchanged this is the comparison
-`e^{-κ|η|} d ≤ d' ≤ e^{κ|η|} d` of Step 1 of `prop:dotLN-diff`. -/
+`e^{-κ|η|} d ≤ d' ≤ e^{κ|η|} d` of Step 1 of `prop:dotLN-diff`.  The hypothesis `hcase` holds
+automatically when `g τ x ·` is a positive definite quadratic form for every `τ`. -/
 theorem riemannianEDist_time (n : ℝ → ∀ x : M, ENorm (TangentSpace I x))
     (g g' : ℝ → (x : M) → TangentSpace I x → ℝ) (κ : ℝ)
     (hn : ∀ τ x v, @enorm _ (n τ x) v = ENNReal.ofReal (Real.sqrt (g τ x v)))
@@ -282,7 +283,8 @@ theorem riemannianDist_lipschitz_time (s : Set ℝ) (hs : Convex ℝ s)
 /-- Finiteness for a bare family of norms from a reference metric (remark of the second session):
 on a connected Riemannian manifold in Mathlib's sense, a family of norms `n` that is dominated by
 `c` times the norm of the Riemannian bundle has finite Riemannian distances.  Without such a
-hypothesis finiteness is false for bare `ENorm` families (the norm may be `⊤`).  That two continuous
+hypothesis finiteness is false for bare `ENorm` families (the norm may be `⊤`).  The norm on the
+right of `h` is the norm of the Riemannian bundle on the tangent space, not of the model space.  That two continuous
 metrics on a compact manifold are comparable is NOT proven here. -/
 theorem riemannianEDist_ne_top_of_le {M' : Type*} [PseudoEMetricSpace M'] [ChartedSpace H M']
     [RiemannianBundle (fun (x : M') ↦ TangentSpace I x)] [IsRiemannianManifold I M']

@@ -28009,4 +28009,229 @@ theorem schwarz_remainder (W : ℝ → ℝ) (τ : ℝ) (hW : ContDiff ℝ 5 W)
 
 end TimeAppendix6
 
+/-! ### Appendix H, continued (A87): `lem:schwarz` with constants that depend only on bounds -/
+namespace TimeAppendix7
+
+noncomputable def schG (W1 W3 ℓ qcb qda : ℝ) : ℝ :=
+  3 * W3 ^ 2 / 64 + (3 * W1 + 9 * W3 * ℓ ^ 2 / 8) * qcb + (W1 + W3 * ℓ ^ 2 / 24) * qda
+    + ℓ ^ 4 * qda * qcb
+
+noncomputable def schN (W1 W2 W3 W4 S ℓ qcb qda qca qdb : ℝ) : ℝ :=
+  49 * W3 ^ 2 / 48 - 5 * W2 * W4 / 4 - 25 * W4 ^ 2 * ℓ ^ 2 / 192
+    + 3 * ((2 * W1 + 7 * W3 * ℓ ^ 2 / 12 + (W2 * ℓ + 5 * W4 * ℓ ^ 3 / 24)) * qca
+         + (2 * W1 + 7 * W3 * ℓ ^ 2 / 12 - (W2 * ℓ + 5 * W4 * ℓ ^ 3 / 24)) * qdb)
+    + 3 * ℓ ^ 4 * qca * qdb - 4 * schG W1 W3 ℓ qcb qda
+    - 5 / 6 * S * W1 * W3 - 2 * S / 3 * ℓ ^ 2 * schG W1 W3 ℓ qcb qda
+
+theorem sch_key (W1 W2 W3 W4 S ℓ qcb qda qca qdb : ℝ)
+    (hSW : S * W1 ^ 2 = W1 * W3 - 3 / 2 * W2 ^ 2) :
+    3 * (2 * W1 + 7 * W3 * ℓ ^ 2 / 12 - (W2 * ℓ + 5 * W4 * ℓ ^ 3 / 24) + ℓ ^ 4 * qca)
+        * (2 * W1 + 7 * W3 * ℓ ^ 2 / 12 + (W2 * ℓ + 5 * W4 * ℓ ^ 3 / 24) + ℓ ^ 4 * qdb)
+      - 4 * ((3 * W1 + 9 * W3 * ℓ ^ 2 / 8 + ℓ ^ 4 * qda) * (W1 + W3 * ℓ ^ 2 / 24 + ℓ ^ 4 * qcb))
+      - 2 * S / 3 * ℓ ^ 2 * ((3 * W1 + 9 * W3 * ℓ ^ 2 / 8 + ℓ ^ 4 * qda)
+          * (W1 + W3 * ℓ ^ 2 / 24 + ℓ ^ 4 * qcb))
+      = ℓ ^ 4 * schN W1 W2 W3 W4 S ℓ qcb qda qca qdb := by
+  unfold schN schG
+  linear_combination (-2 * ℓ ^ 2) * hSW
+
+theorem sch_gen (S ℓ a b c d : ℝ) (hl : ℓ ≠ 0) (hc : c ≠ 0) (hd : d ≠ 0) :
+    (3 * ℓ * ℓ) / ((2 * ℓ) * (2 * ℓ)) * (((ℓ * a) * (ℓ * b)) / ((ℓ * c) * (ℓ * d))) - 1
+        - S / 6 * ℓ ^ 2
+      = (3 * a * b - 4 * (c * d) - 2 * S / 3 * ℓ ^ 2 * (c * d)) / (4 * (c * d)) := by
+  field_simp
+  ring
+
+set_option maxHeartbeats 3200000 in
+/-- `lem:schwarz` with uniform constants: for `m > 0`, `B, B5 ≥ 0` there are `C` and `ℓ₀ > 0`,
+depending only on `m, B, B5`, such that for every function `W` and every `τ` with a fourth-order
+Taylor polynomial at `τ` whose coefficients satisfy `m ≤ W1`, `|W_k| ≤ B` and whose remainder is at
+most `B5 |h|⁵` for `|h| ≤ 2` (HYPOTHESIS `hT`; it follows from `|W⁽⁵⁾| ≤ 120 B5` by Lagrange, which
+is not derived here), `|ρ₀ − 1 − S ℓ²/6| ≤ C ℓ⁴` for `0 < |ℓ| < ℓ₀`. -/
+theorem schwarz_uniform (m B B5 : ℝ) (hm : 0 < m) (hB : 0 ≤ B) (hB5 : 0 ≤ B5) :
+    ∃ C ℓ0 : ℝ, 0 < ℓ0 ∧ ∀ (W : ℝ → ℝ) (τ W0 W1 W2 W3 W4 : ℝ),
+      m ≤ W1 → |W1| ≤ B → |W2| ≤ B → |W3| ≤ B → |W4| ≤ B →
+      (∀ h, |h| ≤ 2 → |W (τ + h) - W0 - W1 * h - W2 * h ^ 2 / 2 - W3 * h ^ 3 / 6
+          - W4 * h ^ 4 / 24| ≤ B5 * |h| ^ 5) →
+      ∀ ℓ : ℝ, ℓ ≠ 0 → |ℓ| < ℓ0 →
+        |(3 * ℓ * ℓ) / ((2 * ℓ) * (2 * ℓ)) *
+          (((W (τ + ℓ / 2) - W (τ - 3 * ℓ / 2)) * (W (τ + 3 * ℓ / 2) - W (τ - ℓ / 2))) /
+           ((W (τ + 3 * ℓ / 2) - W (τ - 3 * ℓ / 2)) * (W (τ + ℓ / 2) - W (τ - ℓ / 2)))) - 1
+          - (W3 / W1 - 3 / 2 * (W2 / W1) ^ 2) / 6 * ℓ ^ 2| ≤ C * ℓ ^ 4 := by
+  set Sb : ℝ := B / m + 3 / 2 * (B / m) ^ 2 with hSb
+  have hSb0 : 0 ≤ Sb := by positivity
+  set R : ℝ := B + Sb + 16 * B5 + 1 with hR
+  have hR1 : 1 ≤ R := by simp only [hR]; linarith
+  -- compactness bound for schN on the box
+  set f : ℝ × ℝ × ℝ × ℝ × ℝ × ℝ × ℝ × ℝ × ℝ × ℝ → ℝ := fun p =>
+    schN p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2.1 p.2.2.2.2.2.1 p.2.2.2.2.2.2.1
+      p.2.2.2.2.2.2.2.1 p.2.2.2.2.2.2.2.2.1 p.2.2.2.2.2.2.2.2.2 with hf
+  have hfc : Continuous f := by simp only [hf]; unfold schN schG; fun_prop
+  obtain ⟨C1, hC1⟩ := (isCompact_Icc
+      (a := ((-R, -R, -R, -R, -R, -R, -R, -R, -R, -R) : ℝ × ℝ × ℝ × ℝ × ℝ × ℝ × ℝ × ℝ × ℝ × ℝ))
+      (b := (R, R, R, R, R, R, R, R, R, R))).exists_bound_of_continuousOn hfc.continuousOn
+  set D : ℝ := 2 * B + 16 * B5 + 1 with hD
+  have hD0 : 0 < D := by simp only [hD]; linarith
+  set δ : ℝ := m / (2 * D) with hδ
+  have hδ0 : 0 < δ := by positivity
+  refine ⟨max C1 0 / (4 * m ^ 2), min 1 δ, lt_min one_pos hδ0, ?_⟩
+  intro W τ W0 W1 W2 W3 W4 hW1 hb1 hb2 hb3 hb4 hT ℓ hl hlt
+  have hl1 : |ℓ| < 1 := lt_of_lt_of_le hlt (min_le_left _ _)
+  have hlδ : |ℓ| < δ := lt_of_lt_of_le hlt (min_le_right _ _)
+  have hW1pos : 0 < W1 := lt_of_lt_of_le hm hW1
+  set u : ℝ := ℓ ^ 2 with hu
+  have hu0 : 0 ≤ u := sq_nonneg _
+  have hu1 : u ≤ |ℓ| := by
+    have : u = |ℓ| * |ℓ| := by rw [hu, ← sq_abs]; ring
+    rw [this]; nlinarith [abs_nonneg ℓ]
+  have huδ : D * u ≤ m / 2 := by
+    have h1 : u ≤ δ := hu1.trans hlδ.le
+    have h2 : D * u ≤ D * δ := mul_le_mul_of_nonneg_left h1 hD0.le
+    have h3 : D * δ = m / 2 := by simp only [hδ]; field_simp
+    linarith
+  have hu4 : ℓ ^ 4 = u * u := by simp only [hu]; ring
+  have huu : u * u ≤ u := by nlinarith [hu1, hl1.le, abs_nonneg ℓ]
+  -- the four Taylor remainders
+  set E : ℝ → ℝ := fun h => (W (τ + h) - W0 - W1 * h - W2 * h ^ 2 / 2 - W3 * h ^ 3 / 6
+      - W4 * h ^ 4 / 24) / h ^ 5 with hE
+  have hEb : ∀ s : ℝ, s ≠ 0 → |s| ≤ 2 → |E (s * ℓ)| ≤ B5 := by
+    intro s hs hs2
+    have hne : s * ℓ ≠ 0 := mul_ne_zero hs hl
+    have hle : |s * ℓ| ≤ 2 := by
+      rw [abs_mul]; nlinarith [abs_nonneg s, abs_nonneg ℓ, hl1.le]
+    have h5 : 0 < |s * ℓ| ^ 5 := pow_pos (abs_pos.mpr hne) 5
+    simp only [hE]
+    rw [abs_div, abs_pow, div_le_iff₀ h5]
+    exact hT _ hle
+  have val : ∀ s : ℝ, s ≠ 0 →
+      W (τ + s * ℓ) = W0 + W1 * (s * ℓ) + W2 * (s * ℓ) ^ 2 / 2 + W3 * (s * ℓ) ^ 3 / 6
+        + W4 * (s * ℓ) ^ 4 / 24 + (s * ℓ) ^ 5 * E (s * ℓ) := by
+    intro s hs
+    have : s * ℓ ≠ 0 := mul_ne_zero hs hl
+    simp only [hE]
+    field_simp
+    ring
+  have a1 : τ + ℓ / 2 = τ + 1 / 2 * ℓ := by ring
+  have a2 : τ - ℓ / 2 = τ + -(1 / 2) * ℓ := by ring
+  have a3 : τ + 3 * ℓ / 2 = τ + 3 / 2 * ℓ := by ring
+  have a4 : τ - 3 * ℓ / 2 = τ + -(3 / 2) * ℓ := by ring
+  set e1 := E (1 / 2 * ℓ) with he1
+  set e2 := E (-(1 / 2) * ℓ) with he2
+  set e3 := E (3 / 2 * ℓ) with he3
+  set e4 := E (-(3 / 2) * ℓ) with he4
+  have b1 : |e1| ≤ B5 := hEb _ (by norm_num) (by norm_num [abs_of_pos])
+  have b2 : |e2| ≤ B5 := hEb _ (by norm_num) (by norm_num [abs_of_pos])
+  have b3 : |e3| ≤ B5 := hEb _ (by norm_num) (by norm_num [abs_of_pos])
+  have b4 : |e4| ≤ B5 := hEb _ (by norm_num) (by norm_num [abs_of_pos])
+  set qcb : ℝ := (e1 + e2) / 32 with hqcb
+  set qda : ℝ := 243 * (e3 + e4) / 32 with hqda
+  set qca : ℝ := (e1 + 243 * e4) / 32 with hqca
+  set qdb : ℝ := (243 * e3 + e2) / 32 with hqdb
+  have q1 : |qcb| ≤ 16 * B5 := by
+    simp only [hqcb]; rw [abs_le] at *; constructor <;> linarith [b1.1, b1.2, b2.1, b2.2]
+  have q2 : |qda| ≤ 16 * B5 := by
+    simp only [hqda]; rw [abs_le] at *; constructor <;> linarith [b3.1, b3.2, b4.1, b4.2]
+  have q3 : |qca| ≤ 16 * B5 := by
+    simp only [hqca]; rw [abs_le] at *; constructor <;> linarith [b1.1, b1.2, b4.1, b4.2]
+  have q4 : |qdb| ≤ 16 * B5 := by
+    simp only [hqdb]; rw [abs_le] at *; constructor <;> linarith [b3.1, b3.2, b2.1, b2.2]
+  have dcb : W (τ + ℓ / 2) - W (τ - ℓ / 2) = ℓ * (W1 + W3 * ℓ ^ 2 / 24 + ℓ ^ 4 * qcb) := by
+    rw [a1, a2, val (1 / 2) (by norm_num), val (-(1 / 2)) (by norm_num)]
+    simp only [hqcb, he1, he2]; ring
+  have dda : W (τ + 3 * ℓ / 2) - W (τ - 3 * ℓ / 2)
+      = ℓ * (3 * W1 + 9 * W3 * ℓ ^ 2 / 8 + ℓ ^ 4 * qda) := by
+    rw [a3, a4, val (3 / 2) (by norm_num), val (-(3 / 2)) (by norm_num)]
+    simp only [hqda, he3, he4]; ring
+  have dca : W (τ + ℓ / 2) - W (τ - 3 * ℓ / 2)
+      = ℓ * (2 * W1 + 7 * W3 * ℓ ^ 2 / 12 - (W2 * ℓ + 5 * W4 * ℓ ^ 3 / 24) + ℓ ^ 4 * qca) := by
+    rw [a1, a4, val (1 / 2) (by norm_num), val (-(3 / 2)) (by norm_num)]
+    simp only [hqca, he1, he4]; ring
+  have ddb : W (τ + 3 * ℓ / 2) - W (τ - ℓ / 2)
+      = ℓ * (2 * W1 + 7 * W3 * ℓ ^ 2 / 12 + (W2 * ℓ + 5 * W4 * ℓ ^ 3 / 24) + ℓ ^ 4 * qdb) := by
+    rw [a3, a2, val (3 / 2) (by norm_num), val (-(1 / 2)) (by norm_num)]
+    simp only [hqdb, he3, he2]; ring
+  -- lower bounds for the denominators
+  have hc : 2 * m ≤ 3 * W1 + 9 * W3 * ℓ ^ 2 / 8 + ℓ ^ 4 * qda := by
+    have t1 : -(B * u) ≤ W3 * u := by
+      have := (abs_le.mp hb3).1; nlinarith
+    have t2 : -(16 * B5 * u) ≤ u * u * qda := by
+      have h1 := (abs_le.mp q2).1
+      have h2 : -(16 * B5) * (u * u) ≤ qda * (u * u) :=
+        mul_le_mul_of_nonneg_right h1 (mul_nonneg hu0 hu0)
+      nlinarith [mul_nonneg (mul_nonneg (by norm_num : (0:ℝ) ≤ 16) hB5) (sub_nonneg.mpr huu)]
+    rw [hu4]
+    have e : 9 * W3 * ℓ ^ 2 / 8 = 9 / 8 * (W3 * u) := by simp only [hu]; ring
+    rw [e]
+    simp only [hD] at huδ
+    nlinarith [mul_nonneg hB hu0, mul_nonneg hB5 hu0]
+  have hd : m / 2 ≤ W1 + W3 * ℓ ^ 2 / 24 + ℓ ^ 4 * qcb := by
+    have t1 : -(B * u) ≤ W3 * u := by
+      have := (abs_le.mp hb3).1; nlinarith
+    have t2 : -(16 * B5 * u) ≤ u * u * qcb := by
+      have h1 := (abs_le.mp q1).1
+      have h2 : -(16 * B5) * (u * u) ≤ qcb * (u * u) :=
+        mul_le_mul_of_nonneg_right h1 (mul_nonneg hu0 hu0)
+      nlinarith [mul_nonneg (mul_nonneg (by norm_num : (0:ℝ) ≤ 16) hB5) (sub_nonneg.mpr huu)]
+    rw [hu4]
+    have e : W3 * ℓ ^ 2 / 24 = 1 / 24 * (W3 * u) := by simp only [hu]; ring
+    rw [e]
+    simp only [hD] at huδ
+    nlinarith [mul_nonneg hB hu0, mul_nonneg hB5 hu0]
+  have hcpos : 0 < 3 * W1 + 9 * W3 * ℓ ^ 2 / 8 + ℓ ^ 4 * qda := by linarith
+  have hdpos : 0 < W1 + W3 * ℓ ^ 2 / 24 + ℓ ^ 4 * qcb := by linarith
+  set S : ℝ := W3 / W1 - 3 / 2 * (W2 / W1) ^ 2 with hS
+  have hSW : S * W1 ^ 2 = W1 * W3 - 3 / 2 * W2 ^ 2 := by
+    simp only [hS]; field_simp
+  have hSabs : |S| ≤ Sb := by
+    have r1 : |W3 / W1| ≤ B / m := by
+      rw [abs_div, abs_of_pos hW1pos]
+      exact div_le_div₀ hB hb3 hm hW1
+    have r2 : |W2 / W1| ≤ B / m := by
+      rw [abs_div, abs_of_pos hW1pos]
+      exact div_le_div₀ hB hb2 hm hW1
+    have r3 : (W2 / W1) ^ 2 ≤ (B / m) ^ 2 := by
+      rw [← sq_abs]; exact pow_le_pow_left₀ (abs_nonneg _) r2 2
+    simp only [hS, hSb]
+    rw [abs_le]
+    have := abs_le.mp r1
+    constructor <;> nlinarith [sq_nonneg (W2 / W1)]
+  rw [dcb, dda, dca, ddb, sch_gen S ℓ _ _ _ _ hl hcpos.ne' hdpos.ne',
+    sch_key W1 W2 W3 W4 S ℓ qcb qda qca qdb hSW]
+  -- bound
+  have hmem : (W1, W2, W3, W4, S, ℓ, qcb, qda, qca, qdb) ∈
+      Set.Icc ((-R, -R, -R, -R, -R, -R, -R, -R, -R, -R) :
+        ℝ × ℝ × ℝ × ℝ × ℝ × ℝ × ℝ × ℝ × ℝ × ℝ) (R, R, R, R, R, R, R, R, R, R) := by
+    have g : ∀ x b : ℝ, |x| ≤ b → b ≤ R → -R ≤ x ∧ x ≤ R := fun x b hx hbR => by
+      have := abs_le.mp hx; constructor <;> linarith
+    have k1 := g W1 B hb1 (by simp only [hR]; linarith)
+    have k2 := g W2 B hb2 (by simp only [hR]; linarith)
+    have k3 := g W3 B hb3 (by simp only [hR]; linarith)
+    have k4 := g W4 B hb4 (by simp only [hR]; linarith)
+    have k5 := g S Sb hSabs (by simp only [hR]; linarith)
+    have k6 := g ℓ 1 hl1.le hR1
+    have k7 := g qcb _ q1 (by simp only [hR]; linarith)
+    have k8 := g qda _ q2 (by simp only [hR]; linarith)
+    have k9 := g qca _ q3 (by simp only [hR]; linarith)
+    have k10 := g qdb _ q4 (by simp only [hR]; linarith)
+    exact ⟨⟨k1.1, k2.1, k3.1, k4.1, k5.1, k6.1, k7.1, k8.1, k9.1, k10.1⟩,
+      ⟨k1.2, k2.2, k3.2, k4.2, k5.2, k6.2, k7.2, k8.2, k9.2, k10.2⟩⟩
+  have hNb : |schN W1 W2 W3 W4 S ℓ qcb qda qca qdb| ≤ max C1 0 := by
+    have := hC1 _ hmem
+    rw [Real.norm_eq_abs] at this
+    exact this.trans (le_max_left _ _)
+  have hden : 4 * m ^ 2 ≤ 4 * ((3 * W1 + 9 * W3 * ℓ ^ 2 / 8 + ℓ ^ 4 * qda)
+      * (W1 + W3 * ℓ ^ 2 / 24 + ℓ ^ 4 * qcb)) := by nlinarith
+  have hdenpos : 0 < 4 * ((3 * W1 + 9 * W3 * ℓ ^ 2 / 8 + ℓ ^ 4 * qda)
+      * (W1 + W3 * ℓ ^ 2 / 24 + ℓ ^ 4 * qcb)) := by positivity
+  have h4 : 0 ≤ ℓ ^ 4 := by positivity
+  rw [abs_div, abs_of_pos hdenpos, abs_mul, abs_of_nonneg h4, div_le_iff₀ hdenpos]
+  have hm2 : 0 < 4 * m ^ 2 := by positivity
+  calc ℓ ^ 4 * |schN W1 W2 W3 W4 S ℓ qcb qda qca qdb|
+      ≤ ℓ ^ 4 * max C1 0 := mul_le_mul_of_nonneg_left hNb h4
+    _ = max C1 0 / (4 * m ^ 2) * ℓ ^ 4 * (4 * m ^ 2) := by field_simp
+    _ ≤ max C1 0 / (4 * m ^ 2) * ℓ ^ 4 * (4 * ((3 * W1 + 9 * W3 * ℓ ^ 2 / 8 + ℓ ^ 4 * qda)
+          * (W1 + W3 * ℓ ^ 2 / 24 + ℓ ^ 4 * qcb))) :=
+        mul_le_mul_of_nonneg_left hden (by positivity)
+
+end TimeAppendix7
+
 end CTG.Reals2
