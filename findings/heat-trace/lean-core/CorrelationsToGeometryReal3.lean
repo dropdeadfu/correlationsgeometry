@@ -33794,4 +33794,646 @@ theorem degenerate_b_three_torus_a2 {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ 
 end OtherPositions
 end DegenerateB
 
+namespace BiasGeneral
+
+/-! # A96: `prop:bias` (Appendix G) for every `k`, Stages 1 and 2
+
+* `sigC`, `sig0`, `betaK`: `β_k` of `prop:bias` for `ρ = p(0)` as a definition for every `k`;
+  `betaK_one`, `betaK_two`, `betaK_three`: it agrees with the forms used for `k = 1, 2, 3`
+  (`bias_one_general`, `BiasVariance3.beta2`, `BiasVariance4.beta3`).
+* `pth`, `cw`, `trace_pow_cw`, `sum_cw_shift`, `sum_cw_pos`, `sum_cw_pos_le`: closed walks as sums
+  over vertex tuples, cyclic symmetry, the bound `∑_v cw(v) f(v_t) ≤ (M/N) r^n ∑ f`.
+* `gC`, `prod_gamma`: the product of `k` vertex factors to second order (the term `E_3` of the
+  paper is in the remainder), with the constant `gC k ≤ 800 · 4^k` (`gC_le`).
+* `trace_expansion`, `trace_expansion_paper`: Steps 1–3 of the proof for EVERY `k`
+  (deterministic): `|Tr P^k - (Q₀ + Q₁ + Q₂ + Q₃)| ≤ gC(k) k (9/8)^{k-1} (17/8) δ M (1/N) ∑ ε²`.
+
+NOT proved here: the expectations of the polynomial statistics for general `k` (Steps 4–7),
+hence no statement `E Tr P^k = m_k + β_k/N + …` for `k ≥ 4`. -/
+
+open PiBound CTG.Reals.TorusReduction BiasVariance BiasVariance3 BiasVariance4
+
+/-- `Σ_c` of `prop:bias` for `ρ = p(0)`: `∑_{l=1}^{k-1} ∫ p_{lσ} p_{(k-l)σ} p_{cσ}`. -/
+noncomputable def sigC (d : ℕ) (σ : ℝ) (k c : ℕ) : ℝ :=
+  ∑ l ∈ Finset.Ico 1 k, ∫ u, pker d ((l : ℝ) * σ) u * pker d (((k - l : ℕ) : ℝ) * σ) u
+      * pker d ((c : ℝ) * σ) u ∂flatTorusMeasure d
+
+/-- `Σ_0` of `prop:bias` for `ρ = p(0)` (`μ_l = m_l`): `∑_{l=1}^{k-1} m_l m_{k-l}`. -/
+noncomputable def sig0 (d : ℕ) (σ : ℝ) (k : ℕ) : ℝ :=
+  ∑ l ∈ Finset.Ico 1 k, torusM d σ l * torusM d σ (k - l)
+
+/-- **`β_k` of `prop:bias` for `ρ = p(0)`, every `k`:**
+    `β_k = k [Σ₀/2 - 2Σ₁ + 3Σ₂ - 2Σ₃ + Σ₄/2] + k m_k (m₄ - 3m₃ + 3m₂ - m₁)`. -/
+noncomputable def betaK (d : ℕ) (σ : ℝ) (k : ℕ) : ℝ :=
+  k * (sig0 d σ k / 2 - 2 * sigC d σ k 1 + 3 * sigC d σ k 2 - 2 * sigC d σ k 3
+      + sigC d σ k 4 / 2)
+    + k * torusM d σ k
+      * (torusM d σ 4 - 3 * torusM d σ 3 + 3 * torusM d σ 2 - torusM d σ 1)
+
+theorem betaK_one (d : ℕ) (σ : ℝ) :
+    betaK d σ 1 = torusM d σ 1
+      * (torusM d σ 4 - 3 * torusM d σ 3 + 3 * torusM d σ 2 - torusM d σ 1) := by
+  simp [betaK, sigC, sig0]
+
+theorem betaK_two (d : ℕ) (σ : ℝ) : betaK d σ 2 = beta2 d σ := by
+  have e : ∀ c : ℕ, sigC d σ 2 c = Jp d σ ((c : ℝ) * σ) := by
+    intro c
+    simp only [sigC, Jp]
+    rw [show Finset.Ico 1 2 = {1} from rfl, Finset.sum_singleton]
+    norm_num
+    exact integral_congr_ae (Filter.Eventually.of_forall fun u => by simp only; ring)
+  simp only [betaK, beta2, sig0, e]
+  rw [show Finset.Ico 1 2 = {1} from rfl, Finset.sum_singleton]
+  norm_num
+  ring
+
+theorem betaK_three (d : ℕ) (σ : ℝ) : betaK d σ 3 = beta3 d σ := by
+  have h2 : ((2 : ℕ) : ℝ) * σ = σ + σ := by push_cast; ring
+  have e : ∀ c : ℕ, sigC d σ 3 c = 2 * Tp d σ ((c : ℝ) * σ) := by
+    intro c
+    simp only [sigC, Tp]
+    rw [show Finset.Ico 1 3 = {1, 2} from rfl, Finset.sum_pair (by norm_num)]
+    norm_num
+    rw [show (2 : ℝ) * σ = σ + σ by ring]
+    rw [two_mul]
+    congr 1
+    exact integral_congr_ae (Filter.Eventually.of_forall fun u => by simp only; ring)
+  simp only [betaK, beta3, sig0, e]
+  rw [show Finset.Ico 1 3 = {1, 2} from rfl, Finset.sum_pair (by norm_num)]
+  norm_num
+  ring
+
+/-! ## Stage 2a: closed walks as sums over vertex tuples -/
+
+section Walks
+
+variable {α : Type*} [Fintype α]
+
+/-- The open path `B a w₀ · B w₀ w₁ ⋯ B w_{n-1} b`. -/
+def pth (B : α → α → ℝ) : (n : ℕ) → α → (Fin n → α) → α → ℝ
+  | 0, a, _, b => B a b
+  | n + 1, a, w, b => B a (w 0) * pth B n (w 0) (Fin.tail w) b
+
+/-- The weight of a closed walk through `v₀, …, v_n`: `∏_a B (v a) (v (a+1))`. -/
+def cw (B : α → α → ℝ) {n : ℕ} (v : Fin (n + 1) → α) : ℝ := ∏ a : Fin (n + 1), B (v a) (v (a + 1))
+
+theorem pow_apply_pth [DecidableEq α] (B : Matrix α α ℝ) (n : ℕ) (a b : α) :
+    (B ^ (n + 1)) a b = ∑ w : Fin n → α, pth B n a w b := by
+  induction n generalizing a with
+  | zero => simp [pth]
+  | succ n ih =>
+    rw [pow_succ', Matrix.mul_apply, BiasVariance3.sum_cons]
+    refine Finset.sum_congr rfl fun c _ => ?_
+    rw [ih, Finset.mul_sum]
+    refine Finset.sum_congr rfl fun w _ => ?_
+    simp [pth]
+
+theorem pth_prod (B : α → α → ℝ) : ∀ (n : ℕ) (v : Fin (n + 1) → α) (b : α),
+    pth B n (v 0) (Fin.tail v) b
+      = (∏ i : Fin n, B (v i.castSucc) (v i.succ)) * B (v (Fin.last n)) b := by
+  intro n
+  induction n with
+  | zero => intro v b; simp [pth]
+  | succ n ih =>
+    intro v b
+    have h := ih (Fin.tail v) b
+    simp only [pth]
+    rw [Fin.prod_univ_succ]
+    have e1 : (Fin.tail v : Fin (n + 1) → α) 0 = v (1 : Fin (n + 2)) := rfl
+    rw [show (Fin.tail v : Fin (n + 1) → α) 0 = Fin.tail v 0 from rfl] at h
+    rw [h]
+    simp only [Fin.tail, Fin.succ_castSucc, Fin.succ_last]
+    rw [show (Fin.succ (0 : Fin (n + 1))) = (1 : Fin (n + 2)) from rfl,
+      show (Fin.castSucc (0 : Fin (n + 1))) = (0 : Fin (n + 2)) from rfl]
+    ring
+
+theorem cw_eq_pth (B : α → α → ℝ) (n : ℕ) (v : Fin (n + 1) → α) :
+    cw B v = pth B n (v 0) (Fin.tail v) (v 0) := by
+  rw [pth_prod, cw, Fin.prod_univ_castSucc, Fin.last_add_one]
+  congr 1
+  refine Finset.prod_congr rfl fun i _ => ?_
+  rw [Fin.coeSucc_eq_succ]
+
+theorem trace_pow_cw [DecidableEq α] (B : Matrix α α ℝ) (n : ℕ) :
+    (B ^ (n + 1)).trace = ∑ v : Fin (n + 1) → α, cw B v := by
+  rw [BiasVariance3.sum_cons, Matrix.trace]
+  refine Finset.sum_congr rfl fun a _ => ?_
+  rw [Matrix.diag_apply, pow_apply_pth]
+  refine Finset.sum_congr rfl fun w _ => ?_
+  rw [cw_eq_pth]
+  simp
+
+theorem cw_mul_diag (A : α → α → ℝ) (γ : α → ℝ) {n : ℕ} (v : Fin (n + 1) → α) :
+    cw (fun i j => A i j * γ j) v = cw A v * ∏ a, γ (v a) := by
+  rw [cw, cw, Finset.prod_mul_distrib]
+  congr 1
+  exact Fintype.prod_equiv (Equiv.addRight 1) _ _ (fun a => rfl)
+
+theorem cw_rot (B : α → α → ℝ) {n : ℕ} (v : Fin (n + 1) → α) :
+    cw B (fun a => v (a + 1)) = cw B v := by
+  rw [cw, cw]
+  exact Fintype.prod_equiv (Equiv.addRight 1) _ _ (fun a => rfl)
+
+/-- A function of the shifted walk has the same sum against the closed walks (cyclic symmetry). -/
+theorem sum_cw_shift (B : α → α → ℝ) {n : ℕ} (Φ : (Fin (n + 1) → α) → ℝ) (s : Fin (n + 1)) :
+    ∑ v : Fin (n + 1) → α, cw B v * Φ (fun a => v (a + s))
+      = ∑ v : Fin (n + 1) → α, cw B v * Φ v := by
+  have step : ∀ (Ψ : (Fin (n + 1) → α) → ℝ),
+      ∑ v : Fin (n + 1) → α, cw B v * Ψ (fun a => v (a + 1))
+        = ∑ v : Fin (n + 1) → α, cw B v * Ψ v := by
+    intro Ψ
+    let e : (Fin (n + 1) → α) ≃ (Fin (n + 1) → α) :=
+      (Equiv.addRight (1 : Fin (n + 1))).symm.arrowCongr (Equiv.refl α)
+    have he : ∀ v, e v = fun a => v (a + 1) := fun v => by
+      funext a; simp [e, Equiv.arrowCongr_apply]
+    symm
+    rw [← e.sum_comp]
+    refine Finset.sum_congr rfl fun v _ => ?_
+    rw [he, cw_rot]
+  have key : ∀ s : Fin (n + 1), ∀ Ψ : (Fin (n + 1) → α) → ℝ,
+      ∑ v : Fin (n + 1) → α, cw B v * Ψ (fun a => v (a + s))
+        = ∑ v : Fin (n + 1) → α, cw B v * Ψ v := by
+    intro s
+    induction s using Fin.induction with
+    | zero => intro Ψ; simp
+    | succ i ih =>
+      intro Ψ
+      rw [← Fin.coeSucc_eq_succ]
+      have h := step (fun w => Ψ (fun a => w (a + i.castSucc)))
+      simp only at h
+      rw [← ih Ψ, ← h]
+      refine Finset.sum_congr rfl fun v _ => ?_
+      have e : (fun a => v (a + (i.castSucc + 1))) = (fun a => v (a + i.castSucc + 1)) := by
+        funext a; simp only [add_assoc]
+      rw [e]
+  exact key s Φ
+
+/-- Summing a function of one position against the closed walks does not depend on the
+    position. -/
+theorem sum_cw_pos (B : α → α → ℝ) {n : ℕ} (f : α → ℝ) (t : Fin (n + 1)) :
+    ∑ v : Fin (n + 1) → α, cw B v * f (v t) = ∑ v : Fin (n + 1) → α, cw B v * f (v 0) := by
+  have h := sum_cw_shift B (fun w => f (w 0)) t
+  simp only [zero_add] at h
+  exact h
+
+theorem pth_nonneg (B : α → α → ℝ) (hB : ∀ i j, 0 ≤ B i j) :
+    ∀ (n : ℕ) (a : α) (w : Fin n → α) (b : α), 0 ≤ pth B n a w b := by
+  intro n
+  induction n with
+  | zero => intro a w b; exact hB a b
+  | succ n ih => intro a w b; exact mul_nonneg (hB _ _) (ih _ _ _)
+
+theorem cw_nonneg (B : α → α → ℝ) (hB : ∀ i j, 0 ≤ B i j) {n : ℕ} (v : Fin (n + 1) → α) :
+    0 ≤ cw B v := Finset.prod_nonneg fun a _ => hB _ _
+
+theorem sum_pth_le (B : α → α → ℝ) (hB : ∀ i j, 0 ≤ B i j) {e r : ℝ} (he : ∀ i j, B i j ≤ e)
+    (hrow : ∀ i, ∑ j, B i j ≤ r) (he0 : 0 ≤ e) (hr0 : 0 ≤ r) :
+    ∀ (n : ℕ) (a b : α), ∑ w : Fin n → α, pth B n a w b ≤ e * r ^ n := by
+  intro n
+  induction n with
+  | zero => intro a b; simp [pth, he]
+  | succ n ih =>
+    intro a b
+    rw [BiasVariance3.sum_cons]
+    calc ∑ c : α, ∑ w : Fin n → α, pth B (n + 1) a (Fin.cons c w) b
+        = ∑ c : α, B a c * ∑ w : Fin n → α, pth B n c w b := by
+          refine Finset.sum_congr rfl fun c _ => ?_
+          rw [Finset.mul_sum]
+          refine Finset.sum_congr rfl fun w _ => ?_
+          simp [pth]
+      _ ≤ ∑ c : α, B a c * (e * r ^ n) :=
+          Finset.sum_le_sum fun c _ => mul_le_mul_of_nonneg_left (ih c b) (hB a c)
+      _ = (∑ c, B a c) * (e * r ^ n) := by rw [Finset.sum_mul]
+      _ ≤ r * (e * r ^ n) :=
+          mul_le_mul_of_nonneg_right (hrow a) (mul_nonneg he0 (pow_nonneg hr0 n))
+      _ = e * r ^ (n + 1) := by ring
+
+/-- `∑_v cw(v) f(v_t) ≤ e r^n ∑ f` for every position `t` and `f ≥ 0`. -/
+theorem sum_cw_pos_le (B : α → α → ℝ) (hB : ∀ i j, 0 ≤ B i j) {e r : ℝ} (he : ∀ i j, B i j ≤ e)
+    (hrow : ∀ i, ∑ j, B i j ≤ r) (he0 : 0 ≤ e) (hr0 : 0 ≤ r) {n : ℕ} (f : α → ℝ)
+    (hf : ∀ i, 0 ≤ f i) (t : Fin (n + 1)) :
+    ∑ v : Fin (n + 1) → α, cw B v * f (v t) ≤ e * r ^ n * ∑ i, f i := by
+  rw [sum_cw_pos, BiasVariance3.sum_cons, Finset.mul_sum]
+  refine Finset.sum_le_sum fun a _ => ?_
+  have e1 : ∑ w : Fin n → α, cw B (Fin.cons a w : Fin (n + 1) → α) * f ((Fin.cons a w : Fin (n + 1) → α) 0)
+      = (∑ w : Fin n → α, pth B n a w a) * f a := by
+    rw [Finset.sum_mul]
+    refine Finset.sum_congr rfl fun w _ => ?_
+    rw [cw_eq_pth]; simp
+  rw [e1, mul_comm (e * r ^ n)]
+  rw [mul_comm]
+  exact mul_le_mul_of_nonneg_left (sum_pth_le B hB he hrow he0 hr0 n a a) (hf a)
+
+end Walks
+
+open BiasVariance
+
+/-- `(∑ f)² ≤ k ∑ f²`. -/
+theorem sq_sum_le_fin {k : ℕ} (f : Fin k → ℝ) : (∑ t, f t) ^ 2 ≤ k * ∑ t, f t ^ 2 := by
+  have h := Finset.sum_mul_sq_le_sq_mul_sq (Finset.univ : Finset (Fin k)) (fun _ => (1 : ℝ)) f
+  simp only [one_mul, one_pow, Finset.sum_const, Finset.card_univ, Fintype.card_fin,
+    nsmul_eq_mul, mul_one] at h
+  exact h
+
+/-- The constant of `prod_gamma`: `gC 0 = 0`, `gC (k+1) = 2 gC k + 200 (k+1)²`. -/
+noncomputable def gC : ℕ → ℝ
+  | 0 => 0
+  | k + 1 => 2 * gC k + 200 * ((k : ℝ) + 1) ^ 2
+
+theorem gC_nonneg : ∀ k, 0 ≤ gC k
+  | 0 => le_refl _
+  | k + 1 => by
+    have := gC_nonneg k
+    simp only [gC]; positivity
+
+theorem gC_le : ∀ k : ℕ, gC k ≤ 800 * 4 ^ k
+  | 0 => by simp [gC]
+  | k + 1 => by
+    have ih := gC_le k
+    have h2 : ((k : ℝ) + 1) ≤ 2 ^ k := by
+      have : k + 1 ≤ 2 ^ k := Nat.lt_two_pow_self
+      exact_mod_cast this
+    have h3 : ((k : ℝ) + 1) ^ 2 ≤ 4 ^ k := by
+      rw [show (4 : ℝ) ^ k = (2 ^ k) ^ 2 by rw [← pow_mul, mul_comm, pow_mul]; norm_num]
+      exact pow_le_pow_left₀ (by positivity) h2 2
+    simp only [gC, pow_succ]
+    nlinarith only [ih, h3]
+
+theorem step_arith {δ k G g0 a0 c0 q0 E C S1 S2 Sq R0 : ℝ} (hδ0 : 0 ≤ δ) (hδ : δ ≤ 1 / 8)
+    (hk : 0 ≤ k) (hG : 0 ≤ G) (hq0 : 0 ≤ q0) (hSq0 : 0 ≤ Sq)
+    (hE : |E| ≤ G * δ * Sq) (hR0 : |R0| ≤ 44 * δ * q0) (ha0 : |a0| ≤ 4 * δ) (hC : |C| ≤ 5 * Sq)
+    (hS2 : |S2| ≤ 4 * (k + 1) * Sq) (hS1 : |S1| ≤ 4 * k * δ + 5 * Sq) (hc0 : |c0| ≤ 5 * q0)
+    (hg0 : |g0| ≤ 2) (hSq : Sq ≤ 17 / 64 * k * δ) :
+    |g0 * E + R0 + a0 * C + a0 * S2 + (c0 + R0) * (S1 + S2)|
+      ≤ (2 * G + 200 * (k + 1) ^ 2) * δ * (q0 + Sq) := by
+  have t1 := abs_mul_le' hg0 hE
+  have t2 := abs_mul_le' ha0 hC
+  have t3 := abs_mul_le' ha0 hS2
+  have hcR : |c0 + R0| ≤ 11 * q0 := by
+    have : 44 * δ * q0 ≤ 6 * q0 := by nlinarith only [hδ, hq0]
+    exact (abs_add_le _ _).trans (by linarith only [hc0, hR0, this])
+  have hSS : |S1 + S2| ≤ 4 * k * δ + (4 * k + 9) * (17 / 64 * k * δ) := by
+    have h1 := (abs_add_le S1 S2).trans (add_le_add hS1 hS2)
+    have h2 : (4 * k + 9) * Sq ≤ (4 * k + 9) * (17 / 64 * k * δ) :=
+      mul_le_mul_of_nonneg_left hSq (by linarith)
+    linarith only [h1, h2]
+  have t4 := abs_mul_le' hcR hSS
+  have tot := (abs_add_le _ _).trans (add_le_add ((abs_add_le _ _).trans (add_le_add
+    ((abs_add_le _ _).trans (add_le_add ((abs_add_le _ _).trans (add_le_add t1 hR0)) t2)) t3)) t4)
+  refine tot.trans ?_
+  have hX : 0 ≤ δ * q0 := mul_nonneg hδ0 hq0
+  have hY : 0 ≤ δ * Sq := mul_nonneg hδ0 hSq0
+  have p1 : 0 ≤ k * (δ * q0) := mul_nonneg hk hX
+  have p2 : 0 ≤ k * k * (δ * q0) := mul_nonneg (mul_nonneg hk hk) hX
+  have p3 : 0 ≤ k * (δ * Sq) := mul_nonneg hk hY
+  have p4 : 0 ≤ k * k * (δ * Sq) := mul_nonneg (mul_nonneg hk hk) hY
+  nlinarith only [p1, p2, p3, p4, hX, hY, hG, mul_nonneg hG hY]
+
+/-- **The product of `k` vertex factors to second order** (Step 3 of `prop:bias` for one tuple):
+    with `|g_t - (1 + a_t + c_t)| ≤ 44 δ q_t`, `|a_t| ≤ 4δ`, `a_t² ≤ 8 q_t`, `|c_t| ≤ 5 q_t`,
+    `0 ≤ q_t ≤ 17/8 δ²`, `δ ≤ 1/8`:
+    `|∏ g - (1 + ∑ (a + c) + ((∑ a)² - ∑ a²)/2)| ≤ gC k · δ · ∑ q`.  The quadratic term is
+    `∑_{s<t} a_s a_t`. -/
+theorem prod_gamma {δ : ℝ} (hδ0 : 0 ≤ δ) (hδ : δ ≤ 1 / 8) :
+    ∀ (k : ℕ) (g a c q : Fin k → ℝ), (∀ t, 0 ≤ q t) → (∀ t, q t ≤ 17 / 8 * δ ^ 2) →
+      (∀ t, |g t - (1 + a t + c t)| ≤ 44 * δ * q t) → (∀ t, |a t| ≤ 4 * δ) →
+      (∀ t, a t ^ 2 ≤ 8 * q t) → (∀ t, |c t| ≤ 5 * q t) →
+      |∏ t, g t - (1 + ∑ t, (a t + c t) + ((∑ t, a t) ^ 2 - ∑ t, a t ^ 2) / 2)|
+        ≤ gC k * δ * ∑ t, q t := by
+  intro k
+  induction k with
+  | zero => intro g a c q _ _ _ _ _ _; simp [gC]
+  | succ k ih =>
+    intro g a c q hq hqδ hg ha has hc
+    have IH := ih (fun t => g t.succ) (fun t => a t.succ) (fun t => c t.succ) (fun t => q t.succ)
+      (fun t => hq _) (fun t => hqδ _) (fun t => hg _) (fun t => ha _) (fun t => has _)
+      (fun t => hc _)
+    simp only [Fin.prod_univ_succ, Fin.sum_univ_succ]
+    obtain ⟨P, hP⟩ : ∃ P, P = ∏ t : Fin k, g t.succ := ⟨_, rfl⟩
+    obtain ⟨A, hA⟩ : ∃ A, A = ∑ t : Fin k, a t.succ := ⟨_, rfl⟩
+    obtain ⟨C, hC⟩ : ∃ C, C = ∑ t : Fin k, c t.succ := ⟨_, rfl⟩
+    obtain ⟨Q2, hQ2⟩ : ∃ Q2, Q2 = ∑ t : Fin k, a t.succ ^ 2 := ⟨_, rfl⟩
+    obtain ⟨Sq, hSq⟩ : ∃ Sq, Sq = ∑ t : Fin k, q t.succ := ⟨_, rfl⟩
+    have hS1e : ∑ t : Fin k, (a t.succ + c t.succ) = A + C := by
+      rw [hA, hC, Finset.sum_add_distrib]
+    rw [← hP, ← hQ2, ← hSq, hS1e, ← hA] at IH
+    rw [← hP, ← hA, ← hQ2, ← hSq, hS1e]
+    obtain ⟨E, hE⟩ : ∃ E, E = P - (1 + (A + C) + (A ^ 2 - Q2) / 2) := ⟨_, rfl⟩
+    obtain ⟨R0, hR0⟩ : ∃ R0, R0 = g 0 - (1 + a 0 + c 0) := ⟨_, rfl⟩
+    rw [← hE] at IH
+    have e : g 0 * P - (1 + (a 0 + c 0 + (A + C)) + ((a 0 + A) ^ 2 - (a 0 ^ 2 + Q2)) / 2)
+        = g 0 * E + R0 + a 0 * C + a 0 * ((A ^ 2 - Q2) / 2)
+          + (c 0 + R0) * ((A + C) + (A ^ 2 - Q2) / 2) := by
+      rw [hE, hR0]; ring
+    rw [e]
+    have hk0 : (0 : ℝ) ≤ k := Nat.cast_nonneg k
+    have hSq0 : 0 ≤ Sq := by rw [hSq]; exact Finset.sum_nonneg fun t _ => hq _
+    have hSqδ : Sq ≤ 17 / 64 * k * δ := by
+      have h1 : Sq ≤ ∑ _t : Fin k, 17 / 8 * δ ^ 2 := by
+        rw [hSq]; exact Finset.sum_le_sum fun t _ => hqδ _
+      simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul] at h1
+      have h2 : δ ^ 2 ≤ δ / 8 := by nlinarith only [hδ0, hδ]
+      nlinarith only [h1, h2, hk0]
+    have hCb : |C| ≤ 5 * Sq := by
+      rw [hC, hSq, Finset.mul_sum]
+      exact (Finset.abs_sum_le_sum_abs _ _).trans (Finset.sum_le_sum fun t _ => hc _)
+    have hAb : |A| ≤ 4 * k * δ := by
+      rw [hA]
+      refine (Finset.abs_sum_le_sum_abs _ _).trans ?_
+      have := Finset.sum_le_sum fun (t : Fin k) (_ : t ∈ Finset.univ) => ha t.succ
+      simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul] at this
+      linarith only [this]
+    have hQ2b : Q2 ≤ 8 * Sq := by
+      rw [hQ2, hSq, Finset.mul_sum]; exact Finset.sum_le_sum fun t _ => has _
+    have hQ20 : 0 ≤ Q2 := by rw [hQ2]; exact Finset.sum_nonneg fun t _ => _root_.sq_nonneg _
+    have hA2 : A ^ 2 ≤ k * Q2 := by
+      rw [hA, hQ2]; exact sq_sum_le_fin (fun t => a t.succ)
+    have hS2 : |(A ^ 2 - Q2) / 2| ≤ 4 * (k + 1) * Sq := by
+      have h1 : k * Q2 ≤ k * (8 * Sq) := mul_le_mul_of_nonneg_left hQ2b hk0
+      rw [abs_le]; constructor <;> nlinarith only [h1, hA2, hQ2b, hQ20, _root_.sq_nonneg A]
+    have hS1 : |A + C| ≤ 4 * k * δ + 5 * Sq := (abs_add_le _ _).trans (add_le_add hAb hCb)
+    have hg0 : |g 0| ≤ 2 := by
+      have h1 := hg 0
+      have h2 := ha 0
+      have h3 := hc 0
+      have h4 := hqδ 0
+      have h5 : δ ^ 2 ≤ δ / 8 := by nlinarith only [hδ0, hδ]
+      have h6 : δ * q 0 ≤ 1 / 8 * q 0 := mul_le_mul_of_nonneg_right hδ (hq 0)
+      obtain ⟨x1, x2⟩ := abs_le.mp h1
+      obtain ⟨y1, y2⟩ := abs_le.mp h2
+      obtain ⟨z1, z2⟩ := abs_le.mp h3
+      rw [abs_le]; constructor <;> nlinarith only [x1, x2, y1, y2, z1, z2, h4, h5, h6, hδ, hδ0, hq 0]
+    have hR0b : |R0| ≤ 44 * δ * q 0 := by rw [hR0]; exact hg 0
+    have := step_arith hδ0 hδ hk0 (gC_nonneg k) (hq 0) hSq0 IH hR0b (ha 0) hCb hS2 hS1 (hc 0) hg0
+      hSqδ
+    have e2 : gC (k + 1) * δ * (q 0 + Sq) = (2 * gC k + 200 * ((k : ℝ) + 1) ^ 2) * δ * (q 0 + Sq) := by
+      simp only [gC]
+    rw [e2]
+    exact this
+
+open PiBound CTG.Reals.TorusReduction BiasVariance BiasVariance2
+
+/-! ## Stage 2c: Steps 1–3 of `prop:bias` for every `k`, deterministic -/
+
+/-- **Steps 1–3 of the proof of `prop:bias` for every `k = n + 1`, deterministic.** `K` symmetric
+    with values in `[0, M]`, `ρ_i = (1/N) ∑_l K_il = 1 + ε_i`, `|ε_i| ≤ δ ≤ 1/8`, `bv = P̃ε`,
+    `sv = P̃ε²`, `φ¹ = -2ε + bv`, `φ² = 3ε² - 3ε bv + bv² - sv`; the sum runs over the closed walks
+    `v₀ → v₁ → ⋯ → v_n → v₀` with weight `cw = ∏ P̃_{v_a v_{a+1}}`.  Then
+    `|Tr P^{n+1} - ∑_v cw(v) (1 + ∑_t (φ¹+φ²)(v_t) + ∑_{s<t} φ¹(v_s) φ¹(v_t))|
+       ≤ gC(n+1) (n+1) (9/8)^n (17/8) δ M (1/N) ∑ ε²`,
+    the pair sum written as `((∑ φ¹)² - ∑ (φ¹)²)/2`.  The subtracted sum is `Q_0+Q_1+Q_2+Q_3`
+    of the paper (before the cyclic symmetrisation); the products of three or more factors
+    `γ - 1` (the term `E_3` of the paper) are in the remainder. -/
+theorem trace_expansion {N : ℕ} (hN : 0 < N) (K : Fin N → Fin N → ℝ) (ρ ε bv sv : Fin N → ℝ)
+    {M δ : ℝ} (hK0 : ∀ i j, 0 ≤ K i j) (hKM : ∀ i j, K i j ≤ M) (hsym : ∀ i j, K i j = K j i)
+    (hρ : ∀ i, ∑ l, K i l = N * ρ i) (hε : ∀ i, ε i = ρ i - 1)
+    (hbv : ∀ i, bv i = 1 / (N : ℝ) * ∑ l, K i l * ε l)
+    (hsv : ∀ i, sv i = 1 / (N : ℝ) * ∑ l, K i l * ε l ^ 2)
+    (hδ : δ ≤ 1 / 8) (hεδ : ∀ i, |ε i| ≤ δ) (n : ℕ) :
+    |((walkMatrix K ρ) ^ (n + 1)).trace
+        - ∑ v : Fin (n + 1) → Fin N, cw (fun i j => K i j / (N : ℝ)) v
+          * (1 + ∑ t, ((-2 * ε (v t) + bv (v t))
+                + (3 * ε (v t) ^ 2 - 3 * ε (v t) * bv (v t) + bv (v t) ^ 2 - sv (v t)))
+              + ((∑ t, (-2 * ε (v t) + bv (v t))) ^ 2
+                - ∑ t, (-2 * ε (v t) + bv (v t)) ^ 2) / 2)|
+      ≤ gC (n + 1) * ((n : ℝ) + 1) * (9 / 8) ^ n * (17 / 8)
+          * (δ * M * (1 / (N : ℝ) * ∑ i, ε i ^ 2)) := by
+  have hNpos : (0 : ℝ) < N := by exact_mod_cast hN
+  have hN0 : (N : ℝ) ≠ 0 := hNpos.ne'
+  have hinv : 0 < 1 / (N : ℝ) := by positivity
+  have hδ0 : 0 ≤ δ := (abs_nonneg (ε ⟨0, hN⟩)).trans (hεδ _)
+  have hM0 : 0 ≤ M := (hK0 ⟨0, hN⟩ ⟨0, hN⟩).trans (hKM _ _)
+  have hl : ∀ l, -δ ≤ ε l ∧ ε l ≤ δ := fun l => abs_le.mp (hεδ l)
+  have hρe : ∀ l, ρ l = 1 + ε l := fun l => by rw [hε l]; ring
+  have hρlo : ∀ l, 7 / 8 ≤ ρ l := fun l => by rw [hρe l]; linarith only [(hl l).1, hδ]
+  have hρhi : ∀ l, ρ l ≤ 9 / 8 := fun l => by rw [hρe l]; linarith only [(hl l).2, hδ]
+  have hρ0 : ∀ l, ρ l ≠ 0 := fun l => by linarith only [hρlo l]
+  obtain ⟨γ, hγd⟩ : ∃ γ : Fin N → ℝ,
+      γ = fun i => 1 / ρ i * (1 / (1 / (N : ℝ) * ∑ l, K i l / ρ l)) := ⟨_, rfl⟩
+  obtain ⟨qv, hqv⟩ : ∃ qv : Fin N → ℝ, qv = fun i => ε i ^ 2 + sv i := ⟨_, rfl⟩
+  have hv : ∀ i, |γ i - (1 + (-2 * ε i + bv i)
+        + (3 * ε i ^ 2 - 3 * ε i * bv i + bv i ^ 2 - sv i))| ≤ 44 * δ * qv i
+      ∧ 0 ≤ qv i ∧ qv i ≤ 17 / 8 * δ ^ 2 ∧ |-2 * ε i + bv i| ≤ 4 * δ
+      ∧ (-2 * ε i + bv i) ^ 2 ≤ 8 * qv i
+      ∧ |3 * ε i ^ 2 - 3 * ε i * bv i + bv i ^ 2 - sv i| ≤ 5 * qv i := by
+    intro i
+    have Gv := BiasVariance2.gamma_vertex hN K ρ ε hK0 hρ hε hδ hεδ i
+    rw [← hbv i, ← hsv i] at Gv
+    obtain ⟨g1, g2, g3, g4, g5⟩ := Gv
+    have he2 : ε i ^ 2 ≤ δ ^ 2 := sq_le_sq' (hl i).1 (hl i).2
+    obtain ⟨b1, b2⟩ := abs_le.mp g2
+    have hqi : qv i = ε i ^ 2 + sv i := by rw [hqv]
+    refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
+    · rw [hγd, hqi]
+      have e : 1 + (-2 * ε i + bv i) + (3 * ε i ^ 2 - 3 * ε i * bv i + bv i ^ 2 - sv i)
+          = 1 - 2 * ε i + bv i + 3 * ε i ^ 2 - 3 * ε i * bv i + bv i ^ 2 - sv i := by ring
+      rw [e]; exact g1
+    · rw [hqi]; exact add_nonneg (_root_.sq_nonneg _) g4
+    · rw [hqi]; linarith only [he2, g5]
+    · rw [abs_le]; constructor <;> linarith only [(hl i).1, (hl i).2, b1, b2, hδ0]
+    · rw [hqi]
+      nlinarith only [_root_.sq_nonneg (2 * ε i + bv i), g3, g4, _root_.sq_nonneg (ε i)]
+    · rw [hqi, abs_le]
+      constructor
+      · nlinarith only [_root_.sq_nonneg (ε i - bv i), _root_.sq_nonneg (ε i + bv i), g3, g4,
+          _root_.sq_nonneg (ε i), _root_.sq_nonneg (bv i)]
+      · nlinarith only [_root_.sq_nonneg (ε i - bv i), _root_.sq_nonneg (ε i + bv i), g3, g4,
+          _root_.sq_nonneg (ε i), _root_.sq_nonneg (bv i)]
+  -- the trace as a sum over closed walks
+  obtain ⟨A, hA⟩ : ∃ A : Fin N → Fin N → ℝ, A = fun i j => K i j / (N : ℝ) := ⟨_, rfl⟩
+  have htr : ((walkMatrix K ρ) ^ (n + 1)).trace
+      = ∑ v : Fin (n + 1) → Fin N, cw A v * ∏ t, γ (v t) := by
+    have e := BiasVariance2.trace_pow_gamma K ρ hρ0 (n + 1)
+    rw [← hγd] at e
+    have hB : (Matrix.of (fun i j => K i j / (N : ℝ)) * Matrix.diagonal γ : Matrix (Fin N) (Fin N) ℝ)
+        = fun i j => A i j * γ j := by
+      funext i j; rw [Matrix.mul_diagonal, Matrix.of_apply, hA]
+    rw [e, hB, trace_pow_cw]
+    exact Finset.sum_congr rfl fun v _ => cw_mul_diag A γ v
+  rw [htr, ← hA]
+  simp only [← Finset.sum_sub_distrib, ← mul_sub]
+  have hA0 : ∀ i j, 0 ≤ A i j := fun i j => by rw [hA]; exact div_nonneg (hK0 i j) hNpos.le
+  have hAM : ∀ i j, A i j ≤ M / N := fun i j => by
+    rw [hA]; exact div_le_div_of_nonneg_right (hKM i j) hNpos.le
+  have hrow : ∀ i, ∑ j, A i j ≤ 9 / 8 := fun i => by
+    have : ∑ j, A i j = ρ i := by
+      rw [hA]; simp only; rw [← Finset.sum_div, hρ i]; field_simp
+    rw [this]; exact hρhi i
+  have hcolq : ∑ i, sv i ≤ 9 / 8 * ∑ i, ε i ^ 2 := by
+    simp only [hsv]
+    rw [← Finset.mul_sum, Finset.sum_comm, Finset.mul_sum, Finset.mul_sum]
+    refine Finset.sum_le_sum fun l _ => ?_
+    rw [← Finset.sum_mul]
+    have : ∑ i, K i l = N * ρ l := by
+      rw [← hρ l]; exact Finset.sum_congr rfl fun i _ => hsym i l
+    rw [this]
+    have h1 := mul_le_mul_of_nonneg_right (hρhi l) (_root_.sq_nonneg (ε l))
+    have e : 1 / (N : ℝ) * (N * ρ l * ε l ^ 2) = ρ l * ε l ^ 2 := by field_simp
+    rw [e]; exact h1
+  have hSq : ∑ i, qv i ≤ 17 / 8 * ∑ i, ε i ^ 2 := by
+    rw [hqv, Finset.sum_add_distrib]; linarith only [hcolq]
+  have hSe : 0 ≤ ∑ i, ε i ^ 2 := Finset.sum_nonneg fun i _ => _root_.sq_nonneg _
+  have hterm : ∀ v : Fin (n + 1) → Fin N,
+      |cw A v * (∏ t, γ (v t)
+          - (1 + ∑ t, ((-2 * ε (v t) + bv (v t))
+                + (3 * ε (v t) ^ 2 - 3 * ε (v t) * bv (v t) + bv (v t) ^ 2 - sv (v t)))
+              + ((∑ t, (-2 * ε (v t) + bv (v t))) ^ 2
+                - ∑ t, (-2 * ε (v t) + bv (v t)) ^ 2) / 2))|
+        ≤ gC (n + 1) * δ * ∑ t, cw A v * qv (v t) := by
+    intro v
+    have hp := prod_gamma hδ0 hδ (n + 1) (fun t => γ (v t)) (fun t => -2 * ε (v t) + bv (v t))
+      (fun t => 3 * ε (v t) ^ 2 - 3 * ε (v t) * bv (v t) + bv (v t) ^ 2 - sv (v t))
+      (fun t => qv (v t)) (fun t => (hv _).2.1) (fun t => (hv _).2.2.1)
+      (fun t => by
+        have := (hv (v t)).1
+        have e : 1 + (-2 * ε (v t) + bv (v t))
+            + (3 * ε (v t) ^ 2 - 3 * ε (v t) * bv (v t) + bv (v t) ^ 2 - sv (v t))
+            = 1 + (-2 * ε (v t) + bv (v t))
+              + (3 * ε (v t) ^ 2 - 3 * ε (v t) * bv (v t) + bv (v t) ^ 2 - sv (v t)) := rfl
+        exact this)
+      (fun t => (hv _).2.2.2.1) (fun t => (hv _).2.2.2.2.1) (fun t => (hv _).2.2.2.2.2)
+    rw [abs_mul, abs_of_nonneg (cw_nonneg A hA0 v), ← Finset.mul_sum]
+    have h := mul_le_mul_of_nonneg_left hp (cw_nonneg A hA0 v)
+    exact h.trans (le_of_eq (by ring))
+  refine ((Finset.abs_sum_le_sum_abs _ _).trans (Finset.sum_le_sum fun v _ => hterm v)).trans ?_
+  rw [← Finset.mul_sum, Finset.sum_comm]
+  have hpos : ∀ t : Fin (n + 1), ∑ v : Fin (n + 1) → Fin N, cw A v * qv (v t)
+      ≤ M / N * (9 / 8) ^ n * ∑ i, qv i := fun t =>
+    sum_cw_pos_le A hA0 hAM hrow (div_nonneg hM0 hNpos.le) (by norm_num) qv (fun i => (hv i).2.1) t
+  have hsum := Finset.sum_le_sum fun (t : Fin (n + 1)) (_ : t ∈ Finset.univ) => hpos t
+  rw [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul] at hsum
+  have hG := gC_nonneg (n + 1)
+  have hGδ : 0 ≤ gC (n + 1) * δ := mul_nonneg hG hδ0
+  have h1 := mul_le_mul_of_nonneg_left hsum hGδ
+  have hc : 0 ≤ ((n + 1 : ℕ) : ℝ) * (M / N * (9 / 8) ^ n) :=
+    mul_nonneg (Nat.cast_nonneg _) (mul_nonneg (div_nonneg hM0 hNpos.le) (by positivity))
+  have h2 : ((n + 1 : ℕ) : ℝ) * (M / N * (9 / 8) ^ n * ∑ i, qv i)
+      ≤ ((n + 1 : ℕ) : ℝ) * (M / N * (9 / 8) ^ n) * (17 / 8 * ∑ i, ε i ^ 2) := by
+    rw [← mul_assoc]; exact mul_le_mul_of_nonneg_left hSq hc
+  have h3 := mul_le_mul_of_nonneg_left h2 hGδ
+  refine h1.trans (h3.trans (le_of_eq ?_))
+  push_cast
+  field_simp
+
+/-! ## Stage 2d: the cyclic symmetrisation (`Q_1`, `Q_2`, `Q_3` of the paper as sums over walks
+    with the factors at positions `0` and `l`) -/
+
+section Sym
+
+variable {α : Type*} [Fintype α]
+
+/-- The pair sum over positions `s < t` of a closed walk, symmetrised:
+    `∑_v cw(v) ∑_{s ≠ t} f(v_s) f(v_t) = (n+1) ∑_{l=1}^{n} ∑_v cw(v) f(v_0) f(v_l)`. -/
+theorem sum_cw_pairs (B : α → α → ℝ) {n : ℕ} (f : α → ℝ) :
+    ∑ v : Fin (n + 1) → α, cw B v * ((∑ t, f (v t)) ^ 2 - ∑ t, f (v t) ^ 2)
+      = ((n : ℝ) + 1) * ∑ l ∈ Finset.univ.erase (0 : Fin (n + 1)),
+          ∑ v : Fin (n + 1) → α, cw B v * (f (v 0) * f (v l)) := by
+  have e1 : ∀ v : Fin (n + 1) → α, (∑ t, f (v t)) ^ 2 - ∑ t, f (v t) ^ 2
+      = ∑ s : Fin (n + 1), ∑ l ∈ Finset.univ.erase (0 : Fin (n + 1)), f (v s) * f (v (s + l)) := by
+    intro v
+    rw [sq, Finset.sum_mul_sum]
+    have h : ∀ s : Fin (n + 1), ∑ t, f (v s) * f (v t)
+        = f (v s) ^ 2 + ∑ l ∈ Finset.univ.erase (0 : Fin (n + 1)), f (v s) * f (v (s + l)) := by
+      intro s
+      rw [← Equiv.sum_comp (Equiv.addLeft s) (fun t => f (v s) * f (v t)),
+        ← Finset.add_sum_erase _ _ (Finset.mem_univ (0 : Fin (n + 1)))]
+      simp [sq]
+    simp only [h, Finset.sum_add_distrib]
+    ring
+  have e2 : ∀ s : Fin (n + 1), ∀ l : Fin (n + 1),
+      ∑ v : Fin (n + 1) → α, cw B v * (f (v s) * f (v (s + l)))
+        = ∑ v : Fin (n + 1) → α, cw B v * (f (v 0) * f (v l)) := by
+    intro s l
+    have := sum_cw_shift B (fun w => f (w 0) * f (w l)) s
+    simp only [zero_add] at this
+    rw [← this]
+    refine Finset.sum_congr rfl fun v _ => ?_
+    rw [add_comm l s]
+  have e3 : ∀ s : Fin (n + 1),
+      ∑ v : Fin (n + 1) → α, ∑ l ∈ Finset.univ.erase (0 : Fin (n + 1)),
+          cw B v * (f (v s) * f (v (s + l)))
+        = ∑ l ∈ Finset.univ.erase (0 : Fin (n + 1)),
+            ∑ v : Fin (n + 1) → α, cw B v * (f (v 0) * f (v l)) := by
+    intro s
+    rw [Finset.sum_comm]
+    exact Finset.sum_congr rfl fun l _ => e2 s l
+  simp only [e1]
+  conv_lhs => simp only [Finset.mul_sum]
+  rw [Finset.sum_comm, Finset.sum_congr rfl fun s _ => e3 s, Finset.sum_const, Finset.card_univ,
+    Fintype.card_fin, nsmul_eq_mul]
+  push_cast
+  ring
+
+/-- The one-position sums: `∑_v cw(v) ∑_t f(v_t) = (n+1) ∑_v cw(v) f(v_0) = (n+1) ∑_i (B^{n+1})_ii f(i)`. -/
+theorem sum_cw_lin [DecidableEq α] (B : Matrix α α ℝ) {n : ℕ} (f : α → ℝ) :
+    ∑ v : Fin (n + 1) → α, cw B v * ∑ t, f (v t)
+      = ((n : ℝ) + 1) * ∑ i, (B ^ (n + 1)) i i * f i := by
+  have e : ∀ t : Fin (n + 1), ∑ v : Fin (n + 1) → α, cw B v * f (v t)
+      = ∑ i, (B ^ (n + 1)) i i * f i := by
+    intro t
+    rw [sum_cw_pos, BiasVariance3.sum_cons]
+    refine Finset.sum_congr rfl fun i _ => ?_
+    rw [pow_apply_pth, Finset.sum_mul]
+    refine Finset.sum_congr rfl fun w _ => ?_
+    rw [cw_eq_pth]; simp
+  conv_lhs => simp only [Finset.mul_sum]
+  rw [Finset.sum_comm, Finset.sum_congr rfl fun t _ => e t, Finset.sum_const, Finset.card_univ,
+    Fintype.card_fin, nsmul_eq_mul]
+  push_cast; ring
+
+end Sym
+
+open PiBound CTG.Reals.TorusReduction BiasVariance BiasVariance2
+
+/-- **`eq:bias-trace` of `prop:bias` for every `k = n + 1`, in the form of the paper.** Under the
+    hypotheses of `trace_expansion`, with `P̃ = K/N`, `φ¹ = -2ε + bv`, `φ² = 3ε² - 3ε bv + bv² - sv`:
+    `|Tr P^k - (Q₀ + Q₁ + Q₂ + Q₃)| ≤ gC(k) k (9/8)^{k-1} (17/8) δ M (1/N) ∑ ε²` with
+    `Q₀ = Tr P̃^k`, `Q₁ + Q₂ = k ∑_i (P̃^k)_ii (φ¹_i + φ²_i)` and
+    `Q₃ = (k/2) ∑_{l=1}^{k-1} ∑_v cw(v) φ¹(v_0) φ¹(v_l)` (the closed walks `v` with the two
+    factors at the positions `0` and `l`; the paper writes the inner sum as
+    `∑_{i,j} (P̃^l)_ij (P̃^{k-l})_ji φ¹_i φ¹_j`). -/
+theorem trace_expansion_paper {N : ℕ} (hN : 0 < N) (K : Fin N → Fin N → ℝ) (ρ ε bv sv : Fin N → ℝ)
+    {M δ : ℝ} (hK0 : ∀ i j, 0 ≤ K i j) (hKM : ∀ i j, K i j ≤ M) (hsym : ∀ i j, K i j = K j i)
+    (hρ : ∀ i, ∑ l, K i l = N * ρ i) (hε : ∀ i, ε i = ρ i - 1)
+    (hbv : ∀ i, bv i = 1 / (N : ℝ) * ∑ l, K i l * ε l)
+    (hsv : ∀ i, sv i = 1 / (N : ℝ) * ∑ l, K i l * ε l ^ 2)
+    (hδ : δ ≤ 1 / 8) (hεδ : ∀ i, |ε i| ≤ δ) (n : ℕ) :
+    |((walkMatrix K ρ) ^ (n + 1)).trace
+        - ((Matrix.of (fun i j => K i j / (N : ℝ)) ^ (n + 1)).trace
+          + ((n : ℝ) + 1) * ∑ i, (Matrix.of (fun i j => K i j / (N : ℝ)) ^ (n + 1)) i i
+              * ((-2 * ε i + bv i) + (3 * ε i ^ 2 - 3 * ε i * bv i + bv i ^ 2 - sv i))
+          + ((n : ℝ) + 1) / 2 * ∑ l ∈ Finset.univ.erase (0 : Fin (n + 1)),
+              ∑ v : Fin (n + 1) → Fin N, cw (fun i j => K i j / (N : ℝ)) v
+                * ((-2 * ε (v 0) + bv (v 0)) * (-2 * ε (v l) + bv (v l))))|
+      ≤ gC (n + 1) * ((n : ℝ) + 1) * (9 / 8) ^ n * (17 / 8)
+          * (δ * M * (1 / (N : ℝ) * ∑ i, ε i ^ 2)) := by
+  have h := trace_expansion hN K ρ ε bv sv hK0 hKM hsym hρ hε hbv hsv hδ hεδ n
+  obtain ⟨B, hB⟩ : ∃ B : Matrix (Fin N) (Fin N) ℝ, B = Matrix.of (fun i j => K i j / (N : ℝ)) :=
+    ⟨_, rfl⟩
+  have hBf : (fun i j => K i j / (N : ℝ)) = (B : Fin N → Fin N → ℝ) := by rw [hB]; rfl
+  rw [hBf] at h
+  rw [← hB, hBf]
+  have e0 := trace_pow_cw B n
+  have e1 := sum_cw_lin B (n := n) (fun i => (-2 * ε i + bv i) + (3 * ε i ^ 2 - 3 * ε i * bv i
+    + bv i ^ 2 - sv i))
+  have e2 := sum_cw_pairs (B : Fin N → Fin N → ℝ) (n := n) (fun i => -2 * ε i + bv i)
+  have esplit : ∑ v : Fin (n + 1) → Fin N, cw B v
+        * (1 + ∑ t, ((-2 * ε (v t) + bv (v t))
+              + (3 * ε (v t) ^ 2 - 3 * ε (v t) * bv (v t) + bv (v t) ^ 2 - sv (v t)))
+            + ((∑ t, (-2 * ε (v t) + bv (v t))) ^ 2 - ∑ t, (-2 * ε (v t) + bv (v t)) ^ 2) / 2)
+      = ∑ v : Fin (n + 1) → Fin N, cw B v
+        + ∑ v : Fin (n + 1) → Fin N, cw B v * ∑ t, ((-2 * ε (v t) + bv (v t))
+              + (3 * ε (v t) ^ 2 - 3 * ε (v t) * bv (v t) + bv (v t) ^ 2 - sv (v t)))
+        + (∑ v : Fin (n + 1) → Fin N, cw B v
+            * ((∑ t, (-2 * ε (v t) + bv (v t))) ^ 2 - ∑ t, (-2 * ε (v t) + bv (v t)) ^ 2)) / 2 := by
+    rw [Finset.sum_div, ← Finset.sum_add_distrib, ← Finset.sum_add_distrib]
+    refine Finset.sum_congr rfl fun v _ => ?_
+    ring
+  rw [esplit, e1, e2, ← e0] at h
+  refine (le_of_eq ?_).trans h
+  congr 1
+  ring
+
+end BiasGeneral
+
 end CTG.Reals2
