@@ -28760,4 +28760,51 @@ theorem lapse_schwarz_uniform (a b L : ℝ) (ha : 0 < a) (hab : a ≤ b) (hL : 0
 
 end TimeAppendix9
 
+/-! ### Appendix H, continued (A91): the estimator of `thm:lapse-est`, deterministic part -/
+namespace TimeAppendix10
+
+/-- Deterministic part of `thm:lapse-est` (`D = 1`): for `0 < a ≤ b`, `L ≥ 0` there are `C` and
+`ℓ₀ > 0`, depending only on `a, b, L`, such that for every lapse `Ω` on the line with four
+derivatives, `a ≤ Ω ≤ b`, `|Ω_k| ≤ L`, every primitive `W` of `Ω⁻²`, every `τ`, every spacing
+`0 < |ℓ| < ℓ₀` and every measured cross-ratio `ρ` with `|ρ − ρ₀| ≤ ε`:
+`|3(ρ − 1)/ℓ² − 𝒦(τ)| ≤ 3 C ℓ² + 3 ε/ℓ²`, `𝒦 = −Ω''/Ω`.
+The model error `ε` (in the theorem: of the order `ℓ/m̄`, from `thm:vargap`(b)) is a HYPOTHESIS. -/
+theorem lapse_estimator (a b L : ℝ) (ha : 0 < a) (hab : a ≤ b) (hL : 0 ≤ L) :
+    ∃ C ℓ0 : ℝ, 0 < ℓ0 ∧ ∀ (Ω Ω1 Ω2 Ω3 Ω4 W : ℝ → ℝ) (τ : ℝ),
+      (∀ t, HasDerivAt Ω (Ω1 t) t) → (∀ t, HasDerivAt Ω1 (Ω2 t) t) →
+      (∀ t, HasDerivAt Ω2 (Ω3 t) t) → (∀ t, HasDerivAt Ω3 (Ω4 t) t) →
+      (∀ t, HasDerivAt W (1 / (Ω t) ^ 2) t) →
+      (∀ t, a ≤ Ω t ∧ Ω t ≤ b) →
+      (∀ t, |Ω1 t| ≤ L ∧ |Ω2 t| ≤ L ∧ |Ω3 t| ≤ L ∧ |Ω4 t| ≤ L) →
+      ∀ (ℓ ρ ε : ℝ), ℓ ≠ 0 → |ℓ| < ℓ0 →
+        |ρ - (3 * ℓ * ℓ) / ((2 * ℓ) * (2 * ℓ)) *
+          (((W (τ + ℓ / 2) - W (τ - 3 * ℓ / 2)) * (W (τ + 3 * ℓ / 2) - W (τ - ℓ / 2))) /
+           ((W (τ + 3 * ℓ / 2) - W (τ - 3 * ℓ / 2)) * (W (τ + ℓ / 2) - W (τ - ℓ / 2))))| ≤ ε →
+        |3 * (ρ - 1) / ℓ ^ 2 - (-(Ω2 τ) / Ω τ)| ≤ 3 * C * ℓ ^ 2 + 3 * ε / ℓ ^ 2 := by
+  obtain ⟨C, ℓ0, hℓ0, hmain⟩ := TimeAppendix9.lapse_schwarz_uniform a b L ha hab hL
+  refine ⟨C, ℓ0, hℓ0, ?_⟩
+  intro Ω Ω1 Ω2 Ω3 Ω4 W τ h0 h1 h2 h3 hW hΩ hb ℓ ρ ε hl hlt hρ
+  have key := hmain Ω Ω1 Ω2 Ω3 Ω4 W τ h0 h1 h2 h3 hW hΩ hb ℓ hl hlt
+  set ρ0 := (3 * ℓ * ℓ) / ((2 * ℓ) * (2 * ℓ)) *
+          (((W (τ + ℓ / 2) - W (τ - 3 * ℓ / 2)) * (W (τ + 3 * ℓ / 2) - W (τ - ℓ / 2))) /
+           ((W (τ + 3 * ℓ / 2) - W (τ - 3 * ℓ / 2)) * (W (τ + ℓ / 2) - W (τ - ℓ / 2)))) with hρ0
+  set K := -(Ω2 τ) / Ω τ with hK
+  have hl2 : 0 < ℓ ^ 2 := by positivity
+  have e : 3 * (ρ - 1) / ℓ ^ 2 - K
+      = 3 * (ρ0 - 1 - K / 3 * ℓ ^ 2) / ℓ ^ 2 + 3 * (ρ - ρ0) / ℓ ^ 2 := by
+    field_simp
+    ring
+  rw [e]
+  have t1 : |3 * (ρ0 - 1 - K / 3 * ℓ ^ 2) / ℓ ^ 2| ≤ 3 * C * ℓ ^ 2 := by
+    rw [abs_div, abs_of_pos hl2, div_le_iff₀ hl2, abs_mul, abs_of_pos (by norm_num : (0:ℝ) < 3)]
+    have : (3 : ℝ) * C * ℓ ^ 2 * ℓ ^ 2 = 3 * (C * ℓ ^ 4) := by ring
+    rw [this]
+    exact mul_le_mul_of_nonneg_left key (by norm_num)
+  have t2 : |3 * (ρ - ρ0) / ℓ ^ 2| ≤ 3 * ε / ℓ ^ 2 := by
+    rw [abs_div, abs_of_pos hl2, abs_mul, abs_of_pos (by norm_num : (0:ℝ) < 3)]
+    exact div_le_div_of_nonneg_right (mul_le_mul_of_nonneg_left hρ (by norm_num)) hl2.le
+  exact (abs_add_le _ _).trans (add_le_add t1 t2)
+
+end TimeAppendix10
+
 end CTG.Reals2
