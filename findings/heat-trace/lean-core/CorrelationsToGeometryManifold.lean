@@ -30,7 +30,7 @@ growth, injectivity radius, curvature or the Laplace–Beltrami operator.
 No `sorry`, no `axiom`, no `native_decide`.
 -/
 
-open Set MeasureTheory
+open Set MeasureTheory Bundle Manifold
 open scoped Manifold ENNReal ContDiff Topology
 
 noncomputable section
@@ -162,5 +162,40 @@ theorem riemannianDist_time_real (n : ℝ → ∀ x : M, ENorm (TangentSpace I x
   have h2 := riemannianEDist_time n g g' κ hn hcase hd hb b a p q
   rw [abs_sub_comm a b] at h2
   exact real_comparison _ _ _ h1 h2 hfin
+
+/-- In a preconnected pseudo-emetric space all extended distances are finite: the set of points at
+finite distance from `x` is open, closed and non-empty. -/
+theorem edist_ne_top_of_preconnected {X : Type*} [PseudoEMetricSpace X] [PreconnectedSpace X]
+    (x y : X) : edist x y ≠ ⊤ := by
+  have hopen : IsOpen {z : X | edist x z < ⊤} := by
+    rw [isOpen_iff_mem_nhds]
+    intro z hz
+    refine Filter.mem_of_superset (Metric.isOpen_eball.mem_nhds
+      (Metric.mem_eball_self (x := z) (ε := 1) one_pos)) fun w hw => ?_
+    have hw' : edist w z < 1 := hw
+    calc edist x w ≤ edist x z + edist z w := edist_triangle _ _ _
+      _ < ⊤ := ENNReal.add_lt_top.mpr ⟨hz, by rw [edist_comm]; exact hw'.trans ENNReal.one_lt_top⟩
+  have hclosed : IsClosed {z : X | edist x z < ⊤} := by
+    rw [← isOpen_compl_iff, isOpen_iff_mem_nhds]
+    intro z hz
+    refine Filter.mem_of_superset (Metric.isOpen_eball.mem_nhds
+      (Metric.mem_eball_self (x := z) (ε := 1) one_pos)) fun w hw => ?_
+    have hw' : edist w z < 1 := hw
+    intro hfin
+    apply hz
+    calc edist x z ≤ edist x w + edist w z := edist_triangle _ _ _
+      _ < ⊤ := ENNReal.add_lt_top.mpr ⟨hfin, hw'.trans ENNReal.one_lt_top⟩
+  have huniv : {z : X | edist x z < ⊤} = Set.univ :=
+    IsClopen.eq_univ ⟨hclosed, hopen⟩ ⟨x, by simp⟩
+  have : y ∈ {z : X | edist x z < ⊤} := by rw [huniv]; trivial
+  exact this.ne
+
+/-- Hence on a connected Riemannian manifold in Mathlib's sense (`IsRiemannianManifold`: the extended
+distance of the space is the infimum of the lengths of `C¹` paths) the Riemannian distance is finite. -/
+theorem riemannianEDist_ne_top {M' : Type*} [PseudoEMetricSpace M'] [ChartedSpace H M']
+    [RiemannianBundle (fun (x : M') ↦ TangentSpace I x)] [IsRiemannianManifold I M']
+    [PreconnectedSpace M'] (x y : M') : Manifold.riemannianEDist I x y ≠ ⊤ := by
+  rw [← IsRiemannianManifold.out (I := I) x y]
+  exact edist_ne_top_of_preconnected x y
 
 end CTG.ManifoldDistance
