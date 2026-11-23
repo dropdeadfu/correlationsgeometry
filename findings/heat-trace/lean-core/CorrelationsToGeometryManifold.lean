@@ -296,4 +296,100 @@ theorem riemannianEDist_ne_top_of_le {M' : Type*} [PseudoEMetricSpace M'] [Chart
   have h1 := riemannianEDist_le_mul (I := I) (M := M') (fun x => SeminormedAddGroup.toContinuousENorm.toENorm) n c hc0 hc h x y
   exact ne_top_of_le_ne_top (ENNReal.mul_ne_top hc (riemannianEDist_ne_top x y)) h1
 
+/-! ### The kernel at two times (Step 1 of `prop:dotLN-diff` as one statement)
+
+`mvt_bound` and `kernel_step_one` are copied from the seventh file (`TimeAppendix`), which this file
+does not import. -/
+
+theorem mvt_bound (h h' : ℝ → ℝ) (a b M : ℝ) (hab : a < b)
+    (hd : ∀ s, HasDerivAt h (h' s) s) (hM : ∀ s, a < s → s < b → |h' s| ≤ M) :
+    |h b - h a| ≤ M * (b - a) := by
+  obtain ⟨c, hc, hslope⟩ := exists_hasDerivAt_eq_slope h h' hab
+    (fun s _ => (hd s).continuousAt.continuousWithinAt) (fun s _ => hd s)
+  have hba : 0 < b - a := sub_pos.mpr hab
+  have e : h b - h a = h' c * (b - a) := by
+    rw [hslope]; field_simp
+  rw [e, abs_mul, abs_of_pos hba]
+  exact mul_le_mul_of_nonneg_right (hM c hc.1 hc.2) hba.le
+
+theorem kernel_step_one (h h' : ℝ → ℝ) (A d d' x : ℝ) (hA : 0 ≤ A) (hd0 : 0 < d)
+    (hx0 : 0 ≤ x) (hx1 : x ≤ 1)
+    (hder : ∀ s, HasDerivAt h (h' s) s) (hbd : ∀ s, 0 ≤ s → |h' s| ≤ A * Real.exp (-s))
+    (hlo : d * Real.exp (-x) ≤ d') (hhi : d' ≤ d * Real.exp x) :
+    |h d' - h d| ≤ 2 * x * A * d * Real.exp (-(d * Real.exp (-1))) := by
+  have hexp_hi : Real.exp x - 1 ≤ 2 * x := by
+    have := Real.abs_exp_sub_one_le (x := x) (by rw [abs_of_nonneg hx0]; exact hx1)
+    rw [abs_of_nonneg hx0] at this
+    exact le_trans (le_abs_self _) this
+  have hexp_lo : 1 - Real.exp (-x) ≤ 2 * x := by
+    have := Real.add_one_le_exp (-x); linarith
+  have he1 : Real.exp (-1) ≤ Real.exp (-x) := Real.exp_le_exp.mpr (by linarith)
+  have hfloor : d * Real.exp (-1) ≤ d * Real.exp (-x) := mul_le_mul_of_nonneg_left he1 hd0.le
+  have hfloor' : d * Real.exp (-1) ≤ d := by
+    have : Real.exp (-1) ≤ 1 := by
+      have := Real.exp_le_exp.mpr (by norm_num : (-1 : ℝ) ≤ 0); simpa using this
+    nlinarith
+  have hE : 0 ≤ Real.exp (-(d * Real.exp (-1))) := (Real.exp_pos _).le
+  -- bound of the derivative on the segment
+  have hseg : ∀ s, d * Real.exp (-1) ≤ s → |h' s| ≤ A * Real.exp (-(d * Real.exp (-1))) := by
+    intro s hs
+    have hs0 : 0 ≤ s := le_trans (by positivity) hs
+    refine le_trans (hbd s hs0) (mul_le_mul_of_nonneg_left ?_ hA)
+    exact Real.exp_le_exp.mpr (by linarith)
+  have hgap_hi : d' - d ≤ 2 * x * d := by nlinarith
+  have hgap_lo : d - d' ≤ 2 * x * d := by nlinarith
+  rcases lt_trichotomy d d' with hlt | heq | hgt
+  · have := mvt_bound h h' d d' (A * Real.exp (-(d * Real.exp (-1)))) hlt hder
+      (fun s hs1 _ => hseg s (by linarith))
+    have hM : 0 ≤ A * Real.exp (-(d * Real.exp (-1))) := mul_nonneg hA hE
+    have h2 : A * Real.exp (-(d * Real.exp (-1))) * (d' - d)
+        ≤ A * Real.exp (-(d * Real.exp (-1))) * (2 * x * d) :=
+      mul_le_mul_of_nonneg_left hgap_hi hM
+    calc |h d' - h d| ≤ A * Real.exp (-(d * Real.exp (-1))) * (d' - d) := this
+      _ ≤ A * Real.exp (-(d * Real.exp (-1))) * (2 * x * d) := h2
+      _ = 2 * x * A * d * Real.exp (-(d * Real.exp (-1))) := by ring
+  · have hnn : 0 ≤ 2 * x * A * d * Real.exp (-(d * Real.exp (-1))) :=
+      mul_nonneg (mul_nonneg (mul_nonneg (mul_nonneg (by norm_num) hx0) hA) hd0.le) hE
+    rw [← heq, sub_self, abs_zero]; exact hnn
+  · have := mvt_bound h h' d' d (A * Real.exp (-(d * Real.exp (-1)))) hgt hder
+      (fun s hs1 _ => hseg s (by linarith))
+    have hM : 0 ≤ A * Real.exp (-(d * Real.exp (-1))) := mul_nonneg hA hE
+    have h2 : A * Real.exp (-(d * Real.exp (-1))) * (d - d')
+        ≤ A * Real.exp (-(d * Real.exp (-1))) * (2 * x * d) :=
+      mul_le_mul_of_nonneg_left hgap_lo hM
+    rw [abs_sub_comm]
+    calc |h d - h d'| ≤ A * Real.exp (-(d * Real.exp (-1))) * (d - d') := this
+      _ ≤ A * Real.exp (-(d * Real.exp (-1))) * (2 * x * d) := h2
+      _ = 2 * x * A * d * Real.exp (-(d * Real.exp (-1))) := by ring
+
+/-- Step 1 of `prop:dotLN-diff` as one statement: for a time-dependent family of norms as in
+`riemannianEDist_time_on`, two times `a, b` in the convex set with `κ|b−a| ≤ 1`, a finite positive
+distance `d_a(p,q)` at time `a`, a scale `ξ > 0` and a profile `h` with `|h'(s)| ≤ A e^{-s}`,
+`|h(d_b/ξ) − h(d_a/ξ)| ≤ 2 κ|b−a| · A (d_a/ξ) e^{-(d_a/ξ)/e}`, i.e. `|Δ_η K| ≤ 2κ k_*(d/ξ)` with
+`k_*(s) = A s e^{-s/e}` after division by `|η| = |b−a|`. -/
+theorem kernel_two_times (s : Set ℝ) (hs : Convex ℝ s)
+    (n : ℝ → ∀ x : M, ENorm (TangentSpace I x))
+    (g g' : ℝ → (x : M) → TangentSpace I x → ℝ) (κ : ℝ) (hκ : 0 ≤ κ)
+    (hn : ∀ τ ∈ s, ∀ x v, @enorm _ (n τ x) v = ENNReal.ofReal (Real.sqrt (g τ x v)))
+    (hcase : ∀ x v, (∀ τ ∈ s, g τ x v = 0) ∨ (∀ τ ∈ s, 0 < g τ x v))
+    (hd : ∀ τ ∈ s, ∀ x v, HasDerivWithinAt (fun u => g u x v) (g' τ x v) s τ)
+    (hb : ∀ τ ∈ s, ∀ x v, |g' τ x v| ≤ 2 * κ * g τ x v) {a b : ℝ} (ha : a ∈ s) (hb' : b ∈ s)
+    (hab : κ * |b - a| ≤ 1) (p q : M)
+    (hfin : (letI := n a; Manifold.riemannianEDist I p q) ≠ ⊤)
+    (hpos : 0 < (letI := n a; Manifold.riemannianEDist I p q).toReal)
+    (h h' : ℝ → ℝ) (A ξ : ℝ) (hA : 0 ≤ A) (hξ : 0 < ξ)
+    (hder : ∀ t, HasDerivAt h (h' t) t) (hbd : ∀ t, 0 ≤ t → |h' t| ≤ A * Real.exp (-t)) :
+    |h ((letI := n b; Manifold.riemannianEDist I p q).toReal / ξ)
+        - h ((letI := n a; Manifold.riemannianEDist I p q).toReal / ξ)|
+      ≤ 2 * (κ * |b - a|) * A * ((letI := n a; Manifold.riemannianEDist I p q).toReal / ξ)
+        * Real.exp (-((letI := n a; Manifold.riemannianEDist I p q).toReal / ξ * Real.exp (-1))) := by
+  have h1 := riemannianEDist_time_on s hs n g g' κ hn hcase hd hb ha hb' p q
+  have h2 := riemannianEDist_time_on s hs n g g' κ hn hcase hd hb hb' ha p q
+  rw [abs_sub_comm a b] at h2
+  obtain ⟨_, hlo, hhi⟩ := real_comparison _ _ _ h1 h2 hfin
+  refine kernel_step_one h h' A _ _ (κ * |b - a|) hA (div_pos hpos hξ)
+    (mul_nonneg hκ (abs_nonneg _)) hab hder hbd ?_ ?_
+  · rw [div_mul_eq_mul_div, div_le_div_iff_of_pos_right hξ, mul_comm]; exact hlo
+  · rw [div_mul_eq_mul_div, div_le_div_iff_of_pos_right hξ, mul_comm]; exact hhi
+
 end CTG.ManifoldDistance
