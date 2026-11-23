@@ -27592,4 +27592,158 @@ theorem schwarz_limit (W : ℝ → ℝ) (τ : ℝ) (hW : ContDiff ℝ 3 W)
 
 end TimeAppendix3
 
+/-! ### Appendix H, continued (A84): deterministic steps of `prop:dotLN-diff` -/
+namespace TimeAppendix4
+
+/-- Step 1, the distance: from `e^{-x} d ≤ d' ≤ e^{x} d` with `0 ≤ x ≤ 1`:
+`|d' − d| ≤ 2 x d` and `d/e ≤ d' ≤ e d`. -/
+theorem distance_step (d d' x : ℝ) (hd : 0 ≤ d) (hx0 : 0 ≤ x) (hx1 : x ≤ 1)
+    (hlo : Real.exp (-x) * d ≤ d') (hhi : d' ≤ Real.exp x * d) :
+    |d' - d| ≤ 2 * x * d ∧ d / Real.exp 1 ≤ d' ∧ d' ≤ Real.exp 1 * d := by
+  have h1 : Real.exp x - 1 ≤ 2 * x := by
+    have := Real.abs_exp_sub_one_le (x := x) (by rw [abs_of_nonneg hx0]; exact hx1)
+    rw [abs_of_nonneg hx0] at this
+    exact (le_abs_self _).trans this
+  have h2 : 1 - x ≤ Real.exp (-x) := by have := Real.add_one_le_exp (-x); linarith
+  have h3 : Real.exp x ≤ Real.exp 1 := Real.exp_le_exp.mpr hx1
+  have h4 : Real.exp (-1) ≤ Real.exp (-x) := Real.exp_le_exp.mpr (by linarith)
+  refine ⟨?_, ?_, ?_⟩
+  · rw [abs_le]
+    constructor
+    · nlinarith [mul_le_mul_of_nonneg_right h2 hd]
+    · nlinarith [mul_le_mul_of_nonneg_right h1 hd]
+  · rw [div_eq_mul_inv, ← Real.exp_neg, mul_comm]
+    exact (mul_le_mul_of_nonneg_right h4 hd).trans hlo
+  · exact hhi.trans (mul_le_mul_of_nonneg_right h3 hd)
+
+/-- Product and quotient rules for the difference quotient `Δ_η`. -/
+theorem dq_mul (a a' b b' η : ℝ) :
+    (a' * b' - a * b) / η = (a' - a) / η * b' + a * ((b' - b) / η) := by ring
+
+theorem dq_inv (a a' η : ℝ) (ha : a ≠ 0) (ha' : a' ≠ 0) :
+    (1 / a' - 1 / a) / η = -((a' - a) / η) / (a * a') := by
+  field_simp
+  ring
+
+theorem dq_quotient (n n' d d' η : ℝ) (hd : d ≠ 0) (hd' : d' ≠ 0) :
+    (n' / d' - n / d) / η = ((n' - n) / η) / d' - n * ((d' - d) / η) / (d * d') := by
+  field_simp
+  ring
+
+theorem abs_mul_sub_mul_le (A a B b : ℝ) :
+    |A * B - a * b| ≤ |A - a| * |B| + |a| * |B - b| := by
+  have e : A * B - a * b = (A - a) * B + a * (B - b) := by ring
+  rw [e]
+  calc |(A - a) * B + a * (B - b)| ≤ |(A - a) * B| + |a * (B - b)| := abs_add_le _ _
+    _ = _ := by rw [abs_mul, abs_mul]
+
+/-- A relative perturbation `|D − d| ≤ ε d` with `ε ≤ 1/2`, `d ≥ c > 0`. -/
+theorem inv_perturb (D d c ε : ℝ) (hc : 0 < c) (hd : c ≤ d) (hε0 : 0 ≤ ε) (hε : ε ≤ 1 / 2)
+    (hD : |D - d| ≤ ε * d) :
+    0 < D ∧ |1 / D| ≤ 2 / c ∧ |1 / D - 1 / d| ≤ 2 * ε / c := by
+  have hdpos : 0 < d := lt_of_lt_of_le hc hd
+  have hDlo : d / 2 ≤ D := by
+    have := (abs_le.mp hD).1
+    nlinarith
+  have hDpos : 0 < D := by linarith
+  have h2 : 1 ≤ 2 * D / c := by rw [le_div_iff₀ hc]; linarith
+  refine ⟨hDpos, ?_, ?_⟩
+  · rw [abs_of_pos (by positivity), div_le_div_iff₀ hDpos hc]
+    linarith
+  · have e : 1 / D - 1 / d = (d - D) / (D * d) := by field_simp
+    rw [e, abs_div, abs_of_pos (mul_pos hDpos hdpos), div_le_iff₀ (mul_pos hDpos hdpos)]
+    calc |d - D| = |D - d| := abs_sub_comm _ _
+      _ ≤ ε * d := hD
+      _ ≤ ε * d * (2 * D / c) := le_mul_of_one_le_right (mul_nonneg hε0 hdpos.le) h2
+      _ = 2 * ε / c * (D * d) := by ring
+
+/-- Step 5 of `prop:dotLN-diff`, deterministic: the difference quotient of the quotient
+`𝒩/𝒟` for the sample (capital letters; `X = Δ_η 𝒩`, `Y = Δ_η 𝒟`) against the population
+(small letters).  With `a` the absolute error of the numerators, `ε` the relative error of
+the denominators and `ε'` the error of `Δ_η 𝒟`, the difference is at most
+`2a/c + 2Bε/c + 4(a(C+ε') + Bε')/c² + 6BCε/c²`.  The probabilistic inputs (Steps 2–4) are
+HYPOTHESES here. -/
+theorem quotient_dq_perturb (X x Nn n Y y D d D' d' a B C c ε ε' : ℝ)
+    (hc : 0 < c) (hd : c ≤ d) (hd' : c ≤ d') (hε0 : 0 ≤ ε) (hε : ε ≤ 1 / 2)
+    (ha : 0 ≤ a) (hB : 0 ≤ B) (hC : 0 ≤ C) (hε' : 0 ≤ ε')
+    (hD : |D - d| ≤ ε * d) (hD' : |D' - d'| ≤ ε * d')
+    (hX : |X - x| ≤ a) (hN : |Nn - n| ≤ a) (hY : |Y - y| ≤ ε')
+    (hx : |x| ≤ B) (hn : |n| ≤ B) (hy : |y| ≤ C) :
+    |(X / D' - Nn * Y / (D * D')) - (x / d' - n * y / (d * d'))|
+      ≤ 2 * a / c + 2 * B * ε / c + 4 * (a * (C + ε') + B * ε') / c ^ 2
+        + 6 * B * C * ε / c ^ 2 := by
+  obtain ⟨hDp, hU, hUu⟩ := inv_perturb D d c ε hc hd hε0 hε hD
+  obtain ⟨hDp', hU', hUu'⟩ := inv_perturb D' d' c ε hc hd' hε0 hε hD'
+  have hdp : 0 < d := lt_of_lt_of_le hc hd
+  have hdp' : 0 < d' := lt_of_lt_of_le hc hd'
+  have hu : |1 / d| ≤ 1 / c := by
+    rw [abs_of_pos (by positivity)]; exact one_div_le_one_div_of_le hc hd
+  have hYb : |Y| ≤ C + ε' := by
+    have := abs_sub_abs_le_abs_sub Y y; linarith
+  -- first term
+  have t1 : |X * (1 / D') - x * (1 / d')| ≤ a * (2 / c) + B * (2 * ε / c) :=
+    (abs_mul_sub_mul_le _ _ _ _).trans
+      (add_le_add (mul_le_mul hX hU' (abs_nonneg _) ha) (mul_le_mul hx hUu' (abs_nonneg _) hB))
+  -- N*Y
+  have tP : |Nn * Y - n * y| ≤ a * (C + ε') + B * ε' :=
+    (abs_mul_sub_mul_le _ _ _ _).trans
+      (add_le_add (mul_le_mul hN hYb (abs_nonneg _) ha) (mul_le_mul hn hY (abs_nonneg _) hB))
+  have hny : |n * y| ≤ B * C := by rw [abs_mul]; exact mul_le_mul hn hy (abs_nonneg _) hB
+  -- U*U'
+  have tQ : |1 / D * (1 / D') - 1 / d * (1 / d')| ≤ 2 * ε / c * (2 / c) + 1 / c * (2 * ε / c) :=
+    (abs_mul_sub_mul_le _ _ _ _).trans
+      (add_le_add (mul_le_mul hUu hU' (abs_nonneg _) (by positivity))
+        (mul_le_mul hu hUu' (abs_nonneg _) (by positivity)))
+  have hQb : |1 / D * (1 / D')| ≤ 2 / c * (2 / c) := by
+    rw [abs_mul]; exact mul_le_mul hU hU' (abs_nonneg _) (by positivity)
+  have t2 : |Nn * Y * (1 / D * (1 / D')) - n * y * (1 / d * (1 / d'))|
+      ≤ (a * (C + ε') + B * ε') * (2 / c * (2 / c))
+        + B * C * (2 * ε / c * (2 / c) + 1 / c * (2 * ε / c)) :=
+    (abs_mul_sub_mul_le _ _ _ _).trans
+      (add_le_add (mul_le_mul tP hQb (abs_nonneg _) (by positivity))
+        (mul_le_mul hny tQ (abs_nonneg _) (by positivity)))
+  have e : (X / D' - Nn * Y / (D * D')) - (x / d' - n * y / (d * d'))
+      = (X * (1 / D') - x * (1 / d'))
+        - (Nn * Y * (1 / D * (1 / D')) - n * y * (1 / d * (1 / d'))) := by
+    field_simp
+    ring
+  rw [e]
+  have hfin : a * (2 / c) + B * (2 * ε / c) + ((a * (C + ε') + B * ε') * (2 / c * (2 / c))
+        + B * C * (2 * ε / c * (2 / c) + 1 / c * (2 * ε / c)))
+      = 2 * a / c + 2 * B * ε / c + 4 * (a * (C + ε') + B * ε') / c ^ 2
+        + 6 * B * C * ε / c ^ 2 := by
+    field_simp
+    ring
+  rw [← hfin]
+  exact (abs_sub _ _).trans (add_le_add t1 t2)
+
+/-- Step 6, first part: from `|L + Δf| ≤ C ξ²` at both times,
+`|Δ_η L + Δ_η(Δf)| ≤ 2 C ξ² / |η|`. -/
+theorem step_six (L L' Lap Lap' C ξ η : ℝ)
+    (h : |L + Lap| ≤ C * ξ ^ 2) (h' : |L' + Lap'| ≤ C * ξ ^ 2) :
+    |(L' - L) / η + (Lap' - Lap) / η| ≤ 2 * C * ξ ^ 2 / |η| := by
+  have e : (L' - L) / η + (Lap' - Lap) / η = ((L' + Lap') - (L + Lap)) / η := by ring
+  rw [e, abs_div]
+  apply div_le_div_of_nonneg_right _ (abs_nonneg η)
+  have := abs_sub (L' + Lap') (L + Lap)
+  linarith
+
+/-- The Landau inequality in the form `|G'| ≤ 2 (sup|G| · sup|G''|)^{1/2}` is false on a
+finite interval: `G(t) = t` on `[0,1]` is a counterexample (as a statement about
+functions, not only the numerical instance `landau_old_form_fails`). -/
+theorem landau_old_form_counterexample :
+    ¬ ∀ (G G' G'' : ℝ → ℝ) (M0 M2 : ℝ),
+        (∀ t, HasDerivAt G (G' t) t) → (∀ t, HasDerivAt G' (G'' t) t) →
+        (∀ t ∈ Set.Icc (0 : ℝ) 1, |G t| ≤ M0) → (∀ t ∈ Set.Icc (0 : ℝ) 1, |G'' t| ≤ M2) →
+        ∀ t ∈ Set.Icc (0 : ℝ) 1, |G' t| ≤ 2 * Real.sqrt (M0 * M2) := by
+  intro h
+  have := h (fun t => t) (fun _ => 1) (fun _ => 0) 1 0
+    (fun t => hasDerivAt_id t) (fun t => hasDerivAt_const t 1)
+    (fun t ht => by rw [abs_of_nonneg ht.1]; exact ht.2) (fun t _ => by simp)
+    0 ⟨le_refl _, zero_le_one⟩
+  simp at this
+  linarith
+
+end TimeAppendix4
+
 end CTG.Reals2
