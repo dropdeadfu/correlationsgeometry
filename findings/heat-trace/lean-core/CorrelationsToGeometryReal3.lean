@@ -34436,4 +34436,335 @@ theorem trace_expansion_paper {N : ℕ} (hN : 0 < N) (K : Fin N → Fin N → �
 
 end BiasGeneral
 
+namespace BiasGeneral2
+
+open WalkCount Function
+open scoped ENNReal
+
+/-! # A97: `prop:bias` for every `k`, Stage 3, Points 1 and 2
+
+Point 1 (the family of kernels `p_l`, all `l`): this is `WalkCount.RK` (HYPOTHESES: measurable,
+nonnegative, bounded, mass one, semigroup, constant diagonal), proved for the periodised Gaussian
+kernel on the flat torus in `WalkCount.torusRK` (`q_l(x,y) = heatP d σ l (x - y)`, `m_l = torusM`).
+
+Point 2: closed walks through pairwise different points,
+* `cycP_int`: `∫ cycle = m_k` (product measure), `cycle_mean`: the same for sample points;
+* `cycP_vertex`, `cycle_vertex`: `E[cycle · f(x_t)] = m_k ∫ f`;
+* `torus_chord`, `cycle_chord`: `E[cycle · g(x_0 - x_l)] = ∫ p_l p_{k-l} g` on the torus. -/
+
+section Chains
+
+variable {ι : Type*} {G : Type*}
+
+/-- A chain along the list `v₁, …, v_n` of a tuple as a product. -/
+theorem ch_prod (Q : ℕ → G → G → ℝ) (x : ι → G) :
+    ∀ (n : ℕ) (v : Fin (n + 1) → ι) (b : ι),
+      ch Q x 1 (v 0) (List.ofFn fun i : Fin n => v i.succ) b
+        = (∏ i : Fin n, Q 1 (x (v i.castSucc)) (x (v i.succ))) * Q 1 (x (v (Fin.last n))) (x b) := by
+  intro n
+  induction n with
+  | zero => intro v b; simp [ch]
+  | succ n ih =>
+    intro v b
+    have h := ih (fun j => v j.succ) b
+    simp only at h
+    rw [List.ofFn_succ]
+    simp only [ch_cons]
+    rw [h, Fin.prod_univ_succ]
+    simp only [Fin.succ_castSucc, Fin.succ_last, Fin.castSucc_zero]
+    ring
+
+/-- The weight of the closed walk `y₀ → y₁ → ⋯ → y_n → y₀` (the same product as
+    `BiasGeneral.cw`, with the points themselves as vertices). -/
+def cycP (B : G → G → ℝ) {n : ℕ} (y : Fin (n + 1) → G) : ℝ := ∏ a : Fin (n + 1), B (y a) (y (a + 1))
+
+/-- The list of the vertices `0, 1, …, n` of the closed walk. -/
+def cycL (n : ℕ) : List (Fin (n + 1)) := 0 :: List.ofFn fun i : Fin n => i.succ
+
+theorem cycP_eq (Q : ℕ → G → G → ℝ) {n : ℕ} (y : Fin (n + 1) → G) :
+    cycP (Q 1) y = cyc Q y (cycL n) := by
+  rw [cycL, cyc_cons]
+  have h := ch_prod Q y n id 0
+  simp only [id] at h
+  rw [h, cycP, Fin.prod_univ_castSucc, Fin.last_add_one]
+  congr 1
+  exact Finset.prod_congr rfl fun i _ => by rw [Fin.coeSucc_eq_succ]
+
+theorem cycL_nodup (n : ℕ) : (cycL n).Nodup := by
+  rw [cycL, List.nodup_cons, List.nodup_ofFn]
+  refine ⟨?_, Fin.succ_injective _⟩
+  rw [List.mem_ofFn]
+  rintro ⟨i, hi⟩
+  exact Fin.succ_ne_zero i hi
+
+theorem mem_cycL {n : ℕ} (t : Fin (n + 1)) : t ∈ cycL n := by
+  rw [cycL]
+  refine Fin.cases ?_ (fun i => ?_) t
+  · exact List.mem_cons_self
+  · exact List.mem_cons_of_mem _ (List.mem_ofFn.mpr ⟨i, rfl⟩)
+
+theorem cycL_length (n : ℕ) : (cycL n).length = n + 1 := by simp [cycL]
+
+end Chains
+
+section ProductMeasure
+
+variable {G : Type*} [MeasurableSpace G] {ν : Measure G} [IsProbabilityMeasure ν]
+  {q : ℕ → G → G → ℝ} {M : ℝ} {m : ℕ → ℝ}
+
+theorem cycP_meas (S : RK ν q M m) (n : ℕ) :
+    Measurable fun y : Fin (n + 1) → G => cycP (q 1) y :=
+  Finset.measurable_prod _ fun a _ =>
+    meas2 S.meas 1 (measurable_pi_apply a) (measurable_pi_apply (a + 1))
+
+theorem cycP_nonneg (S : RK ν q M m) {n : ℕ} (y : Fin (n + 1) → G) : 0 ≤ cycP (q 1) y :=
+  Finset.prod_nonneg fun a _ => S.nonneg 1 _ _
+
+theorem cycP_le (S : RK ν q M m) {n : ℕ} (y : Fin (n + 1) → G) : cycP (q 1) y ≤ M ^ (n + 1) := by
+  rw [cycP]
+  calc ∏ a : Fin (n + 1), q 1 (y a) (y (a + 1)) ≤ ∏ _a : Fin (n + 1), M :=
+        Finset.prod_le_prod (fun a _ => S.nonneg 1 _ _) (fun a _ => S.bound _ _)
+    _ = M ^ (n + 1) := by simp
+
+/-- **A closed walk through `k = n + 1` different points has expectation `m_k`.** -/
+theorem cycP_int (S : RK ν q M m) (n : ℕ) :
+    ∫ y, cycP (q 1) y ∂Measure.pi (fun _ : Fin (n + 1) => ν) = m (n + 1) := by
+  simp only [cycP_eq q]
+  have h := S.int_nodup (ι := Fin (n + 1)) 0 (List.ofFn fun i : Fin n => i.succ) (cycL_nodup n)
+  rw [List.length_ofFn] at h
+  exact h
+
+/-- **A closed walk next to a function of one of its points:** `∫ cycle · f(y_t) = m_k ∫ f`
+    for measurable `0 ≤ f ≤ C`. -/
+theorem cycP_vertex (S : RK ν q M m) (n : ℕ) (t : Fin (n + 1)) (f : G → ℝ) (hf : Measurable f)
+    (hf0 : ∀ z, 0 ≤ f z) {C : ℝ} (hfC : ∀ z, f z ≤ C) :
+    ∫ y, cycP (q 1) y * f (y t) ∂Measure.pi (fun _ : Fin (n + 1) => ν)
+      = m (n + 1) * ∫ z, f z ∂ν := by
+  have hfi : Integrable f ν := Integrable.of_bound hf.aestronglyMeasurable C
+    (Filter.Eventually.of_forall fun z => by rw [Real.norm_eq_abs, abs_of_nonneg (hf0 z)]; exact hfC z)
+  refine integral_eq_of_lintegral_eq (fun y => mul_nonneg (cycP_nonneg S y) (hf0 _))
+    ((cycP_meas S n).mul (hf.comp (measurable_pi_apply t)))
+    (mul_nonneg (S.m_nonneg _ (by omega)) (integral_nonneg hf0)) ?_
+  have e : ∀ y : Fin (n + 1) → G, ENNReal.ofReal (cycP (q 1) y * f (y t))
+      = cyc (QE q) y (cycL n) * ENNReal.ofReal (f (y t)) := fun y => by
+    rw [ENNReal.ofReal_mul (cycP_nonneg S y), cycP_eq q, ofReal_cyc S.nonneg]
+  simp_rw [e]
+  rw [cycL]
+  simp only [cyc_cons]
+  have hh : Measurable fun y : Fin (n + 1) → G => ENNReal.ofReal (f (y t)) :=
+    ENNReal.measurable_ofReal.comp (hf.comp (measurable_pi_apply t))
+  rw [cyc_integral_spect ν (QE q) S.measE S.semi (fun i => ENNReal.ofReal (m i)) S.diagE hh 0
+    (List.ofFn fun i : Fin n => i.succ) (cycL_nodup n) t (mem_cycL t)
+    (fun c _ hct x z => by rw [update_of_ne (Ne.symm hct)])]
+  rw [List.length_ofFn]
+  have h1 : ∫⁻ y, ENNReal.ofReal (f (y t)) ∂Measure.pi (fun _ : Fin (n + 1) => ν)
+      = ∫⁻ z, ENNReal.ofReal (f z) ∂ν :=
+    (measurePreserving_eval (μ := fun _ : Fin (n + 1) => ν) t).lintegral_comp
+      (ENNReal.measurable_ofReal.comp hf)
+  rw [h1, ← ofReal_integral_eq_lintegral_ofReal hfi (Filter.Eventually.of_forall hf0),
+    ← ENNReal.ofReal_mul (S.m_nonneg _ (by omega))]
+
+end ProductMeasure
+
+section Torus
+
+open PiBound CTG.Reals.TorusReduction
+
+/-- **A closed walk with a chord function on the flat torus.** For `1 ≤ l ≤ n` and measurable
+    `0 ≤ g ≤ C`: `∫ cycle(y) g(y_0 - y_l) dy = ∫ p_l p_{k-l} g`, `k = n + 1`, `p_s = heatP d σ s`. -/
+theorem torus_chord {σ : ℝ} (hσ : 0 < σ) (d n : ℕ) (l : Fin (n + 1)) (hl : l ≠ 0)
+    (g : FlatTorus d → ℝ) (hg : Measurable g) (hg0 : ∀ u, 0 ≤ g u) {C : ℝ} (hgC : ∀ u, g u ≤ C) :
+    ∫ y, cycP (fun x z => heatP d σ 1 (x - z)) y * g (y 0 - y l)
+        ∂Measure.pi (fun _ : Fin (n + 1) => flatTorusMeasure d)
+      = ∫ u, heatP d σ l.val u * heatP d σ (n + 1 - l.val) u * g u ∂flatTorusMeasure d := by
+  classical
+  haveI : (flatTorusMeasure d).IsNegInvariant :=
+    Measure.IsAddHaarMeasure.isNegInvariant_of_regular (flatTorusMeasure d)
+  have S := torusRK hσ d
+  set ν := flatTorusMeasure d with hν
+  set q : ℕ → FlatTorus d → FlatTorus d → ℝ := fun i x z => heatP d σ i (x - z) with hq
+  set Q := QE q with hQ
+  -- the decomposition of the list of vertices at `l`
+  have hlmem : l ∈ List.ofFn fun i : Fin n => (i.succ : Fin (n + 1)) := by
+    obtain ⟨i, rfl⟩ := Fin.exists_succ_eq.mpr hl
+    exact List.mem_ofFn.mpr ⟨i, rfl⟩
+  obtain ⟨L1, L2, hL⟩ := List.append_of_mem hlmem
+  have hnd := cycL_nodup n
+  rw [cycL, hL] at hnd
+  have hlen1 : L1.length + 1 = l.val := by
+    have h1 : (L1 ++ l :: L2)[L1.length]? = some l := by simp
+    rw [← hL, List.getElem?_ofFn] at h1
+    have hlt : L1.length < n := by
+      by_contra hc
+      simp [hc] at h1
+    simp only [hlt, dite_true, Option.some.injEq] at h1
+    have := congrArg Fin.val h1
+    simp at this
+    omega
+  have hlen : L1.length + L2.length + 1 = n := by
+    have := congrArg List.length hL
+    simp at this; omega
+  have haL : (0 : Fin (n + 1)) ∉ L1 ++ l :: L2 := (List.nodup_cons.mp hnd).1
+  have hLnd : (L1 ++ l :: L2).Nodup := (List.nodup_cons.mp hnd).2
+  obtain ⟨hL1, hvL2nd, hdisj⟩ := List.nodup_append.mp hLnd
+  have hvL2 : l ∉ L2 := (List.nodup_cons.mp hvL2nd).1
+  have hL2 : L2.Nodup := (List.nodup_cons.mp hvL2nd).2
+  have hvL1 : l ∉ L1 := fun hm => hdisj l hm l List.mem_cons_self rfl
+  have haL1 : (0 : Fin (n + 1)) ∉ L1 := fun hm => haL (List.mem_append_left _ hm)
+  have haL2 : (0 : Fin (n + 1)) ∉ L2 :=
+    fun hm => haL (List.mem_append_right _ (List.mem_cons_of_mem _ hm))
+  have hL21 : ∀ c ∈ L2, c ∉ L1 :=
+    fun c hc hm => hdisj c hm c (List.mem_cons_of_mem _ hc) rfl
+  have hneL1 : ∀ c ∈ L1, c ≠ l := fun c hc e => hvL1 (by rw [← e]; exact hc)
+  have hneL2 : ∀ c ∈ L2, c ≠ l := fun c hc e => hvL2 (by rw [← e]; exact hc)
+  have hneaL1 : ∀ c ∈ L1, c ≠ 0 := fun c hc e => haL1 (by rw [← e]; exact hc)
+  have hneaL2 : ∀ c ∈ L2, c ≠ 0 := fun c hc e => haL2 (by rw [← e]; exact hc)
+  -- the integrand in `ℝ≥0∞`
+  obtain ⟨H, hH⟩ : ∃ H : FlatTorus d → ℝ≥0∞, H = fun u => ENNReal.ofReal (g u) := ⟨_, rfl⟩
+  have hHm : Measurable H := by rw [hH]; exact ENNReal.measurable_ofReal.comp hg
+  have hgi : ∀ i, 1 ≤ i → ∀ u, 0 ≤ heatP d σ i u * heatP d σ (n + 1 - i) u * g u := fun i _ u =>
+    mul_nonneg (mul_nonneg (heatP_nonneg hσ d _ _) (heatP_nonneg hσ d _ _)) (hg0 u)
+  have hrhs0 : 0 ≤ ∫ u, heatP d σ l.val u * heatP d σ (n + 1 - l.val) u * g u ∂ν :=
+    integral_nonneg (hgi l.val (by omega))
+  have hcm := cycP_meas S n
+  have hm2 : Measurable (heatP d σ (n + 1 - l.val)) := by
+    by_cases h0 : n + 1 - l.val = 0
+    · have : heatP d σ (n + 1 - l.val) = fun _ => 0 := by funext u; simp [heatP, h0]
+      rw [this]; exact measurable_const
+    · exact (heatP_cont hσ d (by omega)).measurable
+  have hmR : Measurable fun u => heatP d σ l.val u * heatP d σ (n + 1 - l.val) u * g u :=
+    ((heatP_cont hσ d (by omega)).measurable.mul hm2).mul hg
+  refine integral_eq_of_lintegral_eq (fun y => mul_nonneg (cycP_nonneg S y) (hg0 _))
+    (hcm.mul (hg.comp ((measurable_pi_apply 0).sub (measurable_pi_apply l)))) hrhs0 ?_
+  have e0 : ∀ y : Fin (n + 1) → FlatTorus d, ENNReal.ofReal (cycP (q 1) y * g (y 0 - y l))
+      = ch Q y 1 l L2 0 * (ch Q y 1 0 L1 l * H (y 0 - y l)) := fun y => by
+    rw [ENNReal.ofReal_mul (cycP_nonneg S y), cycP_eq q, ofReal_cyc S.nonneg, cycL, hL, cyc_cons,
+      ch_append, hH]
+    ring
+  simp_rw [e0]
+  -- step 1: integrate out `L2`
+  have hh1 : Measurable fun y : Fin (n + 1) → FlatTorus d => ch Q y 1 0 L1 l * H (y 0 - y l) :=
+    (ch_meas S.measE 1 0 L1 l).mul (hHm.comp ((measurable_pi_apply 0).sub (measurable_pi_apply l)))
+  rw [ch_integral ν Q S.measE S.semi hh1 L2 hL2 1 le_rfl l 0 hvL2 haL2
+    (fun c hc x z => by
+      rw [ch_update Q x c z 1 0 L1 l (hneaL2 c hc) (hneL2 c hc) (hL21 c hc),
+        update_of_ne (hneaL2 c hc).symm, update_of_ne (hneL2 c hc).symm])]
+  -- step 2: integrate out `L1`
+  have s2 : ∀ y : Fin (n + 1) → FlatTorus d,
+      Q (1 + L2.length) (y l) (y 0) * (ch Q y 1 0 L1 l * H (y 0 - y l))
+        = ch Q y 1 0 L1 l * (Q (1 + L2.length) (y l) (y 0) * H (y 0 - y l)) := fun y => by ring
+  simp_rw [s2]
+  have hh2 : Measurable fun y : Fin (n + 1) → FlatTorus d =>
+      Q (1 + L2.length) (y l) (y 0) * H (y 0 - y l) :=
+    (meas2 S.measE _ (measurable_pi_apply l) (measurable_pi_apply 0)).mul
+      (hHm.comp ((measurable_pi_apply 0).sub (measurable_pi_apply l)))
+  rw [ch_integral ν Q S.measE S.semi hh2 L1 hL1 1 le_rfl 0 l haL1 hvL1
+    (fun c hc x z => by
+      rw [update_of_ne (hneL1 c hc).symm, update_of_ne (hneaL1 c hc).symm])]
+  -- step 3: a function of `y_0 - y_l`
+  obtain ⟨Ψ, hΨ⟩ : ∃ Ψ : FlatTorus d → ℝ≥0∞, Ψ = fun u =>
+      ENNReal.ofReal (heatP d σ l.val u * heatP d σ (n + 1 - l.val) u * g u) := ⟨_, rfl⟩
+  have e3 : ∀ y : Fin (n + 1) → FlatTorus d,
+      Q (1 + L1.length) (y 0) (y l) * (Q (1 + L2.length) (y l) (y 0) * H (y 0 - y l))
+        = Ψ (y 0 - y l) := fun y => by
+    have i1 : 1 + L1.length = l.val := by omega
+    have i2 : 1 + L2.length = n + 1 - l.val := by omega
+    rw [hQ, hH, hΨ, i1, i2]
+    simp only [QE, hq]
+    rw [heatP_flip d σ (n + 1 - l.val) (y l) (y 0),
+      ← ENNReal.ofReal_mul (heatP_nonneg hσ d _ _),
+      ← ENNReal.ofReal_mul (heatP_nonneg hσ d _ _), mul_assoc]
+  simp_rw [e3]
+  have hΨm : Measurable Ψ := by rw [hΨ]; exact ENNReal.measurable_ofReal.comp hmR
+  have hF : Measurable fun y : Fin (n + 1) → FlatTorus d => Ψ (y 0 - y l) :=
+    hΨm.comp ((measurable_pi_apply 0).sub (measurable_pi_apply l))
+  rw [lintegral_pi_coord ν l hF]
+  have hl0 : (0 : Fin (n + 1)) ≠ l := Ne.symm hl
+  have inner : ∀ y : Fin (n + 1) → FlatTorus d,
+      ∫⁻ z, Ψ (update y l z 0 - update y l z l) ∂ν = ∫⁻ u, Ψ u ∂ν := fun y => by
+    simp only [update_self, update_of_ne hl0]
+    exact lintegral_sub_left_eq_self Ψ (y 0)
+  simp_rw [inner]
+  rw [lintegral_const, measure_univ, mul_one, hΨ]
+  have hint : Integrable (fun u => heatP d σ l.val u * heatP d σ (n + 1 - l.val) u * g u) ν := by
+    refine Integrable.of_bound ?_ (torusM d σ 1 * torusM d σ 1 * C)
+      (Filter.Eventually.of_forall fun u => ?_)
+    · exact hmR.aestronglyMeasurable
+    · rw [Real.norm_eq_abs, abs_of_nonneg (hgi l.val (by omega) u)]
+      have a1 : heatP d σ l.val u ≤ torusM d σ 1 :=
+        (heatP_le hσ d (by omega) u).trans (torusM_anti hσ d le_rfl (by omega))
+      have a2 : heatP d σ (n + 1 - l.val) u ≤ torusM d σ 1 := by
+        by_cases h0 : n + 1 - l.val = 0
+        · simp [heatP, h0]; exact (torusM_pos hσ d le_rfl).le
+        · exact (heatP_le hσ d (by omega) u).trans (torusM_anti hσ d le_rfl (by omega))
+      have hC0 : 0 ≤ C := (hg0 u).trans (hgC u)
+      have hM0 := (torusM_pos hσ d (le_refl 1)).le
+      exact mul_le_mul (mul_le_mul a1 a2 (heatP_nonneg hσ d _ _) hM0) (hgC u) (hg0 u)
+              (mul_nonneg hM0 hM0)
+  exact (ofReal_integral_eq_lintegral_ofReal hint
+    (Filter.Eventually.of_forall (hgi l.val (by omega)))).symm
+
+end Torus
+
+section Sample
+
+variable {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω} [IsProbabilityMeasure μ]
+  {G : Type*} [MeasurableSpace G] {ν : Measure G}
+
+/-- For pairwise different indices the sample points are independent with law `ν`. -/
+theorem tuple_map (X : ℕ → Ω → G) (h_indep : ProbabilityTheory.iIndepFun X μ)
+    (hX : ∀ j, Measurable (X j)) (hlaw : ∀ j, μ.map (X j) = ν) {n : ℕ} (ι : Fin n → ℕ)
+    (hι : Injective ι) :
+    μ.map (fun ω (a : Fin n) => X (ι a) ω) = Measure.pi (fun _ : Fin n => ν) := by
+  have hi : ProbabilityTheory.iIndepFun (fun a : Fin n => X (ι a)) μ := h_indep.precomp hι
+  have h := (ProbabilityTheory.iIndepFun_iff_map_fun_eq_pi_map
+    (fun a : Fin n => (hX (ι a)).aemeasurable)).mp hi
+  simp_rw [hlaw] at h
+  exact h
+
+theorem tuple_integral (X : ℕ → Ω → G) (h_indep : ProbabilityTheory.iIndepFun X μ)
+    (hX : ∀ j, Measurable (X j)) (hlaw : ∀ j, μ.map (X j) = ν) {n : ℕ} (ι : Fin n → ℕ)
+    (hι : Injective ι) (F : (Fin n → G) → ℝ) (hF : Measurable F) :
+    ∫ ω, F (fun a => X (ι a) ω) ∂μ = ∫ y, F y ∂Measure.pi (fun _ : Fin n => ν) := by
+  rw [← tuple_map X h_indep hX hlaw ι hι,
+    integral_map (measurable_pi_lambda _ fun a => hX (ι a)).aemeasurable hF.aestronglyMeasurable]
+
+variable [IsProbabilityMeasure ν] {q : ℕ → G → G → ℝ} {M : ℝ} {m : ℕ → ℝ}
+
+/-- **`E[cycle] = m_k` for pairwise different sample points.** -/
+theorem cycle_mean (S : RK ν q M m) (X : ℕ → Ω → G) (h_indep : ProbabilityTheory.iIndepFun X μ)
+    (hX : ∀ j, Measurable (X j)) (hlaw : ∀ j, μ.map (X j) = ν) {n : ℕ} (ι : Fin (n + 1) → ℕ)
+    (hι : Injective ι) :
+    ∫ ω, cycP (q 1) (fun a => X (ι a) ω) ∂μ = m (n + 1) := by
+  rw [tuple_integral X h_indep hX hlaw ι hι _ (cycP_meas S n), cycP_int S n]
+
+/-- **`E[cycle · f(x_t)] = m_k ∫ f` for pairwise different sample points.** -/
+theorem cycle_vertex (S : RK ν q M m) (X : ℕ → Ω → G) (h_indep : ProbabilityTheory.iIndepFun X μ)
+    (hX : ∀ j, Measurable (X j)) (hlaw : ∀ j, μ.map (X j) = ν) {n : ℕ} (ι : Fin (n + 1) → ℕ)
+    (hι : Injective ι) (t : Fin (n + 1)) (f : G → ℝ) (hf : Measurable f) (hf0 : ∀ z, 0 ≤ f z)
+    {C : ℝ} (hfC : ∀ z, f z ≤ C) :
+    ∫ ω, cycP (q 1) (fun a => X (ι a) ω) * f (X (ι t) ω) ∂μ = m (n + 1) * ∫ z, f z ∂ν := by
+  rw [tuple_integral X h_indep hX hlaw ι hι (fun y => cycP (q 1) y * f (y t))
+    ((cycP_meas S n).mul (hf.comp (measurable_pi_apply t))), cycP_vertex S n t f hf hf0 hfC]
+
+end Sample
+
+/-- **`E[cycle · g(x_0 - x_l)] = ∫ p_l p_{k-l} g` for pairwise different sample points** on the
+    flat torus (`k = n + 1`, `1 ≤ l ≤ n`, measurable `0 ≤ g ≤ C`). -/
+theorem cycle_chord {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω} [IsProbabilityMeasure μ]
+    {σ : ℝ} (hσ : 0 < σ) (d : ℕ) (X : ℕ → Ω → FlatTorus d)
+    (h_indep : ProbabilityTheory.iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) {n : ℕ} (ι : Fin (n + 1) → ℕ)
+    (hι : Injective ι) (l : Fin (n + 1)) (hl : l ≠ 0) (g : FlatTorus d → ℝ) (hg : Measurable g)
+    (hg0 : ∀ u, 0 ≤ g u) {C : ℝ} (hgC : ∀ u, g u ≤ C) :
+    ∫ ω, cycP (fun x z => heatP d σ 1 (x - z)) (fun a => X (ι a) ω) * g (X (ι 0) ω - X (ι l) ω) ∂μ
+      = ∫ u, heatP d σ l.val u * heatP d σ (n + 1 - l.val) u * g u ∂flatTorusMeasure d := by
+  have S := torusRK hσ d
+  rw [tuple_integral X h_indep hX hlaw ι hι
+    (fun y => cycP (fun x z => heatP d σ 1 (x - z)) y * g (y 0 - y l))
+    ((cycP_meas S n).mul (hg.comp ((measurable_pi_apply 0).sub (measurable_pi_apply l)))),
+    torus_chord hσ d n l hl g hg hg0 hgC]
+
+end BiasGeneral2
+
 end CTG.Reals2
