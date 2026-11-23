@@ -243,4 +243,55 @@ theorem riemannianEDist_time_on (s : Set ℝ) (hs : Convex ℝ s)
       (norm_growth_on s hs (fun u => g u x v) (fun u => g' u x v) κ hpos (fun t ht => hd t ht x v)
         (fun t ht => hb t ht x v) ha hb')
 
+/-- From `e^{-x} d ≤ d' ≤ e^{x} d` with `x, d ≥ 0`: `|d' − d| ≤ (e^{x} − 1) d`. -/
+theorem abs_sub_le_of_comparison (d d' x : ℝ) (hd : 0 ≤ d) (hx : 0 ≤ x)
+    (hlo : Real.exp (-x) * d ≤ d') (hhi : d' ≤ Real.exp x * d) :
+    |d' - d| ≤ (Real.exp x - 1) * d := by
+  have h1 : 1 ≤ Real.exp x := Real.one_le_exp hx
+  have h2 : 1 - Real.exp (-x) ≤ Real.exp x - 1 := by
+    have h3 : Real.exp (-x) * Real.exp x = 1 := by rw [← Real.exp_add]; simp
+    have h4 : 0 < Real.exp (-x) := Real.exp_pos _
+    nlinarith [mul_nonneg (sub_nonneg.mpr h1) (sub_nonneg.mpr h1), h4.le]
+  rw [abs_le]
+  constructor
+  · nlinarith [mul_le_mul_of_nonneg_right h2 hd]
+  · linarith
+
+/-- Lipschitz dependence of the distance on the time (first part of step M3): under the hypotheses
+of `riemannianEDist_time_on` and finiteness of the distance at time `a`, for `a, b` in the convex
+set of times, `|d_b − d_a| ≤ (e^{κ|b−a|} − 1) d_a` for the real distances (`κ ≥ 0`).  No derivative
+of the distance with respect to the time is used. -/
+theorem riemannianDist_lipschitz_time (s : Set ℝ) (hs : Convex ℝ s)
+    (n : ℝ → ∀ x : M, ENorm (TangentSpace I x))
+    (g g' : ℝ → (x : M) → TangentSpace I x → ℝ) (κ : ℝ) (hκ : 0 ≤ κ)
+    (hn : ∀ τ ∈ s, ∀ x v, @enorm _ (n τ x) v = ENNReal.ofReal (Real.sqrt (g τ x v)))
+    (hcase : ∀ x v, (∀ τ ∈ s, g τ x v = 0) ∨ (∀ τ ∈ s, 0 < g τ x v))
+    (hd : ∀ τ ∈ s, ∀ x v, HasDerivWithinAt (fun u => g u x v) (g' τ x v) s τ)
+    (hb : ∀ τ ∈ s, ∀ x v, |g' τ x v| ≤ 2 * κ * g τ x v) {a b : ℝ} (ha : a ∈ s) (hb' : b ∈ s)
+    (p q : M) (hfin : (letI := n a; Manifold.riemannianEDist I p q) ≠ ⊤) :
+    |(letI := n b; Manifold.riemannianEDist I p q).toReal
+        - (letI := n a; Manifold.riemannianEDist I p q).toReal|
+      ≤ (Real.exp (κ * |b - a|) - 1) * (letI := n a; Manifold.riemannianEDist I p q).toReal := by
+  have h1 := riemannianEDist_time_on s hs n g g' κ hn hcase hd hb ha hb' p q
+  have h2 := riemannianEDist_time_on s hs n g g' κ hn hcase hd hb hb' ha p q
+  rw [abs_sub_comm a b] at h2
+  obtain ⟨_, hlo, hhi⟩ := real_comparison _ _ _ h1 h2 hfin
+  exact abs_sub_le_of_comparison _ _ _ ENNReal.toReal_nonneg
+    (mul_nonneg hκ (abs_nonneg _)) hlo hhi
+
+/-- Finiteness for a bare family of norms from a reference metric (remark of the second session):
+on a connected Riemannian manifold in Mathlib's sense, a family of norms `n` that is dominated by
+`c` times the norm of the Riemannian bundle has finite Riemannian distances.  Without such a
+hypothesis finiteness is false for bare `ENorm` families (the norm may be `⊤`).  That two continuous
+metrics on a compact manifold are comparable is NOT proven here. -/
+theorem riemannianEDist_ne_top_of_le {M' : Type*} [PseudoEMetricSpace M'] [ChartedSpace H M']
+    [RiemannianBundle (fun (x : M') ↦ TangentSpace I x)] [IsRiemannianManifold I M']
+    [PreconnectedSpace M'] (n : ∀ x : M', ENorm (TangentSpace I x)) (c : ℝ≥0∞)
+    (hc0 : c ≠ 0) (hc : c ≠ ⊤)
+    (h : ∀ (x : M') (v : TangentSpace I x),
+      @enorm _ (n x) v ≤ c * @enorm _ SeminormedAddGroup.toContinuousENorm.toENorm v) (x y : M') :
+    (letI := n; Manifold.riemannianEDist I x y) ≠ ⊤ := by
+  have h1 := riemannianEDist_le_mul (I := I) (M := M') (fun x => SeminormedAddGroup.toContinuousENorm.toENorm) n c hc0 hc h x y
+  exact ne_top_of_le_ne_top (ENNReal.mul_ne_top hc (riemannianEDist_ne_top x y)) h1
+
 end CTG.ManifoldDistance
