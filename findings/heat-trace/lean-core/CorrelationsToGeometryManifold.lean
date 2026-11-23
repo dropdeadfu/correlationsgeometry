@@ -24,8 +24,8 @@ Combined (`riemannianEDist_time`): for a family of norms `‖v‖_τ = (g τ x v
 `|∂_τ g| ≤ 2κ g`, `d_b ≤ e^{κ|b−a|} d_a`.
 
 What this is NOT: `g` is an arbitrary function of `(τ, x, v)`, not a metric tensor (no bilinearity,
-no smoothness in `x`); the distances are Mathlib's extended distances (finiteness and minimisers do
-not occur); nothing on volume
+no smoothness in `x`); finiteness of the distance is a hypothesis of the real-valued form
+(`riemannianDist_time_real`), minimisers do not occur; nothing on volume
 growth, injectivity radius, curvature or the Laplace–Beltrami operator.
 No `sorry`, no `axiom`, no `native_decide`.
 -/
@@ -124,5 +124,43 @@ theorem riemannianEDist_time (n : ℝ → ∀ x : M, ENorm (TangentSpace I x))
     exact ENNReal.ofReal_le_ofReal
       (norm_growth (fun s => g s x v) (fun s => g' s x v) κ hpos (fun t => hd t x v)
         (fun t => hb t x v) a b)
+
+/-- Passage to real numbers: two extended distances with `d' ≤ e^{x} d`, `d ≤ e^{x} d'` and `d` finite
+are both finite, and `e^{-x} d ≤ d' ≤ e^{x} d` holds for their real values.  This is the hypothesis of
+`TimeAppendix4.distance_step` in the seventh file.  Finiteness of `d` is a HYPOTHESIS here. -/
+theorem real_comparison (d d' : ℝ≥0∞) (x : ℝ)
+    (h1 : d' ≤ ENNReal.ofReal (Real.exp x) * d) (h2 : d ≤ ENNReal.ofReal (Real.exp x) * d')
+    (hd : d ≠ ⊤) :
+    d' ≠ ⊤ ∧ Real.exp (-x) * d.toReal ≤ d'.toReal ∧ d'.toReal ≤ Real.exp x * d.toReal := by
+  have hd' : d' ≠ ⊤ := ne_top_of_le_ne_top (ENNReal.mul_ne_top ENNReal.ofReal_ne_top hd) h1
+  have e1 : d'.toReal ≤ Real.exp x * d.toReal := by
+    have := ENNReal.toReal_mono (ENNReal.mul_ne_top ENNReal.ofReal_ne_top hd) h1
+    rwa [ENNReal.toReal_mul, ENNReal.toReal_ofReal (Real.exp_pos x).le] at this
+  have e2 : d.toReal ≤ Real.exp x * d'.toReal := by
+    have := ENNReal.toReal_mono (ENNReal.mul_ne_top ENNReal.ofReal_ne_top hd') h2
+    rwa [ENNReal.toReal_mul, ENNReal.toReal_ofReal (Real.exp_pos x).le] at this
+  refine ⟨hd', ?_, e1⟩
+  have h := mul_le_mul_of_nonneg_left e2 (Real.exp_pos (-x)).le
+  rwa [← mul_assoc, ← Real.exp_add, neg_add_cancel, Real.exp_zero, one_mul] at h
+
+/-- Step 1 of `prop:dotLN-diff` for the real distances at two times `a`, `b` of a time-dependent
+family of norms, under the hypotheses of `riemannianEDist_time` and finiteness of the distance at
+time `a`: `e^{-κ|b−a|} d_a ≤ d_b ≤ e^{κ|b−a|} d_a`. -/
+theorem riemannianDist_time_real (n : ℝ → ∀ x : M, ENorm (TangentSpace I x))
+    (g g' : ℝ → (x : M) → TangentSpace I x → ℝ) (κ : ℝ)
+    (hn : ∀ τ x v, @enorm _ (n τ x) v = ENNReal.ofReal (Real.sqrt (g τ x v)))
+    (hcase : ∀ x v, (∀ τ, g τ x v = 0) ∨ (∀ τ, 0 < g τ x v))
+    (hd : ∀ τ x v, HasDerivAt (fun s => g s x v) (g' τ x v) τ)
+    (hb : ∀ τ x v, |g' τ x v| ≤ 2 * κ * g τ x v) (a b : ℝ) (p q : M)
+    (hfin : (letI := n a; Manifold.riemannianEDist I p q) ≠ ⊤) :
+    (letI := n b; Manifold.riemannianEDist I p q) ≠ ⊤ ∧
+    Real.exp (-(κ * |b - a|)) * (letI := n a; Manifold.riemannianEDist I p q).toReal
+      ≤ (letI := n b; Manifold.riemannianEDist I p q).toReal ∧
+    (letI := n b; Manifold.riemannianEDist I p q).toReal
+      ≤ Real.exp (κ * |b - a|) * (letI := n a; Manifold.riemannianEDist I p q).toReal := by
+  have h1 := riemannianEDist_time n g g' κ hn hcase hd hb a b p q
+  have h2 := riemannianEDist_time n g g' κ hn hcase hd hb b a p q
+  rw [abs_sub_comm a b] at h2
+  exact real_comparison _ _ _ h1 h2 hfin
 
 end CTG.ManifoldDistance
