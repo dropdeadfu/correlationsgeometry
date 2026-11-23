@@ -31940,4 +31940,1858 @@ end Final3
 
 end VarianceTwo
 
+/-! ## Lemma "degenerate", part (b), for three indices (A95)
+
+General tools: the whole sample as a point `x : ℕ → G`, and the integration of one free
+coordinate. -/
+
+namespace DegenerateB
+
+open PiBound
+
+section IO
+
+variable {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω} {G : Type*} [MeasurableSpace G]
+
+/-- The sample as a point of `ℕ → G`. -/
+def smp (X : ℕ → Ω → G) (ω : Ω) : ℕ → G := fun k => X k ω
+
+theorem smp_meas {X : ℕ → Ω → G} (hX : ∀ j, Measurable (X j)) : Measurable (smp X) :=
+  measurable_pi_lambda _ hX
+
+/-- **Integrating one coordinate out.** `Φ` bounded measurable, depending only on the
+    coordinates in the finite set `T`: `E Φ(X) = E ∫ Φ(X with the coordinate j replaced by z) dν(z)`;
+    the inner function is integrable. -/
+theorem integrate_out_core [IsProbabilityMeasure μ] (ν : Measure G) [IsProbabilityMeasure ν]
+    (X : ℕ → Ω → G) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = ν) (j : ℕ) (T : Finset ℕ)
+    (Φ : (ℕ → G) → ℝ) (hΦ : Measurable Φ) {B : ℝ} (hB : ∀ x, |Φ x| ≤ B)
+    (hdep : ∀ x y : ℕ → G, (∀ k ∈ T, x k = y k) → Φ x = Φ y) :
+    ∫ ω, Φ (smp X ω) ∂μ = ∫ ω, (∫ z, Φ (Function.update (smp X ω) j z) ∂ν) ∂μ ∧
+    Integrable (fun ω => ∫ z, Φ (Function.update (smp X ω) j z) ∂ν) μ := by
+  classical
+  set S : Finset ℕ := T.erase j with hS
+  have hj : j ∉ S := by rw [hS]; exact Finset.notMem_erase j T
+  let emb : G × (S → G) → (ℕ → G) := fun p k =>
+    if k = j then p.1 else if h : k ∈ S then p.2 ⟨k, h⟩ else p.1
+  have hemb : Measurable emb := by
+    apply measurable_pi_lambda
+    intro k
+    by_cases hk : k = j
+    · have e : (fun p : G × (S → G) => emb p k) = fun p => p.1 := by
+        funext p; simp [emb, hk]
+      rw [e]; exact measurable_fst
+    · by_cases hkS : k ∈ S
+      · have e : (fun p : G × (S → G) => emb p k) = fun p => p.2 ⟨k, hkS⟩ := by
+          funext p; simp [emb, hk, hkS]
+        rw [e]; exact (measurable_pi_apply _).comp measurable_snd
+      · have e : (fun p : G × (S → G) => emb p k) = fun p => p.1 := by
+          funext p; simp [emb, hk, hkS]
+        rw [e]; exact measurable_fst
+  let Gf : G × (S → G) → ℝ := fun p => Φ (emb p)
+  have hGf : Measurable Gf := hΦ.comp hemb
+  have hY : Measurable (fun ω (t : S) => X t ω) := measurable_pi_lambda _ fun t => hX t
+  have hind0 := h_indep.indepFun_finset {j} S (Finset.disjoint_singleton_left.mpr hj) hX
+  have hind : IndepFun (X j) (fun ω (t : S) => X t ω) μ :=
+    hind0.comp (φ := fun u : (({j} : Finset ℕ) → G) => u ⟨j, Finset.mem_singleton_self j⟩)
+      (ψ := id) (measurable_pi_apply _) measurable_id
+  have e1 : ∀ ω, Φ (smp X ω) = Gf (X j ω, fun t : S => X t ω) := by
+    intro ω
+    apply hdep
+    intro k hk
+    by_cases hkj : k = j
+    · subst hkj; simp [Gf, emb, smp]
+    · have hkS : k ∈ S := by rw [hS]; exact Finset.mem_erase.mpr ⟨hkj, hk⟩
+      simp [Gf, emb, smp, hkj, hkS]
+  have e2 : ∀ ω z, Φ (Function.update (smp X ω) j z) = Gf (z, fun t : S => X t ω) := by
+    intro ω z
+    apply hdep
+    intro k hk
+    by_cases hkj : k = j
+    · subst hkj; simp [Gf, emb]
+    · have hkS : k ∈ S := by rw [hS]; exact Finset.mem_erase.mpr ⟨hkj, hk⟩
+      simp [Gf, emb, smp, hkj, hkS, Function.update_apply]
+  have hinner : Measurable (fun y : S → G => ∫ z, Gf (z, y) ∂ν) :=
+    (hGf.stronglyMeasurable.integral_prod_left' (μ := ν)).measurable
+  have hbd : ∀ y : S → G, |∫ z, Gf (z, y) ∂ν| ≤ B := by
+    intro y
+    have h := norm_integral_le_of_norm_le_const (μ := ν) (C := B) (f := fun z => Gf (z, y))
+      (Filter.Eventually.of_forall fun z => by rw [Real.norm_eq_abs]; exact hB _)
+    simpa using h
+  refine ⟨?_, ?_⟩
+  · simp_rw [e1, e2]
+    rw [indep_integral_eq ν (X j) _ (hX j) hY hind (hlaw j) Gf hGf (fun p => hB (emb p))]
+    exact integral_map hY.aemeasurable hinner.aestronglyMeasurable
+  · simp_rw [e2]
+    exact Integrable.of_bound (hinner.comp hY).aestronglyMeasurable B
+      (Filter.Eventually.of_forall fun ω => by rw [Real.norm_eq_abs]; exact hbd _)
+
+/-- Equality form: if the inner integral equals `Φ'(x)` for every `x`, then `E Φ = E Φ'`. -/
+theorem integrate_out [IsProbabilityMeasure μ] (ν : Measure G) [IsProbabilityMeasure ν]
+    (X : ℕ → Ω → G) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = ν) (j : ℕ) (T : Finset ℕ)
+    (Φ : (ℕ → G) → ℝ) (hΦ : Measurable Φ) {B : ℝ} (hB : ∀ x, |Φ x| ≤ B)
+    (hdep : ∀ x y : ℕ → G, (∀ k ∈ T, x k = y k) → Φ x = Φ y)
+    (Φ' : (ℕ → G) → ℝ) (hin : ∀ x, ∫ z, Φ (Function.update x j z) ∂ν = Φ' x) :
+    ∫ ω, Φ (smp X ω) ∂μ = ∫ ω, Φ' (smp X ω) ∂μ := by
+  rw [(integrate_out_core ν X h_indep hX hlaw j T Φ hΦ hB hdep).1]
+  simp_rw [hin]
+
+/-- Upper-bound form. -/
+theorem integrate_out_le [IsProbabilityMeasure μ] (ν : Measure G) [IsProbabilityMeasure ν]
+    (X : ℕ → Ω → G) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = ν) (j : ℕ) (T : Finset ℕ)
+    (Φ : (ℕ → G) → ℝ) (hΦ : Measurable Φ) {B : ℝ} (hB : ∀ x, |Φ x| ≤ B)
+    (hdep : ∀ x y : ℕ → G, (∀ k ∈ T, x k = y k) → Φ x = Φ y)
+    (Ψ : (ℕ → G) → ℝ) (hΨ : Integrable (fun ω => Ψ (smp X ω)) μ)
+    (hin : ∀ x, ∫ z, Φ (Function.update x j z) ∂ν ≤ Ψ x) :
+    ∫ ω, Φ (smp X ω) ∂μ ≤ ∫ ω, Ψ (smp X ω) ∂μ := by
+  obtain ⟨h1, h2⟩ := integrate_out_core ν X h_indep hX hlaw j T Φ hΦ hB hdep
+  rw [h1]
+  exact integral_mono h2 hΨ (fun ω => hin _)
+
+end IO
+
+/-- Indicator of a proposition. -/
+noncomputable def ind (P : Prop) [Decidable P] : ℝ := if P then 1 else 0
+
+theorem ind_nonneg (P : Prop) [Decidable P] : 0 ≤ ind P := by unfold ind; split_ifs <;> norm_num
+
+theorem ind_le_one (P : Prop) [Decidable P] : ind P ≤ 1 := by unfold ind; split_ifs <;> norm_num
+
+theorem ind_true {P : Prop} [Decidable P] (h : P) : ind P = 1 := by unfold ind; rw [if_pos h]
+
+theorem ind_false {P : Prop} [Decidable P] (h : ¬P) : ind P = 0 := by unfold ind; rw [if_neg h]
+
+/-- Membership of an index in a triple, resp. a quadruple, of indices. -/
+def m3 (x i j l : ℕ) : Prop := x = i ∨ x = j ∨ x = l
+def m4 (x i j l v : ℕ) : Prop := x = i ∨ x = j ∨ x = l ∨ x = v
+
+instance (x i j l : ℕ) : Decidable (m3 x i j l) := by unfold m3; infer_instance
+instance (x i j l v : ℕ) : Decidable (m4 x i j l v) := by unfold m4; infer_instance
+
+/-- Three, resp. four, distinct indices. -/
+def dist3 (i j l : ℕ) : Prop := i ≠ j ∧ i ≠ l ∧ j ≠ l
+def dist4 (i j l v : ℕ) : Prop := i ≠ j ∧ i ≠ l ∧ i ≠ v ∧ j ≠ l ∧ j ≠ v ∧ l ≠ v
+
+instance (i j l : ℕ) : Decidable (dist3 i j l) := by unfold dist3; infer_instance
+instance (i j l v : ℕ) : Decidable (dist4 i j l v) := by unfold dist4; infer_instance
+
+/-- Hypotheses of Lemma "degenerate"(b) for `n = 3` and `a = 3`. Independent points with law `ν`;
+    `F` bounded (`B`) and measurable; `c` measurable with the properties of `c = p - 1` used in the
+    proof (`|c| ≤ M`, mean zero in either argument, `∫|c| ≤ 2`, `∫ c² ≤ M`,
+    `|∫ c(x - z) c(y - z) dz| ≤ M`). `Fm` is the (constant) conditional mean of `F` given its last
+    point. The norms are upper bounds: `L ≥ ‖F‖₁` (both as the marginals given one point and in
+    sample form), `V ≥ ‖F‖₂²`, `ρ ≥ ϱ(F)` (sample form, as in `DegA3`). -/
+structure DegB3 {Ω : Type*} {mΩ : MeasurableSpace Ω} (μ : Measure Ω) {G : Type*}
+    [AddCommGroup G] [MeasurableSpace G] (ν : Measure G) (X : ℕ → Ω → G) (F : G → G → G → ℝ)
+    (c : G → ℝ) (B M L V ρ Fm : ℝ) : Prop where
+  indep : iIndepFun X μ
+  meas : ∀ j, Measurable (X j)
+  law : ∀ j, μ.map (X j) = ν
+  F_meas : Measurable (fun p : G × G × G => F p.1 p.2.1 p.2.2)
+  bound : ∀ a b c, |F a b c| ≤ B
+  c_meas : Measurable c
+  c_bound : ∀ u, |c u| ≤ M
+  c_mean1 : ∀ x, ∫ z, c (x - z) ∂ν = 0
+  c_mean2 : ∀ x, ∫ z, c (z - x) ∂ν = 0
+  c_abs : ∀ x, ∫ z, |c (x - z)| ∂ν ≤ 2
+  c_sq : ∀ x, ∫ z, c (x - z) ^ 2 ∂ν ≤ M
+  c_cov : ∀ x y, |∫ z, c (x - z) * c (y - z) ∂ν| ≤ M
+  mean12 : ∀ y, ∫ b, (∫ a, F a b y ∂ν) ∂ν = Fm
+  marg1 : ∀ y, ∫ b, (∫ a, |F y a b| ∂ν) ∂ν ≤ L
+  marg2 : ∀ y, ∫ b, (∫ a, |F a y b| ∂ν) ∂ν ≤ L
+  marg3 : ∀ y, ∫ b, (∫ a, |F a b y| ∂ν) ∂ν ≤ L
+  l1 : ∀ i j l : ℕ, i ≠ j → i ≠ l → j ≠ l → ∫ ω, |F (X i ω) (X j ω) (X l ω)| ∂μ ≤ L
+  var : ∀ i j l : ℕ, i ≠ j → i ≠ l → j ≠ l → ∫ ω, F (X i ω) (X j ω) (X l ω) ^ 2 ∂μ ≤ V
+  rho12 : ∀ i l : ℕ, i ≠ l → ∫ ω, |F (X i ω) (X i ω) (X l ω)| ∂μ ≤ ρ
+  rho13 : ∀ i j : ℕ, i ≠ j → ∫ ω, |F (X i ω) (X j ω) (X i ω)| ∂μ ≤ ρ
+  rho23 : ∀ i j : ℕ, i ≠ j → ∫ ω, |F (X i ω) (X j ω) (X j ω)| ∂μ ≤ ρ
+  L_nonneg : 0 ≤ L
+  V_nonneg : 0 ≤ V
+  rho_nonneg : 0 ≤ ρ
+
+/-- The summand `F(x_i,x_j,x_l) c(x_l - x_v)` as a function of the whole sample. -/
+def wv {G : Type*} [AddCommGroup G] (F : G → G → G → ℝ) (c : G → ℝ) (i j l v : ℕ)
+    (x : ℕ → G) : ℝ :=
+  F (x i) (x j) (x l) * c (x l - x v)
+
+/-- `F(x_i,x_j,x_l)` as a function of the whole sample. -/
+def fv {G : Type*} (F : G → G → G → ℝ) (i j l : ℕ) (x : ℕ → G) : ℝ := F (x i) (x j) (x l)
+
+namespace DegB3
+
+variable {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω} {G : Type*} [AddCommGroup G] [MeasurableSpace G] [MeasurableSub₂ G]
+  {ν : Measure G} {X : ℕ → Ω → G} {F : G → G → G → ℝ} {c : G → ℝ} {B M L V ρ Fm : ℝ}
+
+theorem B_nonneg (H : DegB3 μ ν X F c B M L V ρ Fm) (x : G) : 0 ≤ B :=
+  (abs_nonneg (F x x x)).trans (H.bound x x x)
+
+theorem M_nonneg (H : DegB3 μ ν X F c B M L V ρ Fm) (x : G) : 0 ≤ M :=
+  (abs_nonneg (c x)).trans (H.c_bound x)
+
+theorem fv_meas (H : DegB3 μ ν X F c B M L V ρ Fm) (i j l : ℕ) : Measurable (fv F i j l) := by
+  have hm : Measurable (fun x : ℕ → G => (x i, x j, x l)) := by fun_prop
+  exact H.F_meas.comp hm
+
+theorem cv_meas (H : DegB3 μ ν X F c B M L V ρ Fm) (l v : ℕ) :
+    Measurable (fun x : ℕ → G => c (x l - x v)) := by
+  have hm : Measurable (fun x : ℕ → G => x l - x v) := by fun_prop
+  exact H.c_meas.comp hm
+
+theorem wv_meas (H : DegB3 μ ν X F c B M L V ρ Fm) (i j l v : ℕ) : Measurable (wv F c i j l v) :=
+  (H.fv_meas i j l).mul (H.cv_meas l v)
+
+theorem wv_bound (H : DegB3 μ ν X F c B M L V ρ Fm) (i j l v : ℕ) (x : ℕ → G) :
+    |wv F c i j l v x| ≤ B * M := by
+  unfold wv; rw [abs_mul]
+  exact mul_le_mul (H.bound _ _ _) (H.c_bound _) (abs_nonneg _) (H.B_nonneg (x 0))
+
+theorem fv_bound (H : DegB3 μ ν X F c B M L V ρ Fm) (i j l : ℕ) (x : ℕ → G) :
+    |fv F i j l x| ≤ B := H.bound _ _ _
+
+theorem BM_fv (H : DegB3 μ ν X F c B M L V ρ Fm) (i j l : ℕ) :
+    BM (fun ω => fv F i j l (smp X ω)) :=
+  ⟨(H.fv_meas i j l).comp (smp_meas H.meas), B, fun _ => H.fv_bound _ _ _ _⟩
+
+theorem BM_wv (H : DegB3 μ ν X F c B M L V ρ Fm) (i j l v : ℕ) :
+    BM (fun ω => wv F c i j l v (smp X ω)) :=
+  ⟨(H.wv_meas i j l v).comp (smp_meas H.meas), B * M, fun _ => H.wv_bound _ _ _ _ _⟩
+
+variable [IsProbabilityMeasure μ] [IsProbabilityMeasure ν]
+
+theorem io (H : DegB3 μ ν X F c B M L V ρ Fm) (j : ℕ) (T : Finset ℕ)
+    (Φ : (ℕ → G) → ℝ) (hΦ : Measurable Φ) {B' : ℝ} (hB : ∀ x, |Φ x| ≤ B')
+    (hdep : ∀ x y : ℕ → G, (∀ k ∈ T, x k = y k) → Φ x = Φ y)
+    (Φ' : (ℕ → G) → ℝ) (hin : ∀ x, ∫ z, Φ (Function.update x j z) ∂ν = Φ' x) :
+    ∫ ω, Φ (smp X ω) ∂μ = ∫ ω, Φ' (smp X ω) ∂μ :=
+  integrate_out ν X H.indep H.meas H.law j T Φ hΦ hB hdep Φ' hin
+
+theorem io_le (H : DegB3 μ ν X F c B M L V ρ Fm) (j : ℕ) (T : Finset ℕ)
+    (Φ : (ℕ → G) → ℝ) (hΦ : Measurable Φ) {B' : ℝ} (hB : ∀ x, |Φ x| ≤ B')
+    (hdep : ∀ x y : ℕ → G, (∀ k ∈ T, x k = y k) → Φ x = Φ y)
+    (Ψ : (ℕ → G) → ℝ) (hΨ : Integrable (fun ω => Ψ (smp X ω)) μ)
+    (hin : ∀ x, ∫ z, Φ (Function.update x j z) ∂ν ≤ Ψ x) :
+    ∫ ω, Φ (smp X ω) ∂μ ≤ ∫ ω, Ψ (smp X ω) ∂μ :=
+  integrate_out_le ν X H.indep H.meas H.law j T Φ hΦ hB hdep Ψ hΨ hin
+
+/-- **(A)** The index `v` of the first summand occurs nowhere else: the mean of the product
+    vanishes (integrate `x_v`; `∫ c(y - z) dz = 0`). -/
+theorem vanish_v (H : DegB3 μ ν X F c B M L V ρ Fm) {i j l v i' j' l' v' : ℕ}
+    (a1 : i ≠ v) (a2 : j ≠ v) (a3 : l ≠ v) (a4 : i' ≠ v) (a5 : j' ≠ v) (a6 : l' ≠ v)
+    (a7 : v' ≠ v) :
+    ∫ ω, wv F c i j l v (smp X ω) * wv F c i' j' l' v' (smp X ω) ∂μ = 0 := by
+  have h := H.io v {i, j, l, v, i', j', l', v'}
+    (fun x => wv F c i j l v x * wv F c i' j' l' v' x)
+    ((H.wv_meas i j l v).mul (H.wv_meas i' j' l' v')) (B' := (B * M) * (B * M))
+    (fun x => by
+      rw [abs_mul]
+      exact mul_le_mul (H.wv_bound _ _ _ _ _) (H.wv_bound _ _ _ _ _) (abs_nonneg _)
+        (mul_nonneg (H.B_nonneg (x 0)) (H.M_nonneg (x 0))))
+    (fun x y hxy => by
+      simp only [wv, hxy i (by simp), hxy j (by simp), hxy l (by simp), hxy v (by simp),
+        hxy i' (by simp), hxy j' (by simp), hxy l' (by simp), hxy v' (by simp)])
+    (fun _ => 0) (fun x => by
+      have e : ∀ z, wv F c i j l v (Function.update x v z) * wv F c i' j' l' v' (Function.update x v z)
+          = (F (x i) (x j) (x l) * wv F c i' j' l' v' x) * c (x l - z) := by
+        intro z
+        simp only [wv, Function.update_self, Function.update_of_ne a1, Function.update_of_ne a2,
+          Function.update_of_ne a3, Function.update_of_ne a4, Function.update_of_ne a5,
+          Function.update_of_ne a6, Function.update_of_ne a7]
+        ring
+      show ∫ z, wv F c i j l v (Function.update x v z) * wv F c i' j' l' v' (Function.update x v z) ∂ν = 0
+      simp_rw [e]
+      rw [integral_const_mul, H.c_mean1, mul_zero])
+  rw [show (fun ω => wv F c i j l v (smp X ω) * wv F c i' j' l' v' (smp X ω))
+      = fun ω => (fun x => wv F c i j l v x * wv F c i' j' l' v' x) (smp X ω) from rfl, h]
+  simp
+
+end DegB3
+
+
+/-- Partial integral in the first argument: `(b, y) ↦ ∫ g(a, b, y) dν(a)`. -/
+noncomputable def pint {G : Type*} [MeasurableSpace G] (ν : Measure G) (g : G → G → G → ℝ)
+    (q : G × G) : ℝ :=
+  ∫ a, g a q.1 q.2 ∂ν
+
+theorem pint_meas {G : Type*} [MeasurableSpace G] (ν : Measure G) [IsProbabilityMeasure ν]
+    {g : G → G → G → ℝ} (hg : Measurable (fun p : G × G × G => g p.1 p.2.1 p.2.2)) :
+    Measurable (pint ν g) :=
+  (hg.stronglyMeasurable.integral_prod_left' (μ := ν)).measurable
+
+theorem pint_bound {G : Type*} [MeasurableSpace G] (ν : Measure G) [IsProbabilityMeasure ν]
+    {g : G → G → G → ℝ} {Bg : ℝ} (hgB : ∀ a b y, |g a b y| ≤ Bg) (q : G × G) :
+    |pint ν g q| ≤ Bg := by
+  have h := norm_integral_le_of_norm_le_const (μ := ν) (C := Bg) (f := fun a => g a q.1 q.2)
+    (Filter.Eventually.of_forall fun a => by rw [Real.norm_eq_abs]; exact hgB _ _ _)
+  simpa [pint] using h
+
+namespace DegB3
+
+variable {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω} {G : Type*} [AddCommGroup G]
+  [MeasurableSpace G] [MeasurableSub₂ G]
+  {ν : Measure G} {X : ℕ → Ω → G} {F : G → G → G → ℝ} {c : G → ℝ} {B M L V ρ Fm : ℝ}
+  [IsProbabilityMeasure μ] [IsProbabilityMeasure ν]
+
+/-- **Integrating two points of a nonnegative factor.** `g ≥ 0` bounded measurable with
+    `∫∫ g(a, b, y) da db ≤ L'` for every `y`; `Ψ ≥ 0` bounded measurable, not depending on the
+    points `a1, a2`: `E [g(x_{a1}, x_{a2}, x_{a3}) Ψ] ≤ L' E Ψ`. -/
+theorem two_out (H : DegB3 μ ν X F c B M L V ρ Fm) (g : G → G → G → ℝ)
+    (hg : Measurable (fun p : G × G × G => g p.1 p.2.1 p.2.2)) {Bg : ℝ}
+    (hg0 : ∀ a b y, 0 ≤ g a b y) (hgB : ∀ a b y, g a b y ≤ Bg)
+    {L' : ℝ} (hmarg : ∀ y, ∫ b, (∫ a, g a b y ∂ν) ∂ν ≤ L')
+    {a1 a2 a3 : ℕ} (h12 : a1 ≠ a2) (h13 : a1 ≠ a3) (h23 : a2 ≠ a3)
+    (Ψ : (ℕ → G) → ℝ) (hΨ : Measurable Ψ) {BΨ : ℝ} (hΨ0 : ∀ x, 0 ≤ Ψ x) (hΨB : ∀ x, Ψ x ≤ BΨ)
+    (T : Finset ℕ) (hT1 : a1 ∉ T) (hT2 : a2 ∉ T)
+    (hdep : ∀ x y : ℕ → G, (∀ k ∈ T, x k = y k) → Ψ x = Ψ y) :
+    ∫ ω, g (X a1 ω) (X a2 ω) (X a3 ω) * Ψ (smp X ω) ∂μ ≤ L' * ∫ ω, Ψ (smp X ω) ∂μ := by
+  obtain ⟨ω0⟩ := nonempty_of_isProbabilityMeasure μ
+  have hBg : 0 ≤ Bg := (hg0 (X 0 ω0) (X 0 ω0) (X 0 ω0)).trans (hgB _ _ _)
+  have hBΨ : 0 ≤ BΨ := (hΨ0 (smp X ω0)).trans (hΨB _)
+  have hgA : ∀ a b y, |g a b y| ≤ Bg := fun a b y => by rw [abs_of_nonneg (hg0 a b y)]; exact hgB a b y
+  have hu1 : ∀ x z, Ψ (Function.update x a1 z) = Ψ x := fun x z =>
+    hdep _ _ (fun k hk => Function.update_of_ne (by rintro rfl; exact hT1 hk) _ _)
+  have hu2 : ∀ x z, Ψ (Function.update x a2 z) = Ψ x := fun x z =>
+    hdep _ _ (fun k hk => Function.update_of_ne (by rintro rfl; exact hT2 hk) _ _)
+  have m0 : Measurable (fun x : ℕ → G => g (x a1) (x a2) (x a3) * Ψ x) := by
+    have hm : Measurable (fun x : ℕ → G => (x a1, x a2, x a3)) := by fun_prop
+    exact (hg.comp hm).mul hΨ
+  have m1 : Measurable (fun x : ℕ → G => pint ν g (x a2, x a3) * Ψ x) := by
+    have hm : Measurable (fun x : ℕ → G => (x a2, x a3)) := by fun_prop
+    exact ((pint_meas ν hg).comp hm).mul hΨ
+  have s1 := H.io a1 (insert a1 (insert a2 (insert a3 T)))
+    (fun x => g (x a1) (x a2) (x a3) * Ψ x) m0 (B' := Bg * BΨ)
+    (fun x => by
+      rw [abs_mul, abs_of_nonneg (hΨ0 x)]
+      exact mul_le_mul (hgA _ _ _) (hΨB x) (hΨ0 x) hBg)
+    (fun x y hxy => by
+      simp only [hxy a1 (by simp), hxy a2 (by simp), hxy a3 (by simp),
+        hdep x y (fun k hk => hxy k (by simp [hk]))])
+    (fun x => pint ν g (x a2, x a3) * Ψ x)
+    (fun x => by
+      simp only [Function.update_self, Function.update_of_ne h12.symm,
+        Function.update_of_ne h13.symm, hu1]
+      rw [integral_mul_const]
+      rfl)
+  have s2 := H.io_le a2 (insert a2 (insert a3 T))
+    (fun x => pint ν g (x a2, x a3) * Ψ x) m1 (B' := Bg * BΨ)
+    (fun x => by
+      rw [abs_mul, abs_of_nonneg (hΨ0 x)]
+      exact mul_le_mul (pint_bound ν hgA _) (hΨB x) (hΨ0 x) hBg)
+    (fun x y hxy => by
+      simp only [hxy a2 (by simp), hxy a3 (by simp),
+        hdep x y (fun k hk => hxy k (by simp [hk]))])
+    (fun x => L' * Ψ x)
+    (BM.const_mul L' (f := fun ω => Ψ (smp X ω)) ⟨hΨ.comp (smp_meas H.meas), BΨ, fun ω => by
+      show |Ψ (smp X ω)| ≤ BΨ
+      rw [abs_of_nonneg (hΨ0 _)]; exact hΨB _⟩).integrable
+    (fun x => by
+      simp only [Function.update_self, Function.update_of_ne h23.symm, hu2]
+      rw [integral_mul_const]
+      exact mul_le_mul_of_nonneg_right (hmarg (x a3)) (hΨ0 x))
+  calc ∫ ω, g (X a1 ω) (X a2 ω) (X a3 ω) * Ψ (smp X ω) ∂μ
+      = ∫ ω, pint ν g (smp X ω a2, smp X ω a3) * Ψ (smp X ω) ∂μ := s1
+    _ ≤ ∫ ω, L' * Ψ (smp X ω) ∂μ := s2
+    _ = L' * ∫ ω, Ψ (smp X ω) ∂μ := integral_const_mul _ _
+
+/-- `E [|F(x_i,x_j,x_l)| |F(x_{i'},x_{j'},x_{l'})|] ≤ L²` when two points of the first triple do
+    not occur in the second (both triples injective). -/
+theorem FF_le (H : DegB3 μ ν X F c B M L V ρ Fm) {i j l i' j' l' : ℕ}
+    (hd : dist3 i j l) (hd' : dist3 i' j' l')
+    (hfree : (¬ m3 i i' j' l' ∧ ¬ m3 j i' j' l') ∨ (¬ m3 j i' j' l' ∧ ¬ m3 l i' j' l')
+      ∨ (¬ m3 i i' j' l' ∧ ¬ m3 l i' j' l')) :
+    ∫ ω, |fv F i j l (smp X ω)| * |fv F i' j' l' (smp X ω)| ∂μ ≤ L * L := by
+  obtain ⟨d1, d2, d3⟩ := hd
+  obtain ⟨d1', d2', d3'⟩ := hd'
+  obtain ⟨ω0⟩ := nonempty_of_isProbabilityMeasure μ
+  have hB0 : 0 ≤ B := H.B_nonneg (X 0 ω0)
+  have hΨm : Measurable (fun x : ℕ → G => |fv F i' j' l' x|) :=
+    continuous_abs.measurable.comp (H.fv_meas i' j' l')
+  have hΨdep : ∀ x y : ℕ → G, (∀ k ∈ ({i', j', l'} : Finset ℕ), x k = y k) →
+      |fv F i' j' l' x| = |fv F i' j' l' y| := fun x y hxy => by
+    simp only [fv, hxy i' (by simp), hxy j' (by simp), hxy l' (by simp)]
+  have hE : ∫ ω, |fv F i' j' l' (smp X ω)| ∂μ ≤ L := H.l1 i' j' l' d1' d2' d3'
+  have hfin : ∀ {L'' : ℝ}, L'' ≤ L → 0 ≤ L'' →
+      L'' * ∫ ω, |fv F i' j' l' (smp X ω)| ∂μ ≤ L * L := fun h1 h2 =>
+    mul_le_mul h1 hE (integral_nonneg fun _ => abs_nonneg _) H.L_nonneg
+  have hm3 : ∀ x, ¬ m3 x i' j' l' → x ∉ ({i', j', l'} : Finset ℕ) := fun x hx hx' => by
+    apply hx; simp only [Finset.mem_insert, Finset.mem_singleton] at hx'; unfold m3; tauto
+  rcases hfree with ⟨f1, f2⟩ | ⟨f1, f2⟩ | ⟨f1, f2⟩
+  · -- `i, j` free: integrate them, `g = |F|`
+    have hg : Measurable (fun p : G × G × G => |F p.1 p.2.1 p.2.2|) :=
+      continuous_abs.measurable.comp H.F_meas
+    have h := H.two_out (fun a b y => |F a b y|) hg (Bg := B) (fun _ _ _ => abs_nonneg _)
+      (fun _ _ _ => H.bound _ _ _) H.marg3 d1 d2 d3 (fun x => |fv F i' j' l' x|) hΨm (BΨ := B)
+      (fun _ => abs_nonneg _) (fun _ => H.bound _ _ _) {i', j', l'} (hm3 i f1) (hm3 j f2) hΨdep
+    exact h.trans (hfin le_rfl H.L_nonneg)
+  · -- `j, l` free: `g(a, b, y) = |F y a b|`
+    have hg : Measurable (fun p : G × G × G => |F p.2.2 p.1 p.2.1|) := by
+      have hm : Measurable (fun p : G × G × G => (p.2.2, p.1, p.2.1)) := by fun_prop
+      exact continuous_abs.measurable.comp (H.F_meas.comp hm)
+    have h := H.two_out (fun a b y => |F y a b|) hg (Bg := B) (fun _ _ _ => abs_nonneg _)
+      (fun _ _ _ => H.bound _ _ _) H.marg1 d3 (Ne.symm d1) (Ne.symm d2)
+      (fun x => |fv F i' j' l' x|) hΨm (BΨ := B)
+      (fun _ => abs_nonneg _) (fun _ => H.bound _ _ _) {i', j', l'} (hm3 j f1) (hm3 l f2) hΨdep
+    exact h.trans (hfin le_rfl H.L_nonneg)
+  · -- `i, l` free: `g(a, b, y) = |F a y b|`
+    have hg : Measurable (fun p : G × G × G => |F p.1 p.2.2 p.2.1|) := by
+      have hm : Measurable (fun p : G × G × G => (p.1, p.2.2, p.2.1)) := by fun_prop
+      exact continuous_abs.measurable.comp (H.F_meas.comp hm)
+    have h := H.two_out (fun a b y => |F a y b|) hg (Bg := B) (fun _ _ _ => abs_nonneg _)
+      (fun _ _ _ => H.bound _ _ _) H.marg2 d2 d1 (Ne.symm d3)
+      (fun x => |fv F i' j' l' x|) hΨm (BΨ := B)
+      (fun _ => abs_nonneg _) (fun _ => H.bound _ _ _) {i', j', l'} (hm3 i f1) (hm3 l f2) hΨdep
+    exact h.trans (hfin le_rfl H.L_nonneg)
+
+end DegB3
+
+namespace DegB3
+
+variable {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω} {G : Type*} [AddCommGroup G]
+  [MeasurableSpace G] [MeasurableSub₂ G]
+  {ν : Measure G} {X : ℕ → Ω → G} {F : G → G → G → ℝ} {c : G → ℝ} {B M L V ρ Fm : ℝ}
+  [IsProbabilityMeasure μ] [IsProbabilityMeasure ν]
+
+theorem wwB (H : DegB3 μ ν X F c B M L V ρ Fm) (i j l v i' j' l' v' : ℕ) (x : ℕ → G) :
+    |wv F c i j l v x * wv F c i' j' l' v' x| ≤ (B * M) * (B * M) := by
+  rw [abs_mul]
+  exact mul_le_mul (H.wv_bound _ _ _ _ _) (H.wv_bound _ _ _ _ _) (abs_nonneg _)
+    (mul_nonneg (H.B_nonneg (x 0)) (H.M_nonneg (x 0)))
+
+/-- **(B)** `v = v'` and the triples are disjoint: the mean of the product vanishes (integrate
+    `x_i`, then `x_j`, which gives the constant `Fm`, then `x_l`, which gives `∫ c(z - x_v) dz = 0`). -/
+theorem vanish_B (H : DegB3 μ ν X F c B M L V ρ Fm) {i j l v i' j' l' : ℕ}
+    (d1 : i ≠ j) (d2 : i ≠ l) (d3 : i ≠ v) (d4 : j ≠ l) (d5 : j ≠ v) (d6 : l ≠ v)
+    (e1 : i ≠ i') (e2 : i ≠ j') (e3 : i ≠ l') (e4 : j ≠ i') (e5 : j ≠ j') (e6 : j ≠ l')
+    (e7 : l ≠ i') (e8 : l ≠ j') (e9 : l ≠ l') :
+    ∫ ω, wv F c i j l v (smp X ω) * wv F c i' j' l' v (smp X ω) ∂μ = 0 := by
+  obtain ⟨ω0⟩ := nonempty_of_isProbabilityMeasure μ
+  have hB0 : 0 ≤ B := H.B_nonneg (X 0 ω0)
+  have hM0 : 0 ≤ M := H.M_nonneg (X 0 ω0)
+  have hF1m : Measurable (pint ν F) := pint_meas ν H.F_meas
+  -- step 1: the point `i`
+  have s1 := H.io i {i, j, l, v, i', j', l'}
+    (fun x => wv F c i j l v x * wv F c i' j' l' v x)
+    ((H.wv_meas i j l v).mul (H.wv_meas i' j' l' v)) (H.wwB i j l v i' j' l' v)
+    (fun x y hxy => by
+      simp only [wv, hxy i (by simp), hxy j (by simp), hxy l (by simp), hxy v (by simp),
+        hxy i' (by simp), hxy j' (by simp), hxy l' (by simp)])
+    (fun x => pint ν F (x j, x l) * (c (x l - x v) * wv F c i' j' l' v x))
+    (fun x => by
+      have e : ∀ z, wv F c i j l v (Function.update x i z)
+            * wv F c i' j' l' v (Function.update x i z)
+          = F z (x j) (x l) * (c (x l - x v) * wv F c i' j' l' v x) := by
+        intro z
+        simp only [wv, Function.update_self, Function.update_of_ne d1.symm,
+          Function.update_of_ne d2.symm, Function.update_of_ne d3.symm,
+          Function.update_of_ne e1.symm, Function.update_of_ne e2.symm,
+          Function.update_of_ne e3.symm]
+        ring
+      show ∫ z, wv F c i j l v (Function.update x i z)
+          * wv F c i' j' l' v (Function.update x i z) ∂ν = _
+      simp_rw [e]
+      rw [integral_mul_const]
+      rfl)
+  -- step 2: the point `j`
+  have m1 : Measurable (fun x : ℕ → G => pint ν F (x j, x l) * (c (x l - x v) * wv F c i' j' l' v x)) := by
+    have hm : Measurable (fun x : ℕ → G => (x j, x l)) := by fun_prop
+    exact (hF1m.comp hm).mul ((H.cv_meas l v).mul (H.wv_meas i' j' l' v))
+  have s2 := H.io j {j, l, v, i', j', l'}
+    (fun x => pint ν F (x j, x l) * (c (x l - x v) * wv F c i' j' l' v x)) m1
+    (B' := B * (M * (B * M)))
+    (fun x => by
+      rw [abs_mul, abs_mul]
+      exact mul_le_mul (pint_bound ν H.bound _)
+        (mul_le_mul (H.c_bound _) (H.wv_bound _ _ _ _ _) (abs_nonneg _) hM0)
+        (by positivity) hB0)
+    (fun x y hxy => by
+      simp only [wv, hxy j (by simp), hxy l (by simp), hxy v (by simp),
+        hxy i' (by simp), hxy j' (by simp), hxy l' (by simp)])
+    (fun x => Fm * (c (x l - x v) * wv F c i' j' l' v x))
+    (fun x => by
+      simp only [wv, Function.update_self, Function.update_of_ne d4.symm,
+        Function.update_of_ne d5.symm, Function.update_of_ne e4.symm,
+        Function.update_of_ne e5.symm, Function.update_of_ne e6.symm]
+      rw [integral_mul_const]
+      congr 1
+      exact H.mean12 (x l))
+  -- step 3: the point `l`
+  have m2 : Measurable (fun x : ℕ → G => Fm * (c (x l - x v) * wv F c i' j' l' v x)) :=
+    measurable_const.mul ((H.cv_meas l v).mul (H.wv_meas i' j' l' v))
+  have s3 := H.io l {l, v, i', j', l'}
+    (fun x => Fm * (c (x l - x v) * wv F c i' j' l' v x)) m2
+    (B' := |Fm| * (M * (B * M)))
+    (fun x => by
+      rw [abs_mul, abs_mul]
+      exact mul_le_mul_of_nonneg_left
+        (mul_le_mul (H.c_bound _) (H.wv_bound _ _ _ _ _) (abs_nonneg _) hM0) (abs_nonneg _))
+    (fun x y hxy => by
+      simp only [wv, hxy l (by simp), hxy v (by simp),
+        hxy i' (by simp), hxy j' (by simp), hxy l' (by simp)])
+    (fun _ => 0)
+    (fun x => by
+      have e : ∀ z, Fm * (c (Function.update x l z l - Function.update x l z v)
+            * wv F c i' j' l' v (Function.update x l z))
+          = (Fm * wv F c i' j' l' v x) * c (z - x v) := by
+        intro z
+        simp only [wv, Function.update_self, Function.update_of_ne d6.symm,
+          Function.update_of_ne e7.symm, Function.update_of_ne e8.symm,
+          Function.update_of_ne e9.symm]
+        ring
+      show ∫ z, Fm * (c (Function.update x l z l - Function.update x l z v)
+            * wv F c i' j' l' v (Function.update x l z)) ∂ν = 0
+      simp_rw [e]
+      rw [integral_const_mul, H.c_mean2, mul_zero])
+  have h0 : ∫ ω, wv F c i j l v (smp X ω) * wv F c i' j' l' v (smp X ω) ∂μ
+      = ∫ ω, (fun _ => (0 : ℝ)) (smp X ω) ∂μ := s1.trans (s2.trans s3)
+  rw [h0]; simp
+
+/-- `E w² ≤ M V` for an injective quadruple (integrate `x_v`). -/
+theorem wsq_le (H : DegB3 μ ν X F c B M L V ρ Fm) {i j l v : ℕ} (hd : dist4 i j l v) :
+    ∫ ω, wv F c i j l v (smp X ω) ^ 2 ∂μ ≤ M * V := by
+  obtain ⟨d1, d2, d3, d4, d5, d6⟩ := hd
+  obtain ⟨ω0⟩ := nonempty_of_isProbabilityMeasure μ
+  have hB0 : 0 ≤ B := H.B_nonneg (X 0 ω0)
+  have hM0 : 0 ≤ M := H.M_nonneg (X 0 ω0)
+  have h := H.io_le v {i, j, l, v} (fun x => wv F c i j l v x ^ 2)
+    ((H.wv_meas i j l v).pow_const 2) (B' := (B * M) ^ 2)
+    (fun x => by
+      rw [abs_pow]
+      exact pow_le_pow_left₀ (abs_nonneg _) (H.wv_bound _ _ _ _ _) 2)
+    (fun x y hxy => by
+      simp only [wv, hxy i (by simp), hxy j (by simp), hxy l (by simp), hxy v (by simp)])
+    (fun x => M * fv F i j l x ^ 2)
+    ((BM_fv H i j l).sqr.const_mul M).integrable
+    (fun x => by
+      have e : ∀ z, wv F c i j l v (Function.update x v z) ^ 2
+          = fv F i j l x ^ 2 * c (x l - z) ^ 2 := by
+        intro z
+        simp only [wv, fv, Function.update_self, Function.update_of_ne d3,
+          Function.update_of_ne d5, Function.update_of_ne d6]
+        ring
+      show ∫ z, wv F c i j l v (Function.update x v z) ^ 2 ∂ν ≤ _
+      simp_rw [e]
+      rw [integral_const_mul]
+      rw [mul_comm M]
+      exact mul_le_mul_of_nonneg_left (H.c_sq _) (_root_.sq_nonneg _))
+  refine h.trans ?_
+  rw [integral_const_mul]
+  exact mul_le_mul_of_nonneg_left (H.var i j l d1 d2 d4) hM0
+
+/-- **(E)** Cauchy–Schwarz: `E [w w'] ≤ M V` for injective quadruples. -/
+theorem cs_le (H : DegB3 μ ν X F c B M L V ρ Fm) {i j l v i' j' l' v' : ℕ}
+    (hd : dist4 i j l v) (hd' : dist4 i' j' l' v') :
+    ∫ ω, wv F c i j l v (smp X ω) * wv F c i' j' l' v' (smp X ω) ∂μ ≤ M * V := by
+  have b1 := H.BM_wv i j l v
+  have b2 := H.BM_wv i' j' l' v'
+  have i1 : Integrable (fun ω => wv F c i j l v (smp X ω) ^ 2) μ := b1.sqr.integrable
+  have i2 : Integrable (fun ω => wv F c i' j' l' v' (smp X ω) ^ 2) μ := b2.sqr.integrable
+  have i3 := (b1.mul b2).integrable (μ := μ)
+  have j1 : Integrable (fun ω => 1 / 2 * wv F c i j l v (smp X ω) ^ 2) μ := i1.const_mul _
+  have j2 : Integrable (fun ω => 1 / 2 * wv F c i' j' l' v' (smp X ω) ^ 2) μ := i2.const_mul _
+  have v1 := H.wsq_le hd
+  have v2 := H.wsq_le hd'
+  calc ∫ ω, wv F c i j l v (smp X ω) * wv F c i' j' l' v' (smp X ω) ∂μ
+      ≤ ∫ ω, (1 / 2 * wv F c i j l v (smp X ω) ^ 2
+          + 1 / 2 * wv F c i' j' l' v' (smp X ω) ^ 2) ∂μ :=
+        integral_mono i3 (j1.add j2) (fun ω => by
+          nlinarith [_root_.sq_nonneg
+            (wv F c i j l v (smp X ω) - wv F c i' j' l' v' (smp X ω))])
+    _ = 1 / 2 * ∫ ω, wv F c i j l v (smp X ω) ^ 2 ∂μ
+          + 1 / 2 * ∫ ω, wv F c i' j' l' v' (smp X ω) ^ 2 ∂μ := by
+        rw [integral_add j1 j2, integral_const_mul, integral_const_mul]
+    _ ≤ M * V := by linarith
+
+/-- **(C)** `v = v'`, `v` not in either triple: integrate `x_v`;
+    `|∫ c(y - z) c(y' - z) dz| ≤ M`. -/
+theorem boundC (H : DegB3 μ ν X F c B M L V ρ Fm) {i j l v i' j' l' : ℕ}
+    (a1 : i ≠ v) (a2 : j ≠ v) (a3 : l ≠ v) (a4 : i' ≠ v) (a5 : j' ≠ v) (a6 : l' ≠ v) :
+    ∫ ω, wv F c i j l v (smp X ω) * wv F c i' j' l' v (smp X ω) ∂μ
+      ≤ M * ∫ ω, |fv F i j l (smp X ω)| * |fv F i' j' l' (smp X ω)| ∂μ := by
+  obtain ⟨ω0⟩ := nonempty_of_isProbabilityMeasure μ
+  have hM0 : 0 ≤ M := H.M_nonneg (X 0 ω0)
+  have hint : Integrable (fun ω => M * (|fv F i j l (smp X ω)| * |fv F i' j' l' (smp X ω)|)) μ :=
+    (((H.BM_fv i j l).absv.mul (H.BM_fv i' j' l').absv).const_mul M).integrable
+  have h := H.io_le v {i, j, l, v, i', j', l'}
+    (fun x => wv F c i j l v x * wv F c i' j' l' v x)
+    ((H.wv_meas i j l v).mul (H.wv_meas i' j' l' v)) (H.wwB i j l v i' j' l' v)
+    (fun x y hxy => by
+      simp only [wv, hxy i (by simp), hxy j (by simp), hxy l (by simp), hxy v (by simp),
+        hxy i' (by simp), hxy j' (by simp), hxy l' (by simp)])
+    (fun x => M * (|fv F i j l x| * |fv F i' j' l' x|)) hint
+    (fun x => by
+      have e : ∀ z, wv F c i j l v (Function.update x v z)
+            * wv F c i' j' l' v (Function.update x v z)
+          = (fv F i j l x * fv F i' j' l' x) * (c (x l - z) * c (x l' - z)) := by
+        intro z
+        simp only [wv, fv, Function.update_self, Function.update_of_ne a1,
+          Function.update_of_ne a2, Function.update_of_ne a3, Function.update_of_ne a4,
+          Function.update_of_ne a5, Function.update_of_ne a6]
+        ring
+      show ∫ z, wv F c i j l v (Function.update x v z)
+          * wv F c i' j' l' v (Function.update x v z) ∂ν ≤ _
+      simp_rw [e]
+      rw [integral_const_mul]
+      calc fv F i j l x * fv F i' j' l' x * ∫ z, c (x l - z) * c (x l' - z) ∂ν
+          ≤ |fv F i j l x * fv F i' j' l' x * ∫ z, c (x l - z) * c (x l' - z) ∂ν| :=
+            le_abs_self _
+        _ = (|fv F i j l x| * |fv F i' j' l' x|) * |∫ z, c (x l - z) * c (x l' - z) ∂ν| := by
+            rw [abs_mul, abs_mul]
+        _ ≤ (|fv F i j l x| * |fv F i' j' l' x|) * M :=
+            mul_le_mul_of_nonneg_left (H.c_cov _ _) (by positivity)
+        _ = M * (|fv F i j l x| * |fv F i' j' l' x|) := by ring)
+  refine h.trans (le_of_eq ?_)
+  rw [integral_const_mul]
+
+/-- **(D)** the pointwise bound `w w' ≤ M² |F| |F'|`. -/
+theorem boundD (H : DegB3 μ ν X F c B M L V ρ Fm) (i j l v i' j' l' v' : ℕ) :
+    ∫ ω, wv F c i j l v (smp X ω) * wv F c i' j' l' v' (smp X ω) ∂μ
+      ≤ M ^ 2 * ∫ ω, |fv F i j l (smp X ω)| * |fv F i' j' l' (smp X ω)| ∂μ := by
+  obtain ⟨ω0⟩ := nonempty_of_isProbabilityMeasure μ
+  have hM0 : 0 ≤ M := H.M_nonneg (X 0 ω0)
+  have i3 := ((H.BM_wv i j l v).mul (H.BM_wv i' j' l' v')).integrable (μ := μ)
+  have i4 := ((((H.BM_fv i j l).absv.mul (H.BM_fv i' j' l').absv)).const_mul (M ^ 2)).integrable
+    (μ := μ)
+  rw [← integral_const_mul]
+  refine integral_mono i3 i4 (fun ω => ?_)
+  show wv F c i j l v (smp X ω) * wv F c i' j' l' v' (smp X ω)
+    ≤ M ^ 2 * (|fv F i j l (smp X ω)| * |fv F i' j' l' (smp X ω)|)
+  have k1 : |c (smp X ω l - smp X ω v)| ≤ M := H.c_bound _
+  have k2 : |c (smp X ω l' - smp X ω v')| ≤ M := H.c_bound _
+  calc wv F c i j l v (smp X ω) * wv F c i' j' l' v' (smp X ω)
+      ≤ |wv F c i j l v (smp X ω) * wv F c i' j' l' v' (smp X ω)| := le_abs_self _
+    _ = (|fv F i j l (smp X ω)| * |c (smp X ω l - smp X ω v)|)
+          * (|fv F i' j' l' (smp X ω)| * |c (smp X ω l' - smp X ω v')|) := by
+        simp only [wv, fv, abs_mul]
+    _ ≤ (|fv F i j l (smp X ω)| * M) * (|fv F i' j' l' (smp X ω)| * M) :=
+        mul_le_mul (mul_le_mul_of_nonneg_left k1 (abs_nonneg _))
+          (mul_le_mul_of_nonneg_left k2 (abs_nonneg _)) (by positivity) (by positivity)
+    _ = M ^ 2 * (|fv F i j l (smp X ω)| * |fv F i' j' l' (smp X ω)|) := by ring
+
+end DegB3
+
+/-- The summand of an injective quadruple (zero otherwise). -/
+noncomputable def aW {G : Type*} [AddCommGroup G] (F : G → G → G → ℝ) (c : G → ℝ) (i j l v : ℕ)
+    (x : ℕ → G) : ℝ :=
+  if dist4 i j l v then wv F c i j l v x else 0
+
+/-- Indicator weights of the three kinds of nonvanishing pairs (paper: `v = v'` with one common
+    point; `v ≠ v'` with `v`, `v'` in the other triple; at least three common indices). -/
+noncomputable def X1 (i j l v i' j' l' v' : ℕ) : ℝ :=
+  ind (v' = v) * (ind (m3 i' i j l) + ind (m3 j' i j l) + ind (m3 l' i j l))
+
+noncomputable def X2 (i j l v i' j' l' v' : ℕ) : ℝ :=
+  ind (m3 v' i j l) * (ind (i' = v) + ind (j' = v) + ind (l' = v))
+
+noncomputable def X3 (i j l v i' j' l' v' : ℕ) : ℝ :=
+  ind (m4 i' i j l v) * ind (m4 j' i j l v) * ind (m4 l' i j l v)
+    + ind (m4 i' i j l v) * ind (m4 j' i j l v) * ind (m4 v' i j l v)
+    + ind (m4 i' i j l v) * ind (m4 l' i j l v) * ind (m4 v' i j l v)
+    + ind (m4 j' i j l v) * ind (m4 l' i j l v) * ind (m4 v' i j l v)
+
+theorem X1_nonneg (i j l v i' j' l' v' : ℕ) : 0 ≤ X1 i j l v i' j' l' v' := by
+  unfold X1
+  have := ind_nonneg (v' = v); have := ind_nonneg (m3 i' i j l)
+  have := ind_nonneg (m3 j' i j l); have := ind_nonneg (m3 l' i j l)
+  positivity
+
+theorem X2_nonneg (i j l v i' j' l' v' : ℕ) : 0 ≤ X2 i j l v i' j' l' v' := by
+  unfold X2
+  have := ind_nonneg (m3 v' i j l); have := ind_nonneg (i' = v)
+  have := ind_nonneg (j' = v); have := ind_nonneg (l' = v)
+  positivity
+
+theorem X3_nonneg (i j l v i' j' l' v' : ℕ) : 0 ≤ X3 i j l v i' j' l' v' := by
+  unfold X3
+  have := ind_nonneg (m4 i' i j l v); have := ind_nonneg (m4 j' i j l v)
+  have := ind_nonneg (m4 l' i j l v); have := ind_nonneg (m4 v' i j l v)
+  positivity
+
+theorem rhs_t1 {M L V a b e : ℝ} (hM : 0 ≤ M) (hV : 0 ≤ V) (ha : 1 ≤ a) (hb : 0 ≤ b)
+    (he : 0 ≤ e) : M * (L * L) ≤ M * L ^ 2 * a + M ^ 2 * L ^ 2 * b + M * V * e := by
+  have h1 : M * L ^ 2 * 1 ≤ M * L ^ 2 * a :=
+    mul_le_mul_of_nonneg_left ha (mul_nonneg hM (_root_.sq_nonneg L))
+  have h2 : 0 ≤ M ^ 2 * L ^ 2 * b := by positivity
+  have h3 : 0 ≤ M * V * e := by positivity
+  nlinarith
+
+theorem rhs_t2 {M L V a b e : ℝ} (hM : 0 ≤ M) (hV : 0 ≤ V) (ha : 0 ≤ a) (hb : 1 ≤ b)
+    (he : 0 ≤ e) : M ^ 2 * (L * L) ≤ M * L ^ 2 * a + M ^ 2 * L ^ 2 * b + M * V * e := by
+  have h1 : M ^ 2 * L ^ 2 * 1 ≤ M ^ 2 * L ^ 2 * b :=
+    mul_le_mul_of_nonneg_left hb (by positivity)
+  have h2 : 0 ≤ M * L ^ 2 * a := by positivity
+  have h3 : 0 ≤ M * V * e := by positivity
+  nlinarith
+
+theorem rhs_t3 {M L V a b e : ℝ} (hM : 0 ≤ M) (hV : 0 ≤ V) (ha : 0 ≤ a) (hb : 0 ≤ b)
+    (he : 1 ≤ e) : M * V ≤ M * L ^ 2 * a + M ^ 2 * L ^ 2 * b + M * V * e := by
+  have h1 : M * V * 1 ≤ M * V * e := mul_le_mul_of_nonneg_left he (by positivity)
+  have h2 : 0 ≤ M * L ^ 2 * a := by positivity
+  have h3 : 0 ≤ M ^ 2 * L ^ 2 * b := by positivity
+  nlinarith
+
+theorem one_le3 {a b e : ℝ} (ha : 0 ≤ a) (hb : 0 ≤ b) (he : 0 ≤ e) (h : a = 1 ∨ b = 1 ∨ e = 1) :
+    1 ≤ a + b + e := by
+  rcases h with h | h | h <;> linarith
+
+/-- Case (C): `v = v'`, fewer than three common indices: two points of the first triple are not in
+    the second. -/
+theorem free_C {i j l v i' j' l' : ℕ} (d1 : i ≠ j) (d2 : i ≠ l) (d4 : j ≠ l)
+    (hP : ¬ ((m4 i' i j l v ∧ m4 j' i j l v ∧ m4 l' i j l v)
+      ∨ (m4 i' i j l v ∧ m4 j' i j l v ∧ m4 v i j l v)
+      ∨ (m4 i' i j l v ∧ m4 l' i j l v ∧ m4 v i j l v)
+      ∨ (m4 j' i j l v ∧ m4 l' i j l v ∧ m4 v i j l v))) :
+    (¬ m3 i i' j' l' ∧ ¬ m3 j i' j' l') ∨ (¬ m3 j i' j' l' ∧ ¬ m3 l i' j' l')
+      ∨ (¬ m3 i i' j' l' ∧ ¬ m3 l i' j' l') := by
+  by_cases hi : m3 i i' j' l'
+  · refine Or.inr (Or.inl ⟨fun hj => ?_, fun hl => ?_⟩)
+    · unfold m3 at hi hj
+      rcases hi with rfl | rfl | rfl <;> rcases hj with rfl | rfl | rfl <;> simp_all [m4]
+    · unfold m3 at hi hl
+      rcases hi with rfl | rfl | rfl <;> rcases hl with rfl | rfl | rfl <;> simp_all [m4]
+  · by_cases hj : m3 j i' j' l'
+    · refine Or.inr (Or.inr ⟨hi, fun hl => ?_⟩)
+      unfold m3 at hj hl
+      rcases hj with rfl | rfl | rfl <;> rcases hl with rfl | rfl | rfl <;> simp_all [m4]
+    · exact Or.inl ⟨hi, hj⟩
+
+/-- Case (D): `v ≠ v'`, `v` in the second and `v'` in the first quadruple, fewer than three common
+    indices: `i, j` are not in the second triple. -/
+theorem free_D {i j l v i' j' l' v' : ℕ} (d3 : i ≠ v) (d5 : j ≠ v) (d6 : l ≠ v)
+    (hvv : v' ≠ v) (A : m4 v i' j' l' v') (A' : m4 v' i j l v)
+    (hP : ¬ ((m4 i' i j l v ∧ m4 j' i j l v ∧ m4 l' i j l v)
+      ∨ (m4 i' i j l v ∧ m4 j' i j l v ∧ m4 v' i j l v)
+      ∨ (m4 i' i j l v ∧ m4 l' i j l v ∧ m4 v' i j l v)
+      ∨ (m4 j' i j l v ∧ m4 l' i j l v ∧ m4 v' i j l v))) :
+    (¬ m3 i i' j' l' ∧ ¬ m3 j i' j' l') ∨ (¬ m3 j i' j' l' ∧ ¬ m3 l i' j' l')
+      ∨ (¬ m3 i i' j' l' ∧ ¬ m3 l i' j' l') := by
+  have hv' : m4 v' i j l v := A'
+  have hA : v = i' ∨ v = j' ∨ v = l' := by
+    unfold m4 at A
+    rcases A with h | h | h | h
+    · exact Or.inl h
+    · exact Or.inr (Or.inl h)
+    · exact Or.inr (Or.inr h)
+    · exact absurd h.symm hvv
+  refine Or.inl ⟨fun hi => ?_, fun hj => ?_⟩
+  · unfold m3 at hi
+    apply hP
+    rcases hA with rfl | rfl | rfl <;> rcases hi with rfl | rfl | rfl <;> simp_all [m4]
+  · unfold m3 at hj
+    apply hP
+    rcases hA with rfl | rfl | rfl <;> rcases hj with rfl | rfl | rfl <;> simp_all [m4]
+
+namespace DegB3
+
+variable {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω} {G : Type*} [AddCommGroup G]
+  [MeasurableSpace G] [MeasurableSub₂ G]
+  {ν : Measure G} {X : ℕ → Ω → G} {F : G → G → G → ℝ} {c : G → ℝ} {B M L V ρ Fm : ℝ}
+
+theorem aW_meas (H : DegB3 μ ν X F c B M L V ρ Fm) (i j l v : ℕ) : Measurable (aW F c i j l v) := by
+  unfold aW
+  by_cases h : dist4 i j l v
+  · simp only [if_pos h]; exact H.wv_meas i j l v
+  · simp only [if_neg h]; exact measurable_const
+
+theorem aW_bound (H : DegB3 μ ν X F c B M L V ρ Fm) (i j l v : ℕ) (x : ℕ → G) :
+    |aW F c i j l v x| ≤ B * M := by
+  unfold aW
+  by_cases h : dist4 i j l v
+  · simp only [if_pos h]; exact H.wv_bound _ _ _ _ _
+  · simp only [if_neg h, abs_zero]; exact mul_nonneg (H.B_nonneg (x 0)) (H.M_nonneg (x 0))
+
+theorem BM_aW (H : DegB3 μ ν X F c B M L V ρ Fm) (i j l v : ℕ) :
+    BM (fun ω => aW F c i j l v (smp X ω)) :=
+  ⟨(H.aW_meas i j l v).comp (smp_meas H.meas), B * M, fun _ => H.aW_bound _ _ _ _ _⟩
+
+variable [IsProbabilityMeasure μ] [IsProbabilityMeasure ν]
+
+/-- **The mean of a product of two summands of the main part**, bounded by the weights of the
+    three nonvanishing kinds of pairs. -/
+theorem pair_le (H : DegB3 μ ν X F c B M L V ρ Fm) (i j l v i' j' l' v' : ℕ) :
+    ∫ ω, aW F c i j l v (smp X ω) * aW F c i' j' l' v' (smp X ω) ∂μ
+      ≤ M * L ^ 2 * X1 i j l v i' j' l' v' + M ^ 2 * L ^ 2 * X2 i j l v i' j' l' v'
+        + M * V * X3 i j l v i' j' l' v' := by
+  obtain ⟨ω0⟩ := nonempty_of_isProbabilityMeasure μ
+  have hM0 : 0 ≤ M := H.M_nonneg (X 0 ω0)
+  have hL0 := H.L_nonneg
+  have hV0 := H.V_nonneg
+  have x1 := X1_nonneg i j l v i' j' l' v'
+  have x2 := X2_nonneg i j l v i' j' l' v'
+  have x3 := X3_nonneg i j l v i' j' l' v'
+  have hR : 0 ≤ M * L ^ 2 * X1 i j l v i' j' l' v' + M ^ 2 * L ^ 2 * X2 i j l v i' j' l' v'
+        + M * V * X3 i j l v i' j' l' v' := by positivity
+  by_cases hd : dist4 i j l v
+  swap
+  · have hz : (fun ω => aW F c i j l v (smp X ω) * aW F c i' j' l' v' (smp X ω))
+        = fun _ => (0 : ℝ) := by
+      funext ω; simp only [aW, if_neg hd, zero_mul]
+    rw [hz, integral_zero]; exact hR
+  by_cases hd' : dist4 i' j' l' v'
+  swap
+  · have hz : (fun ω => aW F c i j l v (smp X ω) * aW F c i' j' l' v' (smp X ω))
+        = fun _ => (0 : ℝ) := by
+      funext ω; simp only [aW, if_neg hd', mul_zero]
+    rw [hz, integral_zero]; exact hR
+  have hA : (fun ω => aW F c i j l v (smp X ω) * aW F c i' j' l' v' (smp X ω))
+      = fun ω => wv F c i j l v (smp X ω) * wv F c i' j' l' v' (smp X ω) := by
+    funext ω; simp only [aW, if_pos hd, if_pos hd']
+  rw [hA]
+  have hd0 := hd
+  have hd0' := hd'
+  obtain ⟨d1, d2, d3, d4, d5, d6⟩ := hd
+  obtain ⟨d1', d2', d3', d4', d5', d6'⟩ := hd'
+  -- (A) `v` occurs only once
+  by_cases A : m4 v i' j' l' v'
+  swap
+  · unfold m4 at A
+    rw [H.vanish_v d3 d5 d6 (by omega) (by omega) (by omega) (by omega)]; exact hR
+  by_cases A' : m4 v' i j l v
+  swap
+  · unfold m4 at A'
+    have hc : (fun ω => wv F c i j l v (smp X ω) * wv F c i' j' l' v' (smp X ω))
+        = fun ω => wv F c i' j' l' v' (smp X ω) * wv F c i j l v (smp X ω) :=
+      funext fun ω => mul_comm _ _
+    rw [hc, H.vanish_v d3' d5' d6' (by omega) (by omega) (by omega) (by omega)]; exact hR
+  -- (E) at least three common indices
+  by_cases P3 : (m4 i' i j l v ∧ m4 j' i j l v ∧ m4 l' i j l v)
+      ∨ (m4 i' i j l v ∧ m4 j' i j l v ∧ m4 v' i j l v)
+      ∨ (m4 i' i j l v ∧ m4 l' i j l v ∧ m4 v' i j l v)
+      ∨ (m4 j' i j l v ∧ m4 l' i j l v ∧ m4 v' i j l v)
+  · refine (H.cs_le hd0 hd0').trans (rhs_t3 hM0 hV0 x1 x2 ?_)
+    unfold X3
+    have := ind_nonneg (m4 i' i j l v); have := ind_nonneg (m4 j' i j l v)
+    have := ind_nonneg (m4 l' i j l v); have := ind_nonneg (m4 v' i j l v)
+    have p1 : 0 ≤ ind (m4 i' i j l v) * ind (m4 j' i j l v) * ind (m4 l' i j l v) := by positivity
+    have p2 : 0 ≤ ind (m4 i' i j l v) * ind (m4 j' i j l v) * ind (m4 v' i j l v) := by positivity
+    have p3 : 0 ≤ ind (m4 i' i j l v) * ind (m4 l' i j l v) * ind (m4 v' i j l v) := by positivity
+    have p4 : 0 ≤ ind (m4 j' i j l v) * ind (m4 l' i j l v) * ind (m4 v' i j l v) := by positivity
+    rcases P3 with ⟨h1, h2, h3⟩ | ⟨h1, h2, h3⟩ | ⟨h1, h2, h3⟩ | ⟨h1, h2, h3⟩
+    · rw [ind_true h1, ind_true h2, ind_true h3] at *; linarith
+    · rw [ind_true h1, ind_true h2, ind_true h3] at *; linarith
+    · rw [ind_true h1, ind_true h2, ind_true h3] at *; linarith
+    · rw [ind_true h1, ind_true h2, ind_true h3] at *; linarith
+  by_cases hvv : v' = v
+  · subst hvv
+    by_cases hI : m3 i' i j l ∨ m3 j' i j l ∨ m3 l' i j l
+    · -- (C) one common point
+      have hfree := free_C d1 d2 d4 P3
+      have hb := (H.boundC d3 d5 d6 d3' d5' d6').trans
+        (mul_le_mul_of_nonneg_left (H.FF_le ⟨d1, d2, d4⟩ ⟨d1', d2', d4'⟩ hfree) hM0)
+      refine hb.trans (rhs_t1 hM0 hV0 ?_ x2 x3)
+      unfold X1
+      rw [ind_true rfl, one_mul]
+      exact one_le3 (ind_nonneg _) (ind_nonneg _) (ind_nonneg _)
+        (by rcases hI with h | h | h
+            · exact Or.inl (ind_true h)
+            · exact Or.inr (Or.inl (ind_true h))
+            · exact Or.inr (Or.inr (ind_true h)))
+    · -- (B) disjoint triples
+      unfold m3 at hI
+      rw [H.vanish_B d1 d2 d3 d4 d5 d6 (by omega) (by omega) (by omega) (by omega) (by omega)
+        (by omega) (by omega) (by omega) (by omega)]
+      exact hR
+  · -- (D) `v ≠ v'`, each in the other triple
+    have hfree := free_D d3 d5 d6 hvv A A' P3
+    have hb := (H.boundD i j l v i' j' l' v').trans
+      (mul_le_mul_of_nonneg_left (H.FF_le ⟨d1, d2, d4⟩ ⟨d1', d2', d4'⟩ hfree)
+        (_root_.sq_nonneg M))
+    refine hb.trans (rhs_t2 hM0 hV0 x1 ?_ x3)
+    unfold X2
+    have hv3 : m3 v' i j l := by
+      unfold m4 at A'
+      rcases A' with h | h | h | h
+      · exact Or.inl h
+      · exact Or.inr (Or.inl h)
+      · exact Or.inr (Or.inr h)
+      · exact absurd h hvv
+    rw [ind_true hv3, one_mul]
+    have hw : i' = v ∨ j' = v ∨ l' = v := by
+      unfold m4 at A
+      rcases A with h | h | h | h
+      · exact Or.inl h.symm
+      · exact Or.inr (Or.inl h.symm)
+      · exact Or.inr (Or.inr h.symm)
+      · exact absurd h.symm hvv
+    exact one_le3 (ind_nonneg _) (ind_nonneg _) (ind_nonneg _)
+      (by rcases hw with h | h | h
+          · exact Or.inl (ind_true h)
+          · exact Or.inr (Or.inl (ind_true h))
+          · exact Or.inr (Or.inr (ind_true h)))
+
+end DegB3
+
+/-! ### Counting -/
+
+/-- The index set of quadruples. -/
+def R4 (N : ℕ) : Finset (ℕ × ℕ × ℕ × ℕ) :=
+  Finset.range N ×ˢ (Finset.range N ×ˢ (Finset.range N ×ˢ Finset.range N))
+
+theorem sum_R4 (N : ℕ) (f : ℕ × ℕ × ℕ × ℕ → ℝ) :
+    ∑ t ∈ R4 N, f t = ∑ a ∈ Finset.range N, ∑ b ∈ Finset.range N, ∑ e ∈ Finset.range N,
+      ∑ g ∈ Finset.range N, f (a, b, e, g) := by
+  unfold R4
+  rw [Finset.sum_product]
+  refine Finset.sum_congr rfl fun a _ => ?_
+  rw [Finset.sum_product]
+  refine Finset.sum_congr rfl fun b _ => ?_
+  rw [Finset.sum_product]
+
+theorem sum4_prod (N : ℕ) (f1 f2 f3 f4 : ℕ → ℝ) :
+    ∑ t ∈ R4 N, f1 t.1 * f2 t.2.1 * f3 t.2.2.1 * f4 t.2.2.2
+      = (∑ a ∈ Finset.range N, f1 a) * (∑ a ∈ Finset.range N, f2 a)
+        * (∑ a ∈ Finset.range N, f3 a) * (∑ a ∈ Finset.range N, f4 a) := by
+  rw [sum_R4]
+  simp only [← Finset.mul_sum, ← Finset.sum_mul]
+
+theorem prod4_le {a b e g A B E G' : ℝ} (ha : 0 ≤ a) (hb : 0 ≤ b) (he : 0 ≤ e) (hg : 0 ≤ g)
+    (hA : a ≤ A) (hB : b ≤ B) (hE : e ≤ E) (hG : g ≤ G') : a * b * e * g ≤ A * B * E * G' := by
+  have h1 : a * b ≤ A * B := mul_le_mul hA hB hb (ha.trans hA)
+  have h2 : a * b * e ≤ A * B * E := mul_le_mul h1 hE he ((mul_nonneg ha hb).trans h1)
+  exact mul_le_mul h2 hG hg ((mul_nonneg (mul_nonneg ha hb) he).trans h2)
+
+theorem s_one (N : ℕ) : ∑ _a ∈ Finset.range N, (1 : ℝ) = N := by simp
+
+theorem s_eq (N v : ℕ) : ∑ a ∈ Finset.range N, ind (a = v) ≤ 1 := by
+  unfold ind
+  rw [Finset.sum_ite_eq']
+  split_ifs <;> norm_num
+
+theorem s_nonneg (N : ℕ) (f : ℕ → ℝ) (hf : ∀ a, 0 ≤ f a) : 0 ≤ ∑ a ∈ Finset.range N, f a :=
+  Finset.sum_nonneg fun a _ => hf a
+
+theorem ind_m3_le (x i j l : ℕ) : ind (m3 x i j l) ≤ ind (x = i) + ind (x = j) + ind (x = l) := by
+  have a := ind_nonneg (x = i); have b := ind_nonneg (x = j); have e := ind_nonneg (x = l)
+  by_cases h : m3 x i j l
+  · rw [ind_true h]
+    rcases h with h | h | h
+    · rw [ind_true h]; linarith
+    · rw [ind_true h]; linarith
+    · rw [ind_true h]; linarith
+  · rw [ind_false h]; linarith
+
+theorem ind_m4_le (x i j l v : ℕ) :
+    ind (m4 x i j l v) ≤ ind (x = i) + ind (x = j) + ind (x = l) + ind (x = v) := by
+  have a := ind_nonneg (x = i); have b := ind_nonneg (x = j); have e := ind_nonneg (x = l)
+  have f := ind_nonneg (x = v)
+  by_cases h : m4 x i j l v
+  · rw [ind_true h]
+    rcases h with h | h | h | h
+    · rw [ind_true h]; linarith
+    · rw [ind_true h]; linarith
+    · rw [ind_true h]; linarith
+    · rw [ind_true h]; linarith
+  · rw [ind_false h]; linarith
+
+theorem s_m3 (N i j l : ℕ) : ∑ a ∈ Finset.range N, ind (m3 a i j l) ≤ 3 := by
+  calc ∑ a ∈ Finset.range N, ind (m3 a i j l)
+      ≤ ∑ a ∈ Finset.range N, (ind (a = i) + ind (a = j) + ind (a = l)) :=
+        Finset.sum_le_sum fun a _ => ind_m3_le a i j l
+    _ = ∑ a ∈ Finset.range N, ind (a = i) + ∑ a ∈ Finset.range N, ind (a = j)
+        + ∑ a ∈ Finset.range N, ind (a = l) := by
+        rw [Finset.sum_add_distrib, Finset.sum_add_distrib]
+    _ ≤ 3 := by linarith [s_eq N i, s_eq N j, s_eq N l]
+
+theorem s_m4 (N i j l v : ℕ) : ∑ a ∈ Finset.range N, ind (m4 a i j l v) ≤ 4 := by
+  calc ∑ a ∈ Finset.range N, ind (m4 a i j l v)
+      ≤ ∑ a ∈ Finset.range N, (ind (a = i) + ind (a = j) + ind (a = l) + ind (a = v)) :=
+        Finset.sum_le_sum fun a _ => ind_m4_le a i j l v
+    _ = ∑ a ∈ Finset.range N, ind (a = i) + ∑ a ∈ Finset.range N, ind (a = j)
+        + ∑ a ∈ Finset.range N, ind (a = l) + ∑ a ∈ Finset.range N, ind (a = v) := by
+        rw [Finset.sum_add_distrib, Finset.sum_add_distrib, Finset.sum_add_distrib]
+    _ ≤ 4 := by linarith [s_eq N i, s_eq N j, s_eq N l, s_eq N v]
+
+/-- A product-form term with the given bounds on the four one-dimensional sums. -/
+theorem sum4_le (N : ℕ) (f1 f2 f3 f4 : ℕ → ℝ) (h1 : ∀ a, 0 ≤ f1 a) (h2 : ∀ a, 0 ≤ f2 a)
+    (h3 : ∀ a, 0 ≤ f3 a) (h4 : ∀ a, 0 ≤ f4 a) {C1 C2 C3 C4 : ℝ}
+    (k1 : ∑ a ∈ Finset.range N, f1 a ≤ C1) (k2 : ∑ a ∈ Finset.range N, f2 a ≤ C2)
+    (k3 : ∑ a ∈ Finset.range N, f3 a ≤ C3) (k4 : ∑ a ∈ Finset.range N, f4 a ≤ C4) :
+    ∑ t ∈ R4 N, f1 t.1 * f2 t.2.1 * f3 t.2.2.1 * f4 t.2.2.2 ≤ C1 * C2 * C3 * C4 := by
+  rw [sum4_prod]
+  exact prod4_le (s_nonneg N f1 h1) (s_nonneg N f2 h2) (s_nonneg N f3 h3) (s_nonneg N f4 h4)
+    k1 k2 k3 k4
+
+theorem one_nn : ∀ _a : ℕ, (0 : ℝ) ≤ 1 := fun _ => zero_le_one
+
+theorem sumX1 (N i j l v : ℕ) :
+    ∑ t ∈ R4 N, X1 i j l v t.1 t.2.1 t.2.2.1 t.2.2.2 ≤ 9 * (N : ℝ) ^ 2 := by
+  have e : ∀ t : ℕ × ℕ × ℕ × ℕ, X1 i j l v t.1 t.2.1 t.2.2.1 t.2.2.2
+      = (fun a => ind (m3 a i j l)) t.1 * (fun _ => (1 : ℝ)) t.2.1 * (fun _ => (1 : ℝ)) t.2.2.1
+          * (fun a => ind (a = v)) t.2.2.2
+        + (fun _ => (1 : ℝ)) t.1 * (fun a => ind (m3 a i j l)) t.2.1 * (fun _ => (1 : ℝ)) t.2.2.1
+          * (fun a => ind (a = v)) t.2.2.2
+        + (fun _ => (1 : ℝ)) t.1 * (fun _ => (1 : ℝ)) t.2.1 * (fun a => ind (m3 a i j l)) t.2.2.1
+          * (fun a => ind (a = v)) t.2.2.2 := by
+    intro t; unfold X1; ring
+  simp_rw [e]
+  rw [Finset.sum_add_distrib, Finset.sum_add_distrib]
+  have a1 := sum4_le N _ _ _ _ (fun a => ind_nonneg (m3 a i j l)) one_nn one_nn
+    (fun a => ind_nonneg (a = v)) (s_m3 N i j l) (s_one N).le (s_one N).le (s_eq N v)
+  have a2 := sum4_le N _ _ _ _ one_nn (fun a => ind_nonneg (m3 a i j l)) one_nn
+    (fun a => ind_nonneg (a = v)) (s_one N).le (s_m3 N i j l) (s_one N).le (s_eq N v)
+  have a3 := sum4_le N _ _ _ _ one_nn one_nn (fun a => ind_nonneg (m3 a i j l))
+    (fun a => ind_nonneg (a = v)) (s_one N).le (s_one N).le (s_m3 N i j l) (s_eq N v)
+  linarith
+
+theorem sumX2 (N i j l v : ℕ) :
+    ∑ t ∈ R4 N, X2 i j l v t.1 t.2.1 t.2.2.1 t.2.2.2 ≤ 9 * (N : ℝ) ^ 2 := by
+  have e : ∀ t : ℕ × ℕ × ℕ × ℕ, X2 i j l v t.1 t.2.1 t.2.2.1 t.2.2.2
+      = (fun a => ind (a = v)) t.1 * (fun _ => (1 : ℝ)) t.2.1 * (fun _ => (1 : ℝ)) t.2.2.1
+          * (fun a => ind (m3 a i j l)) t.2.2.2
+        + (fun _ => (1 : ℝ)) t.1 * (fun a => ind (a = v)) t.2.1 * (fun _ => (1 : ℝ)) t.2.2.1
+          * (fun a => ind (m3 a i j l)) t.2.2.2
+        + (fun _ => (1 : ℝ)) t.1 * (fun _ => (1 : ℝ)) t.2.1 * (fun a => ind (a = v)) t.2.2.1
+          * (fun a => ind (m3 a i j l)) t.2.2.2 := by
+    intro t; unfold X2; ring
+  simp_rw [e]
+  rw [Finset.sum_add_distrib, Finset.sum_add_distrib]
+  have a1 := sum4_le N _ _ _ _ (fun a => ind_nonneg (a = v)) one_nn one_nn
+    (fun a => ind_nonneg (m3 a i j l)) (s_eq N v) (s_one N).le (s_one N).le (s_m3 N i j l)
+  have a2 := sum4_le N _ _ _ _ one_nn (fun a => ind_nonneg (a = v)) one_nn
+    (fun a => ind_nonneg (m3 a i j l)) (s_one N).le (s_eq N v) (s_one N).le (s_m3 N i j l)
+  have a3 := sum4_le N _ _ _ _ one_nn one_nn (fun a => ind_nonneg (a = v))
+    (fun a => ind_nonneg (m3 a i j l)) (s_one N).le (s_one N).le (s_eq N v) (s_m3 N i j l)
+  linarith
+
+theorem sumX3 (N i j l v : ℕ) :
+    ∑ t ∈ R4 N, X3 i j l v t.1 t.2.1 t.2.2.1 t.2.2.2 ≤ 256 * (N : ℝ) := by
+  set g : ℕ → ℝ := fun a => ind (m4 a i j l v) with hg
+  have g0 : ∀ a, 0 ≤ g a := fun a => ind_nonneg _
+  have gs : ∑ a ∈ Finset.range N, g a ≤ 4 := s_m4 N i j l v
+  have e : ∀ t : ℕ × ℕ × ℕ × ℕ, X3 i j l v t.1 t.2.1 t.2.2.1 t.2.2.2
+      = g t.1 * g t.2.1 * g t.2.2.1 * (fun _ => (1 : ℝ)) t.2.2.2
+        + g t.1 * g t.2.1 * (fun _ => (1 : ℝ)) t.2.2.1 * g t.2.2.2
+        + g t.1 * (fun _ => (1 : ℝ)) t.2.1 * g t.2.2.1 * g t.2.2.2
+        + (fun _ => (1 : ℝ)) t.1 * g t.2.1 * g t.2.2.1 * g t.2.2.2 := by
+    intro t; unfold X3; rw [hg]; ring
+  simp_rw [e]
+  rw [Finset.sum_add_distrib, Finset.sum_add_distrib, Finset.sum_add_distrib]
+  have a1 := sum4_le N _ _ _ _ g0 g0 g0 one_nn gs gs gs (s_one N).le
+  have a2 := sum4_le N _ _ _ _ g0 g0 one_nn g0 gs gs (s_one N).le gs
+  have a3 := sum4_le N _ _ _ _ g0 one_nn g0 g0 gs (s_one N).le gs gs
+  have a4 := sum4_le N _ _ _ _ one_nn g0 g0 g0 (s_one N).le gs gs gs
+  linarith
+
+/-- The main part `V` (injective quadruples) as a function of the sample. -/
+noncomputable def Vm {G : Type*} [AddCommGroup G] (F : G → G → G → ℝ) (c : G → ℝ) (N : ℕ)
+    (x : ℕ → G) : ℝ :=
+  ∑ t ∈ R4 N, aW F c t.1 t.2.1 t.2.2.1 t.2.2.2 x
+
+/-- The summand of an injective triple with `v` in the triple. -/
+noncomputable def r1 {G : Type*} [AddCommGroup G] (F : G → G → G → ℝ) (c : G → ℝ)
+    (i j l v : ℕ) (x : ℕ → G) : ℝ :=
+  if dist3 i j l ∧ m3 v i j l then wv F c i j l v x else 0
+
+/-- The summand of a triple that is not injective. -/
+noncomputable def r2 {G : Type*} [AddCommGroup G] (F : G → G → G → ℝ) (c : G → ℝ)
+    (i j l v : ℕ) (x : ℕ → G) : ℝ :=
+  if dist3 i j l then 0 else wv F c i j l v x
+
+/-- `F` at a triple that is not injective (zero otherwise). -/
+noncomputable def dF {G : Type*} (F : G → G → G → ℝ) (i j l : ℕ) (x : ℕ → G) : ℝ :=
+  if dist3 i j l then 0 else F (x i) (x j) (x l)
+
+theorem wv_split {G : Type*} [AddCommGroup G] (F : G → G → G → ℝ) (c : G → ℝ) (i j l v : ℕ)
+    (x : ℕ → G) : wv F c i j l v x = aW F c i j l v x + r1 F c i j l v x + r2 F c i j l v x := by
+  unfold aW r1 r2
+  by_cases hd : dist3 i j l
+  · by_cases hm : m3 v i j l
+    · have h4 : ¬ dist4 i j l v := by unfold dist4 m3 at *; omega
+      simp [hd, hm, h4]
+    · have h4 : dist4 i j l v := by unfold dist4 dist3 m3 at *; omega
+      simp [hd, hm, h4]
+  · have h4 : ¬ dist4 i j l v := by unfold dist4 dist3 at *; omega
+    simp [hd, h4]
+
+namespace DegB3
+
+variable {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω} {G : Type*} [AddCommGroup G]
+  [MeasurableSpace G] [MeasurableSub₂ G]
+  {ν : Measure G} {X : ℕ → Ω → G} {F : G → G → G → ℝ} {c : G → ℝ} {B M L V ρ Fm : ℝ}
+
+theorem BM_Vm (H : DegB3 μ ν X F c B M L V ρ Fm) (N : ℕ) :
+    BM (fun ω => Vm F c N (smp X ω)) := by
+  unfold Vm
+  exact BM.sum (R4 N) (fun (t : ℕ × ℕ × ℕ × ℕ) ω => aW F c t.1 t.2.1 t.2.2.1 t.2.2.2 (smp X ω))
+    fun t _ => H.BM_aW _ _ _ _
+
+theorem BM_r1 (H : DegB3 μ ν X F c B M L V ρ Fm) (i j l v : ℕ) :
+    BM (fun ω => r1 F c i j l v (smp X ω)) := by
+  unfold r1
+  by_cases h : dist3 i j l ∧ m3 v i j l
+  · simp only [if_pos h]; exact H.BM_wv i j l v
+  · simp only [if_neg h]; exact BM.const 0
+
+theorem BM_r2 (H : DegB3 μ ν X F c B M L V ρ Fm) (i j l v : ℕ) :
+    BM (fun ω => r2 F c i j l v (smp X ω)) := by
+  unfold r2
+  by_cases h : dist3 i j l
+  · simp only [if_pos h]; exact BM.const 0
+  · simp only [if_neg h]; exact H.BM_wv i j l v
+
+theorem BM_dF (H : DegB3 μ ν X F c B M L V ρ Fm) (i j l : ℕ) :
+    BM (fun ω => dF F i j l (smp X ω)) := by
+  unfold dF
+  by_cases h : dist3 i j l
+  · simp only [if_pos h]; exact BM.const 0
+  · simp only [if_neg h]; exact H.BM_fv i j l
+
+variable [IsProbabilityMeasure μ] [IsProbabilityMeasure ν]
+
+/-- **Second moment of the main part:**
+    `E V² ≤ N⁴ (9 N² M L² + 9 N² M² L² + 256 N M V)`. -/
+theorem Vm_sq (H : DegB3 μ ν X F c B M L V ρ Fm) (N : ℕ) :
+    ∫ ω, Vm F c N (smp X ω) ^ 2 ∂μ
+      ≤ (N : ℝ) ^ 4 * (M * L ^ 2 * (9 * (N : ℝ) ^ 2) + M ^ 2 * L ^ 2 * (9 * (N : ℝ) ^ 2)
+        + M * V * (256 * (N : ℝ))) := by
+  obtain ⟨ω0⟩ := nonempty_of_isProbabilityMeasure μ
+  have hM0 : 0 ≤ M := H.M_nonneg (X 0 ω0)
+  have hL0 := H.L_nonneg
+  have hV0 := H.V_nonneg
+  have hS2 : ∀ ω, Vm F c N (smp X ω) ^ 2
+      = ∑ t ∈ R4 N, ∑ t' ∈ R4 N, aW F c t.1 t.2.1 t.2.2.1 t.2.2.2 (smp X ω)
+          * aW F c t'.1 t'.2.1 t'.2.2.1 t'.2.2.2 (smp X ω) := by
+    intro ω
+    unfold Vm
+    rw [pow_two, Finset.sum_mul_sum]
+  simp_rw [hS2]
+  rw [integral_finset_sum _ (fun t _ => integrable_finset_sum _ fun t' _ =>
+    ((H.BM_aW _ _ _ _).mul (H.BM_aW _ _ _ _)).integrable)]
+  have h1 : ∀ t ∈ R4 N, ∫ ω, ∑ t' ∈ R4 N, aW F c t.1 t.2.1 t.2.2.1 t.2.2.2 (smp X ω)
+          * aW F c t'.1 t'.2.1 t'.2.2.1 t'.2.2.2 (smp X ω) ∂μ
+        ≤ M * L ^ 2 * (9 * (N : ℝ) ^ 2) + M ^ 2 * L ^ 2 * (9 * (N : ℝ) ^ 2)
+          + M * V * (256 * (N : ℝ)) := by
+    intro t _
+    rw [integral_finset_sum _ (fun t' _ => ((H.BM_aW _ _ _ _).mul (H.BM_aW _ _ _ _)).integrable)]
+    refine (Finset.sum_le_sum fun t' _ => H.pair_le t.1 t.2.1 t.2.2.1 t.2.2.2
+      t'.1 t'.2.1 t'.2.2.1 t'.2.2.2).trans ?_
+    rw [Finset.sum_add_distrib, Finset.sum_add_distrib, ← Finset.mul_sum, ← Finset.mul_sum,
+      ← Finset.mul_sum]
+    have k1 := sumX1 N t.1 t.2.1 t.2.2.1 t.2.2.2
+    have k2 := sumX2 N t.1 t.2.1 t.2.2.1 t.2.2.2
+    have k3 := sumX3 N t.1 t.2.1 t.2.2.1 t.2.2.2
+    have c1 : 0 ≤ M * L ^ 2 := by positivity
+    have c2 : 0 ≤ M ^ 2 * L ^ 2 := by positivity
+    have c3 : 0 ≤ M * V := by positivity
+    have := mul_le_mul_of_nonneg_left k1 c1
+    have := mul_le_mul_of_nonneg_left k2 c2
+    have := mul_le_mul_of_nonneg_left k3 c3
+    linarith
+  refine (Finset.sum_le_sum h1).trans (le_of_eq ?_)
+  simp only [Finset.sum_const, R4, Finset.card_product, Finset.card_range, nsmul_eq_mul]
+  push_cast
+  ring
+
+/-- The mean of `|F|` at a triple that is not injective. -/
+theorem dF_le (H : DegB3 μ ν X F c B M L V ρ Fm) (i j l : ℕ) :
+    ∫ ω, |dF F i j l (smp X ω)| ∂μ
+      ≤ ρ * ((if i = j then (1 : ℝ) else 0) + (if j = l then (1 : ℝ) else 0)
+          + (if i = l then (1 : ℝ) else 0)) + B * (if j = i ∧ l = i then (1 : ℝ) else 0) := by
+  have hρ := H.rho_nonneg
+  obtain ⟨ω0⟩ := nonempty_of_isProbabilityMeasure μ
+  have hB0 : 0 ≤ B := H.B_nonneg (X 0 ω0)
+  have t1 : (0 : ℝ) ≤ (if i = j then (1 : ℝ) else 0) := by split_ifs <;> norm_num
+  have t2 : (0 : ℝ) ≤ (if j = l then (1 : ℝ) else 0) := by split_ifs <;> norm_num
+  have t3 : (0 : ℝ) ≤ (if i = l then (1 : ℝ) else 0) := by split_ifs <;> norm_num
+  have t4 : (0 : ℝ) ≤ (if j = i ∧ l = i then (1 : ℝ) else 0) := by split_ifs <;> norm_num
+  have p1 := mul_nonneg hρ t1
+  have p2 := mul_nonneg hρ t2
+  have p3 := mul_nonneg hρ t3
+  have p4 := mul_nonneg hB0 t4
+  by_cases hd : dist3 i j l
+  · have e : (fun ω => |dF F i j l (smp X ω)|) = fun _ => (0 : ℝ) := by
+      funext ω; unfold dF; rw [if_pos hd, abs_zero]
+    rw [e, integral_zero]; nlinarith
+  · have e : (fun ω => |dF F i j l (smp X ω)|) = fun ω => |F (X i ω) (X j ω) (X l ω)| := by
+      funext ω; unfold dF; rw [if_neg hd]; rfl
+    rw [e]
+    have hint : Integrable (fun ω => |F (X i ω) (X j ω) (X l ω)|) μ :=
+      (H.BM_fv i j l).absv.integrable
+    by_cases a : i = j
+    · by_cases b : j = l
+      · have e4 : (if j = i ∧ l = i then (1 : ℝ) else 0) = 1 := if_pos ⟨a.symm, by omega⟩
+        have hle : ∫ ω, |F (X i ω) (X j ω) (X l ω)| ∂μ ≤ B := by
+          calc ∫ ω, |F (X i ω) (X j ω) (X l ω)| ∂μ ≤ ∫ _ω, B ∂μ :=
+                integral_mono hint (integrable_const _) (fun ω => H.bound _ _ _)
+            _ = B := by simp
+        rw [e4]; nlinarith
+      · have e1 : (if i = j then (1 : ℝ) else 0) = 1 := if_pos a
+        subst a
+        have hle := H.rho12 i l b
+        rw [e1]; nlinarith
+    · by_cases b : j = l
+      · have e2 : (if j = l then (1 : ℝ) else 0) = 1 := if_pos b
+        subst b
+        have hle := H.rho23 i j a
+        rw [e2]; nlinarith
+      · have cc : i = l := by unfold dist3 at hd; tauto
+        have e3 : (if i = l then (1 : ℝ) else 0) = 1 := if_pos cc
+        subst cc
+        have hle := H.rho13 i j a
+        rw [e3]; nlinarith
+
+/-- The pairs with `ι` injective and `v` in its image. -/
+theorem r1_le (H : DegB3 μ ν X F c B M L V ρ Fm) (i j l v : ℕ) :
+    ∫ ω, |r1 F c i j l v (smp X ω)| ∂μ
+      ≤ M * L * (ind (v = i) + ind (v = j) + ind (v = l)) := by
+  obtain ⟨ω0⟩ := nonempty_of_isProbabilityMeasure μ
+  have hM0 : 0 ≤ M := H.M_nonneg (X 0 ω0)
+  have hML : 0 ≤ M * L := mul_nonneg hM0 H.L_nonneg
+  have hs : 0 ≤ ind (v = i) + ind (v = j) + ind (v = l) := by
+    have := ind_nonneg (v = i); have := ind_nonneg (v = j); have := ind_nonneg (v = l)
+    linarith
+  by_cases h : dist3 i j l ∧ m3 v i j l
+  · have e : (fun ω => |r1 F c i j l v (smp X ω)|) = fun ω => |wv F c i j l v (smp X ω)| := by
+      funext ω; unfold r1; rw [if_pos h]
+    rw [e]
+    obtain ⟨⟨d1, d2, d3⟩, hm⟩ := h
+    have hge : 1 ≤ ind (v = i) + ind (v = j) + ind (v = l) :=
+      one_le3 (ind_nonneg _) (ind_nonneg _) (ind_nonneg _)
+        (by rcases hm with h | h | h
+            · exact Or.inl (ind_true h)
+            · exact Or.inr (Or.inl (ind_true h))
+            · exact Or.inr (Or.inr (ind_true h)))
+    have hpt : ∀ ω, |wv F c i j l v (smp X ω)| ≤ M * |fv F i j l (smp X ω)| := fun ω => by
+      unfold wv fv; rw [abs_mul, mul_comm M]
+      exact mul_le_mul_of_nonneg_left (H.c_bound _) (abs_nonneg _)
+    have h1 : ∫ ω, |wv F c i j l v (smp X ω)| ∂μ ≤ ∫ ω, M * |fv F i j l (smp X ω)| ∂μ :=
+      integral_mono (H.BM_wv i j l v).absv.integrable
+        ((H.BM_fv i j l).absv.const_mul M).integrable hpt
+    rw [integral_const_mul] at h1
+    have h2 : M * ∫ ω, |fv F i j l (smp X ω)| ∂μ ≤ M * L :=
+      mul_le_mul_of_nonneg_left (H.l1 i j l d1 d2 d3) hM0
+    nlinarith
+  · have e : (fun ω => |r1 F c i j l v (smp X ω)|) = fun _ => (0 : ℝ) := by
+      funext ω; unfold r1; rw [if_neg h, abs_zero]
+    rw [e, integral_zero]; positivity
+
+/-- The pairs with `ι` not injective. -/
+theorem r2_le (H : DegB3 μ ν X F c B M L V ρ Fm) (i j l v : ℕ) :
+    ∫ ω, |r2 F c i j l v (smp X ω)| ∂μ
+      ≤ (2 + M * (ind (v = i) + ind (v = j) + ind (v = l))) * ∫ ω, |dF F i j l (smp X ω)| ∂μ := by
+  obtain ⟨ω0⟩ := nonempty_of_isProbabilityMeasure μ
+  have hM0 : 0 ≤ M := H.M_nonneg (X 0 ω0)
+  have hs : 0 ≤ ind (v = i) + ind (v = j) + ind (v = l) := by
+    have := ind_nonneg (v = i); have := ind_nonneg (v = j); have := ind_nonneg (v = l)
+    linarith
+  have hE : 0 ≤ ∫ ω, |dF F i j l (smp X ω)| ∂μ := integral_nonneg fun _ => abs_nonneg _
+  have e : ∀ x, |r2 F c i j l v x| = |dF F i j l x| * |c (x l - x v)| := fun x => by
+    unfold r2 dF wv
+    by_cases hd : dist3 i j l
+    · simp [hd]
+    · simp only [if_neg hd, abs_mul]
+  simp_rw [e]
+  by_cases hm : m3 v i j l
+  · have hge : 1 ≤ ind (v = i) + ind (v = j) + ind (v = l) :=
+      one_le3 (ind_nonneg _) (ind_nonneg _) (ind_nonneg _)
+        (by rcases hm with h | h | h
+            · exact Or.inl (ind_true h)
+            · exact Or.inr (Or.inl (ind_true h))
+            · exact Or.inr (Or.inr (ind_true h)))
+    have h1 : ∫ ω, |dF F i j l (smp X ω)| * |c (smp X ω l - smp X ω v)| ∂μ
+        ≤ ∫ ω, M * |dF F i j l (smp X ω)| ∂μ :=
+      integral_mono ((H.BM_dF i j l).absv.mul
+          (⟨(H.cv_meas l v).comp (smp_meas H.meas), M, fun _ => H.c_bound _⟩ : BM _).absv).integrable
+        ((H.BM_dF i j l).absv.const_mul M).integrable
+        (fun ω => by
+          rw [mul_comm M]
+          exact mul_le_mul_of_nonneg_left (H.c_bound _) (abs_nonneg _))
+    rw [integral_const_mul] at h1
+    refine h1.trans ?_
+    have : M ≤ 2 + M * (ind (v = i) + ind (v = j) + ind (v = l)) := by nlinarith
+    exact mul_le_mul_of_nonneg_right this hE
+  · unfold m3 at hm
+    have a1 : i ≠ v := fun h => hm (Or.inl h.symm)
+    have a2 : j ≠ v := fun h => hm (Or.inr (Or.inl h.symm))
+    have a3 : l ≠ v := fun h => hm (Or.inr (Or.inr h.symm))
+    have hdm : Measurable (fun x : ℕ → G => dF F i j l x) := by
+      unfold dF
+      by_cases hd : dist3 i j l
+      · simp only [if_pos hd]; exact measurable_const
+      · simp only [if_neg hd]; exact H.fv_meas i j l
+    have hdb : ∀ x : ℕ → G, |dF F i j l x| ≤ B := fun x => by
+      unfold dF
+      by_cases hd : dist3 i j l
+      · simp only [if_pos hd, abs_zero]; exact H.B_nonneg (x 0)
+      · simp only [if_neg hd]; exact H.bound _ _ _
+    have h := H.io_le v {i, j, l, v} (fun x => |dF F i j l x| * |c (x l - x v)|)
+      ((continuous_abs.measurable.comp hdm).mul (continuous_abs.measurable.comp (H.cv_meas l v)))
+      (B' := B * M)
+      (fun x => by
+        rw [abs_mul, abs_abs, abs_abs]
+        exact mul_le_mul (hdb x) (H.c_bound _) (abs_nonneg _) (H.B_nonneg (x 0)))
+      (fun x y hxy => by
+        simp only [dF, hxy i (by simp), hxy j (by simp), hxy l (by simp), hxy v (by simp)])
+      (fun x => 2 * |dF F i j l x|) (((H.BM_dF i j l).absv.const_mul 2).integrable)
+      (fun x => by
+        have ee : ∀ z, |dF F i j l (Function.update x v z)|
+              * |c (Function.update x v z l - Function.update x v z v)|
+            = |dF F i j l x| * |c (x l - z)| := by
+          intro z
+          simp only [dF, Function.update_self, Function.update_of_ne a1,
+            Function.update_of_ne a2, Function.update_of_ne a3]
+        show ∫ z, |dF F i j l (Function.update x v z)|
+            * |c (Function.update x v z l - Function.update x v z v)| ∂ν ≤ _
+        simp_rw [ee]
+        rw [integral_const_mul, mul_comm 2]
+        exact mul_le_mul_of_nonneg_left (H.c_abs _) (abs_nonneg _))
+    refine h.trans ?_
+    rw [integral_const_mul]
+    have : (2 : ℝ) ≤ 2 + M * (ind (v = i) + ind (v = j) + ind (v = l)) := by nlinarith
+    exact mul_le_mul_of_nonneg_right this hE
+
+end DegB3
+
+/-- The final arithmetic. -/
+theorem final_alg {N M L V ρ B : ℝ} (hN : 1 ≤ N) (hM1 : 1 ≤ M) (hMN : M ≤ N) (hL : 0 ≤ L)
+    (hV : 0 ≤ V) (hρ : 0 ≤ ρ) (hB : 0 ≤ B) :
+    1 / N ^ 4 * (Real.sqrt (N ^ 4 * (M * L ^ 2 * (9 * N ^ 2) + M ^ 2 * L ^ 2 * (9 * N ^ 2)
+        + M * V * (256 * N))) + 3 * M * L * N ^ 3 + (2 * N + 3 * M) * (3 * N ^ 2 * ρ + N * B))
+      ≤ 16 * ((M * L + ρ) / N + Real.sqrt (M * V / N) / N + B / N ^ 2) := by
+  have hN0 : 0 < N := by linarith
+  have hM0 : 0 ≤ M := by linarith
+  set q := Real.sqrt (M * V / N) with hqdef
+  have hq0 : 0 ≤ q := Real.sqrt_nonneg _
+  have hq2 : q ^ 2 = M * V / N := Real.sq_sqrt (by positivity)
+  have hNq : N * q ^ 2 = M * V := by rw [hq2]; field_simp
+  have hML : M * L ^ 2 ≤ M ^ 2 * L ^ 2 := by
+    have : M * L ^ 2 * 1 ≤ M * L ^ 2 * M := mul_le_mul_of_nonneg_left hM1 (by positivity)
+    nlinarith
+  have hK : N ^ 4 * (M * L ^ 2 * (9 * N ^ 2) + M ^ 2 * L ^ 2 * (9 * N ^ 2) + M * V * (256 * N))
+      ≤ (N ^ 2 * (5 * N * M * L + 16 * N * q)) ^ 2 := by
+    have e : (N ^ 2 * (5 * N * M * L + 16 * N * q)) ^ 2
+        = N ^ 4 * (25 * N ^ 2 * M ^ 2 * L ^ 2 + 160 * N ^ 2 * M * L * q + 256 * N * (N * q ^ 2)) := by
+      ring
+    rw [e, hNq]
+    apply mul_le_mul_of_nonneg_left _ (by positivity)
+    have h1 : 0 ≤ 160 * N ^ 2 * M * L * q := by positivity
+    have h2 : M * L ^ 2 * (9 * N ^ 2) ≤ M ^ 2 * L ^ 2 * (9 * N ^ 2) :=
+      mul_le_mul_of_nonneg_right hML (by positivity)
+    have h3 : 0 ≤ N ^ 2 * M ^ 2 * L ^ 2 := by positivity
+    have e5 : M ^ 2 * L ^ 2 * (9 * N ^ 2) = 9 * (N ^ 2 * M ^ 2 * L ^ 2) := by ring
+    have e6 : 25 * N ^ 2 * M ^ 2 * L ^ 2 = 25 * (N ^ 2 * M ^ 2 * L ^ 2) := by ring
+    have e7 : M * V * (256 * N) = 256 * N * (M * V) := by ring
+    rw [e6, e7]
+    rw [e5] at h2
+    linarith
+  have hs : Real.sqrt (N ^ 4 * (M * L ^ 2 * (9 * N ^ 2) + M ^ 2 * L ^ 2 * (9 * N ^ 2)
+        + M * V * (256 * N))) ≤ N ^ 2 * (5 * N * M * L + 16 * N * q) := by
+    calc _ ≤ Real.sqrt ((N ^ 2 * (5 * N * M * L + 16 * N * q)) ^ 2) := Real.sqrt_le_sqrt hK
+      _ = N ^ 2 * (5 * N * M * L + 16 * N * q) := Real.sqrt_sq (by positivity)
+  have h23 : (2 * N + 3 * M) * (3 * N ^ 2 * ρ + N * B) ≤ 5 * N * (3 * N ^ 2 * ρ + N * B) :=
+    mul_le_mul_of_nonneg_right (by linarith) (by positivity)
+  have hR : 16 * ((M * L + ρ) / N + q / N + B / N ^ 2)
+      = 1 / N ^ 4 * (16 * (N ^ 3 * (M * L + ρ) + N ^ 3 * q + N ^ 2 * B)) := by
+    field_simp
+  rw [hR]
+  apply mul_le_mul_of_nonneg_left _ (by positivity)
+  have hb1 : 0 ≤ N ^ 3 * (M * L) := by positivity
+  have hb2 : 0 ≤ N ^ 2 * B := by positivity
+  have hb3 : 0 ≤ N ^ 3 * ρ := by positivity
+  have e1 : N ^ 2 * (5 * N * M * L + 16 * N * q) = 5 * (N ^ 3 * (M * L)) + 16 * (N ^ 3 * q) := by
+    ring
+  have e2 : 5 * N * (3 * N ^ 2 * ρ + N * B) = 15 * (N ^ 3 * ρ) + 5 * (N ^ 2 * B) := by ring
+  have e3 : 3 * M * L * N ^ 3 = 3 * (N ^ 3 * (M * L)) := by ring
+  have e4 : 16 * (N ^ 3 * (M * L + ρ) + N ^ 3 * q + N ^ 2 * B)
+      = 16 * (N ^ 3 * (M * L)) + 16 * (N ^ 3 * ρ) + 16 * (N ^ 3 * q) + 16 * (N ^ 2 * B) := by ring
+  rw [e4]
+  linarith
+
+theorem cnt3_ind (N i j l : ℕ) :
+    ∑ v ∈ Finset.range N, (ind (v = i) + ind (v = j) + ind (v = l)) ≤ 3 := by
+  rw [Finset.sum_add_distrib, Finset.sum_add_distrib]
+  linarith [s_eq N i, s_eq N j, s_eq N l]
+
+namespace DegB3
+
+variable {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω} {G : Type*} [AddCommGroup G]
+  [MeasurableSpace G] [MeasurableSub₂ G]
+  {ν : Measure G} {X : ℕ → Ω → G} {F : G → G → G → ℝ} {c : G → ℝ} {B M L V ρ Fm : ℝ}
+  [IsProbabilityMeasure μ] [IsProbabilityMeasure ν]
+
+theorem BM_sum4 (f : ℕ → ℕ → ℕ → ℕ → Ω → ℝ) (h : ∀ i j l v, BM (f i j l v)) (N : ℕ) :
+    BM (fun ω => ∑ i ∈ Finset.range N, ∑ j ∈ Finset.range N, ∑ l ∈ Finset.range N,
+      ∑ v ∈ Finset.range N, f i j l v ω) :=
+  BM.sum _ _ fun i _ => BM.sum _ _ fun j _ => BM.sum _ _ fun l _ => BM.sum _ _ fun v _ =>
+    h i j l v
+
+/-- **Lemma "degenerate"(b) for `n = 3`, `a = 3`, undivided form.** -/
+theorem Z1_three_sum (H : DegB3 μ ν X F c B M L V ρ Fm) (N : ℕ) :
+    ∫ ω, |∑ i ∈ Finset.range N, ∑ j ∈ Finset.range N, ∑ l ∈ Finset.range N,
+        ∑ v ∈ Finset.range N, wv F c i j l v (smp X ω)| ∂μ
+      ≤ Real.sqrt ((N : ℝ) ^ 4 * (M * L ^ 2 * (9 * (N : ℝ) ^ 2)
+          + M ^ 2 * L ^ 2 * (9 * (N : ℝ) ^ 2) + M * V * (256 * (N : ℝ))))
+        + 3 * M * L * (N : ℝ) ^ 3 + (2 * (N : ℝ) + 3 * M) * (3 * (N : ℝ) ^ 2 * ρ + N * B) := by
+  obtain ⟨ω0⟩ := nonempty_of_isProbabilityMeasure μ
+  have hM0 : 0 ≤ M := H.M_nonneg (X 0 ω0)
+  have hsplit : ∀ ω, ∑ i ∈ Finset.range N, ∑ j ∈ Finset.range N, ∑ l ∈ Finset.range N,
+        ∑ v ∈ Finset.range N, wv F c i j l v (smp X ω)
+      = Vm F c N (smp X ω)
+        + ∑ i ∈ Finset.range N, ∑ j ∈ Finset.range N, ∑ l ∈ Finset.range N,
+            ∑ v ∈ Finset.range N, r1 F c i j l v (smp X ω)
+        + ∑ i ∈ Finset.range N, ∑ j ∈ Finset.range N, ∑ l ∈ Finset.range N,
+            ∑ v ∈ Finset.range N, r2 F c i j l v (smp X ω) := by
+    intro ω
+    unfold Vm
+    rw [sum_R4 N (fun t => aW F c t.1 t.2.1 t.2.2.1 t.2.2.2 (smp X ω))]
+    simp only [← Finset.sum_add_distrib]
+    refine Finset.sum_congr rfl fun i _ => Finset.sum_congr rfl fun j _ =>
+      Finset.sum_congr rfl fun l _ => Finset.sum_congr rfl fun v _ => ?_
+    exact wv_split F c i j l v _
+  have b1 := H.BM_Vm N
+  have b2 : BM (fun ω => ∑ i ∈ Finset.range N, ∑ j ∈ Finset.range N, ∑ l ∈ Finset.range N,
+      ∑ v ∈ Finset.range N, |r1 F c i j l v (smp X ω)|) :=
+    BM_sum4 _ (fun i j l v => (H.BM_r1 i j l v).absv) N
+  have b3 : BM (fun ω => ∑ i ∈ Finset.range N, ∑ j ∈ Finset.range N, ∑ l ∈ Finset.range N,
+      ∑ v ∈ Finset.range N, |r2 F c i j l v (smp X ω)|) :=
+    BM_sum4 _ (fun i j l v => (H.BM_r2 i j l v).absv) N
+  have hpt : ∀ ω, |∑ i ∈ Finset.range N, ∑ j ∈ Finset.range N, ∑ l ∈ Finset.range N,
+        ∑ v ∈ Finset.range N, wv F c i j l v (smp X ω)|
+      ≤ |Vm F c N (smp X ω)|
+        + ∑ i ∈ Finset.range N, ∑ j ∈ Finset.range N, ∑ l ∈ Finset.range N,
+            ∑ v ∈ Finset.range N, |r1 F c i j l v (smp X ω)|
+        + ∑ i ∈ Finset.range N, ∑ j ∈ Finset.range N, ∑ l ∈ Finset.range N,
+            ∑ v ∈ Finset.range N, |r2 F c i j l v (smp X ω)| := by
+    intro ω
+    rw [hsplit ω]
+    have a4 : ∀ (g : ℕ → ℕ → ℕ → ℕ → ℝ),
+        |∑ i ∈ Finset.range N, ∑ j ∈ Finset.range N, ∑ l ∈ Finset.range N,
+          ∑ v ∈ Finset.range N, g i j l v|
+        ≤ ∑ i ∈ Finset.range N, ∑ j ∈ Finset.range N, ∑ l ∈ Finset.range N,
+          ∑ v ∈ Finset.range N, |g i j l v| := by
+      intro g
+      refine (Finset.abs_sum_le_sum_abs _ _).trans (Finset.sum_le_sum fun i _ => ?_)
+      refine (Finset.abs_sum_le_sum_abs _ _).trans (Finset.sum_le_sum fun j _ => ?_)
+      refine (Finset.abs_sum_le_sum_abs _ _).trans (Finset.sum_le_sum fun l _ => ?_)
+      exact Finset.abs_sum_le_sum_abs _ _
+    refine (abs_add_le _ _).trans (add_le_add ((abs_add_le _ _).trans
+      (add_le_add le_rfl (a4 _))) (a4 _))
+  have hint := ((b1.absv.add b2).add b3).integrable (μ := μ)
+  have hmono := integral_mono_of_nonneg (μ := μ)
+    (Filter.Eventually.of_forall fun ω => abs_nonneg _) hint (Filter.Eventually.of_forall hpt)
+  refine hmono.trans ?_
+  rw [integral_add (b1.absv.add b2).integrable b3.integrable,
+    integral_add b1.absv.integrable b2.integrable]
+  have hV1 : ∫ ω, |Vm F c N (smp X ω)| ∂μ ≤ Real.sqrt ((N : ℝ) ^ 4 * (M * L ^ 2 * (9 * (N : ℝ) ^ 2)
+          + M ^ 2 * L ^ 2 * (9 * (N : ℝ) ^ 2) + M * V * (256 * (N : ℝ)))) :=
+    b1.abs_le_sqrt (H.Vm_sq N)
+  have hR1 : ∫ ω, ∑ i ∈ Finset.range N, ∑ j ∈ Finset.range N, ∑ l ∈ Finset.range N,
+      ∑ v ∈ Finset.range N, |r1 F c i j l v (smp X ω)| ∂μ ≤ 3 * M * L * (N : ℝ) ^ 3 := by
+    rw [integral_sum4 (Finset.range N) (fun i j l v ω => |r1 F c i j l v (smp X ω)|)
+      (fun i j l v => (H.BM_r1 i j l v).absv.integrable)]
+    have hML : 0 ≤ M * L := mul_nonneg hM0 H.L_nonneg
+    calc _ ≤ ∑ i ∈ Finset.range N, ∑ j ∈ Finset.range N, ∑ l ∈ Finset.range N,
+          ∑ v ∈ Finset.range N, M * L * (ind (v = i) + ind (v = j) + ind (v = l)) :=
+          Finset.sum_le_sum fun i _ => Finset.sum_le_sum fun j _ => Finset.sum_le_sum fun l _ =>
+            Finset.sum_le_sum fun v _ => H.r1_le i j l v
+      _ ≤ ∑ _i ∈ Finset.range N, ∑ _j ∈ Finset.range N, ∑ _l ∈ Finset.range N, M * L * 3 := by
+          refine Finset.sum_le_sum fun i _ => Finset.sum_le_sum fun j _ =>
+            Finset.sum_le_sum fun l _ => ?_
+          rw [← Finset.mul_sum]
+          exact mul_le_mul_of_nonneg_left (cnt3_ind N i j l) hML
+      _ = 3 * M * L * (N : ℝ) ^ 3 := by simp; ring
+  have hR2 : ∫ ω, ∑ i ∈ Finset.range N, ∑ j ∈ Finset.range N, ∑ l ∈ Finset.range N,
+      ∑ v ∈ Finset.range N, |r2 F c i j l v (smp X ω)| ∂μ
+        ≤ (2 * (N : ℝ) + 3 * M) * (3 * (N : ℝ) ^ 2 * ρ + N * B) := by
+    rw [integral_sum4 (Finset.range N) (fun i j l v ω => |r2 F c i j l v (smp X ω)|)
+      (fun i j l v => (H.BM_r2 i j l v).absv.integrable)]
+    have hE : ∀ i j l, 0 ≤ ∫ ω, |dF F i j l (smp X ω)| ∂μ := fun i j l =>
+      integral_nonneg fun _ => abs_nonneg _
+    have hc : 0 ≤ 2 * (N : ℝ) + 3 * M := by positivity
+    calc _ ≤ ∑ i ∈ Finset.range N, ∑ j ∈ Finset.range N, ∑ l ∈ Finset.range N,
+          ∑ v ∈ Finset.range N, (2 + M * (ind (v = i) + ind (v = j) + ind (v = l)))
+            * ∫ ω, |dF F i j l (smp X ω)| ∂μ :=
+          Finset.sum_le_sum fun i _ => Finset.sum_le_sum fun j _ => Finset.sum_le_sum fun l _ =>
+            Finset.sum_le_sum fun v _ => H.r2_le i j l v
+      _ ≤ ∑ i ∈ Finset.range N, ∑ j ∈ Finset.range N, ∑ l ∈ Finset.range N,
+          (2 * (N : ℝ) + 3 * M) * ∫ ω, |dF F i j l (smp X ω)| ∂μ := by
+          refine Finset.sum_le_sum fun i _ => Finset.sum_le_sum fun j _ =>
+            Finset.sum_le_sum fun l _ => ?_
+          rw [← Finset.sum_mul]
+          refine mul_le_mul_of_nonneg_right ?_ (hE i j l)
+          rw [Finset.sum_add_distrib, ← Finset.mul_sum]
+          have := mul_le_mul_of_nonneg_left (cnt3_ind N i j l) hM0
+          simp only [Finset.sum_const, Finset.card_range, nsmul_eq_mul]
+          linarith
+      _ ≤ ∑ i ∈ Finset.range N, ∑ j ∈ Finset.range N, ∑ l ∈ Finset.range N,
+          (2 * (N : ℝ) + 3 * M) * (ρ * ((if i = j then (1 : ℝ) else 0)
+            + (if j = l then (1 : ℝ) else 0) + (if i = l then (1 : ℝ) else 0))
+            + B * (if j = i ∧ l = i then (1 : ℝ) else 0)) :=
+          Finset.sum_le_sum fun i _ => Finset.sum_le_sum fun j _ => Finset.sum_le_sum fun l _ =>
+            mul_le_mul_of_nonneg_left (H.dF_le i j l) hc
+      _ = (2 * (N : ℝ) + 3 * M) * (3 * (N : ℝ) ^ 2 * ρ + N * B) := by
+          simp only [← Finset.mul_sum, Finset.sum_add_distrib]
+          rw [SmallGaps.cnt_ij, SmallGaps.cnt_jl, SmallGaps.cnt_il, SmallGaps.cnt_all]
+          ring
+  linarith
+
+/-- **Lemma "degenerate"(b) for `n = 3`, `a = 3`.** With `1 ≤ M ≤ N`:
+    `E |N⁻⁴ ∑_{i,j,l,v} F(X_i,X_j,X_l) c(X_l - X_v)|
+       ≤ 16 [(M L + ρ)/N + (M V/N)^{1/2}/N + B/N²]`,
+    `L ≥ ‖F‖₁`, `V ≥ ‖F‖₂²`, `ρ ≥ ϱ(F)`, `B ≥ ‖F‖_∞`. -/
+theorem Z1_three (H : DegB3 μ ν X F c B M L V ρ Fm) (N : ℕ) (hN : 1 ≤ N) (hM1 : 1 ≤ M)
+    (hMN : M ≤ N) :
+    ∫ ω, |1 / (N : ℝ) ^ 4 * ∑ i ∈ Finset.range N, ∑ j ∈ Finset.range N, ∑ l ∈ Finset.range N,
+        ∑ v ∈ Finset.range N, F (X i ω) (X j ω) (X l ω) * c (X l ω - X v ω)| ∂μ
+      ≤ 16 * ((M * L + ρ) / N + Real.sqrt (M * V / N) / N + B / (N : ℝ) ^ 2) := by
+  obtain ⟨ω0⟩ := nonempty_of_isProbabilityMeasure μ
+  have hNr : (1 : ℝ) ≤ N := by exact_mod_cast hN
+  have h := H.Z1_three_sum N
+  have e : ∀ ω, |1 / (N : ℝ) ^ 4 * ∑ i ∈ Finset.range N, ∑ j ∈ Finset.range N,
+        ∑ l ∈ Finset.range N, ∑ v ∈ Finset.range N, F (X i ω) (X j ω) (X l ω) * c (X l ω - X v ω)|
+      = 1 / (N : ℝ) ^ 4 * |∑ i ∈ Finset.range N, ∑ j ∈ Finset.range N,
+        ∑ l ∈ Finset.range N, ∑ v ∈ Finset.range N, wv F c i j l v (smp X ω)| := fun ω => by
+    rw [abs_mul, abs_of_nonneg (by positivity : (0 : ℝ) ≤ 1 / (N : ℝ) ^ 4)]
+    rfl
+  simp_rw [e]
+  rw [integral_const_mul]
+  refine (mul_le_mul_of_nonneg_left h (by positivity)).trans ?_
+  exact final_alg hNr hM1 hMN H.L_nonneg H.V_nonneg H.rho_nonneg (H.B_nonneg (X 0 ω0))
+
+end DegB3
+
+/-! ### The flat torus with the heat kernel -/
+
+section Torus
+
+open CTG.Reals.TorusReduction BiasVariance
+
+/-- For a function invariant under simultaneous translations, `y ↦ ∫∫ f(a, b, y) da db` is
+    constant. -/
+theorem shift_const {G : Type*} [AddCommGroup G] [MeasurableSpace G] [MeasurableAdd₂ G]
+    (ν : Measure G) [IsProbabilityMeasure ν] [ν.IsAddLeftInvariant]
+    {f : G → G → G → ℝ} (hinv : ∀ a b c t, f (a + t) (b + t) (c + t) = f a b c) (y : G) :
+    ∫ b, (∫ a, f a b y ∂ν) ∂ν = ∫ b, (∫ a, f a b 0 ∂ν) ∂ν := by
+  have e1 : ∀ b, ∫ a, f a b y ∂ν = ∫ a, f a (b - y) 0 ∂ν := by
+    intro b
+    have e : ∀ a, f a b y = f (a - y) (b - y) 0 := fun a => by
+      have h := hinv (a - y) (b - y) 0 y
+      rw [sub_add_cancel, sub_add_cancel, zero_add] at h
+      exact h
+    simp_rw [e]
+    exact integral_sub_right_eq_self (μ := ν) (fun a => f a (b - y) 0) y
+  simp_rw [e1]
+  exact integral_sub_right_eq_self (μ := ν) (fun b => ∫ a, f a b 0 ∂ν) y
+
+/-- `E g(X_{a1}, X_{a2}, X_{a3}) = K` if `∫∫ g(a, b, y) da db = K` for every `y`. -/
+theorem nested_eq {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω} [IsProbabilityMeasure μ]
+    {G : Type*} [MeasurableSpace G] (ν : Measure G) [IsProbabilityMeasure ν]
+    (X : ℕ → Ω → G) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = ν) (g : G → G → G → ℝ)
+    (hg : Measurable (fun p : G × G × G => g p.1 p.2.1 p.2.2)) {Bg : ℝ}
+    (hgB : ∀ a b y, |g a b y| ≤ Bg) {K : ℝ} (hK : ∀ y, ∫ b, (∫ a, g a b y ∂ν) ∂ν = K)
+    {a1 a2 a3 : ℕ} (h12 : a1 ≠ a2) (h13 : a1 ≠ a3) (h23 : a2 ≠ a3) :
+    ∫ ω, g (X a1 ω) (X a2 ω) (X a3 ω) ∂μ = K := by
+  have m0 : Measurable (fun x : ℕ → G => g (x a1) (x a2) (x a3)) := by
+    have hm : Measurable (fun x : ℕ → G => (x a1, x a2, x a3)) := by fun_prop
+    exact hg.comp hm
+  have m1 : Measurable (fun x : ℕ → G => pint ν g (x a2, x a3)) := by
+    have hm : Measurable (fun x : ℕ → G => (x a2, x a3)) := by fun_prop
+    exact (pint_meas ν hg).comp hm
+  have s1 := integrate_out ν X h_indep hX hlaw a1 {a1, a2, a3}
+    (fun x => g (x a1) (x a2) (x a3)) m0 (fun x => hgB _ _ _)
+    (fun x y hxy => by simp only [hxy a1 (by simp), hxy a2 (by simp), hxy a3 (by simp)])
+    (fun x => pint ν g (x a2, x a3))
+    (fun x => by
+      simp only [Function.update_self, Function.update_of_ne h12.symm,
+        Function.update_of_ne h13.symm]
+      rfl)
+  have s2 := integrate_out ν X h_indep hX hlaw a2 {a2, a3}
+    (fun x => pint ν g (x a2, x a3)) m1 (fun x => pint_bound ν hgB _)
+    (fun x y hxy => by simp only [hxy a2 (by simp), hxy a3 (by simp)])
+    (fun _ => K)
+    (fun x => by
+      simp only [Function.update_self, Function.update_of_ne h23.symm]
+      exact hK (x a3))
+  calc ∫ ω, g (X a1 ω) (X a2 ω) (X a3 ω) ∂μ
+      = ∫ ω, pint ν g (smp X ω a2, smp X ω a3) ∂μ := s1
+    _ = ∫ _ω, K ∂μ := s2
+    _ = K := by simp
+
+/-- The hypotheses `DegB3` hold on the flat torus for `c = p - 1`, `p` the heat kernel `p_σ`,
+    `M = p(0)`, for every measurable bounded `F` invariant under simultaneous translations, with
+    the norms in sample form as hypotheses (`L ≥ ‖F‖₁`, `V ≥ ‖F‖₂²`, `ρ ≥ ϱ(F)`). -/
+theorem torus_degB3 {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {d : ℕ} (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ)
+    (hX : ∀ j, Measurable (X j)) (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d)
+    {σ : ℝ} (hσ : 0 < σ)
+    {F : FlatTorus d → FlatTorus d → FlatTorus d → ℝ} {B L V ρ : ℝ}
+    (hF : Measurable (fun p : FlatTorus d × FlatTorus d × FlatTorus d => F p.1 p.2.1 p.2.2))
+    (hB : ∀ a b c, |F a b c| ≤ B)
+    (hinv : ∀ a b c t, F (a + t) (b + t) (c + t) = F a b c)
+    (hl1 : ∀ i j l : ℕ, i ≠ j → i ≠ l → j ≠ l → ∫ ω, |F (X i ω) (X j ω) (X l ω)| ∂μ ≤ L)
+    (hvar : ∀ i j l : ℕ, i ≠ j → i ≠ l → j ≠ l → ∫ ω, F (X i ω) (X j ω) (X l ω) ^ 2 ∂μ ≤ V)
+    (h12 : ∀ i l : ℕ, i ≠ l → ∫ ω, |F (X i ω) (X i ω) (X l ω)| ∂μ ≤ ρ)
+    (h13 : ∀ i j : ℕ, i ≠ j → ∫ ω, |F (X i ω) (X j ω) (X i ω)| ∂μ ≤ ρ)
+    (h23 : ∀ i j : ℕ, i ≠ j → ∫ ω, |F (X i ω) (X j ω) (X j ω)| ∂μ ≤ ρ) :
+    DegB3 μ (flatTorusMeasure d) X F (fun u => pker d σ u - 1) B (torusM d σ 1) L V ρ
+      (∫ b, (∫ a, F a b 0 ∂flatTorusMeasure d) ∂flatTorusMeasure d) := by
+  set ν := flatTorusMeasure d with hν
+  set M := torusM d σ 1 with hMdef
+  have hM1 : 1 ≤ M := torusM_one_ge hσ d
+  have hp : ∀ u, 0 ≤ pker d σ u ∧ pker d σ u ≤ M := fun u => by
+    rw [hMdef, torusM_one]; exact pker_bounds hσ d u
+  have hpm : Measurable (pker d σ) := (pker_continuous hσ d).measurable
+  have hpx : ∀ x : FlatTorus d, Measurable (fun z : FlatTorus d => pker d σ (x - z)) :=
+    fun x => hpm.comp (measurable_const.sub measurable_id)
+  have hpi : ∀ x : FlatTorus d, Integrable (fun z => pker d σ (x - z)) ν := fun x =>
+    Integrable.of_bound (hpx x).aestronglyMeasurable M
+      (Filter.Eventually.of_forall fun z => by
+        rw [Real.norm_eq_abs, abs_of_nonneg (hp _).1]; exact (hp _).2)
+  have hmass : ∀ x : FlatTorus d, ∫ z, pker d σ (x - z) ∂ν = 1 := fun x => pker_mass hσ d x
+  have hL : 0 ≤ L := (integral_nonneg fun ω => abs_nonneg _).trans
+    (hl1 0 1 2 (by norm_num) (by norm_num) (by norm_num))
+  have hV : 0 ≤ V := (integral_nonneg fun ω => _root_.sq_nonneg _).trans
+    (hvar 0 1 2 (by norm_num) (by norm_num) (by norm_num))
+  have hρ : 0 ≤ ρ := (integral_nonneg fun ω => abs_nonneg _).trans (h12 0 1 (by norm_num))
+  have hFa : Measurable (fun p : FlatTorus d × FlatTorus d × FlatTorus d => |F p.1 p.2.1 p.2.2|) :=
+    continuous_abs.measurable.comp hF
+  have hBa : ∀ a b c, |(|F a b c|)| ≤ B := fun a b c => by rw [abs_abs]; exact hB a b c
+  refine
+    { indep := h_indep
+      meas := hX
+      law := hlaw
+      F_meas := hF
+      bound := hB
+      c_meas := hpm.sub measurable_const
+      c_bound := fun u => by
+        rw [abs_le]; constructor <;> linarith [(hp u).1, (hp u).2]
+      c_mean1 := fun x => by
+        rw [integral_sub (hpi x) (integrable_const 1), hmass x]; simp
+      c_mean2 := fun x => by
+        have e : ∀ z, pker d σ (z - x) - 1 = pker d σ (x - z) - 1 := fun z => by
+          rw [pker_even']
+        simp_rw [e]
+        rw [integral_sub (hpi x) (integrable_const 1), hmass x]; simp
+      c_abs := fun x => by
+        calc ∫ z, |pker d σ (x - z) - 1| ∂ν ≤ ∫ z, (pker d σ (x - z) + 1) ∂ν :=
+              integral_mono ((hpi x).sub (integrable_const 1)).abs
+                ((hpi x).add (integrable_const 1))
+                (fun z => by rw [abs_le]; constructor <;> linarith [(hp (x - z)).1])
+          _ = 2 := by rw [integral_add (hpi x) (integrable_const 1), hmass x]; simp; norm_num
+      c_sq := fun x => by
+        have hi2 : Integrable (fun z => (pker d σ (x - z) - 1) ^ 2) ν :=
+          Integrable.of_bound (((hpx x).sub measurable_const).pow_const 2).aestronglyMeasurable
+            ((M + 1) ^ 2) (Filter.Eventually.of_forall fun z => by
+              rw [Real.norm_eq_abs, abs_pow]
+              apply pow_le_pow_left₀ (abs_nonneg _)
+              rw [abs_le]; constructor <;> linarith [(hp (x - z)).1, (hp (x - z)).2])
+        calc ∫ z, (pker d σ (x - z) - 1) ^ 2 ∂ν
+            ≤ ∫ z, (M * pker d σ (x - z) - 2 * pker d σ (x - z) + 1) ∂ν :=
+              integral_mono hi2
+                ((((hpi x).const_mul M).sub ((hpi x).const_mul 2)).add (integrable_const 1))
+                (fun z => by
+                  have h1 := (hp (x - z)).1
+                  have h2 := (hp (x - z)).2
+                  nlinarith)
+          _ = M - 1 := by
+              have i1 : Integrable (fun z => M * pker d σ (x - z) - 2 * pker d σ (x - z)) ν :=
+                ((hpi x).const_mul M).sub ((hpi x).const_mul 2)
+              rw [integral_add i1
+                (integrable_const 1), integral_sub ((hpi x).const_mul M) ((hpi x).const_mul 2),
+                integral_const_mul, integral_const_mul, hmass x]
+              simp; ring
+          _ ≤ M := by linarith
+      c_cov := fun x y => by
+        have hprod : Integrable (fun z => pker d σ (x - z) * pker d σ (y - z)) ν :=
+          Integrable.of_bound ((hpx x).mul (hpx y)).aestronglyMeasurable (M * M)
+            (Filter.Eventually.of_forall fun z => by
+              rw [Real.norm_eq_abs, abs_mul, abs_of_nonneg (hp _).1, abs_of_nonneg (hp _).1]
+              exact mul_le_mul (hp _).2 (hp _).2 (hp _).1 (by linarith))
+        have e : ∀ z, (pker d σ (x - z) - 1) * (pker d σ (y - z) - 1)
+            = pker d σ (x - z) * pker d σ (y - z) - pker d σ (x - z) - pker d σ (y - z) + 1 :=
+          fun z => by ring
+        simp_rw [e]
+        have i1 : Integrable (fun z => pker d σ (x - z) * pker d σ (y - z) - pker d σ (x - z)) ν :=
+          hprod.sub (hpi x)
+        have i2 : Integrable (fun z => pker d σ (x - z) * pker d σ (y - z) - pker d σ (x - z)
+            - pker d σ (y - z)) ν := i1.sub (hpi y)
+        rw [integral_add i2 (integrable_const 1),
+          integral_sub i1 (hpi y), integral_sub hprod (hpi x), hmass x, hmass y]
+        have hI0 : 0 ≤ ∫ z, pker d σ (x - z) * pker d σ (y - z) ∂ν :=
+          integral_nonneg fun z => mul_nonneg (hp _).1 (hp _).1
+        have hIM : ∫ z, pker d σ (x - z) * pker d σ (y - z) ∂ν ≤ M := by
+          calc ∫ z, pker d σ (x - z) * pker d σ (y - z) ∂ν ≤ ∫ z, M * pker d σ (y - z) ∂ν :=
+                integral_mono hprod ((hpi y).const_mul M)
+                  (fun z => mul_le_mul_of_nonneg_right (hp _).2 (hp _).1)
+            _ = M := by rw [integral_const_mul, hmass y, mul_one]
+        simp
+        rw [abs_le]; constructor <;> linarith
+      mean12 := fun y => shift_const ν hinv y
+      marg1 := fun y => by
+        have hinv' : ∀ a b c t, |F (c + t) (a + t) (b + t)| = |F c a b| := fun a b c t => by
+          rw [hinv]
+        rw [shift_const ν (f := fun a b y => |F y a b|) hinv' y]
+        have hm : Measurable (fun p : FlatTorus d × FlatTorus d × FlatTorus d =>
+            |F p.2.2 p.1 p.2.1|) := by
+          have hm' : Measurable (fun p : FlatTorus d × FlatTorus d × FlatTorus d =>
+              (p.2.2, p.1, p.2.1)) := by fun_prop
+          exact continuous_abs.measurable.comp (hF.comp hm')
+        have h := nested_eq ν X h_indep hX hlaw (fun a b y => |F y a b|) hm
+          (fun a b y => hBa y a b) (fun y => shift_const ν (f := fun a b y => |F y a b|) hinv' y)
+          (a1 := 1) (a2 := 2) (a3 := 0) (by norm_num) (by norm_num) (by norm_num)
+        rw [← h]
+        exact hl1 0 1 2 (by norm_num) (by norm_num) (by norm_num)
+      marg2 := fun y => by
+        have hinv' : ∀ a b c t, |F (a + t) (c + t) (b + t)| = |F a c b| := fun a b c t => by
+          rw [hinv]
+        rw [shift_const ν (f := fun a b y => |F a y b|) hinv' y]
+        have hm : Measurable (fun p : FlatTorus d × FlatTorus d × FlatTorus d =>
+            |F p.1 p.2.2 p.2.1|) := by
+          have hm' : Measurable (fun p : FlatTorus d × FlatTorus d × FlatTorus d =>
+              (p.1, p.2.2, p.2.1)) := by fun_prop
+          exact continuous_abs.measurable.comp (hF.comp hm')
+        have h := nested_eq ν X h_indep hX hlaw (fun a b y => |F a y b|) hm
+          (fun a b y => hBa a y b) (fun y => shift_const ν (f := fun a b y => |F a y b|) hinv' y)
+          (a1 := 0) (a2 := 2) (a3 := 1) (by norm_num) (by norm_num) (by norm_num)
+        rw [← h]
+        exact hl1 0 1 2 (by norm_num) (by norm_num) (by norm_num)
+      marg3 := fun y => by
+        have hinv' : ∀ a b c t, |F (a + t) (b + t) (c + t)| = |F a b c| := fun a b c t => by
+          rw [hinv]
+        rw [shift_const ν (f := fun a b y => |F a b y|) hinv' y]
+        have h := nested_eq ν X h_indep hX hlaw (fun a b y => |F a b y|) hFa
+          (fun a b y => hBa a b y) (fun y => shift_const ν (f := fun a b y => |F a b y|) hinv' y)
+          (a1 := 0) (a2 := 1) (a3 := 2) (by norm_num) (by norm_num) (by norm_num)
+        rw [← h]
+        exact hl1 0 1 2 (by norm_num) (by norm_num) (by norm_num)
+      l1 := hl1
+      var := hvar
+      rho12 := h12
+      rho13 := h13
+      rho23 := h23
+      L_nonneg := hL
+      V_nonneg := hV
+      rho_nonneg := hρ }
+
+/-- **Lemma "degenerate"(b) for `n = 3`, `a = 3`, on the flat torus with the heat kernel.**
+    Independent uniform points; `p = p_σ`, `M = p(0)`, `c_{jv} = p(x_j - x_v) - 1`; `F` bounded
+    (`B`), measurable, invariant under simultaneous translations; `L ≥ ‖F‖₁`, `V ≥ ‖F‖₂²`,
+    `ρ ≥ ϱ(F)` in sample form. For `M ≤ N`:
+    `E |N⁻⁴ ∑_{i,j,l,v} F(X_i,X_j,X_l) c_{lv}| ≤ 16 [(M L + ρ)/N + (M V/N)^{1/2}/N + B/N²]`. -/
+theorem degenerate_b_three_torus {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {d : ℕ} (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ)
+    (hX : ∀ j, Measurable (X j)) (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d)
+    {σ : ℝ} (hσ : 0 < σ)
+    {F : FlatTorus d → FlatTorus d → FlatTorus d → ℝ} {B L V ρ : ℝ}
+    (hF : Measurable (fun p : FlatTorus d × FlatTorus d × FlatTorus d => F p.1 p.2.1 p.2.2))
+    (hB : ∀ a b c, |F a b c| ≤ B)
+    (hinv : ∀ a b c t, F (a + t) (b + t) (c + t) = F a b c)
+    (hl1 : ∀ i j l : ℕ, i ≠ j → i ≠ l → j ≠ l → ∫ ω, |F (X i ω) (X j ω) (X l ω)| ∂μ ≤ L)
+    (hvar : ∀ i j l : ℕ, i ≠ j → i ≠ l → j ≠ l → ∫ ω, F (X i ω) (X j ω) (X l ω) ^ 2 ∂μ ≤ V)
+    (h12 : ∀ i l : ℕ, i ≠ l → ∫ ω, |F (X i ω) (X i ω) (X l ω)| ∂μ ≤ ρ)
+    (h13 : ∀ i j : ℕ, i ≠ j → ∫ ω, |F (X i ω) (X j ω) (X i ω)| ∂μ ≤ ρ)
+    (h23 : ∀ i j : ℕ, i ≠ j → ∫ ω, |F (X i ω) (X j ω) (X j ω)| ∂μ ≤ ρ)
+    (N : ℕ) (hMN : torusM d σ 1 ≤ N) :
+    ∫ ω, |1 / (N : ℝ) ^ 4 * ∑ i ∈ Finset.range N, ∑ j ∈ Finset.range N, ∑ l ∈ Finset.range N,
+        ∑ v ∈ Finset.range N, F (X i ω) (X j ω) (X l ω) * (pker d σ (X l ω - X v ω) - 1)| ∂μ
+      ≤ 16 * ((torusM d σ 1 * L + ρ) / N + Real.sqrt (torusM d σ 1 * V / N) / N
+        + B / (N : ℝ) ^ 2) := by
+  have H := torus_degB3 X h_indep hX hlaw hσ hF hB hinv hl1 hvar h12 h13 h23
+  have hM1 : 1 ≤ torusM d σ 1 := torusM_one_ge hσ d
+  have hN : 1 ≤ N := by
+    have : (1 : ℝ) ≤ N := hM1.trans hMN
+    exact_mod_cast this
+  exact H.Z1_three N hN hM1 hMN
+
+end Torus
+
+/-! ### The positions `a = 1` and `a = 2`, by permuting the arguments of `F` -/
+
+section OtherPositions
+
+open CTG.Reals.TorusReduction
+
+theorem sum3_rev (N : ℕ) (f : ℕ → ℕ → ℕ → ℝ) :
+    ∑ i ∈ Finset.range N, ∑ j ∈ Finset.range N, ∑ l ∈ Finset.range N, f i j l
+      = ∑ l ∈ Finset.range N, ∑ j ∈ Finset.range N, ∑ i ∈ Finset.range N, f i j l := by
+  calc ∑ i ∈ Finset.range N, ∑ j ∈ Finset.range N, ∑ l ∈ Finset.range N, f i j l
+      = ∑ i ∈ Finset.range N, ∑ l ∈ Finset.range N, ∑ j ∈ Finset.range N, f i j l :=
+        Finset.sum_congr rfl fun _ _ => Finset.sum_comm
+    _ = ∑ l ∈ Finset.range N, ∑ i ∈ Finset.range N, ∑ j ∈ Finset.range N, f i j l :=
+        Finset.sum_comm
+    _ = ∑ l ∈ Finset.range N, ∑ j ∈ Finset.range N, ∑ i ∈ Finset.range N, f i j l :=
+        Finset.sum_congr rfl fun _ _ => Finset.sum_comm
+
+theorem sum3_swap23 (N : ℕ) (f : ℕ → ℕ → ℕ → ℝ) :
+    ∑ i ∈ Finset.range N, ∑ j ∈ Finset.range N, ∑ l ∈ Finset.range N, f i j l
+      = ∑ i ∈ Finset.range N, ∑ l ∈ Finset.range N, ∑ j ∈ Finset.range N, f i j l :=
+  Finset.sum_congr rfl fun _ _ => Finset.sum_comm
+
+/-- **Lemma "degenerate"(b) for `n = 3`, `a = 1`, on the flat torus.** Same hypotheses as
+    `degenerate_b_three_torus`; the factor is `c_{ι(1) v}`. -/
+theorem degenerate_b_three_torus_a1 {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {d : ℕ} (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ)
+    (hX : ∀ j, Measurable (X j)) (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d)
+    {σ : ℝ} (hσ : 0 < σ)
+    {F : FlatTorus d → FlatTorus d → FlatTorus d → ℝ} {B L V ρ : ℝ}
+    (hF : Measurable (fun p : FlatTorus d × FlatTorus d × FlatTorus d => F p.1 p.2.1 p.2.2))
+    (hB : ∀ a b c, |F a b c| ≤ B)
+    (hinv : ∀ a b c t, F (a + t) (b + t) (c + t) = F a b c)
+    (hl1 : ∀ i j l : ℕ, i ≠ j → i ≠ l → j ≠ l → ∫ ω, |F (X i ω) (X j ω) (X l ω)| ∂μ ≤ L)
+    (hvar : ∀ i j l : ℕ, i ≠ j → i ≠ l → j ≠ l → ∫ ω, F (X i ω) (X j ω) (X l ω) ^ 2 ∂μ ≤ V)
+    (h12 : ∀ i l : ℕ, i ≠ l → ∫ ω, |F (X i ω) (X i ω) (X l ω)| ∂μ ≤ ρ)
+    (h13 : ∀ i j : ℕ, i ≠ j → ∫ ω, |F (X i ω) (X j ω) (X i ω)| ∂μ ≤ ρ)
+    (h23 : ∀ i j : ℕ, i ≠ j → ∫ ω, |F (X i ω) (X j ω) (X j ω)| ∂μ ≤ ρ)
+    (N : ℕ) (hMN : torusM d σ 1 ≤ N) :
+    ∫ ω, |1 / (N : ℝ) ^ 4 * ∑ i ∈ Finset.range N, ∑ j ∈ Finset.range N, ∑ l ∈ Finset.range N,
+        ∑ v ∈ Finset.range N, F (X i ω) (X j ω) (X l ω) * (pker d σ (X i ω - X v ω) - 1)| ∂μ
+      ≤ 16 * ((torusM d σ 1 * L + ρ) / N + Real.sqrt (torusM d σ 1 * V / N) / N
+        + B / (N : ℝ) ^ 2) := by
+  have hF' : Measurable (fun p : FlatTorus d × FlatTorus d × FlatTorus d => F p.2.2 p.2.1 p.1) := by
+    have hm : Measurable (fun p : FlatTorus d × FlatTorus d × FlatTorus d => (p.2.2, p.2.1, p.1)) :=
+      by fun_prop
+    exact hF.comp hm
+  have h := degenerate_b_three_torus X h_indep hX hlaw hσ (F := fun a b c => F c b a) hF'
+    (fun a b c => hB c b a) (fun a b c t => hinv c b a t)
+    (fun i j l a b e => hl1 l j i (Ne.symm e) (Ne.symm b) (Ne.symm a))
+    (fun i j l a b e => hvar l j i (Ne.symm e) (Ne.symm b) (Ne.symm a))
+    (fun i l a => h23 l i (Ne.symm a)) (fun i j a => h13 i j a) (fun i j a => h12 j i (Ne.symm a))
+    N hMN
+  refine Eq.trans_le ?_ h
+  congr 1
+  funext ω
+  congr 2
+  exact sum3_rev N (fun i j l => ∑ v ∈ Finset.range N,
+    F (X i ω) (X j ω) (X l ω) * (pker d σ (X i ω - X v ω) - 1))
+
+/-- **Lemma "degenerate"(b) for `n = 3`, `a = 2`, on the flat torus.** -/
+theorem degenerate_b_three_torus_a2 {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {d : ℕ} (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ)
+    (hX : ∀ j, Measurable (X j)) (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d)
+    {σ : ℝ} (hσ : 0 < σ)
+    {F : FlatTorus d → FlatTorus d → FlatTorus d → ℝ} {B L V ρ : ℝ}
+    (hF : Measurable (fun p : FlatTorus d × FlatTorus d × FlatTorus d => F p.1 p.2.1 p.2.2))
+    (hB : ∀ a b c, |F a b c| ≤ B)
+    (hinv : ∀ a b c t, F (a + t) (b + t) (c + t) = F a b c)
+    (hl1 : ∀ i j l : ℕ, i ≠ j → i ≠ l → j ≠ l → ∫ ω, |F (X i ω) (X j ω) (X l ω)| ∂μ ≤ L)
+    (hvar : ∀ i j l : ℕ, i ≠ j → i ≠ l → j ≠ l → ∫ ω, F (X i ω) (X j ω) (X l ω) ^ 2 ∂μ ≤ V)
+    (h12 : ∀ i l : ℕ, i ≠ l → ∫ ω, |F (X i ω) (X i ω) (X l ω)| ∂μ ≤ ρ)
+    (h13 : ∀ i j : ℕ, i ≠ j → ∫ ω, |F (X i ω) (X j ω) (X i ω)| ∂μ ≤ ρ)
+    (h23 : ∀ i j : ℕ, i ≠ j → ∫ ω, |F (X i ω) (X j ω) (X j ω)| ∂μ ≤ ρ)
+    (N : ℕ) (hMN : torusM d σ 1 ≤ N) :
+    ∫ ω, |1 / (N : ℝ) ^ 4 * ∑ i ∈ Finset.range N, ∑ j ∈ Finset.range N, ∑ l ∈ Finset.range N,
+        ∑ v ∈ Finset.range N, F (X i ω) (X j ω) (X l ω) * (pker d σ (X j ω - X v ω) - 1)| ∂μ
+      ≤ 16 * ((torusM d σ 1 * L + ρ) / N + Real.sqrt (torusM d σ 1 * V / N) / N
+        + B / (N : ℝ) ^ 2) := by
+  have hF' : Measurable (fun p : FlatTorus d × FlatTorus d × FlatTorus d => F p.1 p.2.2 p.2.1) := by
+    have hm : Measurable (fun p : FlatTorus d × FlatTorus d × FlatTorus d => (p.1, p.2.2, p.2.1)) :=
+      by fun_prop
+    exact hF.comp hm
+  have h := degenerate_b_three_torus X h_indep hX hlaw hσ (F := fun a b c => F a c b) hF'
+    (fun a b c => hB a c b) (fun a b c t => hinv a c b t)
+    (fun i j l a b e => hl1 i l j b a (Ne.symm e))
+    (fun i j l a b e => hvar i l j b a (Ne.symm e))
+    (fun i l a => h13 i l a) (fun i j a => h12 i j a) (fun i j a => h23 i j a)
+    N hMN
+  refine Eq.trans_le ?_ h
+  congr 1
+  funext ω
+  congr 2
+  exact sum3_swap23 N (fun i j l => ∑ v ∈ Finset.range N,
+    F (X i ω) (X j ω) (X l ω) * (pker d σ (X j ω - X v ω) - 1))
+
+end OtherPositions
+end DegenerateB
+
 end CTG.Reals2
