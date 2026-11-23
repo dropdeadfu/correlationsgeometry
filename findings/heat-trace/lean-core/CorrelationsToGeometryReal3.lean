@@ -29180,4 +29180,159 @@ theorem lapse_estimator (a b L δ0 : ℝ) (ha : 0 < a) (hab : a ≤ b) (hL : 0 �
 
 end TimeAppendix11
 
+/-! ### Appendix H, continued (A93): the estimator for all spacings in the window -/
+namespace TimeAppendix12
+
+/-- Differences of a function whose derivative lies in `[lo, hi]` on a window. -/
+theorem diff_bounds (W w : ℝ → ℝ) (τ δ0 lo hi x y : ℝ)
+    (hW : ∀ t, |t - τ| ≤ δ0 → HasDerivAt W (w t) t)
+    (hw : ∀ t, |t - τ| ≤ δ0 → lo ≤ w t ∧ w t ≤ hi)
+    (hx : |x - τ| ≤ δ0) (hy : |y - τ| ≤ δ0) (hxy : x < y) :
+    lo * (y - x) ≤ W y - W x ∧ W y - W x ≤ hi * (y - x) := by
+  have hin : ∀ t, x ≤ t → t ≤ y → |t - τ| ≤ δ0 := fun t h1 h2 => by
+    rw [abs_le] at hx hy ⊢; constructor <;> linarith [hx.1, hx.2, hy.1, hy.2]
+  obtain ⟨c, hc, hslope⟩ := exists_hasDerivAt_eq_slope W w hxy
+    (fun t ht => (hW t (hin t ht.1 ht.2)).continuousAt.continuousWithinAt)
+    (fun t ht => hW t (hin t ht.1.le ht.2.le))
+  have hpos : 0 < y - x := sub_pos.mpr hxy
+  have e : W y - W x = w c * (y - x) := by rw [hslope]; field_simp
+  obtain ⟨h1, h2⟩ := hw c (hin c hc.1.le hc.2.le)
+  rw [e]
+  exact ⟨mul_le_mul_of_nonneg_right h1 hpos.le, mul_le_mul_of_nonneg_right h2 hpos.le⟩
+
+/-- The cross-ratio `ρ₀` of four equally spaced points lies in `[0, (hi/lo)²]` when `W' ∈ [lo, hi]`
+with `lo > 0` on the window. -/
+theorem cross_ratio_bounded (W w : ℝ → ℝ) (τ δ0 lo hi ℓ : ℝ) (hlo : 0 < lo)
+    (hW : ∀ t, |t - τ| ≤ δ0 → HasDerivAt W (w t) t)
+    (hw : ∀ t, |t - τ| ≤ δ0 → lo ≤ w t ∧ w t ≤ hi) (hl : 0 < ℓ) (hlδ : 3 * ℓ / 2 ≤ δ0) :
+    0 ≤ (3 * ℓ * ℓ) / ((2 * ℓ) * (2 * ℓ)) *
+        (((W (τ + ℓ / 2) - W (τ - 3 * ℓ / 2)) * (W (τ + 3 * ℓ / 2) - W (τ - ℓ / 2))) /
+         ((W (τ + 3 * ℓ / 2) - W (τ - 3 * ℓ / 2)) * (W (τ + ℓ / 2) - W (τ - ℓ / 2)))) ∧
+    (3 * ℓ * ℓ) / ((2 * ℓ) * (2 * ℓ)) *
+        (((W (τ + ℓ / 2) - W (τ - 3 * ℓ / 2)) * (W (τ + 3 * ℓ / 2) - W (τ - ℓ / 2))) /
+         ((W (τ + 3 * ℓ / 2) - W (τ - 3 * ℓ / 2)) * (W (τ + ℓ / 2) - W (τ - ℓ / 2)))) ≤ (hi / lo) ^ 2 := by
+  have m1 : |τ + ℓ / 2 - τ| ≤ δ0 := by rw [add_sub_cancel_left, abs_of_pos (by positivity)]; linarith
+  have m2 : |τ - ℓ / 2 - τ| ≤ δ0 := by
+    rw [sub_sub_cancel_left, abs_neg, abs_of_pos (by positivity)]; linarith
+  have m3 : |τ + 3 * ℓ / 2 - τ| ≤ δ0 := by rw [add_sub_cancel_left, abs_of_pos (by positivity)]; linarith
+  have m4 : |τ - 3 * ℓ / 2 - τ| ≤ δ0 := by
+    rw [sub_sub_cancel_left, abs_neg, abs_of_pos (by positivity)]; linarith
+  obtain ⟨a1, a2⟩ := diff_bounds W w τ δ0 lo hi _ _ hW hw m4 m1 (by linarith)
+  obtain ⟨b1, b2⟩ := diff_bounds W w τ δ0 lo hi _ _ hW hw m2 m3 (by linarith)
+  obtain ⟨c1, c2⟩ := diff_bounds W w τ δ0 lo hi _ _ hW hw m4 m3 (by linarith)
+  obtain ⟨d1, d2⟩ := diff_bounds W w τ δ0 lo hi _ _ hW hw m2 m1 (by linarith)
+  have e1 : τ + ℓ / 2 - (τ - 3 * ℓ / 2) = 2 * ℓ := by ring
+  have e2 : τ + 3 * ℓ / 2 - (τ - ℓ / 2) = 2 * ℓ := by ring
+  have e3 : τ + 3 * ℓ / 2 - (τ - 3 * ℓ / 2) = 3 * ℓ := by ring
+  have e4 : τ + ℓ / 2 - (τ - ℓ / 2) = ℓ := by ring
+  rw [e1] at a1 a2; rw [e2] at b1 b2; rw [e3] at c1 c2; rw [e4] at d1 d2
+  set A := W (τ + ℓ / 2) - W (τ - 3 * ℓ / 2)
+  set Bd := W (τ + 3 * ℓ / 2) - W (τ - ℓ / 2)
+  set Cd := W (τ + 3 * ℓ / 2) - W (τ - 3 * ℓ / 2)
+  set Dd := W (τ + ℓ / 2) - W (τ - ℓ / 2)
+  have hi0 : 0 < hi := lt_of_lt_of_le hlo ((hw τ (by simpa using (by linarith : (0:ℝ) ≤ δ0))).1.trans
+    (hw τ (by simpa using (by linarith : (0:ℝ) ≤ δ0))).2)
+  have hA : 0 < A := lt_of_lt_of_le (by positivity) a1
+  have hBd : 0 < Bd := lt_of_lt_of_le (by positivity) b1
+  have hCd : 0 < Cd := lt_of_lt_of_le (by positivity) c1
+  have hDd : 0 < Dd := lt_of_lt_of_le (by positivity) d1
+  have e34 : (3 * ℓ * ℓ) / ((2 * ℓ) * (2 * ℓ)) = 3 / 4 := by field_simp; ring
+  rw [e34]
+  refine ⟨by positivity, ?_⟩
+  have hnum : A * Bd ≤ (hi * (2 * ℓ)) * (hi * (2 * ℓ)) := mul_le_mul a2 b2 hBd.le (by positivity)
+  have hden : (lo * (3 * ℓ)) * (lo * ℓ) ≤ Cd * Dd := mul_le_mul c1 d1 (by positivity) hCd.le
+  have hq : A * Bd / (Cd * Dd) ≤ (hi * (2 * ℓ)) * (hi * (2 * ℓ)) / ((lo * (3 * ℓ)) * (lo * ℓ)) :=
+    div_le_div₀ (by positivity) hnum (by positivity) hden
+  have e : (3 : ℝ) / 4 * ((hi * (2 * ℓ)) * (hi * (2 * ℓ)) / ((lo * (3 * ℓ)) * (lo * ℓ)))
+      = (hi / lo) ^ 2 := by field_simp; ring
+  rw [← e]
+  exact mul_le_mul_of_nonneg_left hq (by norm_num)
+
+/-- The estimator of `thm:lapse-est` for every spacing in the window: for `0 < a ≤ b`, `L ≥ 0`,
+`δ0 > 0` there is `C'`, depending only on these numbers, such that for every lapse with four
+derivatives on `[τ − δ0, τ + δ0]`, `a ≤ Ω ≤ b`, `|Ω_k| ≤ L` there, every spacing `0 < ℓ ≤ 2δ0/3`
+and every measured cross-ratio `ρ` with `|ρ − ρ₀| ≤ ε`:
+`|3(ρ − 1)/ℓ² − 𝒦(τ)| ≤ C' ℓ² + 3 ε/ℓ²`.  The model error `ε` is a HYPOTHESIS. -/
+theorem lapse_estimator_all (a b L δ0 : ℝ) (ha : 0 < a) (hab : a ≤ b) (hL : 0 ≤ L)
+    (hδ0 : 0 < δ0) :
+    ∃ C' : ℝ, ∀ (Ω Ω1 Ω2 Ω3 Ω4 W : ℝ → ℝ) (τ : ℝ),
+      (∀ t, |t - τ| ≤ δ0 → HasDerivAt Ω (Ω1 t) t) → (∀ t, |t - τ| ≤ δ0 → HasDerivAt Ω1 (Ω2 t) t) →
+      (∀ t, |t - τ| ≤ δ0 → HasDerivAt Ω2 (Ω3 t) t) → (∀ t, |t - τ| ≤ δ0 → HasDerivAt Ω3 (Ω4 t) t) →
+      (∀ t, |t - τ| ≤ δ0 → HasDerivAt W (1 / (Ω t) ^ 2) t) →
+      (∀ t, |t - τ| ≤ δ0 → a ≤ Ω t ∧ Ω t ≤ b) →
+      (∀ t, |t - τ| ≤ δ0 → |Ω1 t| ≤ L ∧ |Ω2 t| ≤ L ∧ |Ω3 t| ≤ L ∧ |Ω4 t| ≤ L) →
+      ∀ (ℓ ρ ε : ℝ), 0 < ℓ → 3 * ℓ / 2 ≤ δ0 →
+        |ρ - (3 * ℓ * ℓ) / ((2 * ℓ) * (2 * ℓ)) *
+          (((W (τ + ℓ / 2) - W (τ - 3 * ℓ / 2)) * (W (τ + 3 * ℓ / 2) - W (τ - ℓ / 2))) /
+           ((W (τ + 3 * ℓ / 2) - W (τ - 3 * ℓ / 2)) * (W (τ + ℓ / 2) - W (τ - ℓ / 2))))| ≤ ε →
+        |3 * (ρ - 1) / ℓ ^ 2 - (-(Ω2 τ) / Ω τ)| ≤ C' * ℓ ^ 2 + 3 * ε / ℓ ^ 2 := by
+  obtain ⟨C, ℓ0, hℓ0, hmain⟩ := TimeAppendix11.lapse_estimator a b L δ0 ha hab hL hδ0
+  have hb : 0 < b := lt_of_lt_of_le ha hab
+  set R0 : ℝ := ((1 / a ^ 2) / (1 / b ^ 2)) ^ 2 with hR0
+  have hR00 : 0 ≤ R0 := by positivity
+  set C2 : ℝ := 3 * (R0 + 1) / ℓ0 ^ 4 + L / a / ℓ0 ^ 2 with hC2
+  have hC20 : 0 ≤ C2 := by positivity
+  refine ⟨max (3 * C) C2, ?_⟩
+  intro Ω Ω1 Ω2 Ω3 Ω4 W τ h0 h1 h2 h3 hW hΩ hb' ℓ ρ ε hl hlδ hρ
+  have hl2 : 0 < ℓ ^ 2 := by positivity
+  rcases lt_or_ge ℓ ℓ0 with hsmall | hbig
+  · have := hmain Ω Ω1 Ω2 Ω3 Ω4 W τ h0 h1 h2 h3 hW hΩ hb' ℓ ρ ε hl.ne'
+      (by rw [abs_of_pos hl]; exact hsmall) hρ
+    have hmax : 3 * C * ℓ ^ 2 ≤ max (3 * C) C2 * ℓ ^ 2 :=
+      mul_le_mul_of_nonneg_right (le_max_left _ _) hl2.le
+    linarith
+  · have hτ : |τ - τ| ≤ δ0 := by simpa using hδ0.le
+    have hwb : ∀ t, |t - τ| ≤ δ0 → 1 / b ^ 2 ≤ 1 / (Ω t) ^ 2 ∧ 1 / (Ω t) ^ 2 ≤ 1 / a ^ 2 := by
+      intro t ht
+      obtain ⟨g1, g2⟩ := hΩ t ht
+      have hp : 0 < Ω t := lt_of_lt_of_le ha g1
+      exact ⟨one_div_le_one_div_of_le (by positivity) (pow_le_pow_left₀ hp.le g2 2),
+        one_div_le_one_div_of_le (by positivity) (pow_le_pow_left₀ ha.le g1 2)⟩
+    obtain ⟨r1, r2⟩ := cross_ratio_bounded W (fun t => 1 / (Ω t) ^ 2) τ δ0 (1 / b ^ 2) (1 / a ^ 2) ℓ
+      (by positivity) hW hwb hl hlδ
+    set ρ0 := (3 * ℓ * ℓ) / ((2 * ℓ) * (2 * ℓ)) *
+          (((W (τ + ℓ / 2) - W (τ - 3 * ℓ / 2)) * (W (τ + 3 * ℓ / 2) - W (τ - ℓ / 2))) /
+           ((W (τ + 3 * ℓ / 2) - W (τ - 3 * ℓ / 2)) * (W (τ + ℓ / 2) - W (τ - ℓ / 2)))) with hρ0
+    set K := -(Ω2 τ) / Ω τ with hK
+    have hKb : |K| ≤ L / a := by
+      obtain ⟨g1, _⟩ := hΩ τ hτ
+      have hp : 0 < Ω τ := lt_of_lt_of_le ha g1
+      simp only [hK]
+      rw [abs_div, abs_neg, abs_of_pos hp]
+      exact div_le_div₀ hL (hb' τ hτ).2.1 ha g1
+    have h01 : |ρ0 - 1| ≤ R0 + 1 := by
+      rw [abs_le]; constructor <;> linarith
+    have e : 3 * (ρ - 1) / ℓ ^ 2 - K = 3 * (ρ0 - 1) / ℓ ^ 2 - K + 3 * (ρ - ρ0) / ℓ ^ 2 := by
+      field_simp; ring
+    have t2 : |3 * (ρ - ρ0) / ℓ ^ 2| ≤ 3 * ε / ℓ ^ 2 := by
+      rw [abs_div, abs_of_pos hl2, abs_mul, abs_of_pos (by norm_num : (0:ℝ) < 3)]
+      exact div_le_div_of_nonneg_right (mul_le_mul_of_nonneg_left hρ (by norm_num)) hl2.le
+    have hl4 : ℓ0 ^ 4 ≤ ℓ ^ 4 := pow_le_pow_left₀ hℓ0.le hbig 4
+    have hl2' : ℓ0 ^ 2 ≤ ℓ ^ 2 := pow_le_pow_left₀ hℓ0.le hbig 2
+    have t1a : |3 * (ρ0 - 1) / ℓ ^ 2| ≤ 3 * (R0 + 1) / ℓ0 ^ 4 * ℓ ^ 2 := by
+      rw [abs_div, abs_of_pos hl2, abs_mul, abs_of_pos (by norm_num : (0:ℝ) < 3),
+        div_le_iff₀ hl2]
+      have h1 : 3 * |ρ0 - 1| ≤ 3 * (R0 + 1) := by linarith
+      have h2 : 3 * (R0 + 1) = 3 * (R0 + 1) / ℓ0 ^ 4 * ℓ0 ^ 4 := by field_simp
+      have h3 : 3 * (R0 + 1) / ℓ0 ^ 4 * ℓ0 ^ 4 ≤ 3 * (R0 + 1) / ℓ0 ^ 4 * ℓ ^ 4 :=
+        mul_le_mul_of_nonneg_left hl4 (by positivity)
+      have h4 : 3 * (R0 + 1) / ℓ0 ^ 4 * ℓ ^ 2 * ℓ ^ 2 = 3 * (R0 + 1) / ℓ0 ^ 4 * ℓ ^ 4 := by ring
+      linarith
+    have t1b : |K| ≤ L / a / ℓ0 ^ 2 * ℓ ^ 2 := by
+      have h2 : L / a = L / a / ℓ0 ^ 2 * ℓ0 ^ 2 := by field_simp
+      have h3 : L / a / ℓ0 ^ 2 * ℓ0 ^ 2 ≤ L / a / ℓ0 ^ 2 * ℓ ^ 2 :=
+        mul_le_mul_of_nonneg_left hl2' (by positivity)
+      linarith
+    have hsum : |3 * (ρ0 - 1) / ℓ ^ 2 - K| ≤ C2 * ℓ ^ 2 := by
+      have := abs_sub (3 * (ρ0 - 1) / ℓ ^ 2) K
+      simp only [hC2]
+      linarith [add_mul (3 * (R0 + 1) / ℓ0 ^ 4) (L / a / ℓ0 ^ 2) (ℓ ^ 2)]
+    have hmax : C2 * ℓ ^ 2 ≤ max (3 * C) C2 * ℓ ^ 2 :=
+      mul_le_mul_of_nonneg_right (le_max_right _ _) hl2.le
+    rw [e]
+    have := abs_add_le (3 * (ρ0 - 1) / ℓ ^ 2 - K) (3 * (ρ - ρ0) / ℓ ^ 2)
+    linarith
+
+end TimeAppendix12
+
 end CTG.Reals2
