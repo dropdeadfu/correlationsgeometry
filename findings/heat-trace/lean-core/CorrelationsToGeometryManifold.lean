@@ -298,8 +298,9 @@ theorem riemannianEDist_ne_top_of_le {M' : Type*} [PseudoEMetricSpace M'] [Chart
 
 /-! ### The kernel at two times (Step 1 of `prop:dotLN-diff` as one statement)
 
-`mvt_bound` and `kernel_step_one` are copied from the seventh file (`TimeAppendix`), which this file
-does not import. -/
+`mvt_bound` and `kernel_step_one` are copied from the seventh file (`TimeAppendix` in
+`CorrelationsToGeometryReal3.lean`, state of 23 November 2026, 1082 statements), which this file does
+not import; if one copy is changed, the other is not. -/
 
 theorem mvt_bound (h h' : ℝ → ℝ) (a b M : ℝ) (hab : a < b)
     (hd : ∀ s, HasDerivAt h (h' s) s) (hM : ∀ s, a < s → s < b → |h' s| ≤ M) :
@@ -391,5 +392,27 @@ theorem kernel_two_times (s : Set ℝ) (hs : Convex ℝ s)
     (mul_nonneg hκ (abs_nonneg _)) hab hder hbd ?_ ?_
   · rw [div_mul_eq_mul_div, div_le_div_iff_of_pos_right hξ, mul_comm]; exact hlo
   · rw [div_mul_eq_mul_div, div_le_div_iff_of_pos_right hξ, mul_comm]; exact hhi
+
+/-- The case of distance zero at time `a`: then the distance at time `b` is zero as well, and the
+kernel does not change. -/
+theorem kernel_two_times_zero (s : Set ℝ) (hs : Convex ℝ s)
+    (n : ℝ → ∀ x : M, ENorm (TangentSpace I x))
+    (g g' : ℝ → (x : M) → TangentSpace I x → ℝ) (κ : ℝ)
+    (hn : ∀ τ ∈ s, ∀ x v, @enorm _ (n τ x) v = ENNReal.ofReal (Real.sqrt (g τ x v)))
+    (hcase : ∀ x v, (∀ τ ∈ s, g τ x v = 0) ∨ (∀ τ ∈ s, 0 < g τ x v))
+    (hd : ∀ τ ∈ s, ∀ x v, HasDerivWithinAt (fun u => g u x v) (g' τ x v) s τ)
+    (hb : ∀ τ ∈ s, ∀ x v, |g' τ x v| ≤ 2 * κ * g τ x v) {a b : ℝ} (ha : a ∈ s) (hb' : b ∈ s)
+    (p q : M) (hfin : (letI := n a; Manifold.riemannianEDist I p q) ≠ ⊤)
+    (hzero : (letI := n a; Manifold.riemannianEDist I p q).toReal = 0) (h : ℝ → ℝ) (ξ : ℝ) :
+    h ((letI := n b; Manifold.riemannianEDist I p q).toReal / ξ)
+      = h ((letI := n a; Manifold.riemannianEDist I p q).toReal / ξ) := by
+  have h1 := riemannianEDist_time_on s hs n g g' κ hn hcase hd hb ha hb' p q
+  have h2 := riemannianEDist_time_on s hs n g g' κ hn hcase hd hb hb' ha p q
+  rw [abs_sub_comm a b] at h2
+  obtain ⟨_, _, hhi⟩ := real_comparison _ _ _ h1 h2 hfin
+  rw [hzero, mul_zero] at hhi
+  have : (letI := n b; Manifold.riemannianEDist I p q).toReal = 0 :=
+    le_antisymm hhi ENNReal.toReal_nonneg
+  rw [this, hzero]
 
 end CTG.ManifoldDistance

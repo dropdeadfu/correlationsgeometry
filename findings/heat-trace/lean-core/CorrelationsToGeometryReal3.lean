@@ -28234,4 +28234,355 @@ theorem schwarz_uniform (m B B5 : ℝ) (hm : 0 < m) (hB : 0 ≤ B) (hB5 : 0 ≤ 
 
 end TimeAppendix7
 
+/-! ### Appendix H, continued (A88): `schwarz_uniform` on a window -/
+namespace TimeAppendix7
+
+set_option maxHeartbeats 3200000 in
+/-- `schwarz_uniform` with the Taylor bound required only on a window `|h| ≤ δ0` around `τ`
+(any `δ0 > 0`); `C` and `ℓ₀` depend only on `m, B, B5, δ0`. -/
+theorem schwarz_uniform_window (m B B5 δ0 : ℝ) (hm : 0 < m) (hB : 0 ≤ B) (hB5 : 0 ≤ B5)
+    (hδ0 : 0 < δ0) :
+    ∃ C ℓ0 : ℝ, 0 < ℓ0 ∧ ∀ (W : ℝ → ℝ) (τ W0 W1 W2 W3 W4 : ℝ),
+      m ≤ W1 → |W1| ≤ B → |W2| ≤ B → |W3| ≤ B → |W4| ≤ B →
+      (∀ h, |h| ≤ δ0 → |W (τ + h) - W0 - W1 * h - W2 * h ^ 2 / 2 - W3 * h ^ 3 / 6
+          - W4 * h ^ 4 / 24| ≤ B5 * |h| ^ 5) →
+      ∀ ℓ : ℝ, ℓ ≠ 0 → |ℓ| < ℓ0 →
+        |(3 * ℓ * ℓ) / ((2 * ℓ) * (2 * ℓ)) *
+          (((W (τ + ℓ / 2) - W (τ - 3 * ℓ / 2)) * (W (τ + 3 * ℓ / 2) - W (τ - ℓ / 2))) /
+           ((W (τ + 3 * ℓ / 2) - W (τ - 3 * ℓ / 2)) * (W (τ + ℓ / 2) - W (τ - ℓ / 2)))) - 1
+          - (W3 / W1 - 3 / 2 * (W2 / W1) ^ 2) / 6 * ℓ ^ 2| ≤ C * ℓ ^ 4 := by
+  set Sb : ℝ := B / m + 3 / 2 * (B / m) ^ 2 with hSb
+  have hSb0 : 0 ≤ Sb := by positivity
+  set R : ℝ := B + Sb + 16 * B5 + 1 with hR
+  have hR1 : 1 ≤ R := by simp only [hR]; linarith
+  -- compactness bound for schN on the box
+  set f : ℝ × ℝ × ℝ × ℝ × ℝ × ℝ × ℝ × ℝ × ℝ × ℝ → ℝ := fun p =>
+    schN p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2.1 p.2.2.2.2.2.1 p.2.2.2.2.2.2.1
+      p.2.2.2.2.2.2.2.1 p.2.2.2.2.2.2.2.2.1 p.2.2.2.2.2.2.2.2.2 with hf
+  have hfc : Continuous f := by simp only [hf]; unfold schN schG; fun_prop
+  obtain ⟨C1, hC1⟩ := (isCompact_Icc
+      (a := ((-R, -R, -R, -R, -R, -R, -R, -R, -R, -R) : ℝ × ℝ × ℝ × ℝ × ℝ × ℝ × ℝ × ℝ × ℝ × ℝ))
+      (b := (R, R, R, R, R, R, R, R, R, R))).exists_bound_of_continuousOn hfc.continuousOn
+  set D : ℝ := 2 * B + 16 * B5 + 1 with hD
+  have hD0 : 0 < D := by simp only [hD]; linarith
+  set δ : ℝ := m / (2 * D) with hδ
+  have hδ0' : 0 < δ := by positivity
+  refine ⟨max C1 0 / (4 * m ^ 2), min (min 1 δ) (δ0 / 2),
+    lt_min (lt_min one_pos hδ0') (by positivity), ?_⟩
+  intro W τ W0 W1 W2 W3 W4 hW1 hb1 hb2 hb3 hb4 hT ℓ hl hlt
+  have hl1 : |ℓ| < 1 := lt_of_lt_of_le hlt ((min_le_left _ _).trans (min_le_left _ _))
+  have hlw : |ℓ| < δ0 / 2 := lt_of_lt_of_le hlt (min_le_right _ _)
+  have hlδ : |ℓ| < δ := lt_of_lt_of_le hlt ((min_le_left _ _).trans (min_le_right _ _))
+  have hW1pos : 0 < W1 := lt_of_lt_of_le hm hW1
+  set u : ℝ := ℓ ^ 2 with hu
+  have hu0 : 0 ≤ u := sq_nonneg _
+  have hu1 : u ≤ |ℓ| := by
+    have : u = |ℓ| * |ℓ| := by rw [hu, ← sq_abs]; ring
+    rw [this]; nlinarith [abs_nonneg ℓ]
+  have huδ : D * u ≤ m / 2 := by
+    have h1 : u ≤ δ := hu1.trans hlδ.le
+    have h2 : D * u ≤ D * δ := mul_le_mul_of_nonneg_left h1 hD0.le
+    have h3 : D * δ = m / 2 := by simp only [hδ]; field_simp
+    linarith
+  have hu4 : ℓ ^ 4 = u * u := by simp only [hu]; ring
+  have huu : u * u ≤ u := by nlinarith [hu1, hl1.le, abs_nonneg ℓ]
+  -- the four Taylor remainders
+  set E : ℝ → ℝ := fun h => (W (τ + h) - W0 - W1 * h - W2 * h ^ 2 / 2 - W3 * h ^ 3 / 6
+      - W4 * h ^ 4 / 24) / h ^ 5 with hE
+  have hEb : ∀ s : ℝ, s ≠ 0 → |s| ≤ 2 → |E (s * ℓ)| ≤ B5 := by
+    intro s hs hs2
+    have hne : s * ℓ ≠ 0 := mul_ne_zero hs hl
+    have hle : |s * ℓ| ≤ δ0 := by
+      rw [abs_mul]; nlinarith [abs_nonneg s, abs_nonneg ℓ, hlw.le]
+    have h5 : 0 < |s * ℓ| ^ 5 := pow_pos (abs_pos.mpr hne) 5
+    simp only [hE]
+    rw [abs_div, abs_pow, div_le_iff₀ h5]
+    exact hT _ hle
+  have val : ∀ s : ℝ, s ≠ 0 →
+      W (τ + s * ℓ) = W0 + W1 * (s * ℓ) + W2 * (s * ℓ) ^ 2 / 2 + W3 * (s * ℓ) ^ 3 / 6
+        + W4 * (s * ℓ) ^ 4 / 24 + (s * ℓ) ^ 5 * E (s * ℓ) := by
+    intro s hs
+    have : s * ℓ ≠ 0 := mul_ne_zero hs hl
+    simp only [hE]
+    field_simp
+    ring
+  have a1 : τ + ℓ / 2 = τ + 1 / 2 * ℓ := by ring
+  have a2 : τ - ℓ / 2 = τ + -(1 / 2) * ℓ := by ring
+  have a3 : τ + 3 * ℓ / 2 = τ + 3 / 2 * ℓ := by ring
+  have a4 : τ - 3 * ℓ / 2 = τ + -(3 / 2) * ℓ := by ring
+  set e1 := E (1 / 2 * ℓ) with he1
+  set e2 := E (-(1 / 2) * ℓ) with he2
+  set e3 := E (3 / 2 * ℓ) with he3
+  set e4 := E (-(3 / 2) * ℓ) with he4
+  have b1 : |e1| ≤ B5 := hEb _ (by norm_num) (by norm_num [abs_of_pos])
+  have b2 : |e2| ≤ B5 := hEb _ (by norm_num) (by norm_num [abs_of_pos])
+  have b3 : |e3| ≤ B5 := hEb _ (by norm_num) (by norm_num [abs_of_pos])
+  have b4 : |e4| ≤ B5 := hEb _ (by norm_num) (by norm_num [abs_of_pos])
+  set qcb : ℝ := (e1 + e2) / 32 with hqcb
+  set qda : ℝ := 243 * (e3 + e4) / 32 with hqda
+  set qca : ℝ := (e1 + 243 * e4) / 32 with hqca
+  set qdb : ℝ := (243 * e3 + e2) / 32 with hqdb
+  have q1 : |qcb| ≤ 16 * B5 := by
+    simp only [hqcb]; rw [abs_le] at *; constructor <;> linarith [b1.1, b1.2, b2.1, b2.2]
+  have q2 : |qda| ≤ 16 * B5 := by
+    simp only [hqda]; rw [abs_le] at *; constructor <;> linarith [b3.1, b3.2, b4.1, b4.2]
+  have q3 : |qca| ≤ 16 * B5 := by
+    simp only [hqca]; rw [abs_le] at *; constructor <;> linarith [b1.1, b1.2, b4.1, b4.2]
+  have q4 : |qdb| ≤ 16 * B5 := by
+    simp only [hqdb]; rw [abs_le] at *; constructor <;> linarith [b3.1, b3.2, b2.1, b2.2]
+  have dcb : W (τ + ℓ / 2) - W (τ - ℓ / 2) = ℓ * (W1 + W3 * ℓ ^ 2 / 24 + ℓ ^ 4 * qcb) := by
+    rw [a1, a2, val (1 / 2) (by norm_num), val (-(1 / 2)) (by norm_num)]
+    simp only [hqcb, he1, he2]; ring
+  have dda : W (τ + 3 * ℓ / 2) - W (τ - 3 * ℓ / 2)
+      = ℓ * (3 * W1 + 9 * W3 * ℓ ^ 2 / 8 + ℓ ^ 4 * qda) := by
+    rw [a3, a4, val (3 / 2) (by norm_num), val (-(3 / 2)) (by norm_num)]
+    simp only [hqda, he3, he4]; ring
+  have dca : W (τ + ℓ / 2) - W (τ - 3 * ℓ / 2)
+      = ℓ * (2 * W1 + 7 * W3 * ℓ ^ 2 / 12 - (W2 * ℓ + 5 * W4 * ℓ ^ 3 / 24) + ℓ ^ 4 * qca) := by
+    rw [a1, a4, val (1 / 2) (by norm_num), val (-(3 / 2)) (by norm_num)]
+    simp only [hqca, he1, he4]; ring
+  have ddb : W (τ + 3 * ℓ / 2) - W (τ - ℓ / 2)
+      = ℓ * (2 * W1 + 7 * W3 * ℓ ^ 2 / 12 + (W2 * ℓ + 5 * W4 * ℓ ^ 3 / 24) + ℓ ^ 4 * qdb) := by
+    rw [a3, a2, val (3 / 2) (by norm_num), val (-(1 / 2)) (by norm_num)]
+    simp only [hqdb, he3, he2]; ring
+  -- lower bounds for the denominators
+  have hc : 2 * m ≤ 3 * W1 + 9 * W3 * ℓ ^ 2 / 8 + ℓ ^ 4 * qda := by
+    have t1 : -(B * u) ≤ W3 * u := by
+      have := (abs_le.mp hb3).1; nlinarith
+    have t2 : -(16 * B5 * u) ≤ u * u * qda := by
+      have h1 := (abs_le.mp q2).1
+      have h2 : -(16 * B5) * (u * u) ≤ qda * (u * u) :=
+        mul_le_mul_of_nonneg_right h1 (mul_nonneg hu0 hu0)
+      nlinarith [mul_nonneg (mul_nonneg (by norm_num : (0:ℝ) ≤ 16) hB5) (sub_nonneg.mpr huu)]
+    rw [hu4]
+    have e : 9 * W3 * ℓ ^ 2 / 8 = 9 / 8 * (W3 * u) := by simp only [hu]; ring
+    rw [e]
+    simp only [hD] at huδ
+    nlinarith [mul_nonneg hB hu0, mul_nonneg hB5 hu0]
+  have hd : m / 2 ≤ W1 + W3 * ℓ ^ 2 / 24 + ℓ ^ 4 * qcb := by
+    have t1 : -(B * u) ≤ W3 * u := by
+      have := (abs_le.mp hb3).1; nlinarith
+    have t2 : -(16 * B5 * u) ≤ u * u * qcb := by
+      have h1 := (abs_le.mp q1).1
+      have h2 : -(16 * B5) * (u * u) ≤ qcb * (u * u) :=
+        mul_le_mul_of_nonneg_right h1 (mul_nonneg hu0 hu0)
+      nlinarith [mul_nonneg (mul_nonneg (by norm_num : (0:ℝ) ≤ 16) hB5) (sub_nonneg.mpr huu)]
+    rw [hu4]
+    have e : W3 * ℓ ^ 2 / 24 = 1 / 24 * (W3 * u) := by simp only [hu]; ring
+    rw [e]
+    simp only [hD] at huδ
+    nlinarith [mul_nonneg hB hu0, mul_nonneg hB5 hu0]
+  have hcpos : 0 < 3 * W1 + 9 * W3 * ℓ ^ 2 / 8 + ℓ ^ 4 * qda := by linarith
+  have hdpos : 0 < W1 + W3 * ℓ ^ 2 / 24 + ℓ ^ 4 * qcb := by linarith
+  set S : ℝ := W3 / W1 - 3 / 2 * (W2 / W1) ^ 2 with hS
+  have hSW : S * W1 ^ 2 = W1 * W3 - 3 / 2 * W2 ^ 2 := by
+    simp only [hS]; field_simp
+  have hSabs : |S| ≤ Sb := by
+    have r1 : |W3 / W1| ≤ B / m := by
+      rw [abs_div, abs_of_pos hW1pos]
+      exact div_le_div₀ hB hb3 hm hW1
+    have r2 : |W2 / W1| ≤ B / m := by
+      rw [abs_div, abs_of_pos hW1pos]
+      exact div_le_div₀ hB hb2 hm hW1
+    have r3 : (W2 / W1) ^ 2 ≤ (B / m) ^ 2 := by
+      rw [← sq_abs]; exact pow_le_pow_left₀ (abs_nonneg _) r2 2
+    simp only [hS, hSb]
+    rw [abs_le]
+    have := abs_le.mp r1
+    constructor <;> nlinarith [sq_nonneg (W2 / W1)]
+  rw [dcb, dda, dca, ddb, sch_gen S ℓ _ _ _ _ hl hcpos.ne' hdpos.ne',
+    sch_key W1 W2 W3 W4 S ℓ qcb qda qca qdb hSW]
+  -- bound
+  have hmem : (W1, W2, W3, W4, S, ℓ, qcb, qda, qca, qdb) ∈
+      Set.Icc ((-R, -R, -R, -R, -R, -R, -R, -R, -R, -R) :
+        ℝ × ℝ × ℝ × ℝ × ℝ × ℝ × ℝ × ℝ × ℝ × ℝ) (R, R, R, R, R, R, R, R, R, R) := by
+    have g : ∀ x b : ℝ, |x| ≤ b → b ≤ R → -R ≤ x ∧ x ≤ R := fun x b hx hbR => by
+      have := abs_le.mp hx; constructor <;> linarith
+    have k1 := g W1 B hb1 (by simp only [hR]; linarith)
+    have k2 := g W2 B hb2 (by simp only [hR]; linarith)
+    have k3 := g W3 B hb3 (by simp only [hR]; linarith)
+    have k4 := g W4 B hb4 (by simp only [hR]; linarith)
+    have k5 := g S Sb hSabs (by simp only [hR]; linarith)
+    have k6 := g ℓ 1 hl1.le hR1
+    have k7 := g qcb _ q1 (by simp only [hR]; linarith)
+    have k8 := g qda _ q2 (by simp only [hR]; linarith)
+    have k9 := g qca _ q3 (by simp only [hR]; linarith)
+    have k10 := g qdb _ q4 (by simp only [hR]; linarith)
+    exact ⟨⟨k1.1, k2.1, k3.1, k4.1, k5.1, k6.1, k7.1, k8.1, k9.1, k10.1⟩,
+      ⟨k1.2, k2.2, k3.2, k4.2, k5.2, k6.2, k7.2, k8.2, k9.2, k10.2⟩⟩
+  have hNb : |schN W1 W2 W3 W4 S ℓ qcb qda qca qdb| ≤ max C1 0 := by
+    have := hC1 _ hmem
+    rw [Real.norm_eq_abs] at this
+    exact this.trans (le_max_left _ _)
+  have hden : 4 * m ^ 2 ≤ 4 * ((3 * W1 + 9 * W3 * ℓ ^ 2 / 8 + ℓ ^ 4 * qda)
+      * (W1 + W3 * ℓ ^ 2 / 24 + ℓ ^ 4 * qcb)) := by
+    have hmul := mul_le_mul hc hd (by positivity) hcpos.le
+    have e : 4 * m ^ 2 = 4 * (2 * m * (m / 2)) := by ring
+    rw [e]; linarith [hmul]
+  have hdenpos : 0 < 4 * ((3 * W1 + 9 * W3 * ℓ ^ 2 / 8 + ℓ ^ 4 * qda)
+      * (W1 + W3 * ℓ ^ 2 / 24 + ℓ ^ 4 * qcb)) := by positivity
+  have h4 : 0 ≤ ℓ ^ 4 := by positivity
+  rw [abs_div, abs_of_pos hdenpos, abs_mul, abs_of_nonneg h4, div_le_iff₀ hdenpos]
+  have hm2 : 0 < 4 * m ^ 2 := by positivity
+  calc ℓ ^ 4 * |schN W1 W2 W3 W4 S ℓ qcb qda qca qdb|
+      ≤ ℓ ^ 4 * max C1 0 := mul_le_mul_of_nonneg_left hNb h4
+    _ = max C1 0 / (4 * m ^ 2) * ℓ ^ 4 * (4 * m ^ 2) := by field_simp
+    _ ≤ max C1 0 / (4 * m ^ 2) * ℓ ^ 4 * (4 * ((3 * W1 + 9 * W3 * ℓ ^ 2 / 8 + ℓ ^ 4 * qda)
+          * (W1 + W3 * ℓ ^ 2 / 24 + ℓ ^ 4 * qcb))) :=
+        mul_le_mul_of_nonneg_left hden (by positivity)
+
+end TimeAppendix7
+
+/-! ### Appendix H, continued (A89): the Lagrange bound that enters `schwarz_uniform` -/
+namespace TimeAppendix8
+
+/-- One integration step on `[0, δ]`: `g 0 = 0` and `|g' t| ≤ c tⁿ` for `0 ≤ t ≤ δ` give
+`|g h| ≤ c h^{n+1}/(n+1)` for `0 ≤ h ≤ δ`. -/
+theorem pow_step_nonneg (g g' : ℝ → ℝ) (c δ : ℝ) (n : ℕ) (hg0 : g 0 = 0)
+    (hd : ∀ t, HasDerivAt g (g' t) t) (hb : ∀ t, 0 ≤ t → t ≤ δ → |g' t| ≤ c * t ^ n)
+    (h : ℝ) (h0 : 0 ≤ h) (hδ : h ≤ δ) : |g h| ≤ c * h ^ (n + 1) / (n + 1) := by
+  have hn : (0 : ℝ) < n + 1 := by positivity
+  have hp : ∀ t, HasDerivAt (fun t => c * t ^ (n + 1) / (n + 1)) (c * t ^ n) t := by
+    intro t
+    have := ((hasDerivAt_pow (n + 1) t).const_mul c).div_const ((n : ℝ) + 1)
+    convert this using 1
+    push_cast
+    field_simp
+  have mono : ∀ (φ φ' : ℝ → ℝ), (∀ t, HasDerivAt φ (φ' t) t) →
+      (∀ t, 0 ≤ t → t ≤ δ → 0 ≤ φ' t) → φ 0 ≤ φ h := by
+    intro φ φ' hφ hpos
+    have hm : MonotoneOn φ (Set.Icc 0 h) := by
+      apply monotoneOn_of_deriv_nonneg (convex_Icc 0 h)
+      · exact fun t _ => (hφ t).continuousAt.continuousWithinAt
+      · exact fun t _ => (hφ t).differentiableAt.differentiableWithinAt
+      · intro t ht
+        rw [interior_Icc] at ht
+        rw [(hφ t).deriv]
+        exact hpos t ht.1.le (ht.2.le.trans hδ)
+    exact hm ⟨le_refl _, h0⟩ ⟨h0, le_refl _⟩ h0
+  have u1 := mono (fun t => c * t ^ (n + 1) / (n + 1) - g t) (fun t => c * t ^ n - g' t)
+    (fun t => (hp t).sub (hd t))
+    (fun t t0 tδ => by have := (abs_le.mp (hb t t0 tδ)).2; linarith)
+  have u2 := mono (fun t => c * t ^ (n + 1) / (n + 1) + g t) (fun t => c * t ^ n + g' t)
+    (fun t => (hp t).add (hd t))
+    (fun t t0 tδ => by have := (abs_le.mp (hb t t0 tδ)).1; linarith)
+  simp only [hg0, zero_pow (Nat.succ_ne_zero n), mul_zero, zero_div, sub_zero, add_zero] at u1 u2
+  rw [abs_le]
+  constructor <;> linarith
+
+/-- The same on `[-δ, δ]`. -/
+theorem pow_step (g g' : ℝ → ℝ) (c δ : ℝ) (n : ℕ) (hg0 : g 0 = 0)
+    (hd : ∀ t, HasDerivAt g (g' t) t) (hb : ∀ t, |t| ≤ δ → |g' t| ≤ c * |t| ^ n)
+    (h : ℝ) (hh : |h| ≤ δ) : |g h| ≤ c * |h| ^ (n + 1) / (n + 1) := by
+  rcases le_total 0 h with h0 | h0
+  · rw [abs_of_nonneg h0] at hh ⊢
+    exact pow_step_nonneg g g' c δ n hg0 hd
+      (fun t t0 tδ => by have := hb t (by rw [abs_of_nonneg t0]; exact tδ)
+                         rwa [abs_of_nonneg t0] at this) h h0 hh
+  · rw [abs_of_nonpos h0] at hh ⊢
+    have := pow_step_nonneg (fun t => g (-t)) (fun t => -g' (-t)) c δ n (by simpa using hg0)
+      (fun t => by
+        have := (hd (-t)).scomp t (hasDerivAt_neg t)
+        simpa using this)
+      (fun t t0 tδ => by
+        have := hb (-t) (by rw [abs_neg, abs_of_nonneg t0]; exact tδ)
+        rw [abs_neg, abs_of_nonneg t0] at this
+        rwa [abs_neg])
+      (-h) (by linarith) hh
+    simpa using this
+
+/-- Lagrange bound of order five from the derivatives: if `W` has derivatives `D1, …, D5`
+everywhere and `|D5| ≤ M` on `[τ − δ, τ + δ]`, then for `|h| ≤ δ`
+`|W(τ+h) − W τ − D1 τ h − D2 τ h²/2 − D3 τ h³/6 − D4 τ h⁴/24| ≤ (M/120) |h|⁵`.
+This is the hypothesis `hT` of `schwarz_uniform_window` with `B5 = M/120`. -/
+theorem taylor_bound_of_fifth (W D1 D2 D3 D4 D5 : ℝ → ℝ) (τ δ M : ℝ)
+    (h0 : ∀ t, HasDerivAt W (D1 t) t) (h1 : ∀ t, HasDerivAt D1 (D2 t) t)
+    (h2 : ∀ t, HasDerivAt D2 (D3 t) t) (h3 : ∀ t, HasDerivAt D3 (D4 t) t)
+    (h4 : ∀ t, HasDerivAt D4 (D5 t) t) (hM : ∀ t, |t| ≤ δ → |D5 (τ + t)| ≤ M)
+    (h : ℝ) (hh : |h| ≤ δ) :
+    |W (τ + h) - W τ - D1 τ * h - D2 τ * h ^ 2 / 2 - D3 τ * h ^ 3 / 6 - D4 τ * h ^ 4 / 24|
+      ≤ M / 120 * |h| ^ 5 := by
+  have sh : ∀ (F F' : ℝ → ℝ), (∀ t, HasDerivAt F (F' t) t) →
+      ∀ t, HasDerivAt (fun s => F (τ + s)) (F' (τ + t)) t := by
+    intro F F' hF t
+    have := (hF (τ + t)).scomp t ((hasDerivAt_id t).const_add τ)
+    simpa using this
+  -- f4, f3, f2, f1, f0
+  set f4 : ℝ → ℝ := fun s => D4 (τ + s) - D4 τ with hf4
+  set f3 : ℝ → ℝ := fun s => D3 (τ + s) - D3 τ - D4 τ * s with hf3
+  set f2 : ℝ → ℝ := fun s => D2 (τ + s) - D2 τ - D3 τ * s - D4 τ * s ^ 2 / 2 with hf2
+  set f1 : ℝ → ℝ := fun s => D1 (τ + s) - D1 τ - D2 τ * s - D3 τ * s ^ 2 / 2
+    - D4 τ * s ^ 3 / 6 with hf1
+  set f0 : ℝ → ℝ := fun s => W (τ + s) - W τ - D1 τ * s - D2 τ * s ^ 2 / 2 - D3 τ * s ^ 3 / 6
+    - D4 τ * s ^ 4 / 24 with hf0
+  have d4 : ∀ t, HasDerivAt f4 (D5 (τ + t)) t := fun t => by
+    have := (sh D4 D5 h4 t).sub_const (D4 τ); simpa [hf4] using this
+  have d3 : ∀ t, HasDerivAt f3 (f4 t) t := fun t => by
+    have := ((sh D3 D4 h3 t).sub_const (D3 τ)).sub ((hasDerivAt_id t).const_mul (D4 τ))
+    simpa [hf3, hf4] using this
+  have d2 : ∀ t, HasDerivAt f2 (f3 t) t := fun t => by
+    have := (((sh D2 D3 h2 t).sub_const (D2 τ)).sub ((hasDerivAt_id t).const_mul (D3 τ))).sub
+      (((hasDerivAt_pow 2 t).const_mul (D4 τ)).div_const 2)
+    convert this using 1
+    simp only [hf3]; push_cast; ring
+  have d1 : ∀ t, HasDerivAt f1 (f2 t) t := fun t => by
+    have := ((((sh D1 D2 h1 t).sub_const (D1 τ)).sub ((hasDerivAt_id t).const_mul (D2 τ))).sub
+      (((hasDerivAt_pow 2 t).const_mul (D3 τ)).div_const 2)).sub
+      (((hasDerivAt_pow 3 t).const_mul (D4 τ)).div_const 6)
+    convert this using 1
+    simp only [hf2]; push_cast; ring
+  have d0 : ∀ t, HasDerivAt f0 (f1 t) t := fun t => by
+    have := (((((sh W D1 h0 t).sub_const (W τ)).sub ((hasDerivAt_id t).const_mul (D1 τ))).sub
+      (((hasDerivAt_pow 2 t).const_mul (D2 τ)).div_const 2)).sub
+      (((hasDerivAt_pow 3 t).const_mul (D3 τ)).div_const 6)).sub
+      (((hasDerivAt_pow 4 t).const_mul (D4 τ)).div_const 24)
+    convert this using 1
+    simp only [hf1]; push_cast; ring
+  have b4 : ∀ t, |t| ≤ δ → |f4 t| ≤ M * |t| := fun t ht => by
+    have := pow_step f4 (fun s => D5 (τ + s)) M δ 0 (by simp [hf4]) d4
+      (fun s hs => by simpa using hM s hs) t ht
+    simpa using this
+  have b3 : ∀ t, |t| ≤ δ → |f3 t| ≤ M / 2 * |t| ^ 2 := fun t ht => by
+    have := pow_step f3 f4 M δ 1 (by simp [hf3]) d3 (fun s hs => by simpa using b4 s hs) t ht
+    calc |f3 t| ≤ M * |t| ^ (1 + 1) / ((1 : ℕ) + 1) := this
+      _ = M / 2 * |t| ^ 2 := by push_cast; ring
+  have b2 : ∀ t, |t| ≤ δ → |f2 t| ≤ M / 6 * |t| ^ 3 := fun t ht => by
+    have := pow_step f2 f3 (M / 2) δ 2 (by simp [hf2]) d2 b3 t ht
+    calc |f2 t| ≤ M / 2 * |t| ^ (2 + 1) / ((2 : ℕ) + 1) := this
+      _ = M / 6 * |t| ^ 3 := by push_cast; ring
+  have b1 : ∀ t, |t| ≤ δ → |f1 t| ≤ M / 24 * |t| ^ 4 := fun t ht => by
+    have := pow_step f1 f2 (M / 6) δ 3 (by simp [hf1]) d1 b2 t ht
+    calc |f1 t| ≤ M / 6 * |t| ^ (3 + 1) / ((3 : ℕ) + 1) := this
+      _ = M / 24 * |t| ^ 4 := by push_cast; ring
+  have := pow_step f0 f1 (M / 24) δ 4 (by simp [hf0]) d0 b1 h hh
+  calc |f0 h| ≤ M / 24 * |h| ^ (4 + 1) / ((4 : ℕ) + 1) := this
+    _ = M / 120 * |h| ^ 5 := by push_cast; ring
+
+/-- `lem:schwarz` with uniform constants, in terms of derivatives: for `m > 0`, `B, M ≥ 0`, `δ0 > 0`
+there are `C` and `ℓ₀ > 0`, depending only on these numbers, such that for every `W` with derivatives
+`D1, …, D5` and every `τ` with `D1 τ ≥ m`, `|D_k τ| ≤ B` (`k = 1..4`) and `|D5| ≤ M` on
+`[τ − δ0, τ + δ0]`: `|ρ₀ − 1 − S(W)(τ) ℓ²/6| ≤ C ℓ⁴` for `0 < |ℓ| < ℓ₀`.  No hypothesis besides the
+derivatives and their bounds. -/
+theorem schwarz_uniform_deriv (m B M δ0 : ℝ) (hm : 0 < m) (hB : 0 ≤ B) (hM : 0 ≤ M)
+    (hδ0 : 0 < δ0) :
+    ∃ C ℓ0 : ℝ, 0 < ℓ0 ∧ ∀ (W D1 D2 D3 D4 D5 : ℝ → ℝ) (τ : ℝ),
+      (∀ t, HasDerivAt W (D1 t) t) → (∀ t, HasDerivAt D1 (D2 t) t) →
+      (∀ t, HasDerivAt D2 (D3 t) t) → (∀ t, HasDerivAt D3 (D4 t) t) →
+      (∀ t, HasDerivAt D4 (D5 t) t) →
+      m ≤ D1 τ → |D1 τ| ≤ B → |D2 τ| ≤ B → |D3 τ| ≤ B → |D4 τ| ≤ B →
+      (∀ t, |t| ≤ δ0 → |D5 (τ + t)| ≤ M) →
+      ∀ ℓ : ℝ, ℓ ≠ 0 → |ℓ| < ℓ0 →
+        |(3 * ℓ * ℓ) / ((2 * ℓ) * (2 * ℓ)) *
+          (((W (τ + ℓ / 2) - W (τ - 3 * ℓ / 2)) * (W (τ + 3 * ℓ / 2) - W (τ - ℓ / 2))) /
+           ((W (τ + 3 * ℓ / 2) - W (τ - 3 * ℓ / 2)) * (W (τ + ℓ / 2) - W (τ - ℓ / 2)))) - 1
+          - (D3 τ / D1 τ - 3 / 2 * (D2 τ / D1 τ) ^ 2) / 6 * ℓ ^ 2| ≤ C * ℓ ^ 4 := by
+  obtain ⟨C, ℓ0, hℓ0, hmain⟩ :=
+    TimeAppendix7.schwarz_uniform_window m B (M / 120) δ0 hm hB (by positivity) hδ0
+  refine ⟨C, ℓ0, hℓ0, ?_⟩
+  intro W D1 D2 D3 D4 D5 τ h0 h1 h2 h3 h4 hm1 b1 b2 b3 b4 hM5 ℓ hl hlt
+  exact hmain W τ (W τ) (D1 τ) (D2 τ) (D3 τ) (D4 τ) hm1 b1 b2 b3 b4
+    (fun h hh => taylor_bound_of_fifth W D1 D2 D3 D4 D5 τ δ0 M h0 h1 h2 h3 h4 hM5 h hh) ℓ hl hlt
+
+end TimeAppendix8
+
 end CTG.Reals2
