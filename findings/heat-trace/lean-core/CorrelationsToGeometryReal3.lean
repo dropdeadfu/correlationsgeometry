@@ -27746,4 +27746,82 @@ theorem landau_old_form_counterexample :
 
 end TimeAppendix4
 
+/-! ### Appendix H, continued (A85): the Bernstein step of `prop:dotLN-diff` (Steps 2–4)
+in abstract form, and two estimates of `lem:dotL-far` -/
+namespace TimeAppendix5
+
+/-- The Bernstein step used in Steps 2, 3 and 4 of `prop:dotLN-diff`, abstractly: for
+independent points with common law `ν`, an index `i ∉ T` and a jointly measurable `Y` with
+`|Y| ≤ b`, conditional mean zero (`∫ Y x z dν(z) = 0`) and conditional second moment `≤ v`,
+`P( 2bL + 2√(|T| v L) ≤ |∑_{j∈T} Y(X_i, X_j)| ) ≤ 2 e^{-L}`.
+With `L = 3 log N` and a union over `i` this is the "Bernstein and a union bound" of the
+proof.  NOT formalised: that the kernels of the proof (on a manifold, at two times) satisfy
+the bounds `b`, `v` claimed there. -/
+theorem bernstein_conditioned {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {E : Type*} [MeasurableSpace E] (ν : Measure E)
+    (X : ℕ → Ω → E) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = ν) (i : ℕ) (T : Finset ℕ) (hiT : i ∉ T)
+    (Y : E → E → ℝ) (hY : Measurable fun p : E × E => Y p.1 p.2) {b v L : ℝ}
+    (hb : 0 < b) (hv : 0 ≤ v) (hL : 0 < L)
+    (hbd : ∀ x z, |Y x z| ≤ b) (hmean : ∀ x, ∫ z, Y x z ∂ν = 0)
+    (hvar : ∀ x, ∫ z, Y x z ^ 2 ∂ν ≤ v) :
+    μ.real {ω | 2 * b * L + 2 * Real.sqrt (T.card * v * L)
+        ≤ |∑ j ∈ T, Y (X i ω) (X j ω)|} ≤ 2 * Real.exp (-L) := by
+  have hA : (0 : ℝ) ≤ T.card * v := mul_nonneg (Nat.cast_nonneg _) hv
+  obtain ⟨hpos, hexp⟩ := bern_threshold (B := b) (A := T.card * v) (L := L) hb hA hL
+  refine cond_pair_bound (μ := μ) X h_indep hX i i T hiT hiT (fun x _ z => Y x z)
+    (hY.comp (measurable_fst.prodMk (measurable_snd.comp measurable_snd)))
+    (fun _ _ => 2 * b * L + 2 * Real.sqrt (T.card * v * L)) measurable_const
+    (by positivity) ?_
+  intro x _
+  have hf : Measurable (Y x) := hY.comp (measurable_const.prodMk measurable_id)
+  have h := bernstein_two_sided_fn (μ := μ) X h_indep hX (Y x) hf T (b := b) (v := v)
+    (ε := 2 * b * L + 2 * Real.sqrt (T.card * v * L)) hb (hbd x)
+    (fun j _ => by
+      rw [← hmean x, ← hlaw j]
+      exact (integral_map (hX j).aemeasurable hf.aestronglyMeasurable).symm)
+    (fun j _ => by
+      have e : ∫ ω, Y x (X j ω) ^ 2 ∂μ = ∫ z, Y x z ^ 2 ∂ν := by
+        rw [← hlaw j]
+        exact (integral_map (hX j).aemeasurable
+          (hf.pow_const 2).aestronglyMeasurable).symm
+      rw [e]; exact hvar x)
+    hpos
+  refine h.trans ?_
+  have := mul_le_mul_of_nonneg_left hexp (by norm_num : (0 : ℝ) ≤ 2)
+  exact this
+
+/-- `lem:dotL-far`, the far part of the kernel: a profile with `|h s| ≤ A e^{-s}`,
+multiplied by a cut-off `0 ≤ 1 − χ ≤ 1` that vanishes for `s ≤ ρ/(4ξ)`, is at most
+`A e^{-ρ/(4ξ)}` everywhere. -/
+theorem far_kernel_bound (h χ : ℝ → ℝ) (A ρ ξ : ℝ) (hA : 0 ≤ A)
+    (hh : ∀ s, |h s| ≤ A * Real.exp (-s))
+    (hχ : ∀ s, 0 ≤ χ s ∧ χ s ≤ 1) (hχ1 : ∀ s, s ≤ ρ / (4 * ξ) → χ s = 1) (s : ℝ) :
+    |h s * (1 - χ s)| ≤ A * Real.exp (-(ρ / (4 * ξ))) := by
+  have hE : 0 ≤ A * Real.exp (-(ρ / (4 * ξ))) := mul_nonneg hA (Real.exp_pos _).le
+  rcases le_or_gt s (ρ / (4 * ξ)) with hs | hs
+  · rw [hχ1 s hs]; simpa using hE
+  · rw [abs_mul]
+    have h1 : |1 - χ s| ≤ 1 := by
+      rw [abs_le]; constructor <;> linarith [(hχ s).1, (hχ s).2]
+    have h2 : A * Real.exp (-s) ≤ A * Real.exp (-(ρ / (4 * ξ))) :=
+      mul_le_mul_of_nonneg_left (Real.exp_le_exp.mpr (by linarith)) hA
+    calc |h s| * |1 - χ s| ≤ |h s| * 1 := mul_le_mul_of_nonneg_left h1 (abs_nonneg _)
+      _ ≤ A * Real.exp (-(ρ / (4 * ξ))) := by rw [mul_one]; exact (hh s).trans h2
+
+/-- An exponentially small factor beats every power: for `c, ξ > 0`,
+`e^{-c/ξ} ≤ n! · (ξ/c)^n`. -/
+theorem exp_small_le_pow (c ξ : ℝ) (hc : 0 < c) (hξ : 0 < ξ) (n : ℕ) :
+    Real.exp (-(c / ξ)) ≤ n.factorial * (ξ / c) ^ n := by
+  have hx : 0 < c / ξ := div_pos hc hξ
+  have h := Real.pow_div_factorial_le_exp (c / ξ) hx.le n
+  have hf : (0 : ℝ) < n.factorial := by exact_mod_cast Nat.factorial_pos n
+  have hp : 0 < (c / ξ) ^ n := pow_pos hx n
+  rw [Real.exp_neg, inv_le_comm₀ (Real.exp_pos _) (by positivity)]
+  have e : ((n.factorial : ℝ) * (ξ / c) ^ n)⁻¹ = (c / ξ) ^ n / n.factorial := by
+    rw [mul_inv, ← inv_pow, inv_div]; ring
+  rw [e]; exact h
+
+end TimeAppendix5
+
 end CTG.Reals2
