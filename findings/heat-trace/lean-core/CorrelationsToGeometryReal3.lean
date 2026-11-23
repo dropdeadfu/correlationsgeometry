@@ -27300,4 +27300,296 @@ theorem D2_K_not_determined {V U W : Type*} [AddCommGroup V] [Module ℝ V] [Add
 
 end TimeAppendix
 
+/-! ### Appendix H, continued (A82): the envelope theorem with a unique minimiser, and
+the converse direction of `prop:tidal` in one dimension -/
+namespace TimeAppendix2
+
+/-- Envelope theorem (the step "Differentiability" of `cor:dotLN-ae`, abstractly):
+if `F τ = min_k g τ k` over a compact space, `g` and `∂_τ g = g'` are jointly continuous
+and the minimiser at `τ0` is unique (`k0`), then `F` is differentiable at `τ0` with
+derivative `g' τ0 k0`.  NOT formalised: that the Riemannian distance is of this form
+(minimum of the length functional over a compact family of curves). -/
+theorem envelope_min {K : Type*} [TopologicalSpace K] [CompactSpace K]
+    (g g' : ℝ → K → ℝ) (F : ℝ → ℝ) (kmin : ℝ → K)
+    (hg : Continuous (fun p : ℝ × K => g p.1 p.2))
+    (hg' : Continuous (fun p : ℝ × K => g' p.1 p.2))
+    (hd : ∀ τ k, HasDerivAt (fun s => g s k) (g' τ k) τ)
+    (hF : ∀ τ k, F τ ≤ g τ k) (hmin : ∀ τ, F τ = g τ (kmin τ))
+    (τ0 : ℝ) (k0 : K) (h0 : F τ0 = g τ0 k0) (huniq : ∀ k, g τ0 k = F τ0 → k = k0) :
+    HasDerivAt F (g' τ0 k0) τ0 := by
+  rw [hasDerivAt_iff_isLittleO, Asymptotics.isLittleO_iff]
+  intro ε hε
+  set c := g' τ0 k0 with hc
+  have hN : {p : ℝ × K | |g' p.1 p.2 - c| < ε} ∈ nhds (τ0, k0) := by
+    have hcont : ContinuousAt (fun p : ℝ × K => |g' p.1 p.2 - c|) (τ0, k0) :=
+      ((hg'.sub continuous_const).abs).continuousAt
+    have h2 : (fun p : ℝ × K => |g' p.1 p.2 - c|) (τ0, k0) < ε := by simp [hc, hε]
+    exact hcont.eventually (gt_mem_nhds h2)
+  rw [mem_nhds_prod_iff] at hN
+  obtain ⟨u, hu, v, hv, huv⟩ := hN
+  obtain ⟨δ, hδ, hball⟩ := Metric.mem_nhds_iff.mp hu
+  obtain ⟨U, hUv, hUo, hkU⟩ := mem_nhds_iff.mp hv
+  have hCc : IsCompact Uᶜ := hUo.isClosed_compl.isCompact
+  set n : Set (ℝ × K) := {p | g p.1 k0 < g p.1 p.2} with hn
+  have hno : IsOpen n :=
+    isOpen_lt (hg.comp (continuous_fst.prodMk continuous_const)) hg
+  have hsub : ({τ0} : Set ℝ) ×ˢ Uᶜ ⊆ n := by
+    rintro ⟨t, k⟩ ⟨ht, hk⟩
+    have ht' : t = τ0 := ht
+    subst ht'
+    show g t k0 < g t k
+    rcases lt_or_eq_of_le (hF t k) with h | h
+    · rw [← h0]; exact h
+    · exact absurd (huniq k h.symm) (fun e => hk (e ▸ hkU))
+  obtain ⟨V, V', hVo, _, hV, hV', hVV⟩ :=
+    generalized_tube_lemma isCompact_singleton hCc hno hsub
+  have hVn : V ∈ nhds τ0 := hVo.mem_nhds (hV rfl)
+  filter_upwards [Metric.ball_mem_nhds τ0 hδ, hVn] with τ hτb hτV
+  have hkτ : kmin τ ∈ U := by
+    by_contra hk
+    have h1 : g τ k0 < g τ (kmin τ) := hVV (Set.mk_mem_prod hτV (hV' (show kmin τ ∈ Uᶜ from hk)))
+    have h2 := hF τ k0
+    rw [hmin τ] at h2
+    linarith
+  have key : ∀ k ∈ U, |(g τ k - c * τ) - (g τ0 k - c * τ0)| ≤ ε * |τ - τ0| := by
+    intro k hk
+    have h := (convex_ball τ0 δ).norm_image_sub_le_of_norm_hasDerivWithin_le
+      (f := fun s => g s k - c * s) (f' := fun s => g' s k - c) (C := ε)
+      (fun s _ => by
+        have h1 := (hd s k).sub ((hasDerivAt_id s).const_mul c)
+        simp only [mul_one] at h1
+        exact h1.hasDerivWithinAt)
+      (fun s hs => by
+        rw [Real.norm_eq_abs]
+        have hm : (s, k) ∈ {p : ℝ × K | |g' p.1 p.2 - c| < ε} :=
+          huv (Set.mk_mem_prod (hball hs) (hUv hk))
+        exact le_of_lt hm)
+      (Metric.mem_ball_self hδ) hτb
+    simpa [Real.norm_eq_abs] using h
+  have a := abs_le.mp (key (kmin τ) hkτ)
+  have b := abs_le.mp (key k0 hkU)
+  have e : (τ - τ0) * c = c * τ - c * τ0 := by ring
+  have m1 := hmin τ
+  have m2 := hF τ0 (kmin τ)
+  have m3 := hF τ k0
+  rw [Real.norm_eq_abs, Real.norm_eq_abs, smul_eq_mul, abs_le]
+  constructor <;> linarith [a.1, a.2, b.1, b.2]
+
+/-- Three-point identity behind `prop:tidal`, direction (i) ⇒ (ii), in one dimension:
+if the second lengths satisfy `W̃ y − W̃ x = b x · b y · (W y − W x)` for all `x, y`, with
+`b ≠ 0` and `W` not constant, then `1/b` is an affine function of `W`. -/
+theorem second_length_affine {X : Type*} (W Wt b : X → ℝ) (hb : ∀ x, b x ≠ 0)
+    (hT : ∀ x y, Wt y - Wt x = b x * b y * (W y - W x))
+    (x0 z0 : X) (hne : W x0 ≠ W z0) :
+    ∃ α κ : ℝ, ∀ y, 1 / b y = α + κ * W y := by
+  have hD : W z0 - W x0 ≠ 0 := sub_ne_zero.mpr (Ne.symm hne)
+  refine ⟨(1 / b x0 * W z0 - 1 / b z0 * W x0) / (W z0 - W x0),
+    (1 / b z0 - 1 / b x0) / (W z0 - W x0), ?_⟩
+  intro y
+  have h1 := hT x0 y
+  have h2 := hT y z0
+  have h3 := hT x0 z0
+  have hx := hb x0; have hy := hb y; have hz := hb z0
+  have key : b x0 * b z0 * (W z0 - W x0)
+      = b x0 * b y * (W y - W x0) + b y * b z0 * (W z0 - W y) := by linarith
+  field_simp
+  linear_combination key
+
+/-- Direction (ii) ⇐ of the Möbius family: `Ω̃ = Ω (α + κ W)` with `W' = Ω⁻²` has the
+same tidal function, `Ω̃'' Ω = Ω'' Ω̃`. -/
+theorem tidal_1d_converse (Ω Ω' Ω'' W : ℝ → ℝ) (α κ : ℝ) (hΩ : ∀ x, Ω x ≠ 0)
+    (hΩ1 : ∀ x, HasDerivAt Ω (Ω' x) x) (hΩ2 : ∀ x, HasDerivAt Ω' (Ω'' x) x)
+    (hW : ∀ x, HasDerivAt W (1 / (Ω x) ^ 2) x) (x : ℝ) :
+    HasDerivAt (fun y => Ω y * (α + κ * W y)) (Ω' x * (α + κ * W x) + κ / Ω x) x ∧
+    HasDerivAt (fun y => Ω' y * (α + κ * W y) + κ / Ω y) (Ω'' x * (α + κ * W x)) x ∧
+    (Ω'' x * (α + κ * W x)) * Ω x = Ω'' x * (Ω x * (α + κ * W x)) := by
+  have hne := hΩ x
+  have hg : HasDerivAt (fun y => α + κ * W y) (κ * (1 / (Ω x) ^ 2)) x :=
+    ((hW x).const_mul κ).const_add α
+  refine ⟨?_, ?_, by ring⟩
+  · have h := (hΩ1 x).mul hg
+    convert h using 1
+    field_simp
+  · have h := ((hΩ2 x).mul hg).add (((hΩ1 x).inv hne).const_mul κ)
+    convert h using 1
+    field_simp
+    ring
+
+/-- `prop:tidal`, (i) ⇒ (ii), in one dimension: proportional second lengths with
+`b = Ω/Ω̃` force `Ω̃ = Ω (α + κ W)`, hence equal tidal functions. -/
+theorem tidal_1d_i_ii (Ω Ωt W Wt : ℝ → ℝ) (hΩ : ∀ x, Ω x ≠ 0) (hΩt : ∀ x, Ωt x ≠ 0)
+    (hT : ∀ x y, Wt y - Wt x = (Ω x / Ωt x) * (Ω y / Ωt y) * (W y - W x))
+    (x0 z0 : ℝ) (hne : W x0 ≠ W z0) :
+    ∃ α κ : ℝ, ∀ y, Ωt y = Ω y * (α + κ * W y) := by
+  obtain ⟨α, κ, h⟩ := second_length_affine W Wt (fun x => Ω x / Ωt x)
+    (fun x => div_ne_zero (hΩ x) (hΩt x)) hT x0 z0 hne
+  refine ⟨α, κ, fun y => ?_⟩
+  have hy := h y
+  have h1 := hΩ y; have h2 := hΩt y
+  rw [← hy]
+  field_simp
+
+end TimeAppendix2
+
+/-! ### Appendix H, continued (A83): `lem:schwarz` for a general `W`, as a limit -/
+namespace TimeAppendix3
+
+open Filter
+
+/-- Algebraic core of `lem:schwarz` for general `W`: from the third-order Peano expansion
+of `W` at `τ` (HYPOTHESIS `hP`) and `W1 ≠ 0`, the cross-ratio `ρ₀` of four equally
+spaced points with spacing `ℓ` and centre `τ` satisfies
+`(ρ₀ − 1)/ℓ² → S/6`, `S = W3/W1 − (3/2)(W2/W1)²`.  This identifies the coefficient; the
+remainder `O(ℓ⁴)` of the lemma is NOT proven here. -/
+theorem schwarz_limit_core (W : ℝ → ℝ) (τ W0 W1 W2 W3 : ℝ) (h1 : W1 ≠ 0)
+    (hP : Tendsto (fun h => (W (τ + h) - W0 - W1 * h - W2 * h ^ 2 / 2 - W3 * h ^ 3 / 6) / h ^ 3)
+      (nhdsWithin 0 {0}ᶜ) (nhds 0)) :
+    Tendsto (fun ℓ => ((3 * ℓ * ℓ) / ((2 * ℓ) * (2 * ℓ)) *
+        (((W (τ + ℓ / 2) - W (τ - 3 * ℓ / 2)) * (W (τ + 3 * ℓ / 2) - W (τ - ℓ / 2))) /
+         ((W (τ + 3 * ℓ / 2) - W (τ - 3 * ℓ / 2)) * (W (τ + ℓ / 2) - W (τ - ℓ / 2)))) - 1) / ℓ ^ 2)
+      (nhdsWithin 0 {0}ᶜ) (nhds ((W3 / W1 - 3 / 2 * (W2 / W1) ^ 2) / 6)) := by
+  set E : ℝ → ℝ := fun h => (W (τ + h) - W0 - W1 * h - W2 * h ^ 2 / 2 - W3 * h ^ 3 / 6) / h ^ 3
+    with hE
+  have hℓ : Tendsto (fun ℓ : ℝ => ℓ) (nhdsWithin 0 {0}ᶜ) (nhds 0) :=
+    tendsto_nhdsWithin_of_tendsto_nhds tendsto_id
+  have hne : ∀ᶠ ℓ : ℝ in nhdsWithin 0 {0}ᶜ, ℓ ≠ 0 := eventually_mem_nhdsWithin
+  have hsc : ∀ s : ℝ, s ≠ 0 → Tendsto (fun ℓ => E (s * ℓ)) (nhdsWithin 0 {0}ᶜ) (nhds 0) := by
+    intro s hs
+    refine hP.comp ?_
+    refine tendsto_nhdsWithin_iff.mpr ⟨?_, ?_⟩
+    · have := hℓ.const_mul s
+      simpa using this
+    · filter_upwards [hne] with ℓ hl
+      exact mul_ne_zero hs hl
+  have e1 := hsc (1 / 2) (by norm_num)
+  have e2 := hsc (-(1 / 2)) (by norm_num)
+  have e3 := hsc (3 / 2) (by norm_num)
+  have e4 := hsc (-(3 / 2)) (by norm_num)
+  set qcb : ℝ → ℝ := fun ℓ => W3 / 24 + (E (1 / 2 * ℓ) + E (-(1 / 2) * ℓ)) / 8 with hqcb
+  set qda : ℝ → ℝ := fun ℓ => 9 * W3 / 8 + 27 * (E (3 / 2 * ℓ) + E (-(3 / 2) * ℓ)) / 8 with hqda
+  set qca : ℝ → ℝ := fun ℓ => 7 * W3 / 12 + (E (1 / 2 * ℓ) + 27 * E (-(3 / 2) * ℓ)) / 8 with hqca
+  set qdb : ℝ → ℝ := fun ℓ => 7 * W3 / 12 + (27 * E (3 / 2 * ℓ) + E (-(1 / 2) * ℓ)) / 8 with hqdb
+  have tcb : Tendsto qcb (nhdsWithin 0 {0}ᶜ) (nhds (W3 / 24)) := by
+    have := ((e1.add e2).div_const 8).const_add (W3 / 24)
+    convert this using 2
+    all_goals simp
+  have tda : Tendsto qda (nhdsWithin 0 {0}ᶜ) (nhds (9 * W3 / 8)) := by
+    have := (((e3.add e4).const_mul 27).div_const 8).const_add (9 * W3 / 8)
+    convert this using 2
+    all_goals simp
+  have tca : Tendsto qca (nhdsWithin 0 {0}ᶜ) (nhds (7 * W3 / 12)) := by
+    have := ((e1.add (e4.const_mul 27)).div_const 8).const_add (7 * W3 / 12)
+    convert this using 2
+    all_goals simp
+  have tdb : Tendsto qdb (nhdsWithin 0 {0}ᶜ) (nhds (7 * W3 / 12)) := by
+    have := (((e3.const_mul 27).add e2).div_const 8).const_add (7 * W3 / 12)
+    convert this using 2
+    all_goals simp
+  -- the four differences
+  have val : ∀ ℓ s : ℝ, ℓ ≠ 0 → s ≠ 0 →
+      W (τ + s * ℓ) = W0 + W1 * (s * ℓ) + W2 * (s * ℓ) ^ 2 / 2 + W3 * (s * ℓ) ^ 3 / 6
+        + (s * ℓ) ^ 3 * E (s * ℓ) := by
+    intro ℓ s hl hs
+    have : s * ℓ ≠ 0 := mul_ne_zero hs hl
+    simp only [hE]
+    field_simp
+    ring
+  have a1 : ∀ ℓ : ℝ, τ + ℓ / 2 = τ + 1 / 2 * ℓ := fun ℓ => by ring
+  have a2 : ∀ ℓ : ℝ, τ - ℓ / 2 = τ + -(1 / 2) * ℓ := fun ℓ => by ring
+  have a3 : ∀ ℓ : ℝ, τ + 3 * ℓ / 2 = τ + 3 / 2 * ℓ := fun ℓ => by ring
+  have a4 : ∀ ℓ : ℝ, τ - 3 * ℓ / 2 = τ + -(3 / 2) * ℓ := fun ℓ => by ring
+  set N : ℝ → ℝ := fun ℓ =>
+    3 * (-(W2 ^ 2) + (2 * W1 - W2 * ℓ) * qdb ℓ + (2 * W1 + W2 * ℓ) * qca ℓ
+        + ℓ ^ 2 * qca ℓ * qdb ℓ)
+      - 4 * (W1 * qda ℓ + 3 * W1 * qcb ℓ + ℓ ^ 2 * qda ℓ * qcb ℓ) with hN
+  set D : ℝ → ℝ := fun ℓ => 4 * ((3 * W1 + ℓ ^ 2 * qda ℓ) * (W1 + ℓ ^ 2 * qcb ℓ)) with hD
+  have hcN : Continuous (fun p : ℝ × ℝ × ℝ × ℝ × ℝ =>
+      3 * (-(W2 ^ 2) + (2 * W1 - W2 * p.1) * p.2.2.2.2 + (2 * W1 + W2 * p.1) * p.2.2.2.1
+        + p.1 ^ 2 * p.2.2.2.1 * p.2.2.2.2)
+      - 4 * (W1 * p.2.2.1 + 3 * W1 * p.2.1 + p.1 ^ 2 * p.2.2.1 * p.2.1)) := by fun_prop
+  have hcD : Continuous (fun p : ℝ × ℝ × ℝ × ℝ × ℝ =>
+      4 * ((3 * W1 + p.1 ^ 2 * p.2.2.1) * (W1 + p.1 ^ 2 * p.2.1))) := by fun_prop
+  have tup := hℓ.prodMk_nhds (tcb.prodMk_nhds (tda.prodMk_nhds (tca.prodMk_nhds tdb)))
+  have tN : Tendsto N (nhdsWithin 0 {0}ᶜ) (nhds (2 * W1 * W3 - 3 * W2 ^ 2)) := by
+    have := (hcN.tendsto _).comp tup
+    convert this using 2
+    simp
+    ring
+  have tD : Tendsto D (nhdsWithin 0 {0}ᶜ) (nhds (12 * W1 ^ 2)) := by
+    have := (hcD.tendsto _).comp tup
+    convert this using 2
+    simp
+    ring
+  have hD0 : (12 * W1 ^ 2) ≠ 0 := by positivity
+  have hDne : ∀ᶠ ℓ in nhdsWithin 0 {0}ᶜ, D ℓ ≠ 0 := tD.eventually_ne hD0
+  have tlim := tN.div tD hD0
+  have hval : (2 * W1 * W3 - 3 * W2 ^ 2) / (12 * W1 ^ 2)
+      = (W3 / W1 - 3 / 2 * (W2 / W1) ^ 2) / 6 := by
+    field_simp
+    ring
+  rw [← hval]
+  refine tlim.congr' ?_
+  filter_upwards [hne, hDne] with ℓ hl hd
+  have hA : 3 * W1 + ℓ ^ 2 * qda ℓ ≠ 0 := fun h => hd (by simp [hD, h])
+  have hB : W1 + ℓ ^ 2 * qcb ℓ ≠ 0 := fun h => hd (by simp [hD, h])
+  have dcb : W (τ + ℓ / 2) - W (τ - ℓ / 2) = ℓ * (W1 + ℓ ^ 2 * qcb ℓ) := by
+    rw [a1, a2, val ℓ (1 / 2) hl (by norm_num), val ℓ (-(1 / 2)) hl (by norm_num)]
+    simp only [hqcb]; ring
+  have dda : W (τ + 3 * ℓ / 2) - W (τ - 3 * ℓ / 2) = ℓ * (3 * W1 + ℓ ^ 2 * qda ℓ) := by
+    rw [a3, a4, val ℓ (3 / 2) hl (by norm_num), val ℓ (-(3 / 2)) hl (by norm_num)]
+    simp only [hqda]; ring
+  have dca : W (τ + ℓ / 2) - W (τ - 3 * ℓ / 2) = ℓ * (2 * W1 - W2 * ℓ + ℓ ^ 2 * qca ℓ) := by
+    rw [a1, a4, val ℓ (1 / 2) hl (by norm_num), val ℓ (-(3 / 2)) hl (by norm_num)]
+    simp only [hqca]; ring
+  have ddb : W (τ + 3 * ℓ / 2) - W (τ - ℓ / 2) = ℓ * (2 * W1 + W2 * ℓ + ℓ ^ 2 * qdb ℓ) := by
+    rw [a3, a2, val ℓ (3 / 2) hl (by norm_num), val ℓ (-(1 / 2)) hl (by norm_num)]
+    simp only [hqdb]; ring
+  show N ℓ / D ℓ = _
+  rw [dcb, dda, dca, ddb]
+  simp only [hN, hD]
+  field_simp
+  ring
+
+/-- The Schwarzian of `W` with `W' = Ω⁻²` is `−2Ω''/Ω` (pointwise algebra: `W1, W2, W3`
+are the first three derivatives of `W` expressed through `Ω, Ω', Ω''`). -/
+theorem schwarzian_lapse (Ω Ω1 Ω2 : ℝ) (hΩ : Ω ≠ 0) :
+    ((-2 * Ω2 / Ω ^ 3 + 6 * Ω1 ^ 2 / Ω ^ 4) / (1 / Ω ^ 2)
+      - 3 / 2 * ((-2 * Ω1 / Ω ^ 3) / (1 / Ω ^ 2)) ^ 2) = -2 * Ω2 / Ω := by
+  field_simp
+  ring
+
+/-- `prop:tidal`, the case `κ = 0`: `Ω̃ = αΩ` has second length `W/α²`. -/
+theorem second_length_kappa_zero (Ω W : ℝ → ℝ) (α : ℝ) (hα : α ≠ 0) (x : ℝ) (hΩ : Ω x ≠ 0)
+    (hW : HasDerivAt W (1 / (Ω x) ^ 2) x) :
+    HasDerivAt (fun y => W y / α ^ 2) (1 / (α * Ω x) ^ 2) x := by
+  have h := hW.div_const (α ^ 2)
+  convert h using 1
+  field_simp
+
+/-- `lem:schwarz` for `W ∈ C³`, as a limit: with `W_k` the derivatives at `τ` and
+`W' (τ) ≠ 0`, `(ρ₀ − 1)/ℓ² → S(W)(τ)/6`.  No hypothesis besides smoothness. -/
+theorem schwarz_limit (W : ℝ → ℝ) (τ : ℝ) (hW : ContDiff ℝ 3 W)
+    (h1 : iteratedDeriv 1 W τ ≠ 0) :
+    Tendsto (fun ℓ => ((3 * ℓ * ℓ) / ((2 * ℓ) * (2 * ℓ)) *
+        (((W (τ + ℓ / 2) - W (τ - 3 * ℓ / 2)) * (W (τ + 3 * ℓ / 2) - W (τ - ℓ / 2))) /
+         ((W (τ + 3 * ℓ / 2) - W (τ - 3 * ℓ / 2)) * (W (τ + ℓ / 2) - W (τ - ℓ / 2)))) - 1) / ℓ ^ 2)
+      (nhdsWithin 0 {0}ᶜ)
+      (nhds ((iteratedDeriv 3 W τ / iteratedDeriv 1 W τ
+        - 3 / 2 * (iteratedDeriv 2 W τ / iteratedDeriv 1 W τ) ^ 2) / 6)) := by
+  refine schwarz_limit_core W τ (W τ) _ _ _ h1 ?_
+  have ho := taylor_isLittleO_univ (x₀ := τ) (n := 3) (f := W) (by exact_mod_cast hW)
+  have ht := ho.tendsto_div_nhds_zero
+  have hsh : Tendsto (fun h : ℝ => τ + h) (nhdsWithin 0 {0}ᶜ) (nhds τ) := by
+    have : Tendsto (fun h : ℝ => τ + h) (nhds 0) (nhds (τ + 0)) :=
+      (continuous_const.add continuous_id).tendsto 0
+    rw [add_zero] at this
+    exact tendsto_nhdsWithin_of_tendsto_nhds this
+  have := ht.comp hsh
+  refine this.congr' ?_
+  filter_upwards with h
+  simp [taylor_within_apply, Finset.sum_range_succ, iteratedDerivWithin_univ, Nat.factorial]
+  ring
+
+end TimeAppendix3
+
 end CTG.Reals2
