@@ -20,8 +20,12 @@ Proposition `prop:dotLN-diff`, which was a hypothesis of `TimeAppendix4.distance
 Second step (`metric_growth`, `norm_growth`): for one tangent vector, `f τ = h_τ(v,v) > 0` with
 `|∂_τ f| ≤ 2κ f` gives `‖v‖_b ≤ e^{κ|b−a|} ‖v‖_a` (scalar statement).
 
-What this is NOT: no time-dependent metric tensor occurs as an object; the second step is not yet
-applied to a family of norms on the tangent bundle and combined with the first; nothing on volume
+Combined (`riemannianEDist_time`): for a family of norms `‖v‖_τ = (g τ x v)^{1/2}` with
+`|∂_τ g| ≤ 2κ g`, `d_b ≤ e^{κ|b−a|} d_a`.
+
+What this is NOT: `g` is an arbitrary function of `(τ, x, v)`, not a metric tensor (no bilinearity,
+no smoothness in `x`); the distances are Mathlib's extended distances (finiteness and minimisers do
+not occur); nothing on volume
 growth, injectivity radius, curvature or the Laplace–Beltrami operator.
 No `sorry`, no `axiom`, no `native_decide`.
 -/
@@ -97,5 +101,28 @@ theorem norm_growth (f f' : ℝ → ℝ) (κ : ℝ) (hpos : ∀ t, 0 < f t)
   have h2 : Real.sqrt (f b) ≤ Real.sqrt (Real.exp (κ * |b - a|) ^ 2 * f a) :=
     Real.sqrt_le_sqrt (by rw [← e]; exact h)
   rwa [Real.sqrt_mul (sq_nonneg _), Real.sqrt_sq (Real.exp_pos _).le] at h2
+
+/-- First and second step combined, for a time-dependent family of norms on the tangent spaces:
+if `‖v‖_τ = (g τ x v)^{1/2}` with `g` either identically zero in `τ` or positive, differentiable in `τ`
+with `|∂_τ g| ≤ 2κ g`, then the Riemannian distances at two times satisfy
+`d_b ≤ e^{κ|b−a|} d_a`.  With `a` and `b` exchanged this is the comparison
+`e^{-κ|η|} d ≤ d' ≤ e^{κ|η|} d` of Step 1 of `prop:dotLN-diff`. -/
+theorem riemannianEDist_time (n : ℝ → ∀ x : M, ENorm (TangentSpace I x))
+    (g g' : ℝ → (x : M) → TangentSpace I x → ℝ) (κ : ℝ)
+    (hn : ∀ τ x v, @enorm _ (n τ x) v = ENNReal.ofReal (Real.sqrt (g τ x v)))
+    (hcase : ∀ x v, (∀ τ, g τ x v = 0) ∨ (∀ τ, 0 < g τ x v))
+    (hd : ∀ τ x v, HasDerivAt (fun s => g s x v) (g' τ x v) τ)
+    (hb : ∀ τ x v, |g' τ x v| ≤ 2 * κ * g τ x v) (a b : ℝ) (p q : M) :
+    (letI := n b; Manifold.riemannianEDist I p q)
+      ≤ ENNReal.ofReal (Real.exp (κ * |b - a|)) * (letI := n a; Manifold.riemannianEDist I p q) := by
+  refine riemannianEDist_le_mul (n a) (n b) _ (by simp [Real.exp_pos]) ENNReal.ofReal_ne_top
+    (fun x v => ?_) p q
+  rw [hn, hn]
+  rcases hcase x v with h0 | hpos
+  · simp [h0]
+  · rw [← ENNReal.ofReal_mul (Real.exp_pos _).le]
+    exact ENNReal.ofReal_le_ofReal
+      (norm_growth (fun s => g s x v) (fun s => g' s x v) κ hpos (fun t => hd t x v)
+        (fun t => hb t x v) a b)
 
 end CTG.ManifoldDistance
