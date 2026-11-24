@@ -37410,4 +37410,1310 @@ end Q3BB
 
 end BiasGeneral5
 
+namespace BiasGeneral6
+
+open WalkCount Function BiasGeneral BiasGeneral2 BiasGeneral3 BiasGeneral4 BiasGeneral5 PiBound
+  CTG.Reals.TorusReduction
+
+/-! # A101: `prop:bias` for every `k`: bridges, identification, mean, final statement -/
+
+section Bridges
+
+theorem heatTorus_eq_heatP (d : ℕ) (σ : ℝ) (u : FlatTorus d) :
+    heatTorus d (2 * Real.pi ^ 2 * σ) u = heatP d σ 1 u := by
+  rw [heatP_eq d σ le_rfl]; simp
+
+theorem heatP_eq_pker (d : ℕ) (σ : ℝ) {s : ℕ} (hs : 1 ≤ s) (u : FlatTorus d) :
+    heatP d σ s u = pker d ((s : ℝ) * σ) u := by
+  rw [heatP_eq d σ hs]; rfl
+
+theorem torusM_eq_pker (d : ℕ) (σ : ℝ) (s : ℕ) : torusM d σ s = pker d ((s : ℝ) * σ) 0 := rfl
+
+theorem Ch_eq (d : ℕ) (σ : ℝ) (k l c : ℕ) (hl : 1 ≤ l) (hlk : l < k) (hc : 1 ≤ c) :
+    Ch d σ k l c = ∫ u, pker d ((l : ℝ) * σ) u * pker d (((k - l : ℕ) : ℝ) * σ) u
+      * pker d ((c : ℝ) * σ) u ∂flatTorusMeasure d := by
+  unfold Ch
+  refine integral_congr_ae (Filter.Eventually.of_forall fun u => ?_)
+  simp only
+  rw [heatP_eq_pker d σ hl, heatP_eq_pker d σ (by omega : 1 ≤ k - l), heatP_eq_pker d σ hc]
+
+variable {G : Type*}
+
+/-- `ε_a = ρ_a - 1 = (1/N) ∑_u (p(x_a - x_u) - 1)` with the sum over `Fin N`. -/
+theorem eps_row (d : ℕ) (σ : ℝ) {N : ℕ} (hN : 0 < N) (x : ℕ → FlatTorus d) (a : ℕ) :
+    heatRho d σ N x a - 1 = 1 / (N : ℝ) * ∑ u : Fin N, (heatP d σ 1 (x a - x u) - 1) := by
+  have hN0 : (N : ℝ) ≠ 0 := by exact_mod_cast hN.ne'
+  have e3 : heatRho d σ N x a
+      = (∑ l ∈ Finset.range N, heatTorus d (2 * Real.pi ^ 2 * σ) (x a - x l)) / (N : ℝ) := rfl
+  have e4 : ∑ l ∈ Finset.range N, heatTorus d (2 * Real.pi ^ 2 * σ) (x a - x l)
+      = ∑ u : Fin N, heatP d σ 1 (x a - x u) := by
+    rw [← Fin.sum_univ_eq_sum_range (fun l => heatTorus d (2 * Real.pi ^ 2 * σ) (x a - x l)) N]
+    exact Finset.sum_congr rfl fun u _ => heatTorus_eq_heatP d σ _
+  rw [e3, e4, Finset.sum_sub_distrib, Finset.sum_const, Finset.card_univ, Fintype.card_fin,
+    nsmul_eq_mul, mul_one]
+  field_simp
+
+/-- `∑_i (P̃^k)_ii f_i = N^{-k} ∑_v cycle(x_v) f(v_0)`, `P̃ = p(x_a - x_b)/N`. -/
+theorem diag_sum (d : ℕ) (σ : ℝ) (N n : ℕ) (x : ℕ → FlatTorus d) (f : Fin N → ℝ) :
+    ∑ i, (Matrix.of (fun a b : Fin N => heatP d σ 1 (x a - x b) / N) ^ (n + 1)) i i * f i
+      = (∑ v : Fin (n + 1) → Fin N, cyT d σ (fun a => x (v a)) * f (v 0)) / (N : ℝ) ^ (n + 1) := by
+  rw [Finset.sum_div]
+  have e : ∀ i : Fin N, (Matrix.of (fun a b : Fin N => heatP d σ 1 (x a - x b) / N) ^ (n + 1)) i i
+      = ∑ w : Fin n → Fin N, cw (fun a b : Fin N => heatP d σ 1 (x a - x b) / N)
+          (Fin.cons i w : Fin (n + 1) → Fin N) := by
+    intro i
+    rw [pow_apply_pth]
+    refine Finset.sum_congr rfl fun w _ => ?_
+    rw [cw_eq_pth]; simp only [Fin.cons_zero, Fin.tail_cons]; rfl
+  simp only [e, Finset.sum_mul]
+  rw [BiasVariance3.sum_cons]
+  refine Finset.sum_congr rfl fun i _ => Finset.sum_congr rfl fun w _ => ?_
+  rw [cw, cyT, cycP]
+  rw [Finset.prod_div_distrib, Finset.prod_const, Finset.card_univ, Fintype.card_fin,
+    Fin.cons_zero]
+  ring
+
+end Bridges
+
+open WalkCount Function BiasGeneral BiasGeneral2 BiasGeneral3 BiasGeneral4 BiasGeneral5 PiBound
+  CTG.Reals.TorusReduction
+
+/-! ## (b) The terms of the expansion as sums over index tuples (pointwise) -/
+
+section Ident
+
+variable {d : ℕ} {σ : ℝ}
+
+/-- `ε_a = (1/N) ∑_u (p(x_a - x_u) - 1)`. -/
+noncomputable def eV (d : ℕ) (σ : ℝ) (N : ℕ) (x : ℕ → FlatTorus d) (a : ℕ) : ℝ :=
+  1 / (N : ℝ) * ∑ u : Fin N, (heatP d σ 1 (x a - x u) - 1)
+
+/-- `(P̃ε)_a = (1/N) ∑_q p(x_a - x_q) ε_q`. -/
+noncomputable def bV (d : ℕ) (σ : ℝ) (N : ℕ) (x : ℕ → FlatTorus d) (a : ℕ) : ℝ :=
+  1 / (N : ℝ) * ∑ q : Fin N, heatP d σ 1 (x a - x q) * eV d σ N x q
+
+/-- `(P̃ε²)_a = (1/N) ∑_q p(x_a - x_q) ε_q²`. -/
+noncomputable def sV (d : ℕ) (σ : ℝ) (N : ℕ) (x : ℕ → FlatTorus d) (a : ℕ) : ℝ :=
+  1 / (N : ℝ) * ∑ q : Fin N, heatP d σ 1 (x a - x q) * eV d σ N x q ^ 2
+
+theorem sum_snoc {α : Type*} [Fintype α] {m : ℕ} (g : (Fin (m + 1) → α) → ℝ) :
+    ∑ w : Fin (m + 1) → α, g w = ∑ v : Fin m → α, ∑ q : α, g (Fin.snoc v q) := by
+  rw [← Fintype.sum_equiv (Fin.snocEquiv (fun _ => α)) (fun p => g (Fin.snoc p.2 p.1)) g
+    (fun p => rfl), Fintype.sum_prod_type, Finset.sum_comm]
+
+theorem snoc0 {α : Type*} {m : ℕ} (v : Fin (m + 1) → α) (q : α) :
+    (Fin.snoc v q : Fin (m + 2) → α) 0 = v 0 := by
+  rw [← Fin.castSucc_zero]; exact Fin.snoc_castSucc (α := fun _ => α) _ _ _
+
+variable (d σ)
+
+theorem idA (N n : ℕ) (x : ℕ → FlatTorus d) :
+    ∑ v : Fin (n + 1) → Fin N, cyT d σ (fun a => x (v a)) * eV d σ N x (v 0)
+      = (∑ v : Fin (n + 1) → Fin N, ∑ u : Fin N, PhiA d σ n (fun a => x (v a), x u)) / N := by
+  simp only [eV, PhiA, Finset.mul_sum, Finset.sum_div]
+  refine Finset.sum_congr rfl fun v _ => Finset.sum_congr rfl fun u _ => ?_
+  ring
+
+theorem idB (N n : ℕ) (x : ℕ → FlatTorus d) :
+    ∑ v : Fin (n + 1) → Fin N, cyT d σ (fun a => x (v a)) * bV d σ N x (v 0)
+      = (∑ w : Fin (n + 2) → Fin N, ∑ u : Fin N, PhiB d σ n (fun a => x (w a), x u)) / N ^ 2 := by
+  rw [sum_snoc (m := n + 1)]
+  simp only [bV, eV, PhiB, Finset.mul_sum, Finset.sum_div, Fin.snoc_castSucc, Fin.snoc_last, snoc0]
+  refine Finset.sum_congr rfl fun v _ => Finset.sum_congr rfl fun q _ =>
+    Finset.sum_congr rfl fun u _ => ?_
+  ring
+
+theorem idEE (N n : ℕ) (x : ℕ → FlatTorus d) :
+    ∑ v : Fin (n + 1) → Fin N, cyT d σ (fun a => x (v a)) * eV d σ N x (v 0) ^ 2
+      = (∑ v : Fin (n + 1) → Fin N, ∑ u : Fin N, ∑ u' : Fin N,
+          PhiEE d σ n (fun a => x (v a), x u, x u')) / N ^ 2 := by
+  simp only [eV, PhiEE, sq, Finset.mul_sum, Finset.sum_mul, Finset.sum_div]
+  refine Finset.sum_congr rfl fun v _ => Finset.sum_congr rfl fun u _ =>
+    Finset.sum_congr rfl fun u' _ => ?_
+  ring
+
+theorem idS (N n : ℕ) (x : ℕ → FlatTorus d) :
+    ∑ v : Fin (n + 1) → Fin N, cyT d σ (fun a => x (v a)) * sV d σ N x (v 0)
+      = (∑ w : Fin (n + 2) → Fin N, ∑ u : Fin N, ∑ u' : Fin N,
+          PhiS d σ n (fun a => x (w a), x u, x u')) / N ^ 3 := by
+  rw [sum_snoc (m := n + 1)]
+  simp only [sV, eV, PhiS, cy2, sq, Finset.mul_sum, Finset.sum_mul, Finset.sum_div,
+    Fin.snoc_castSucc, Fin.snoc_last, snoc0]
+  refine Finset.sum_congr rfl fun v _ => Finset.sum_congr rfl fun q _ =>
+    Finset.sum_congr rfl fun u _ => Finset.sum_congr rfl fun u' _ => ?_
+  ring
+
+theorem idEB (N n : ℕ) (x : ℕ → FlatTorus d) :
+    ∑ v : Fin (n + 1) → Fin N, cyT d σ (fun a => x (v a)) * (eV d σ N x (v 0) * bV d σ N x (v 0))
+      = (∑ w : Fin (n + 2) → Fin N, ∑ u : Fin N, ∑ u' : Fin N,
+          PhiEB d σ n (fun a => x (w a), x u, x u')) / N ^ 3 := by
+  rw [sum_snoc (m := n + 1)]
+  simp only [bV, eV, PhiEB, cy2, Finset.mul_sum, Finset.sum_mul, Finset.sum_div,
+    Fin.snoc_castSucc, Fin.snoc_last, snoc0]
+  refine Finset.sum_congr rfl fun v _ => Finset.sum_congr rfl fun q _ => ?_
+  rw [Finset.sum_comm]
+  refine Finset.sum_congr rfl fun u _ => Finset.sum_congr rfl fun u' _ => ?_
+  ring
+
+end Ident
+
+open WalkCount Function BiasGeneral BiasGeneral2 BiasGeneral3 BiasGeneral4 BiasGeneral5 PiBound
+  CTG.Reals.TorusReduction
+
+section Ident2
+
+variable (d : ℕ) (σ : ℝ)
+
+theorem snoc00 {α : Type*} {m : ℕ} (v : Fin (m + 1) → α) (q q' : α) :
+    (Fin.snoc (Fin.snoc v q : Fin (m + 2) → α) q' : Fin (m + 3) → α) (0 : Fin (m + 1)).castSucc.castSucc
+      = v 0 := by
+  simp [Fin.snoc_castSucc]
+
+theorem idBB (N n : ℕ) (x : ℕ → FlatTorus d) :
+    ∑ v : Fin (n + 1) → Fin N, cyT d σ (fun a => x (v a)) * bV d σ N x (v 0) ^ 2
+      = (∑ w : Fin (n + 3) → Fin N, ∑ u : Fin N, ∑ u' : Fin N,
+          PhiBB d σ n (fun a => x (w a), x u, x u')) / N ^ 4 := by
+  rw [sum_snoc (m := n + 2)]
+  simp only [sum_snoc (α := Fin N) (m := n + 1)]
+  simp only [bV, eV, PhiBB, cy3, sq, Finset.mul_sum, Finset.sum_mul, Finset.sum_div,
+    Fin.snoc_castSucc, Fin.snoc_last]
+  refine Finset.sum_congr rfl fun v _ => ?_
+  conv_lhs => arg 2; ext a; rw [Finset.sum_comm]
+  conv_lhs => rw [Finset.sum_comm]
+  conv_lhs => arg 2; ext a; arg 2; ext b; rw [Finset.sum_comm]
+  refine Finset.sum_congr rfl fun q _ => Finset.sum_congr rfl fun q' _ =>
+    Finset.sum_congr rfl fun u _ => Finset.sum_congr rfl fun u' _ => ?_
+  ring
+
+theorem idQee (N n : ℕ) (x : ℕ → FlatTorus d) (l : Fin (n + 1)) :
+    ∑ v : Fin (n + 1) → Fin N, cyT d σ (fun a => x (v a)) * (eV d σ N x (v 0) * eV d σ N x (v l))
+      = (∑ v : Fin (n + 1) → Fin N, ∑ u : Fin N, ∑ u' : Fin N,
+          PhiQee d σ n l (fun a => x (v a), x u, x u')) / N ^ 2 := by
+  simp only [eV, PhiQee, Finset.mul_sum, Finset.sum_mul, Finset.sum_div]
+  refine Finset.sum_congr rfl fun v _ => ?_
+  rw [Finset.sum_comm]
+  refine Finset.sum_congr rfl fun u _ => Finset.sum_congr rfl fun u' _ => ?_
+  ring
+
+theorem idQeb (N n : ℕ) (x : ℕ → FlatTorus d) (l : Fin (n + 1)) :
+    ∑ v : Fin (n + 1) → Fin N, cyT d σ (fun a => x (v a)) * (eV d σ N x (v 0) * bV d σ N x (v l))
+      = (∑ w : Fin (n + 2) → Fin N, ∑ u : Fin N, ∑ u' : Fin N,
+          PhiQeb d σ n l (fun a => x (w a), x u, x u')) / N ^ 3 := by
+  rw [sum_snoc (m := n + 1)]
+  simp only [bV, eV, PhiQeb, cy2, Finset.mul_sum, Finset.sum_mul, Finset.sum_div,
+    Fin.snoc_castSucc, Fin.snoc_last]
+  refine Finset.sum_congr rfl fun v _ => Finset.sum_congr rfl fun q _ => ?_
+  rw [Finset.sum_comm]
+  refine Finset.sum_congr rfl fun u _ => Finset.sum_congr rfl fun u' _ => ?_
+  ring
+
+theorem idQbe (N n : ℕ) (x : ℕ → FlatTorus d) (l : Fin (n + 1)) :
+    ∑ v : Fin (n + 1) → Fin N, cyT d σ (fun a => x (v a)) * (bV d σ N x (v 0) * eV d σ N x (v l))
+      = (∑ w : Fin (n + 2) → Fin N, ∑ u : Fin N, ∑ u' : Fin N,
+          PhiQbe d σ n l (fun a => x (w a), x u, x u')) / N ^ 3 := by
+  rw [sum_snoc (m := n + 1)]
+  simp only [bV, eV, PhiQbe, cy2, Finset.mul_sum, Finset.sum_mul, Finset.sum_div,
+    Fin.snoc_castSucc, Fin.snoc_last]
+  refine Finset.sum_congr rfl fun v _ => ?_
+  rw [Finset.sum_comm]
+  refine Finset.sum_congr rfl fun q _ => ?_
+  rw [Finset.sum_comm]
+  refine Finset.sum_congr rfl fun u _ => Finset.sum_congr rfl fun u' _ => ?_
+  ring
+
+theorem idQbb (N n : ℕ) (x : ℕ → FlatTorus d) (l : Fin (n + 1)) :
+    ∑ v : Fin (n + 1) → Fin N, cyT d σ (fun a => x (v a)) * (bV d σ N x (v 0) * bV d σ N x (v l))
+      = (∑ w : Fin (n + 3) → Fin N, ∑ u : Fin N, ∑ u' : Fin N,
+          PhiQbb d σ n l (fun a => x (w a), x u, x u')) / N ^ 4 := by
+  rw [sum_snoc (m := n + 2)]
+  simp only [sum_snoc (α := Fin N) (m := n + 1)]
+  simp only [bV, eV, PhiQbb, cy3, Finset.mul_sum, Finset.sum_mul, Finset.sum_div,
+    Fin.snoc_castSucc, Fin.snoc_last]
+  refine Finset.sum_congr rfl fun v _ => ?_
+  conv_lhs => arg 2; ext a; rw [Finset.sum_comm]
+  conv_lhs => rw [Finset.sum_comm]
+  conv_lhs => arg 2; ext a; arg 2; ext b; rw [Finset.sum_comm]
+  refine Finset.sum_congr rfl fun q _ => Finset.sum_congr rfl fun q' _ =>
+    Finset.sum_congr rfl fun u _ => Finset.sum_congr rfl fun u' _ => ?_
+  ring
+
+end Ident2
+
+open WalkCount Function BiasGeneral BiasGeneral2 BiasGeneral3 BiasGeneral4 BiasGeneral5 PiBound
+  CTG.Reals.TorusReduction
+
+/-! ## (c) The mean of the polynomial statistic for every `k` -/
+
+section Generic
+
+variable {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω} [IsProbabilityMeasure μ]
+  {G : Type*} [MeasurableSpace G]
+
+theorem bm2 (X : ℕ → Ω → G) (hX : ∀ j, Measurable (X j)) {N s : ℕ}
+    (Φ : (Fin s → G) × G → ℝ) (hΦ : Measurable Φ) {B : ℝ} (hB : ∀ p, |Φ p| ≤ B) :
+    BM (fun ω => ∑ w : Fin s → Fin N, ∑ u : Fin N, Φ (fun a => X (w a) ω, X u ω)) :=
+  BM.sum _ _ fun w _ => BM.sum _ _ fun u _ =>
+    ⟨hΦ.comp ((measurable_pi_lambda _ fun a => hX _).prodMk (hX _)), B, fun ω => hB _⟩
+
+theorem bm3 (X : ℕ → Ω → G) (hX : ∀ j, Measurable (X j)) {N s : ℕ}
+    (Φ : (Fin s → G) × G × G → ℝ) (hΦ : Measurable Φ) {B : ℝ} (hB : ∀ p, |Φ p| ≤ B) :
+    BM (fun ω => ∑ w : Fin s → Fin N, ∑ u : Fin N, ∑ u' : Fin N,
+      Φ (fun a => X (w a) ω, X u ω, X u' ω)) :=
+  BM.sum _ _ fun w _ => BM.sum _ _ fun u _ => BM.sum _ _ fun u' _ =>
+    ⟨hΦ.comp ((measurable_pi_lambda _ fun a => hX _).prodMk ((hX _).prodMk (hX _))), B,
+      fun ω => hB _⟩
+
+theorem int2 (X : ℕ → Ω → G) (hX : ∀ j, Measurable (X j)) {N s : ℕ}
+    (Φ : (Fin s → G) × G → ℝ) (hΦ : Measurable Φ) {B : ℝ} (hB : ∀ p, |Φ p| ≤ B) :
+    ∫ ω, ∑ w : Fin s → Fin N, ∑ u : Fin N, Φ (fun a => X (w a) ω, X u ω) ∂μ
+      = ∑ w : Fin s → Fin N, ∑ u : Fin N, ∫ ω, Φ (fun a => X (w a) ω, X u ω) ∂μ := by
+  have hb : ∀ (w : Fin s → Fin N) (u : Fin N), BM fun ω => Φ (fun a => X (w a) ω, X u ω) :=
+    fun w u => ⟨hΦ.comp ((measurable_pi_lambda _ fun a => hX _).prodMk (hX _)), B, fun ω => hB _⟩
+  rw [integral_finset_sum _ fun w _ => (BM.sum _ _ fun u _ => hb w u).integrable]
+  exact Finset.sum_congr rfl fun w _ =>
+    integral_finset_sum _ fun u _ => (hb w u).integrable
+
+theorem int3 (X : ℕ → Ω → G) (hX : ∀ j, Measurable (X j)) {N s : ℕ}
+    (Φ : (Fin s → G) × G × G → ℝ) (hΦ : Measurable Φ) {B : ℝ} (hB : ∀ p, |Φ p| ≤ B) :
+    ∫ ω, ∑ w : Fin s → Fin N, ∑ u : Fin N, ∑ u' : Fin N, Φ (fun a => X (w a) ω, X u ω, X u' ω) ∂μ
+      = ∑ w : Fin s → Fin N, ∑ u : Fin N, ∑ u' : Fin N,
+          ∫ ω, Φ (fun a => X (w a) ω, X u ω, X u' ω) ∂μ := by
+  have hb : ∀ (w : Fin s → Fin N) (u u' : Fin N),
+      BM fun ω => Φ (fun a => X (w a) ω, X u ω, X u' ω) := fun w u u' =>
+    ⟨hΦ.comp ((measurable_pi_lambda _ fun a => hX _).prodMk ((hX _).prodMk (hX _))), B,
+      fun ω => hB _⟩
+  rw [integral_finset_sum _ fun w _ =>
+    (BM.sum _ _ fun u _ => BM.sum _ _ fun u' _ => hb w u u').integrable]
+  refine Finset.sum_congr rfl fun w _ => ?_
+  rw [integral_finset_sum _ fun u _ => (BM.sum _ _ fun u' _ => hb w u u').integrable]
+  exact Finset.sum_congr rfl fun u _ => integral_finset_sum _ fun u' _ => (hb w u u').integrable
+
+end Generic
+
+theorem scale {S L C : ℝ} {N p : ℕ} (hN : 1 ≤ N) (h : |S - (N : ℝ) ^ (p + 1) * L| ≤ C * (N : ℝ) ^ p) :
+    |S / (N : ℝ) ^ (p + 2) - L / N| ≤ C / (N : ℝ) ^ 2 := by
+  have hNp : (0 : ℝ) < N := by exact_mod_cast hN
+  have e : S / (N : ℝ) ^ (p + 2) - L / N = (S - (N : ℝ) ^ (p + 1) * L) / (N : ℝ) ^ (p + 2) := by
+    field_simp; ring
+  rw [e, abs_div, abs_of_pos (pow_pos hNp _), div_le_div_iff₀ (pow_pos hNp _) (pow_pos hNp _)]
+  calc |S - (N : ℝ) ^ (p + 1) * L| * (N : ℝ) ^ 2 ≤ C * (N : ℝ) ^ p * (N : ℝ) ^ 2 :=
+        mul_le_mul_of_nonneg_right h (by positivity)
+    _ = C * (N : ℝ) ^ (p + 2) := by ring
+
+theorem quad_pow {N s : ℕ} (hN : 1 ≤ N) (hs : 1 ≤ s) {B P : ℝ} (hB : 0 ≤ B) (hP : 0 ≤ P) :
+    B * (((s : ℝ) + (s : ℝ) ^ 2) * (N : ℝ) ^ s + P * (N : ℝ) ^ (s - 1) * (2 * N + (s : ℝ) ^ 2))
+      ≤ B * (((s : ℝ) + (s : ℝ) ^ 2) + P * (2 + (s : ℝ) ^ 2)) * (N : ℝ) ^ s := by
+  have hN1 : (1 : ℝ) ≤ N := by exact_mod_cast hN
+  have h1 : (N : ℝ) ^ (s - 1) * N = (N : ℝ) ^ s := by
+    rw [← pow_succ]; congr 1; omega
+  have h2 : (N : ℝ) ^ (s - 1) ≤ (N : ℝ) ^ s := pow_le_pow_right₀ hN1 (by omega)
+  have h3 : P * (N : ℝ) ^ (s - 1) * (2 * N + (s : ℝ) ^ 2)
+      ≤ P * (2 + (s : ℝ) ^ 2) * (N : ℝ) ^ s := by
+    have : (N : ℝ) ^ (s - 1) * (2 * N + (s : ℝ) ^ 2) ≤ (2 + (s : ℝ) ^ 2) * (N : ℝ) ^ s := by
+      nlinarith [sq_nonneg (s : ℝ)]
+    nlinarith
+  nlinarith
+
+open WalkCount Function BiasGeneral BiasGeneral2 BiasGeneral3 BiasGeneral4 BiasGeneral5 PiBound
+  CTG.Reals.TorusReduction
+
+section Terms
+
+variable {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω} [IsProbabilityMeasure μ]
+variable {σ : ℝ} (hσ : 0 < σ) (d : ℕ) (X : ℕ → Ω → FlatTorus d)
+  (h_indep : ProbabilityTheory.iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+  (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d)
+include hσ h_indep hX hlaw
+
+/-- The constant of a statistic with two row sums of arity `s`. -/
+noncomputable def cQ (d : ℕ) (σ : ℝ) (n s : ℕ) (P : ℝ) : ℝ :=
+  B4 d σ n * (((s : ℝ) + (s : ℝ) ^ 2) + P * (2 + (s : ℝ) ^ 2))
+
+theorem tA {N : ℕ} (hN : 1 ≤ N) (n : ℕ) :
+    |∫ ω, (∑ v : Fin (n + 1) → Fin N, ∑ u : Fin N, PhiA d σ n (fun a => X (v a) ω, X u ω))
+        / (N : ℝ) ^ (n + 2) ∂μ - (∑ r, LA d σ n r) / N|
+      ≤ 2 * ((n + 1 : ℕ) : ℝ) * (torusM d σ 1 ^ (n + 1) * torusM d σ 1)
+          * ((Prs (n + 1)).card : ℝ) / (N : ℝ) ^ 2 := by
+  have hM := torusM_one_ge hσ d
+  have hB : ∀ p, |PhiA d σ n p| ≤ torusM d σ 1 ^ (n + 1) * torusM d σ 1 := by
+    intro p; unfold PhiA
+    rw [abs_mul, abs_of_nonneg (cyT_bounds hσ d p.1).1]
+    exact mul_le_mul (cyT_bounds hσ d p.1).2 (cK_bound hσ d _) (abs_nonneg _) (by positivity)
+  rw [integral_div, int2 X hX _ (PhiA_meas hσ d n) hB]
+  have h := meanA hσ d X h_indep hX hlaw N n
+  rw [Nat.add_sub_cancel] at h
+  refine scale (p := n) hN ?_
+  calc _ ≤ 2 * ((n + 1 : ℕ) : ℝ) * (torusM d σ 1 ^ (n + 1) * torusM d σ 1)
+        * (((Prs (n + 1)).card : ℝ) * (N : ℝ) ^ n) := h
+    _ = _ := by ring
+
+theorem tB {N : ℕ} (hN : 1 ≤ N) (n : ℕ) :
+    |∫ ω, (∑ w : Fin (n + 2) → Fin N, ∑ u : Fin N, PhiB d σ n (fun a => X (w a) ω, X u ω))
+        / (N : ℝ) ^ (n + 1 + 2) ∂μ - (∑ r, LB d σ n r) / N|
+      ≤ 2 * ((n + 2 : ℕ) : ℝ) * (torusM d σ 1 ^ (n + 1) * torusM d σ 1 * torusM d σ 1)
+          * ((Prs (n + 2)).card : ℝ) / (N : ℝ) ^ 2 := by
+  have hM := torusM_one_ge hσ d
+  have hB : ∀ p, |PhiB d σ n p| ≤ torusM d σ 1 ^ (n + 1) * torusM d σ 1 * torusM d σ 1 := by
+    intro p
+    unfold PhiB
+    rw [abs_mul, abs_mul, abs_of_nonneg (cyT_bounds hσ d _).1,
+      abs_of_nonneg (heatP_nonneg hσ d 1 _)]
+    exact mul_le_mul (mul_le_mul (cyT_bounds hσ d _).2 (heatP_le hσ d le_rfl _)
+      (heatP_nonneg hσ d 1 _) (by positivity)) (cK_bound hσ d _) (abs_nonneg _) (by positivity)
+  rw [integral_div, int2 X hX _ (PhiB_meas hσ d n) hB]
+  have h := meanB hσ d X h_indep hX hlaw N n
+  rw [show n + 2 - 1 = n + 1 by omega] at h
+  refine scale (p := n + 1) hN ?_
+  calc _ ≤ 2 * ((n + 2 : ℕ) : ℝ) * (torusM d σ 1 ^ (n + 1) * torusM d σ 1 * torusM d σ 1)
+        * (((Prs (n + 2)).card : ℝ) * (N : ℝ) ^ (n + 1)) := h
+    _ = _ := by ring
+
+/-- The generic step for the statistics with two row sums. -/
+theorem tQ {N : ℕ} (hN : 1 ≤ N) (n s : ℕ) (hs : 1 ≤ s)
+    (Φ : (Fin s → FlatTorus d) × FlatTorus d × FlatTorus d → ℝ) (hΦ : Measurable Φ)
+    (hB : ∀ p, |Φ p| ≤ B4 d σ n) (L : ℝ)
+    (hm : |∑ w : Fin s → Fin N, ∑ u : Fin N, ∑ u' : Fin N,
+          ∫ ω, Φ (fun i => X (w i) ω, X u ω, X u' ω) ∂μ - (N : ℝ) ^ (s + 1) * L|
+      ≤ B4 d σ n * (((s : ℝ) + (s : ℝ) ^ 2) * (N : ℝ) ^ s
+          + ((Prs s).card : ℝ) * (N : ℝ) ^ (s - 1) * (2 * N + (s : ℝ) ^ 2))) :
+    |∫ ω, (∑ w : Fin s → Fin N, ∑ u : Fin N, ∑ u' : Fin N,
+          Φ (fun a => X (w a) ω, X u ω, X u' ω)) / (N : ℝ) ^ (s + 2) ∂μ - L / N|
+      ≤ cQ d σ n s ((Prs s).card) / (N : ℝ) ^ 2 := by
+  rw [integral_div, int3 X hX _ hΦ hB]
+  exact scale (p := s) hN (hm.trans ((quad_pow hN hs (B4_nonneg hσ d n)
+    (Nat.cast_nonneg _)).trans (le_of_eq (by unfold cQ; ring))))
+
+end Terms
+
+open WalkCount Function BiasGeneral BiasGeneral2 BiasGeneral3 BiasGeneral4 BiasGeneral5 PiBound
+  CTG.Reals.TorusReduction
+
+section QTdef
+
+/-- The pieces of the polynomial statistic as functions of the points. -/
+noncomputable def gA (d : ℕ) (σ : ℝ) (N n : ℕ) (x : ℕ → FlatTorus d) : ℝ :=
+  (∑ v : Fin (n + 1) → Fin N, ∑ u : Fin N, PhiA d σ n (fun a => x (v a), x u)) / (N : ℝ) ^ (n + 2)
+noncomputable def gB (d : ℕ) (σ : ℝ) (N n : ℕ) (x : ℕ → FlatTorus d) : ℝ :=
+  (∑ w : Fin (n + 2) → Fin N, ∑ u : Fin N, PhiB d σ n (fun a => x (w a), x u))
+    / (N : ℝ) ^ (n + 1 + 2)
+noncomputable def g3 {s : ℕ} (N : ℕ) {d : ℕ} (Φ : (Fin s → FlatTorus d) × FlatTorus d × FlatTorus d → ℝ)
+    (x : ℕ → FlatTorus d) : ℝ :=
+  (∑ w : Fin s → Fin N, ∑ u : Fin N, ∑ u' : Fin N, Φ (fun a => x (w a), x u, x u'))
+    / (N : ℝ) ^ (s + 2)
+
+/-- **The polynomial statistic `Q₀ + Q₁ + Q₂ + Q₃` for every `k = n + 1`, as sums over index
+    tuples** (it equals the subtracted sum of `trace_expansion_paper` at the sample, see
+    `QT_eq`). -/
+noncomputable def QT (d : ℕ) (σ : ℝ) (N n : ℕ) (x : ℕ → FlatTorus d) : ℝ :=
+  (∑ v : Fin (n + 1) → Fin N, cyT d σ (fun a => x (v a))) / (N : ℝ) ^ (n + 1)
+  + ((n : ℝ) + 1) * (-2 * gA d σ N n x + gB d σ N n x + 3 * g3 N (PhiEE d σ n) x
+      - 3 * g3 N (PhiEB d σ n) x + g3 N (PhiBB d σ n) x - g3 N (PhiS d σ n) x)
+  + ((n : ℝ) + 1) / 2 * ∑ l ∈ Finset.univ.erase (0 : Fin (n + 1)),
+      (4 * g3 N (PhiQee d σ n l) x - 2 * g3 N (PhiQeb d σ n l) x
+        - 2 * g3 N (PhiQbe d σ n l) x + g3 N (PhiQbb d σ n l) x)
+
+/-- The main term `Q₀ + (Q₁+Q₂+Q₃ at the order 1/N)`. -/
+noncomputable def Mt (d : ℕ) (σ : ℝ) (N n : ℕ) : ℝ :=
+  torusM d σ (n + 1) - ((Prs (n + 1)).card : ℝ) * torusM d σ (n + 1) / N
+    + (∑ p ∈ Prs (n + 1), Ip (torusM d σ) (n + 1) p) / N
+  + ((n : ℝ) + 1) * (-2 * ((∑ r, LA d σ n r) / N) + (∑ r, LB d σ n r) / N
+      + 3 * ((torusM d σ 2 - 1) * torusM d σ (n + 1) / N)
+      - 3 * ((torusM d σ 3 - 1) * torusM d σ (n + 1) / N)
+      + (torusM d σ 4 - 1) * torusM d σ (n + 1) / N
+      - (torusM d σ 2 - 1) * torusM d σ (n + 1) / N)
+  + ((n : ℝ) + 1) / 2 * ∑ l ∈ Finset.univ.erase (0 : Fin (n + 1)),
+      (4 * ((Ch d σ (n + 1) l.val 2 - torusM d σ (n + 1)) / N)
+        - 2 * ((Ch d σ (n + 1) l.val 3 - torusM d σ (n + 1)) / N)
+        - 2 * ((Ch d σ (n + 1) l.val 3 - torusM d σ (n + 1)) / N)
+        + (Ch d σ (n + 1) l.val 4 - torusM d σ (n + 1)) / N)
+
+/-- The constant of the remainder. -/
+noncomputable def Ctot (d : ℕ) (σ : ℝ) (n : ℕ) : ℝ :=
+  (torusM d σ 1 + torusM d σ 1 * torusM d σ 1 + 2 * torusM d σ 1 ^ (n + 1))
+      * ((Prs (n + 1)).card : ℝ) ^ 2
+  + ((n : ℝ) + 1) * (2 * (2 * ((n + 1 : ℕ) : ℝ) * (torusM d σ 1 ^ (n + 1) * torusM d σ 1)
+        * ((Prs (n + 1)).card : ℝ))
+      + 2 * ((n + 2 : ℕ) : ℝ) * (torusM d σ 1 ^ (n + 1) * torusM d σ 1 * torusM d σ 1)
+        * ((Prs (n + 2)).card : ℝ)
+      + 3 * cQ d σ n (n + 1) ((Prs (n + 1)).card) + 3 * cQ d σ n (n + 2) ((Prs (n + 2)).card)
+      + cQ d σ n (n + 3) ((Prs (n + 3)).card) + cQ d σ n (n + 2) ((Prs (n + 2)).card))
+  + ((n : ℝ) + 1) / 2 * (n : ℝ) * (4 * cQ d σ n (n + 1) ((Prs (n + 1)).card)
+      + 4 * cQ d σ n (n + 2) ((Prs (n + 2)).card) + cQ d σ n (n + 3) ((Prs (n + 3)).card))
+
+end QTdef
+
+section MeanQT
+
+variable {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω} [IsProbabilityMeasure μ]
+
+theorem BM.div_const {f : Ω → ℝ} (hf : BM f) (c : ℝ) : BM (fun ω => f ω / c) := by
+  obtain ⟨B, hB⟩ := hf.bdd
+  refine ⟨hf.meas.div_const c, B / |c|, fun ω => ?_⟩
+  rw [abs_div]
+  exact div_le_div_of_nonneg_right (hB ω) (abs_nonneg c)
+
+end MeanQT
+
+open WalkCount Function BiasGeneral BiasGeneral2 BiasGeneral3 BiasGeneral4 BiasGeneral5 PiBound
+  CTG.Reals.TorusReduction
+
+section MeanQT2
+
+variable {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω} [IsProbabilityMeasure μ]
+
+theorem integral_lin6 {f1 f2 f3 f4 f5 f6 : Ω → ℝ} (h1 : Integrable f1 μ) (h2 : Integrable f2 μ)
+    (h3 : Integrable f3 μ) (h4 : Integrable f4 μ) (h5 : Integrable f5 μ) (h6 : Integrable f6 μ) :
+    ∫ ω, (-2 * f1 ω + f2 ω + 3 * f3 ω - 3 * f4 ω + f5 ω - f6 ω) ∂μ
+      = -2 * ∫ ω, f1 ω ∂μ + ∫ ω, f2 ω ∂μ + 3 * ∫ ω, f3 ω ∂μ - 3 * ∫ ω, f4 ω ∂μ
+        + ∫ ω, f5 ω ∂μ - ∫ ω, f6 ω ∂μ := by
+  have g1 : Integrable (fun ω => -2 * f1 ω) μ := h1.const_mul _
+  have g3 : Integrable (fun ω => 3 * f3 ω) μ := h3.const_mul _
+  have g4 : Integrable (fun ω => 3 * f4 ω) μ := h4.const_mul _
+  have k2 : Integrable (fun ω => -2 * f1 ω + f2 ω) μ := g1.add h2
+  have k3 : Integrable (fun ω => -2 * f1 ω + f2 ω + 3 * f3 ω) μ := k2.add g3
+  have k4 : Integrable (fun ω => -2 * f1 ω + f2 ω + 3 * f3 ω - 3 * f4 ω) μ := k3.sub g4
+  have k5 : Integrable (fun ω => -2 * f1 ω + f2 ω + 3 * f3 ω - 3 * f4 ω + f5 ω) μ := k4.add h5
+  rw [integral_sub k5 h6, integral_add k4 h5, integral_sub k3 g4, integral_add k2 g3,
+    integral_add g1 h2, integral_const_mul, integral_const_mul, integral_const_mul]
+
+theorem integral_lin4 {f1 f2 f3 f4 : Ω → ℝ} (h1 : Integrable f1 μ) (h2 : Integrable f2 μ)
+    (h3 : Integrable f3 μ) (h4 : Integrable f4 μ) :
+    ∫ ω, (4 * f1 ω - 2 * f2 ω - 2 * f3 ω + f4 ω) ∂μ
+      = 4 * ∫ ω, f1 ω ∂μ - 2 * ∫ ω, f2 ω ∂μ - 2 * ∫ ω, f3 ω ∂μ + ∫ ω, f4 ω ∂μ := by
+  have g1 : Integrable (fun ω => 4 * f1 ω) μ := h1.const_mul _
+  have g2 : Integrable (fun ω => 2 * f2 ω) μ := h2.const_mul _
+  have g3 : Integrable (fun ω => 2 * f3 ω) μ := h3.const_mul _
+  have k2 : Integrable (fun ω => 4 * f1 ω - 2 * f2 ω) μ := g1.sub g2
+  have k3 : Integrable (fun ω => 4 * f1 ω - 2 * f2 ω - 2 * f3 ω) μ := k2.sub g3
+  rw [integral_add k3 h4, integral_sub k2 g3, integral_sub g1 g2, integral_const_mul,
+    integral_const_mul, integral_const_mul]
+
+/-- The bounds of the summands by `B4`. -/
+theorem phi_bounds {σ : ℝ} (hσ : 0 < σ) (d n : ℕ) (l : Fin (n + 1)) :
+    (∀ p, |PhiEE d σ n p| ≤ B4 d σ n) ∧ (∀ p, |PhiEB d σ n p| ≤ B4 d σ n)
+    ∧ (∀ p, |PhiBB d σ n p| ≤ B4 d σ n) ∧ (∀ p, |PhiS d σ n p| ≤ B4 d σ n)
+    ∧ (∀ p, |PhiQee d σ n l p| ≤ B4 d σ n) ∧ (∀ p, |PhiQeb d σ n l p| ≤ B4 d σ n)
+    ∧ (∀ p, |PhiQbe d σ n l p| ≤ B4 d σ n) ∧ (∀ p, |PhiQbb d σ n l p| ≤ B4 d σ n) := by
+  have hM := torusM_one_ge hσ d
+  refine ⟨fun p => ?_, fun p => ?_, fun p => ?_, fun p => ?_, fun p => ?_, fun p => ?_,
+    fun p => ?_, fun p => ?_⟩
+  · exact bd2 hM (by positivity) (cyT_bounds hσ d _).1 (cyT_bounds hσ d _).2 (cK_bound hσ d _)
+      (cK_bound hσ d _)
+  · exact bd3 hM (by positivity) (cyT_bounds hσ d _).1 (cyT_bounds hσ d _).2 (cK_bound hσ d _)
+      (hP_abs hσ d le_rfl _) (cK_bound hσ d _)
+  · exact bd4 hM (by positivity) (cyT_bounds hσ d _).1 (cyT_bounds hσ d _).2 (hP_abs hσ d le_rfl _)
+      (cK_bound hσ d _) (hP_abs hσ d le_rfl _) (cK_bound hσ d _)
+  · exact bd3 hM (by positivity) (cyT_bounds hσ d _).1 (cyT_bounds hσ d _).2 (hP_abs hσ d le_rfl _)
+      (cK_bound hσ d _) (cK_bound hσ d _)
+  · exact bd2 hM (by positivity) (cyT_bounds hσ d _).1 (cyT_bounds hσ d _).2 (cK_bound hσ d _)
+      (cK_bound hσ d _)
+  · exact bd3 hM (by positivity) (cyT_bounds hσ d _).1 (cyT_bounds hσ d _).2 (cK_bound hσ d _)
+      (hP_abs hσ d le_rfl _) (cK_bound hσ d _)
+  · exact bd3 hM (by positivity) (cyT_bounds hσ d _).1 (cyT_bounds hσ d _).2 (hP_abs hσ d le_rfl _)
+      (cK_bound hσ d _) (cK_bound hσ d _)
+  · exact bd4 hM (by positivity) (cyT_bounds hσ d _).1 (cyT_bounds hσ d _).2 (hP_abs hσ d le_rfl _)
+      (cK_bound hσ d _) (hP_abs hσ d le_rfl _) (cK_bound hσ d _)
+
+/-- The arithmetic of the triangle inequality for the three groups of terms. -/
+theorem comb_bound {ι : Type*} (s : Finset ι) {c c' a0 b0 e0 a1 a2 a3 a4 a5 a6 b1 b2 b3 b4 b5 b6
+      e1 e2 e3 e4 e5 e6 f1 f2 f3 f4 : ℝ} (hc : 0 ≤ c) (hc' : 0 ≤ c')
+    {x1 x2 x3 x4 y1 y2 y3 y4 : ι → ℝ}
+    (h0 : |a0 - b0| ≤ e0) (h1 : |a1 - b1| ≤ e1) (h2 : |a2 - b2| ≤ e2) (h3 : |a3 - b3| ≤ e3)
+    (h4 : |a4 - b4| ≤ e4) (h5 : |a5 - b5| ≤ e5) (h6 : |a6 - b6| ≤ e6)
+    (k1 : ∀ l ∈ s, |x1 l - y1 l| ≤ f1) (k2 : ∀ l ∈ s, |x2 l - y2 l| ≤ f2)
+    (k3 : ∀ l ∈ s, |x3 l - y3 l| ≤ f3) (k4 : ∀ l ∈ s, |x4 l - y4 l| ≤ f4) :
+    |(a0 + c * (-2 * a1 + a2 + 3 * a3 - 3 * a4 + a5 - a6)
+        + c' * ∑ l ∈ s, (4 * x1 l - 2 * x2 l - 2 * x3 l + x4 l))
+      - (b0 + c * (-2 * b1 + b2 + 3 * b3 - 3 * b4 + b5 - b6)
+        + c' * ∑ l ∈ s, (4 * y1 l - 2 * y2 l - 2 * y3 l + y4 l))|
+      ≤ e0 + c * (2 * e1 + e2 + 3 * e3 + 3 * e4 + e5 + e6)
+        + c' * ((s.card : ℝ) * (4 * f1 + 2 * f2 + 2 * f3 + f4)) := by
+  have hs : |∑ l ∈ s, (4 * x1 l - 2 * x2 l - 2 * x3 l + x4 l)
+      - ∑ l ∈ s, (4 * y1 l - 2 * y2 l - 2 * y3 l + y4 l)|
+      ≤ (s.card : ℝ) * (4 * f1 + 2 * f2 + 2 * f3 + f4) := by
+    rw [← Finset.sum_sub_distrib]
+    refine (Finset.abs_sum_le_sum_abs _ _).trans ?_
+    rw [← nsmul_eq_mul, ← Finset.sum_const]
+    refine Finset.sum_le_sum fun l hl => ?_
+    have g1 := k1 l hl; have g2 := k2 l hl; have g3 := k3 l hl; have g4 := k4 l hl
+    rw [abs_le] at g1 g2 g3 g4 ⊢
+    constructor <;> linarith
+  have hr : |(-2 * a1 + a2 + 3 * a3 - 3 * a4 + a5 - a6)
+      - (-2 * b1 + b2 + 3 * b3 - 3 * b4 + b5 - b6)|
+      ≤ 2 * e1 + e2 + 3 * e3 + 3 * e4 + e5 + e6 := by
+    rw [abs_le] at h1 h2 h3 h4 h5 h6 ⊢
+    constructor <;> linarith
+  have e : (a0 + c * (-2 * a1 + a2 + 3 * a3 - 3 * a4 + a5 - a6)
+        + c' * ∑ l ∈ s, (4 * x1 l - 2 * x2 l - 2 * x3 l + x4 l))
+      - (b0 + c * (-2 * b1 + b2 + 3 * b3 - 3 * b4 + b5 - b6)
+        + c' * ∑ l ∈ s, (4 * y1 l - 2 * y2 l - 2 * y3 l + y4 l))
+      = (a0 - b0) + c * ((-2 * a1 + a2 + 3 * a3 - 3 * a4 + a5 - a6)
+          - (-2 * b1 + b2 + 3 * b3 - 3 * b4 + b5 - b6))
+        + c' * (∑ l ∈ s, (4 * x1 l - 2 * x2 l - 2 * x3 l + x4 l)
+          - ∑ l ∈ s, (4 * y1 l - 2 * y2 l - 2 * y3 l + y4 l)) := by ring
+  rw [e]
+  refine (abs_add_le _ _).trans (add_le_add ((abs_add_le _ _).trans (add_le_add h0 ?_)) ?_)
+  · rw [abs_mul, abs_of_nonneg hc]; exact mul_le_mul_of_nonneg_left hr hc
+  · rw [abs_mul, abs_of_nonneg hc']; exact mul_le_mul_of_nonneg_left hs hc'
+
+variable {σ : ℝ} (hσ : 0 < σ) (d : ℕ) (X : ℕ → Ω → FlatTorus d)
+  (h_indep : ProbabilityTheory.iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+  (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d)
+include hσ h_indep hX hlaw
+
+/-- **(c) The mean of the polynomial statistic `Q₀ + Q₁ + Q₂ + Q₃` for every `k = n + 1 ≥ 2`**:
+    it equals the main term `Mt` up to `Ctot / N²`. -/
+theorem meanQT {N n : ℕ} (hN : 1 ≤ N) (hn : 1 ≤ n) :
+    |∫ ω, QT d σ N n (fun j => X j ω) ∂μ - Mt d σ N n| ≤ Ctot d σ n / (N : ℝ) ^ 2 := by
+  have hM := torusM_one_ge hσ d
+  have hPB := fun l => phi_bounds hσ d n l
+  have hB4M : torusM d σ 1 ^ (n + 1) * torusM d σ 1 * torusM d σ 1 ≤ B4 d σ n := by
+    unfold B4
+    have h1 : torusM d σ 1 ≤ torusM d σ 1 ^ 2 := by nlinarith
+    have h2 : torusM d σ 1 ^ 2 ≤ torusM d σ 1 ^ 4 := pow_le_pow_right₀ hM (by norm_num)
+    have : 0 ≤ torusM d σ 1 ^ (n + 1) := by positivity
+    calc torusM d σ 1 ^ (n + 1) * torusM d σ 1 * torusM d σ 1
+        = torusM d σ 1 ^ (n + 1) * torusM d σ 1 ^ 2 := by ring
+      _ ≤ torusM d σ 1 ^ (n + 1) * torusM d σ 1 ^ 4 := mul_le_mul_of_nonneg_left h2 this
+  have hPA : ∀ p, |PhiA d σ n p| ≤ torusM d σ 1 ^ (n + 1) * torusM d σ 1 := by
+    intro p; unfold PhiA
+    rw [abs_mul, abs_of_nonneg (cyT_bounds hσ d p.1).1]
+    exact mul_le_mul (cyT_bounds hσ d p.1).2 (cK_bound hσ d _) (abs_nonneg _) (by positivity)
+  have hPBb : ∀ p, |PhiB d σ n p| ≤ torusM d σ 1 ^ (n + 1) * torusM d σ 1 * torusM d σ 1 := by
+    intro p
+    unfold PhiB
+    rw [abs_mul, abs_mul, abs_of_nonneg (cyT_bounds hσ d _).1,
+      abs_of_nonneg (heatP_nonneg hσ d 1 _)]
+    exact mul_le_mul (mul_le_mul (cyT_bounds hσ d _).2 (heatP_le hσ d le_rfl _)
+      (heatP_nonneg hσ d 1 _) (by positivity)) (cK_bound hσ d _) (abs_nonneg _) (by positivity)
+  -- integrability
+  have i0 : Integrable (fun ω => (∑ v : Fin (n + 1) → Fin N, cyT d σ (fun a => X (v a) ω))
+      / (N : ℝ) ^ (n + 1)) μ :=
+    ((BM.sum _ _ fun v _ => (⟨(cyT_meas hσ d n).comp (measurable_pi_lambda _ fun a => hX _),
+      torusM d σ 1 ^ (n + 1), fun ω => by
+        rw [abs_of_nonneg (cyT_bounds hσ d _).1]; exact (cyT_bounds hσ d _).2⟩ :
+          BM fun ω => cyT d σ (fun a => X (v a) ω))).div_const _).integrable
+  have iA : Integrable (fun ω => gA d σ N n (fun j => X j ω)) μ :=
+    ((bm2 X hX _ (PhiA_meas hσ d n) hPA).div_const _).integrable
+  have iB : Integrable (fun ω => gB d σ N n (fun j => X j ω)) μ :=
+    ((bm2 X hX _ (PhiB_meas hσ d n) hPBb).div_const _).integrable
+  have i3 : ∀ {s : ℕ} (Φ : (Fin s → FlatTorus d) × FlatTorus d × FlatTorus d → ℝ),
+      Measurable Φ → (∀ p, |Φ p| ≤ B4 d σ n) →
+      Integrable (fun ω => g3 N Φ (fun j => X j ω)) μ :=
+    fun Φ hΦ hB => ((bm3 X hX Φ hΦ hB).div_const _).integrable
+  have iEE := i3 _ (PhiEE_meas hσ d n) (hPB 0).1
+  have iEB := i3 _ (PhiEB_meas hσ d n) (hPB 0).2.1
+  have iBB := i3 _ (PhiBB_meas hσ d n) (hPB 0).2.2.1
+  have iS := i3 _ (PhiS_meas hσ d n) (hPB 0).2.2.2.1
+  have iqee := fun l => i3 _ (PhiQee_meas hσ d n l) (hPB l).2.2.2.2.1
+  have iqeb := fun l => i3 _ (PhiQeb_meas hσ d n l) (hPB l).2.2.2.2.2.1
+  have iqbe := fun l => i3 _ (PhiQbe_meas hσ d n l) (hPB l).2.2.2.2.2.2.1
+  have iqbb := fun l => i3 _ (PhiQbb_meas hσ d n l) (hPB l).2.2.2.2.2.2.2
+  have kG : Integrable (fun ω => -2 * gA d σ N n (fun j => X j ω) + gB d σ N n (fun j => X j ω)
+      + 3 * g3 N (PhiEE d σ n) (fun j => X j ω) - 3 * g3 N (PhiEB d σ n) (fun j => X j ω)
+      + g3 N (PhiBB d σ n) (fun j => X j ω) - g3 N (PhiS d σ n) (fun j => X j ω)) μ :=
+    (((((iA.const_mul (-2)).add iB).add (iEE.const_mul 3)).sub (iEB.const_mul 3)).add iBB).sub iS
+  have kHl : ∀ l : Fin (n + 1), Integrable (fun ω => 4 * g3 N (PhiQee d σ n l) (fun j => X j ω)
+      - 2 * g3 N (PhiQeb d σ n l) (fun j => X j ω) - 2 * g3 N (PhiQbe d σ n l) (fun j => X j ω)
+      + g3 N (PhiQbb d σ n l) (fun j => X j ω)) μ := fun l =>
+    ((((iqee l).const_mul 4).sub ((iqeb l).const_mul 2)).sub ((iqbe l).const_mul 2)).add (iqbb l)
+  have kH : Integrable (fun ω => ∑ l ∈ Finset.univ.erase (0 : Fin (n + 1)),
+      (4 * g3 N (PhiQee d σ n l) (fun j => X j ω)
+      - 2 * g3 N (PhiQeb d σ n l) (fun j => X j ω) - 2 * g3 N (PhiQbe d σ n l) (fun j => X j ω)
+      + g3 N (PhiQbb d σ n l) (fun j => X j ω))) μ :=
+    integrable_finset_sum _ fun l _ => kHl l
+  have eQ : (fun ω => QT d σ N n (fun j => X j ω)) = fun ω =>
+      (∑ v : Fin (n + 1) → Fin N, cyT d σ (fun a => X (v a) ω)) / (N : ℝ) ^ (n + 1)
+      + ((n : ℝ) + 1) * (-2 * gA d σ N n (fun j => X j ω) + gB d σ N n (fun j => X j ω)
+      + 3 * g3 N (PhiEE d σ n) (fun j => X j ω) - 3 * g3 N (PhiEB d σ n) (fun j => X j ω)
+      + g3 N (PhiBB d σ n) (fun j => X j ω) - g3 N (PhiS d σ n) (fun j => X j ω))
+      + ((n : ℝ) + 1) / 2 * ∑ l ∈ Finset.univ.erase (0 : Fin (n + 1)),
+      (4 * g3 N (PhiQee d σ n l) (fun j => X j ω)
+      - 2 * g3 N (PhiQeb d σ n l) (fun j => X j ω) - 2 * g3 N (PhiQbe d σ n l) (fun j => X j ω)
+      + g3 N (PhiQbb d σ n l) (fun j => X j ω)) := by
+    funext ω; rfl
+  have hHs : ∫ ω, ∑ l ∈ Finset.univ.erase (0 : Fin (n + 1)),
+      (4 * g3 N (PhiQee d σ n l) (fun j => X j ω)
+      - 2 * g3 N (PhiQeb d σ n l) (fun j => X j ω) - 2 * g3 N (PhiQbe d σ n l) (fun j => X j ω)
+      + g3 N (PhiQbb d σ n l) (fun j => X j ω)) ∂μ
+      = ∑ l ∈ Finset.univ.erase (0 : Fin (n + 1)),
+      (4 * ∫ ω, g3 N (PhiQee d σ n l) (fun j => X j ω) ∂μ
+      - 2 * ∫ ω, g3 N (PhiQeb d σ n l) (fun j => X j ω) ∂μ
+      - 2 * ∫ ω, g3 N (PhiQbe d σ n l) (fun j => X j ω) ∂μ
+      + ∫ ω, g3 N (PhiQbb d σ n l) (fun j => X j ω) ∂μ) := by
+    rw [integral_finset_sum _ fun l _ => kHl l]
+    exact Finset.sum_congr rfl fun l _ => integral_lin4 (iqee l) (iqeb l) (iqbe l) (iqbb l)
+  have kG' : Integrable (fun ω => ((n : ℝ) + 1) * (-2 * gA d σ N n (fun j => X j ω) + gB d σ N n (fun j => X j ω)
+      + 3 * g3 N (PhiEE d σ n) (fun j => X j ω) - 3 * g3 N (PhiEB d σ n) (fun j => X j ω)
+      + g3 N (PhiBB d σ n) (fun j => X j ω) - g3 N (PhiS d σ n) (fun j => X j ω))) μ := kG.const_mul _
+  have kH' : Integrable (fun ω => ((n : ℝ) + 1) / 2 * (∑ l ∈ Finset.univ.erase (0 : Fin (n + 1)),
+      (4 * g3 N (PhiQee d σ n l) (fun j => X j ω)
+      - 2 * g3 N (PhiQeb d σ n l) (fun j => X j ω) - 2 * g3 N (PhiQbe d σ n l) (fun j => X j ω)
+      + g3 N (PhiQbb d σ n l) (fun j => X j ω)))) μ := kH.const_mul _
+  have kL : Integrable (fun ω => (∑ v : Fin (n + 1) → Fin N, cyT d σ (fun a => X (v a) ω)) / (N : ℝ) ^ (n + 1) + ((n : ℝ) + 1) * (-2 * gA d σ N n (fun j => X j ω) + gB d σ N n (fun j => X j ω)
+      + 3 * g3 N (PhiEE d σ n) (fun j => X j ω) - 3 * g3 N (PhiEB d σ n) (fun j => X j ω)
+      + g3 N (PhiBB d σ n) (fun j => X j ω) - g3 N (PhiS d σ n) (fun j => X j ω))) μ := i0.add kG'
+  rw [eQ, integral_add kL kH', integral_add i0 kG',
+    integral_const_mul, integral_const_mul, integral_lin6 iA iB iEE iEB iBB iS, hHs]
+  -- the eleven estimates
+  have h0 : |∫ ω, (∑ v : Fin (n + 1) → Fin N, cyT d σ (fun a => X (v a) ω)) / (N : ℝ) ^ (n + 1) ∂μ
+      - (torusM d σ (n + 1) - ((Prs (n + 1)).card : ℝ) * torusM d σ (n + 1) / N
+        + (∑ p ∈ Prs (n + 1), Ip (torusM d σ) (n + 1) p) / N)|
+      ≤ (torusM d σ 1 + torusM d σ 1 * torusM d σ 1 + 2 * torusM d σ 1 ^ (n + 1))
+          * ((Prs (n + 1)).card : ℝ) ^ 2 / (N : ℝ) ^ 2 := by
+    have h := mean_Q0 (torusRK hσ d) X h_indep hX hlaw (N := N) (n := n) (by omega) hn
+    have e0 : (fun ω => (∑ v : Fin (n + 1) → Fin N, cyT d σ (fun a => X (v a) ω))
+        / (N : ℝ) ^ (n + 1)) = fun ω => (Matrix.of (fun a b : Fin N =>
+          heatP d σ 1 (X a ω - X b ω) / N) ^ (n + 1)).trace :=
+      funext fun ω => (trace_tilde (fun i (x y : FlatTorus d) => heatP d σ i (x - y)) N n
+        (fun a : Fin N => X a ω)).symm
+    rw [e0]; exact h
+  have h1 : |∫ ω, gA d σ N n (fun j => X j ω) ∂μ - (∑ r, LA d σ n r) / N|
+      ≤ 2 * ((n + 1 : ℕ) : ℝ) * (torusM d σ 1 ^ (n + 1) * torusM d σ 1)
+          * ((Prs (n + 1)).card : ℝ) / (N : ℝ) ^ 2 := tA hσ d X h_indep hX hlaw hN n
+  have h2 : |∫ ω, gB d σ N n (fun j => X j ω) ∂μ - (∑ r, LB d σ n r) / N|
+      ≤ 2 * ((n + 2 : ℕ) : ℝ) * (torusM d σ 1 ^ (n + 1) * torusM d σ 1 * torusM d σ 1)
+          * ((Prs (n + 2)).card : ℝ) / (N : ℝ) ^ 2 := tB hσ d X h_indep hX hlaw hN n
+  have hpos : ∀ s : ℕ, 0 ≤ (((s : ℝ) + (s : ℝ) ^ 2) * (N : ℝ) ^ s
+      + ((Prs s).card : ℝ) * (N : ℝ) ^ (s - 1) * (2 * N + (s : ℝ) ^ 2)) := fun s => by positivity
+  have h3 : |∫ ω, g3 N (PhiEE d σ n) (fun j => X j ω) ∂μ
+      - (torusM d σ 2 - 1) * torusM d σ (n + 1) / N| ≤ cQ d σ n (n + 1) ((Prs (n + 1)).card)
+        / (N : ℝ) ^ 2 :=
+    tQ hσ d X h_indep hX hlaw hN n (n + 1) (by omega) _ (PhiEE_meas hσ d n) (hPB 0).1 _
+      ((meanEE hσ d X h_indep hX hlaw N n).trans (mul_le_mul_of_nonneg_right hB4M (hpos _)))
+  have h4 : |∫ ω, g3 N (PhiEB d σ n) (fun j => X j ω) ∂μ
+      - (torusM d σ 3 - 1) * torusM d σ (n + 1) / N| ≤ cQ d σ n (n + 2) ((Prs (n + 2)).card)
+        / (N : ℝ) ^ 2 :=
+    tQ hσ d X h_indep hX hlaw hN n (n + 2) (by omega) _ (PhiEB_meas hσ d n) (hPB 0).2.1 _
+      (meanEB hσ d X h_indep hX hlaw N n)
+  have h5 : |∫ ω, g3 N (PhiBB d σ n) (fun j => X j ω) ∂μ
+      - (torusM d σ 4 - 1) * torusM d σ (n + 1) / N| ≤ cQ d σ n (n + 3) ((Prs (n + 3)).card)
+        / (N : ℝ) ^ 2 :=
+    tQ hσ d X h_indep hX hlaw hN n (n + 3) (by omega) _ (PhiBB_meas hσ d n) (hPB 0).2.2.1 _
+      (meanBB hσ d X h_indep hX hlaw N n)
+  have h6 : |∫ ω, g3 N (PhiS d σ n) (fun j => X j ω) ∂μ
+      - (torusM d σ 2 - 1) * torusM d σ (n + 1) / N| ≤ cQ d σ n (n + 2) ((Prs (n + 2)).card)
+        / (N : ℝ) ^ 2 :=
+    tQ hσ d X h_indep hX hlaw hN n (n + 2) (by omega) _ (PhiS_meas hσ d n) (hPB 0).2.2.2.1 _
+      (meanS hσ d X h_indep hX hlaw N n)
+  have k1 : ∀ l ∈ Finset.univ.erase (0 : Fin (n + 1)),
+      |∫ ω, g3 N (PhiQee d σ n l) (fun j => X j ω) ∂μ
+        - (Ch d σ (n + 1) l.val 2 - torusM d σ (n + 1)) / N|
+        ≤ cQ d σ n (n + 1) ((Prs (n + 1)).card) / (N : ℝ) ^ 2 := fun l hl =>
+    tQ hσ d X h_indep hX hlaw hN n (n + 1) (by omega) _ (PhiQee_meas hσ d n l)
+      (hPB l).2.2.2.2.1 _ (meanQee hσ d X h_indep hX hlaw N n l (Finset.ne_of_mem_erase hl))
+  have k2 : ∀ l ∈ Finset.univ.erase (0 : Fin (n + 1)),
+      |∫ ω, g3 N (PhiQeb d σ n l) (fun j => X j ω) ∂μ
+        - (Ch d σ (n + 1) l.val 3 - torusM d σ (n + 1)) / N|
+        ≤ cQ d σ n (n + 2) ((Prs (n + 2)).card) / (N : ℝ) ^ 2 := fun l hl =>
+    tQ hσ d X h_indep hX hlaw hN n (n + 2) (by omega) _ (PhiQeb_meas hσ d n l)
+      (hPB l).2.2.2.2.2.1 _ (meanQeb hσ d X h_indep hX hlaw N n l (Finset.ne_of_mem_erase hl))
+  have k3 : ∀ l ∈ Finset.univ.erase (0 : Fin (n + 1)),
+      |∫ ω, g3 N (PhiQbe d σ n l) (fun j => X j ω) ∂μ
+        - (Ch d σ (n + 1) l.val 3 - torusM d σ (n + 1)) / N|
+        ≤ cQ d σ n (n + 2) ((Prs (n + 2)).card) / (N : ℝ) ^ 2 := fun l hl =>
+    tQ hσ d X h_indep hX hlaw hN n (n + 2) (by omega) _ (PhiQbe_meas hσ d n l)
+      (hPB l).2.2.2.2.2.2.1 _ (meanQbe hσ d X h_indep hX hlaw N n l (Finset.ne_of_mem_erase hl))
+  have k4 : ∀ l ∈ Finset.univ.erase (0 : Fin (n + 1)),
+      |∫ ω, g3 N (PhiQbb d σ n l) (fun j => X j ω) ∂μ
+        - (Ch d σ (n + 1) l.val 4 - torusM d σ (n + 1)) / N|
+        ≤ cQ d σ n (n + 3) ((Prs (n + 3)).card) / (N : ℝ) ^ 2 := fun l hl =>
+    tQ hσ d X h_indep hX hlaw hN n (n + 3) (by omega) _ (PhiQbb_meas hσ d n l)
+      (hPB l).2.2.2.2.2.2.2 _ (meanQbb hσ d X h_indep hX hlaw N n l (Finset.ne_of_mem_erase hl))
+  unfold Mt
+  refine (comb_bound _ (by positivity) (by positivity) h0 h1 h2 h3 h4 h5 h6 k1 k2 k3 k4).trans
+    (le_of_eq ?_)
+  rw [Finset.card_erase_of_mem (Finset.mem_univ _), Finset.card_univ, Fintype.card_fin]
+  unfold Ctot
+  push_cast
+  ring
+
+/-- The polynomial statistic is integrable. -/
+theorem QT_integrable {N n : ℕ} :
+    Integrable (fun ω => QT d σ N n (fun j => X j ω)) μ := by
+  have hM := torusM_one_ge hσ d
+  have hPB := fun l => phi_bounds hσ d n l
+  have hB4M : torusM d σ 1 ^ (n + 1) * torusM d σ 1 * torusM d σ 1 ≤ B4 d σ n := by
+    unfold B4
+    have h1 : torusM d σ 1 ≤ torusM d σ 1 ^ 2 := by nlinarith
+    have h2 : torusM d σ 1 ^ 2 ≤ torusM d σ 1 ^ 4 := pow_le_pow_right₀ hM (by norm_num)
+    have : 0 ≤ torusM d σ 1 ^ (n + 1) := by positivity
+    calc torusM d σ 1 ^ (n + 1) * torusM d σ 1 * torusM d σ 1
+        = torusM d σ 1 ^ (n + 1) * torusM d σ 1 ^ 2 := by ring
+      _ ≤ torusM d σ 1 ^ (n + 1) * torusM d σ 1 ^ 4 := mul_le_mul_of_nonneg_left h2 this
+  have hPA : ∀ p, |PhiA d σ n p| ≤ torusM d σ 1 ^ (n + 1) * torusM d σ 1 := by
+    intro p; unfold PhiA
+    rw [abs_mul, abs_of_nonneg (cyT_bounds hσ d p.1).1]
+    exact mul_le_mul (cyT_bounds hσ d p.1).2 (cK_bound hσ d _) (abs_nonneg _) (by positivity)
+  have hPBb : ∀ p, |PhiB d σ n p| ≤ torusM d σ 1 ^ (n + 1) * torusM d σ 1 * torusM d σ 1 := by
+    intro p
+    unfold PhiB
+    rw [abs_mul, abs_mul, abs_of_nonneg (cyT_bounds hσ d _).1,
+      abs_of_nonneg (heatP_nonneg hσ d 1 _)]
+    exact mul_le_mul (mul_le_mul (cyT_bounds hσ d _).2 (heatP_le hσ d le_rfl _)
+      (heatP_nonneg hσ d 1 _) (by positivity)) (cK_bound hσ d _) (abs_nonneg _) (by positivity)
+  -- integrability
+  have i0 : Integrable (fun ω => (∑ v : Fin (n + 1) → Fin N, cyT d σ (fun a => X (v a) ω))
+      / (N : ℝ) ^ (n + 1)) μ :=
+    ((BM.sum _ _ fun v _ => (⟨(cyT_meas hσ d n).comp (measurable_pi_lambda _ fun a => hX _),
+      torusM d σ 1 ^ (n + 1), fun ω => by
+        rw [abs_of_nonneg (cyT_bounds hσ d _).1]; exact (cyT_bounds hσ d _).2⟩ :
+          BM fun ω => cyT d σ (fun a => X (v a) ω))).div_const _).integrable
+  have iA : Integrable (fun ω => gA d σ N n (fun j => X j ω)) μ :=
+    ((bm2 X hX _ (PhiA_meas hσ d n) hPA).div_const _).integrable
+  have iB : Integrable (fun ω => gB d σ N n (fun j => X j ω)) μ :=
+    ((bm2 X hX _ (PhiB_meas hσ d n) hPBb).div_const _).integrable
+  have i3 : ∀ {s : ℕ} (Φ : (Fin s → FlatTorus d) × FlatTorus d × FlatTorus d → ℝ),
+      Measurable Φ → (∀ p, |Φ p| ≤ B4 d σ n) →
+      Integrable (fun ω => g3 N Φ (fun j => X j ω)) μ :=
+    fun Φ hΦ hB => ((bm3 X hX Φ hΦ hB).div_const _).integrable
+  have iEE := i3 _ (PhiEE_meas hσ d n) (hPB 0).1
+  have iEB := i3 _ (PhiEB_meas hσ d n) (hPB 0).2.1
+  have iBB := i3 _ (PhiBB_meas hσ d n) (hPB 0).2.2.1
+  have iS := i3 _ (PhiS_meas hσ d n) (hPB 0).2.2.2.1
+  have iqee := fun l => i3 _ (PhiQee_meas hσ d n l) (hPB l).2.2.2.2.1
+  have iqeb := fun l => i3 _ (PhiQeb_meas hσ d n l) (hPB l).2.2.2.2.2.1
+  have iqbe := fun l => i3 _ (PhiQbe_meas hσ d n l) (hPB l).2.2.2.2.2.2.1
+  have iqbb := fun l => i3 _ (PhiQbb_meas hσ d n l) (hPB l).2.2.2.2.2.2.2
+  have kG : Integrable (fun ω => -2 * gA d σ N n (fun j => X j ω) + gB d σ N n (fun j => X j ω)
+      + 3 * g3 N (PhiEE d σ n) (fun j => X j ω) - 3 * g3 N (PhiEB d σ n) (fun j => X j ω)
+      + g3 N (PhiBB d σ n) (fun j => X j ω) - g3 N (PhiS d σ n) (fun j => X j ω)) μ :=
+    (((((iA.const_mul (-2)).add iB).add (iEE.const_mul 3)).sub (iEB.const_mul 3)).add iBB).sub iS
+  have kHl : ∀ l : Fin (n + 1), Integrable (fun ω => 4 * g3 N (PhiQee d σ n l) (fun j => X j ω)
+      - 2 * g3 N (PhiQeb d σ n l) (fun j => X j ω) - 2 * g3 N (PhiQbe d σ n l) (fun j => X j ω)
+      + g3 N (PhiQbb d σ n l) (fun j => X j ω)) μ := fun l =>
+    ((((iqee l).const_mul 4).sub ((iqeb l).const_mul 2)).sub ((iqbe l).const_mul 2)).add (iqbb l)
+  have kH : Integrable (fun ω => ∑ l ∈ Finset.univ.erase (0 : Fin (n + 1)),
+      (4 * g3 N (PhiQee d σ n l) (fun j => X j ω)
+      - 2 * g3 N (PhiQeb d σ n l) (fun j => X j ω) - 2 * g3 N (PhiQbe d σ n l) (fun j => X j ω)
+      + g3 N (PhiQbb d σ n l) (fun j => X j ω))) μ :=
+    integrable_finset_sum _ fun l _ => kHl l
+  have eQ : (fun ω => QT d σ N n (fun j => X j ω)) = fun ω =>
+      (∑ v : Fin (n + 1) → Fin N, cyT d σ (fun a => X (v a) ω)) / (N : ℝ) ^ (n + 1)
+      + ((n : ℝ) + 1) * (-2 * gA d σ N n (fun j => X j ω) + gB d σ N n (fun j => X j ω)
+      + 3 * g3 N (PhiEE d σ n) (fun j => X j ω) - 3 * g3 N (PhiEB d σ n) (fun j => X j ω)
+      + g3 N (PhiBB d σ n) (fun j => X j ω) - g3 N (PhiS d σ n) (fun j => X j ω))
+      + ((n : ℝ) + 1) / 2 * ∑ l ∈ Finset.univ.erase (0 : Fin (n + 1)),
+      (4 * g3 N (PhiQee d σ n l) (fun j => X j ω)
+      - 2 * g3 N (PhiQeb d σ n l) (fun j => X j ω) - 2 * g3 N (PhiQbe d σ n l) (fun j => X j ω)
+      + g3 N (PhiQbb d σ n l) (fun j => X j ω)) := by
+    funext ω; rfl
+  have kG' : Integrable (fun ω => ((n : ℝ) + 1) * (-2 * gA d σ N n (fun j => X j ω) + gB d σ N n (fun j => X j ω)
+      + 3 * g3 N (PhiEE d σ n) (fun j => X j ω) - 3 * g3 N (PhiEB d σ n) (fun j => X j ω)
+      + g3 N (PhiBB d σ n) (fun j => X j ω) - g3 N (PhiS d σ n) (fun j => X j ω))) μ := kG.const_mul _
+  have kH' : Integrable (fun ω => ((n : ℝ) + 1) / 2 * (∑ l ∈ Finset.univ.erase (0 : Fin (n + 1)),
+      (4 * g3 N (PhiQee d σ n l) (fun j => X j ω)
+      - 2 * g3 N (PhiQeb d σ n l) (fun j => X j ω) - 2 * g3 N (PhiQbe d σ n l) (fun j => X j ω)
+      + g3 N (PhiQbb d σ n l) (fun j => X j ω)))) μ := kH.const_mul _
+  have kL : Integrable (fun ω => (∑ v : Fin (n + 1) → Fin N, cyT d σ (fun a => X (v a) ω)) / (N : ℝ) ^ (n + 1) + ((n : ℝ) + 1) * (-2 * gA d σ N n (fun j => X j ω) + gB d σ N n (fun j => X j ω)
+      + 3 * g3 N (PhiEE d σ n) (fun j => X j ω) - 3 * g3 N (PhiEB d σ n) (fun j => X j ω)
+      + g3 N (PhiBB d σ n) (fun j => X j ω) - g3 N (PhiS d σ n) (fun j => X j ω))) μ := i0.add kG'
+  rw [eQ]
+  exact kL.add kH'
+
+end MeanQT2
+
+open WalkCount Function BiasGeneral BiasGeneral2 BiasGeneral3 BiasGeneral4 BiasGeneral5 PiBound
+  CTG.Reals.TorusReduction
+
+section MtArith
+
+theorem erase0_sum (n : ℕ) (f : ℕ → ℝ) :
+    ∑ l ∈ Finset.univ.erase (0 : Fin (n + 1)), f l.val = ∑ l ∈ Finset.Ico 1 (n + 1), f l := by
+  have h1 := Finset.add_sum_erase (Finset.univ : Finset (Fin (n + 1))) (fun l => f l.val)
+    (Finset.mem_univ 0)
+  rw [Fin.sum_univ_eq_sum_range (fun l => f l) (n + 1), Finset.range_eq_Ico,
+    Finset.sum_eq_sum_Ico_succ_bot (by omega)] at h1
+  simp only [Fin.val_zero] at h1
+  linarith
+
+theorem card_erase0 (n : ℕ) : ((Finset.univ.erase (0 : Fin (n + 1))).card : ℝ) = n := by
+  rw [Finset.card_erase_of_mem (Finset.mem_univ _), Finset.card_univ, Fintype.card_fin]
+  simp
+
+theorem sumCh (d : ℕ) (σ : ℝ) (n c : ℕ) (hc : 1 ≤ c) :
+    ∑ l ∈ Finset.univ.erase (0 : Fin (n + 1)), Ch d σ (n + 1) l.val c = sigC d σ (n + 1) c := by
+  rw [erase0_sum n (fun l => Ch d σ (n + 1) l c)]
+  unfold sigC
+  refine Finset.sum_congr rfl fun l hl => ?_
+  have := Finset.mem_Ico.mp hl
+  exact Ch_eq d σ (n + 1) l c this.1 this.2 hc
+
+theorem sumCh_sub (d : ℕ) (σ : ℝ) (n c : ℕ) (hc : 1 ≤ c) :
+    ∑ l ∈ Finset.univ.erase (0 : Fin (n + 1)), (Ch d σ (n + 1) l.val c - torusM d σ (n + 1))
+      = sigC d σ (n + 1) c - n * torusM d σ (n + 1) := by
+  rw [Finset.sum_sub_distrib, sumCh d σ n c hc, Finset.sum_const, nsmul_eq_mul, card_erase0]
+
+theorem sumLA (d : ℕ) (σ : ℝ) (n : ℕ) :
+    ∑ r, LA d σ n r = (torusM d σ 1 - 1) * torusM d σ (n + 1) + sigC d σ (n + 1) 1
+      - n * torusM d σ (n + 1) := by
+  rw [← Finset.add_sum_erase _ _ (Finset.mem_univ (0 : Fin (n + 1)))]
+  have e : ∑ r ∈ Finset.univ.erase (0 : Fin (n + 1)), LA d σ n r
+      = ∑ r ∈ Finset.univ.erase (0 : Fin (n + 1)), (Ch d σ (n + 1) r.val 1 - torusM d σ (n + 1)) :=
+    Finset.sum_congr rfl fun r hr => by
+      unfold LA; rw [if_neg (Finset.ne_of_mem_erase hr)]
+  rw [e, sumCh_sub d σ n 1 le_rfl]
+  unfold LA; rw [if_pos rfl]; ring
+
+theorem sumLB (d : ℕ) (σ : ℝ) (n : ℕ) :
+    ∑ r, LB d σ n r = (torusM d σ 1 - 1) * torusM d σ (n + 1)
+      + (torusM d σ 2 - 1) * torusM d σ (n + 1) + sigC d σ (n + 1) 2
+      - n * torusM d σ (n + 1) := by
+  rw [Fin.sum_univ_castSucc]
+  have hlast : LB d σ n (Fin.last (n + 1)) = (torusM d σ 1 - 1) * torusM d σ (n + 1) := by
+    unfold LB; rw [if_pos rfl]
+  have hcs : ∀ i : Fin (n + 1), LB d σ n i.castSucc
+      = if i = 0 then (torusM d σ 2 - 1) * torusM d σ (n + 1)
+        else Ch d σ (n + 1) i.val 2 - torusM d σ (n + 1) := by
+    intro i
+    unfold LB
+    rw [if_neg (Fin.castSucc_lt_last i).ne, Fin.val_castSucc]
+    by_cases h : i = 0
+    · subst h; simp
+    · rw [if_neg (fun h' => h (Fin.ext (by simpa using h'))), if_neg h]
+  simp only [hcs, hlast]
+  rw [← Finset.add_sum_erase _ _ (Finset.mem_univ (0 : Fin (n + 1))), if_pos rfl]
+  have e : ∑ r ∈ Finset.univ.erase (0 : Fin (n + 1)),
+      (if r = 0 then (torusM d σ 2 - 1) * torusM d σ (n + 1)
+        else Ch d σ (n + 1) r.val 2 - torusM d σ (n + 1))
+      = ∑ r ∈ Finset.univ.erase (0 : Fin (n + 1)), (Ch d σ (n + 1) r.val 2 - torusM d σ (n + 1)) :=
+    Finset.sum_congr rfl fun r hr => if_neg (Finset.ne_of_mem_erase hr)
+  rw [e, sumCh_sub d σ n 2 (by norm_num)]
+  ring
+
+/-- **The main term is `m_k + β_k / N`** (`k = n + 1`), Step 7 of `prop:bias`. -/
+theorem Mt_eq (d : ℕ) (σ : ℝ) (N n : ℕ) :
+    Mt d σ N n = torusM d σ (n + 1) + betaK d σ (n + 1) / N := by
+  have hcp := card_Prs (n + 1)
+  have hIp := sum_Ip (torusM d σ) (n + 1)
+  have hQ : ∑ l ∈ Finset.univ.erase (0 : Fin (n + 1)),
+      (4 * ((Ch d σ (n + 1) l.val 2 - torusM d σ (n + 1)) / N)
+        - 2 * ((Ch d σ (n + 1) l.val 3 - torusM d σ (n + 1)) / N)
+        - 2 * ((Ch d σ (n + 1) l.val 3 - torusM d σ (n + 1)) / N)
+        + (Ch d σ (n + 1) l.val 4 - torusM d σ (n + 1)) / N)
+      = (4 * (sigC d σ (n + 1) 2 - n * torusM d σ (n + 1))
+        - 4 * (sigC d σ (n + 1) 3 - n * torusM d σ (n + 1))
+        + (sigC d σ (n + 1) 4 - n * torusM d σ (n + 1))) / N := by
+    rw [← sumCh_sub d σ n 2 (by norm_num), ← sumCh_sub d σ n 3 (by norm_num),
+      ← sumCh_sub d σ n 4 (by norm_num), Finset.mul_sum, Finset.mul_sum, ← Finset.sum_sub_distrib,
+      ← Finset.sum_add_distrib, Finset.sum_div]
+    exact Finset.sum_congr rfl fun l _ => by ring
+  unfold Mt betaK sig0
+  rw [sumLA, sumLB, hQ]
+  have hc : ((Prs (n + 1)).card : ℝ) = ((n + 1 : ℕ) : ℝ) * (((n + 1 : ℕ) : ℝ) - 1) / 2 := by
+    linarith
+  have hI : ∑ p ∈ Prs (n + 1), Ip (torusM d σ) (n + 1) p
+      = ((n + 1 : ℕ) : ℝ) * (∑ l ∈ Finset.Ico 1 (n + 1), torusM d σ l * torusM d σ (n + 1 - l)) / 2 := by
+    linarith
+  rw [hc, hI]
+  push_cast
+  ring
+
+end MtArith
+
+open WalkCount Function BiasGeneral BiasGeneral2 BiasGeneral3 BiasGeneral4 BiasGeneral5 PiBound
+  CTG.Reals.TorusReduction
+
+section QTeq
+
+variable {d : ℕ} {σ : ℝ}
+
+theorem cw_eq (N n : ℕ) (x : ℕ → FlatTorus d) (v : Fin (n + 1) → Fin N) :
+    cw (fun i j : Fin N => heatP d σ 1 (x i - x j) / (N : ℝ)) v
+      = cyT d σ (fun a => x (v a)) / (N : ℝ) ^ (n + 1) := by
+  simp only [cw, cyT, cycP]
+  rw [Finset.prod_div_distrib, Finset.prod_const, Finset.card_univ, Fintype.card_fin]
+
+/-- The pair term of `Q₃` for one position `l`. -/
+theorem pair_term (N n : ℕ) (x : ℕ → FlatTorus d) (l : Fin (n + 1)) :
+    ∑ v : Fin (n + 1) → Fin N, cw (fun i j : Fin N => heatP d σ 1 (x i - x j) / (N : ℝ)) v
+        * ((-2 * eV d σ N x (v 0) + bV d σ N x (v 0)) * (-2 * eV d σ N x (v l) + bV d σ N x (v l)))
+      = 4 * g3 N (PhiQee d σ n l) x - 2 * g3 N (PhiQeb d σ n l) x
+        - 2 * g3 N (PhiQbe d σ n l) x + g3 N (PhiQbb d σ n l) x := by
+  simp only [cw_eq]
+  have e : ∑ v : Fin (n + 1) → Fin N, cyT d σ (fun a => x (v a)) / (N : ℝ) ^ (n + 1)
+        * ((-2 * eV d σ N x (v 0) + bV d σ N x (v 0)) * (-2 * eV d σ N x (v l) + bV d σ N x (v l)))
+      = (4 * ∑ v : Fin (n + 1) → Fin N, cyT d σ (fun a => x (v a))
+            * (eV d σ N x (v 0) * eV d σ N x (v l))
+          - 2 * ∑ v : Fin (n + 1) → Fin N, cyT d σ (fun a => x (v a))
+            * (eV d σ N x (v 0) * bV d σ N x (v l))
+          - 2 * ∑ v : Fin (n + 1) → Fin N, cyT d σ (fun a => x (v a))
+            * (bV d σ N x (v 0) * eV d σ N x (v l))
+          + ∑ v : Fin (n + 1) → Fin N, cyT d σ (fun a => x (v a))
+            * (bV d σ N x (v 0) * bV d σ N x (v l))) / (N : ℝ) ^ (n + 1) := by
+    rw [Finset.mul_sum, Finset.mul_sum, Finset.mul_sum, ← Finset.sum_sub_distrib,
+      ← Finset.sum_sub_distrib, ← Finset.sum_add_distrib, Finset.sum_div]
+    exact Finset.sum_congr rfl fun v _ => by ring
+  rw [e, idQee, idQeb, idQbe, idQbb]
+  unfold g3
+  ring
+
+/-- **(b) Identification**: the subtracted sum of `trace_expansion_paper` at the sample, with
+    `ε = eV`, `bv = bV`, `sv = sV`, is the tuple statistic `QT`. -/
+theorem QT_eq (N n : ℕ) (x : ℕ → FlatTorus d) (K : Fin N → Fin N → ℝ)
+    (hK : K = fun i j : Fin N => heatP d σ 1 (x i - x j)) :
+    (Matrix.of (fun i j => K i j / (N : ℝ)) ^ (n + 1)).trace
+      + ((n : ℝ) + 1) * ∑ i, (Matrix.of (fun i j => K i j / (N : ℝ)) ^ (n + 1)) i i
+          * ((-2 * eV d σ N x i + bV d σ N x i) + (3 * eV d σ N x i ^ 2
+            - 3 * eV d σ N x i * bV d σ N x i + bV d σ N x i ^ 2 - sV d σ N x i))
+      + ((n : ℝ) + 1) / 2 * ∑ l ∈ Finset.univ.erase (0 : Fin (n + 1)),
+          ∑ v : Fin (n + 1) → Fin N, cw (fun i j => K i j / (N : ℝ)) v
+            * ((-2 * eV d σ N x (v 0) + bV d σ N x (v 0))
+              * (-2 * eV d σ N x (v l) + bV d σ N x (v l)))
+      = QT d σ N n x := by
+  subst hK
+  beta_reduce
+  have hT : (Matrix.of (fun i j : Fin N => heatP d σ 1 (x i - x j) / (N : ℝ)) ^ (n + 1)).trace
+      = (∑ v : Fin (n + 1) → Fin N, cyT d σ (fun a => x (v a))) / (N : ℝ) ^ (n + 1) :=
+    trace_tilde (fun i (y z : FlatTorus d) => heatP d σ i (y - z)) N n (fun a : Fin N => x a)
+  have hS := diag_sum d σ N n x (fun i => (-2 * eV d σ N x i + bV d σ N x i) + (3 * eV d σ N x i ^ 2
+            - 3 * eV d σ N x i * bV d σ N x i + bV d σ N x i ^ 2 - sV d σ N x i))
+  have hS2 : ∑ v : Fin (n + 1) → Fin N, cyT d σ (fun a => x (v a))
+        * ((-2 * eV d σ N x (v 0) + bV d σ N x (v 0)) + (3 * eV d σ N x (v 0) ^ 2
+          - 3 * eV d σ N x (v 0) * bV d σ N x (v 0) + bV d σ N x (v 0) ^ 2 - sV d σ N x (v 0)))
+      = -2 * ∑ v : Fin (n + 1) → Fin N, cyT d σ (fun a => x (v a)) * eV d σ N x (v 0)
+        + ∑ v : Fin (n + 1) → Fin N, cyT d σ (fun a => x (v a)) * bV d σ N x (v 0)
+        + 3 * ∑ v : Fin (n + 1) → Fin N, cyT d σ (fun a => x (v a)) * eV d σ N x (v 0) ^ 2
+        - 3 * ∑ v : Fin (n + 1) → Fin N, cyT d σ (fun a => x (v a))
+            * (eV d σ N x (v 0) * bV d σ N x (v 0))
+        + ∑ v : Fin (n + 1) → Fin N, cyT d σ (fun a => x (v a)) * bV d σ N x (v 0) ^ 2
+        - ∑ v : Fin (n + 1) → Fin N, cyT d σ (fun a => x (v a)) * sV d σ N x (v 0) := by
+    rw [Finset.mul_sum, Finset.mul_sum, Finset.mul_sum, ← Finset.sum_add_distrib,
+      ← Finset.sum_add_distrib, ← Finset.sum_sub_distrib, ← Finset.sum_add_distrib,
+      ← Finset.sum_sub_distrib]
+    exact Finset.sum_congr rfl fun v _ => by ring
+  rw [hT, hS, hS2, idA, idB, idEE, idEB, idBB, idS,
+    Finset.sum_congr rfl fun l _ => pair_term N n x l]
+  unfold QT gA gB g3
+  ring
+
+end QTeq
+
+open WalkCount Function BiasGeneral BiasGeneral2 BiasGeneral3 BiasGeneral4 BiasGeneral5 PiBound
+  CTG.Reals.TorusReduction BiasVariance BiasVariance4
+
+section Bounds
+
+theorem abs_avg1 {N n : ℕ} (hN : 1 ≤ N) (f : (Fin (n + 1) → Fin N) → ℝ) {B : ℝ}
+    (hB : ∀ v, |f v| ≤ B) : |(∑ v, f v) / (N : ℝ) ^ (n + 1)| ≤ B := by
+  have hNp : (0 : ℝ) < N := by exact_mod_cast hN
+  rw [abs_div, abs_of_pos (pow_pos hNp _), div_le_iff₀ (pow_pos hNp _)]
+  calc |∑ v, f v| ≤ ∑ v, |f v| := Finset.abs_sum_le_sum_abs _ _
+    _ ≤ ∑ _v : Fin (n + 1) → Fin N, B := Finset.sum_le_sum fun v _ => hB v
+    _ = B * (N : ℝ) ^ (n + 1) := by
+      simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fun, Fintype.card_fin,
+        nsmul_eq_mul]; push_cast; ring
+
+theorem abs_avg2 {N s p : ℕ} (hN : 1 ≤ N) (hp : p = s + 1) (f : (Fin s → Fin N) → Fin N → ℝ)
+    {B : ℝ} (hB : ∀ w u, |f w u| ≤ B) : |(∑ w, ∑ u, f w u) / (N : ℝ) ^ p| ≤ B := by
+  subst hp
+  have hNp : (0 : ℝ) < N := by exact_mod_cast hN
+  rw [abs_div, abs_of_pos (pow_pos hNp _), div_le_iff₀ (pow_pos hNp _)]
+  calc |∑ w, ∑ u, f w u| ≤ ∑ w, ∑ u, |f w u| :=
+        (Finset.abs_sum_le_sum_abs _ _).trans
+          (Finset.sum_le_sum fun w _ => Finset.abs_sum_le_sum_abs _ _)
+    _ ≤ ∑ _w : Fin s → Fin N, ∑ _u : Fin N, B :=
+        Finset.sum_le_sum fun w _ => Finset.sum_le_sum fun u _ => hB w u
+    _ = B * (N : ℝ) ^ (s + 1) := by
+      simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fun, Fintype.card_fin,
+        nsmul_eq_mul]; push_cast; ring
+
+theorem abs_avg3 {N s : ℕ} (hN : 1 ≤ N) (f : (Fin s → Fin N) → Fin N → Fin N → ℝ)
+    {B : ℝ} (hB : ∀ w u u', |f w u u'| ≤ B) :
+    |(∑ w, ∑ u, ∑ u', f w u u') / (N : ℝ) ^ (s + 2)| ≤ B := by
+  have hNp : (0 : ℝ) < N := by exact_mod_cast hN
+  rw [abs_div, abs_of_pos (pow_pos hNp _), div_le_iff₀ (pow_pos hNp _)]
+  calc |∑ w, ∑ u, ∑ u', f w u u'| ≤ ∑ w, ∑ u, ∑ u', |f w u u'| :=
+        (Finset.abs_sum_le_sum_abs _ _).trans (Finset.sum_le_sum fun w _ =>
+          (Finset.abs_sum_le_sum_abs _ _).trans
+            (Finset.sum_le_sum fun u _ => Finset.abs_sum_le_sum_abs _ _))
+    _ ≤ ∑ _w : Fin s → Fin N, ∑ _u : Fin N, ∑ _u' : Fin N, B :=
+        Finset.sum_le_sum fun w _ => Finset.sum_le_sum fun u _ =>
+          Finset.sum_le_sum fun u' _ => hB w u u'
+    _ = B * (N : ℝ) ^ (s + 2) := by
+      simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fun, Fintype.card_fin,
+        nsmul_eq_mul]; push_cast; ring
+
+/-- The deterministic bound of the polynomial statistic. -/
+noncomputable def CQT (d : ℕ) (σ : ℝ) (n : ℕ) : ℝ :=
+  torusM d σ 1 ^ (n + 1)
+    + ((n : ℝ) + 1) * (2 * (torusM d σ 1 ^ (n + 1) * torusM d σ 1)
+      + torusM d σ 1 ^ (n + 1) * torusM d σ 1 * torusM d σ 1 + 8 * B4 d σ n)
+    + ((n : ℝ) + 1) / 2 * (n : ℝ) * (9 * B4 d σ n)
+
+theorem QT_abs {σ : ℝ} (hσ : 0 < σ) (d : ℕ) {N : ℕ} (hN : 1 ≤ N) (n : ℕ)
+    (x : ℕ → FlatTorus d) : |QT d σ N n x| ≤ CQT d σ n := by
+  have hM := torusM_one_ge hσ d
+  have hPB := fun l => phi_bounds hσ d n l
+  have h0 : |(∑ v : Fin (n + 1) → Fin N, cyT d σ (fun a => x (v a))) / (N : ℝ) ^ (n + 1)|
+      ≤ torusM d σ 1 ^ (n + 1) := abs_avg1 hN _ fun v => by
+    rw [abs_of_nonneg (cyT_bounds hσ d _).1]; exact (cyT_bounds hσ d _).2
+  have hA : |gA d σ N n x| ≤ torusM d σ 1 ^ (n + 1) * torusM d σ 1 :=
+    abs_avg2 (s := n + 1) hN rfl _ fun v u => by
+      unfold PhiA
+      rw [abs_mul, abs_of_nonneg (cyT_bounds hσ d _).1]
+      exact mul_le_mul (cyT_bounds hσ d _).2 (cK_bound hσ d _) (abs_nonneg _) (by positivity)
+  have hB : |gB d σ N n x| ≤ torusM d σ 1 ^ (n + 1) * torusM d σ 1 * torusM d σ 1 :=
+    abs_avg2 (s := n + 2) hN (by omega) _ fun w u => by
+      unfold PhiB
+      rw [abs_mul, abs_mul, abs_of_nonneg (cyT_bounds hσ d _).1,
+        abs_of_nonneg (heatP_nonneg hσ d 1 _)]
+      exact mul_le_mul (mul_le_mul (cyT_bounds hσ d _).2 (heatP_le hσ d le_rfl _)
+        (heatP_nonneg hσ d 1 _) (by positivity)) (cK_bound hσ d _) (abs_nonneg _) (by positivity)
+  have h3 : ∀ {s : ℕ} (Φ : (Fin s → FlatTorus d) × FlatTorus d × FlatTorus d → ℝ),
+      (∀ p, |Φ p| ≤ B4 d σ n) → |g3 N Φ x| ≤ B4 d σ n :=
+    fun Φ hΦ => abs_avg3 hN _ fun w u u' => hΦ _
+  have hB4 := B4_nonneg hσ d n
+  have hG : |-2 * gA d σ N n x + gB d σ N n x + 3 * g3 N (PhiEE d σ n) x
+      - 3 * g3 N (PhiEB d σ n) x + g3 N (PhiBB d σ n) x - g3 N (PhiS d σ n) x|
+      ≤ 2 * (torusM d σ 1 ^ (n + 1) * torusM d σ 1)
+        + torusM d σ 1 ^ (n + 1) * torusM d σ 1 * torusM d σ 1 + 8 * B4 d σ n := by
+    have a1 := h3 _ (hPB 0).1; have a2 := h3 _ (hPB 0).2.1
+    have a3 := h3 _ (hPB 0).2.2.1; have a4 := h3 _ (hPB 0).2.2.2.1
+    rw [abs_le] at hA hB a1 a2 a3 a4 ⊢
+    constructor <;> linarith
+  have hH : |∑ l ∈ Finset.univ.erase (0 : Fin (n + 1)),
+      (4 * g3 N (PhiQee d σ n l) x - 2 * g3 N (PhiQeb d σ n l) x
+        - 2 * g3 N (PhiQbe d σ n l) x + g3 N (PhiQbb d σ n l) x)| ≤ (n : ℝ) * (9 * B4 d σ n) := by
+    refine (Finset.abs_sum_le_sum_abs _ _).trans ?_
+    rw [← card_erase0 n, ← nsmul_eq_mul, ← Finset.sum_const]
+    refine Finset.sum_le_sum fun l _ => ?_
+    have a1 := h3 _ (hPB l).2.2.2.2.1; have a2 := h3 _ (hPB l).2.2.2.2.2.1
+    have a3 := h3 _ (hPB l).2.2.2.2.2.2.1; have a4 := h3 _ (hPB l).2.2.2.2.2.2.2
+    rw [abs_le] at a1 a2 a3 a4 ⊢
+    constructor <;> linarith
+  unfold QT CQT
+  have hn0 : (0 : ℝ) ≤ (n : ℝ) + 1 := by positivity
+  refine (abs_add_le _ _).trans (add_le_add ((abs_add_le _ _).trans (add_le_add h0 ?_)) ?_)
+  · rw [abs_mul, abs_of_nonneg hn0]; exact mul_le_mul_of_nonneg_left hG hn0
+  · rw [abs_mul, abs_of_nonneg (by positivity : (0 : ℝ) ≤ ((n : ℝ) + 1) / 2), mul_assoc]
+    exact mul_le_mul_of_nonneg_left hH (by positivity)
+
+end Bounds
+
+section Good
+
+/-- **On the normalisation event** `|ρ_a - 1| ≤ δ ≤ 1/8`, for every `k = n + 1`:
+    `|Tr P^k - QT| ≤ gC(k) k (9/8)^n (17/8) δ m₁ (1/N) ∑_a ε_a²` (deterministic). -/
+theorem trace_QT_good {d : ℕ} {σ : ℝ} (hσ : 0 < σ) {N : ℕ} (hN : 0 < N) (n : ℕ)
+    (x : ℕ → FlatTorus d) {δ : ℝ} (hδ : δ ≤ 1 / 8)
+    (hρ : ∀ a : Fin N, |heatRho d σ N x a - 1| ≤ δ) :
+    |((torusWalk d σ N x) ^ (n + 1)).trace - QT d σ N n x|
+      ≤ gC (n + 1) * ((n : ℝ) + 1) * (9 / 8) ^ n * (17 / 8)
+          * (δ * torusM d σ 1 * (1 / (N : ℝ) * ∑ i : Fin N, eV d σ N x i ^ 2)) := by
+  have hc : 0 < 2 * Real.pi ^ 2 * σ := by have := Real.pi_pos; positivity
+  have hN0 : (N : ℝ) ≠ 0 := by exact_mod_cast hN.ne'
+  have hKP : torusK d σ N x = fun i j : Fin N => heatP d σ 1 (x i - x j) := by
+    funext i j; exact heatTorus_eq_heatP d σ _
+  have h := trace_expansion_paper hN (torusK d σ N x) (torusRho d σ N x)
+    (fun i => eV d σ N x i) (fun i => bV d σ N x i) (fun i => sV d σ N x i)
+    (M := torusM d σ 1) (δ := δ)
+    (fun i j => heatTorus_nonneg hc d _)
+    (fun i j => by
+      show heatTorus d (2 * Real.pi ^ 2 * σ) (x i - x j) ≤ torusM d σ 1
+      rw [torusM_one]; exact heatTorus_le_zero hc d _)
+    (fun i j => by
+      show heatTorus d (2 * Real.pi ^ 2 * σ) (x i - x j)
+        = heatTorus d (2 * Real.pi ^ 2 * σ) (x j - x i)
+      rw [← neg_sub (x j) (x i), heatTorus_even])
+    (fun i => by
+      show ∑ l : Fin N, heatTorus d (2 * Real.pi ^ 2 * σ) (x i - x l) = N * heatRho d σ N x i
+      rw [Fin.sum_univ_eq_sum_range (fun l => heatTorus d (2 * Real.pi ^ 2 * σ) (x i - x l)) N]
+      unfold heatRho
+      field_simp)
+    (fun i => (eps_row d σ hN x i).symm)
+    (fun i => by
+      show 1 / (N : ℝ) * ∑ q : Fin N, heatP d σ 1 (x i - x q) * eV d σ N x q
+        = 1 / (N : ℝ) * ∑ l : Fin N, heatTorus d (2 * Real.pi ^ 2 * σ) (x i - x l) * eV d σ N x l
+      simp only [heatTorus_eq_heatP])
+    (fun i => by
+      show 1 / (N : ℝ) * ∑ q : Fin N, heatP d σ 1 (x i - x q) * eV d σ N x q ^ 2
+        = 1 / (N : ℝ) * ∑ l : Fin N, heatTorus d (2 * Real.pi ^ 2 * σ) (x i - x l)
+          * eV d σ N x l ^ 2
+      simp only [heatTorus_eq_heatP])
+    hδ (fun i => by
+      show |eV d σ N x i| ≤ δ
+      rw [show eV d σ N x i = heatRho d σ N x i - 1 from (eps_row d σ hN x i).symm]
+      exact hρ i) n
+  rw [← QT_eq N n x (torusK d σ N x) hKP]
+  exact h
+
+theorem eV_sq_sum {Ω : Type*} {d : ℕ} (σ : ℝ) {N : ℕ} (hN : 0 < N) (X : ℕ → Ω → FlatTorus d)
+    (ω : Ω) :
+    1 / (N : ℝ) * ∑ i : Fin N, eV d σ N (fun j => X j ω) i ^ 2
+      = 1 / (N : ℝ) ^ 3 * ∑ q ∈ Finset.range N, Hrow (cK d σ) X N q ω * Hrow (cK d σ) X N q ω := by
+  have hq : ∀ q : ℕ, eV d σ N (fun j => X j ω) q = 1 / (N : ℝ) * Hrow (cK d σ) X N q ω :=
+    fun q => (eps_row d σ hN (fun j => X j ω) q).symm.trans
+      (SecondStageTrace2.eps_eq_Hrow d σ N hN X ω q)
+  simp only [hq]
+  rw [Fin.sum_univ_eq_sum_range (fun i => (1 / (N : ℝ) * Hrow (cK d σ) X N i ω) ^ 2) N,
+    Finset.mul_sum, Finset.mul_sum]
+  exact Finset.sum_congr rfl fun q _ => by ring
+
+end Good
+
+open WalkCount Function BiasGeneral BiasGeneral2 BiasGeneral3 BiasGeneral4 BiasGeneral5 PiBound
+  CTG.Reals.TorusReduction BiasVariance BiasVariance4
+
+section Final
+
+variable {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+
+/-- The constant of the expansion remainder: `gC(k) k (9/8)^n (17/8)` for `k = n + 1`. -/
+noncomputable def gK (n : ℕ) : ℝ := gC (n + 1) * ((n : ℝ) + 1) * (9 / 8) ^ n * (17 / 8)
+
+theorem gK_nonneg (n : ℕ) : 0 ≤ gK n := by
+  unfold gK; have := gC_nonneg (n + 1); positivity
+
+/-- **`prop:bias` for every `k = n + 1 ≥ 2`, with self-loops, heat kernel on the flat torus,
+    general normalisation event.** For independent uniform points, `N ≥ 1` and `0 ≤ δ ≤ 1/8`:
+    `|E Tr P^k - m_k - β_k/N| ≤ 2 gK δ m₁³/N + Ctot/N² + (N + CQT) · P(max_a |ρ_a - 1| > δ)`,
+    with `β_k = betaK d σ k` (the `β_k` of the proposition with `ρ = p(0)`). -/
+theorem bias_general [IsProbabilityMeasure μ] {d : ℕ} (X : ℕ → Ω → FlatTorus d)
+    (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) {σ : ℝ} (hσ : 0 < σ) (N : ℕ) (hN : 1 ≤ N)
+    {δ : ℝ} (hδ0 : 0 ≤ δ) (hδ : δ ≤ 1 / 8) (n : ℕ) (hn : 1 ≤ n) :
+    |∫ ω, ((torusWalk d σ N (fun j => X j ω)) ^ (n + 1)).trace ∂μ
+        - (torusM d σ (n + 1) + betaK d σ (n + 1) / N)|
+      ≤ 2 * gK n * δ * torusM d σ 1 ^ 3 / N + Ctot d σ n / (N : ℝ) ^ 2
+        + (N + CQT d σ n)
+          * μ.real {ω | ¬ ∀ a : Fin N, |heatRho d σ N (fun j => X j ω) a - 1| ≤ δ} := by
+  have H := torus_bvk X h_indep hX hlaw hσ
+  have hN' : 0 < N := hN
+  have hN1 : (1 : ℝ) ≤ N := by exact_mod_cast hN
+  have hNpos : (0 : ℝ) < N := lt_of_lt_of_le zero_lt_one hN1
+  have hc : 0 < 2 * Real.pi ^ 2 * σ := by have := Real.pi_pos; positivity
+  obtain ⟨M, hMd⟩ : ∃ M : ℝ, M = torusM d σ 1 := ⟨_, rfl⟩
+  have hM1 : 1 ≤ M := by rw [hMd]; exact torusM_one_ge hσ d
+  have hM0 : 0 ≤ M := zero_le_one.trans hM1
+  have hQm := meanQT hσ d X h_indep hX hlaw hN hn
+  rw [Mt_eq] at hQm
+  have hQi := QT_integrable hσ d X h_indep hX hlaw (N := N) (n := n)
+  rw [← hMd]
+  have hT01 : ∀ ω (a : Fin N), 0 ≤ ((torusWalk d σ N (fun j => X j ω)) ^ (n + 1)) a a
+      ∧ ((torusWalk d σ N (fun j => X j ω)) ^ (n + 1)) a a ≤ 1 := fun ω a =>
+    walk_pow_diag_unit _ _ (fun i j => heatTorus_nonneg hc d _)
+      (fun i => div_nonneg (Finset.sum_nonneg fun l _ => heatTorus_nonneg hc d _)
+        (Nat.cast_nonneg N)) (n + 1) a
+  have hTb : ∀ ω, |((torusWalk d σ N (fun j => X j ω)) ^ (n + 1)).trace| ≤ N := by
+    intro ω
+    have h0 : 0 ≤ ((torusWalk d σ N (fun j => X j ω)) ^ (n + 1)).trace :=
+      Finset.sum_nonneg fun a _ => (hT01 ω a).1
+    rw [abs_of_nonneg h0]
+    calc ((torusWalk d σ N (fun j => X j ω)) ^ (n + 1)).trace
+        ≤ ∑ _a : Fin N, (1 : ℝ) := Finset.sum_le_sum fun a _ => (hT01 ω a).2
+      _ = N := by simp
+  have bT : BM (fun ω => ((torusWalk d σ N (fun j => X j ω)) ^ (n + 1)).trace) :=
+    ⟨Finset.measurable_sum _ fun a _ => walk_pow_entry_measurable hσ d X hX N (n + 1) a a, N, hTb⟩
+  have hGm : MeasurableSet {ω | ∀ a : Fin N, |heatRho d σ N (fun j => X j ω) a - 1| ≤ δ} := by
+    rw [Set.setOf_forall]
+    exact MeasurableSet.iInter fun a => measurableSet_le
+      (continuous_abs.measurable.comp
+        ((heatRho_sample_measurable hσ d X hX N a).sub measurable_const)) measurable_const
+  obtain ⟨Gc, hGc⟩ : ∃ Gc : Set Ω,
+      Gc = {ω | ¬ ∀ a : Fin N, |heatRho d σ N (fun j => X j ω) a - 1| ≤ δ} := ⟨_, rfl⟩
+  have hGcm : MeasurableSet Gc := by rw [hGc]; exact hGm.compl
+  rw [← hGc]
+  have bS2 : BM (fun ω => ∑ q ∈ Finset.range N,
+      Hrow (cK d σ) X N q ω * Hrow (cK d σ) X N q ω) :=
+    BM.sum _ _ fun q _ => (H.bmH N q).mul (H.bmH N q)
+  have hS2n : ∀ ω, 0 ≤ ∑ q ∈ Finset.range N,
+      Hrow (cK d σ) X N q ω * Hrow (cK d σ) X N q ω := fun ω =>
+    Finset.sum_nonneg fun q _ => _root_.mul_self_nonneg _
+  have hgK := gK_nonneg n
+  have hpt : ∀ ω, |((torusWalk d σ N (fun j => X j ω)) ^ (n + 1)).trace
+        - QT d σ N n (fun j => X j ω)|
+      ≤ gK n * δ * M * (1 / (N : ℝ) ^ 3 * ∑ q ∈ Finset.range N,
+          Hrow (cK d σ) X N q ω * Hrow (cK d σ) X N q ω)
+        + (N + CQT d σ n) * Gc.indicator (fun _ => (1 : ℝ)) ω := by
+    intro ω
+    by_cases hω : ∀ a : Fin N, |heatRho d σ N (fun j => X j ω) a - 1| ≤ δ
+    · have hnot : ω ∉ Gc := by rw [hGc]; exact fun h => h hω
+      rw [Set.indicator_of_notMem hnot, mul_zero, add_zero, hMd]
+      have h := trace_QT_good hσ hN' n (fun j => X j ω) hδ hω
+      rw [eV_sq_sum σ hN' X ω] at h
+      refine h.trans (le_of_eq ?_)
+      unfold gK; ring
+    · have hin : ω ∈ Gc := by rw [hGc]; exact hω
+      rw [Set.indicator_of_mem hin, mul_one]
+      have hq := QT_abs hσ d hN n (fun j => X j ω)
+      have h0 : 0 ≤ gK n * δ * M * (1 / (N : ℝ) ^ 3 * ∑ q ∈ Finset.range N,
+          Hrow (cK d σ) X N q ω * Hrow (cK d σ) X N q ω) :=
+        mul_nonneg (mul_nonneg (mul_nonneg hgK hδ0) hM0)
+          (mul_nonneg (by positivity) (hS2n ω))
+      obtain ⟨q1, q2⟩ := abs_le.mp hq
+      obtain ⟨s1, s2⟩ := abs_le.mp (hTb ω)
+      rw [abs_le]; constructor <;> linarith only [q1, q2, s1, s2, h0]
+  have bg1 := BM.const_mul (gK n * δ * M) (BM.const_mul (1 / (N : ℝ) ^ 3) bS2)
+  have ig2 : Integrable (fun ω => (N + CQT d σ n) * Gc.indicator (fun _ => (1 : ℝ)) ω) μ :=
+    ((integrable_const (1 : ℝ)).indicator hGcm).const_mul _
+  obtain ⟨g1, hg1⟩ : ∃ g1 : Ω → ℝ, g1 = fun ω => gK n * δ * M * (1 / (N : ℝ) ^ 3
+      * ∑ q ∈ Finset.range N, Hrow (cK d σ) X N q ω * Hrow (cK d σ) X N q ω) := ⟨_, rfl⟩
+  obtain ⟨g2, hg2⟩ : ∃ g2 : Ω → ℝ,
+      g2 = fun ω => (N + CQT d σ n) * Gc.indicator (fun _ => (1 : ℝ)) ω := ⟨_, rfl⟩
+  have ig1' : Integrable g1 μ := by rw [hg1]; exact bg1.integrable
+  have ig2' : Integrable g2 μ := by rw [hg2]; exact ig2
+  have ig : Integrable (fun ω => g1 ω + g2 ω) μ := ig1'.add ig2'
+  have hpt' : ∀ ω, |((torusWalk d σ N (fun j => X j ω)) ^ (n + 1)).trace
+        - QT d σ N n (fun j => X j ω)| ≤ g1 ω + g2 ω := by rw [hg1, hg2]; exact hpt
+  have iD : Integrable (fun ω => ((torusWalk d σ N (fun j => X j ω)) ^ (n + 1)).trace
+      - QT d σ N n (fun j => X j ω)) μ := bT.integrable.sub hQi
+  have hint := abs_int_le_int iD ig hpt'
+  rw [integral_sub bT.integrable hQi, integral_add ig1' ig2', hg1, hg2,
+    integral_const_mul, integral_const_mul, integral_const_mul,
+    integral_indicator_const (1 : ℝ) hGcm, smul_eq_mul, mul_one] at hint
+  have e2 := H.mean_E2 N
+  have r := H.rs_le hN
+  rw [← hMd] at r
+  have hS2 : ∫ ω, ∑ q ∈ Finset.range N,
+      Hrow (cK d σ) X N q ω * Hrow (cK d σ) X N q ω ∂μ ≤ N * (2 * N * M ^ 2) := by
+    rw [e2]; exact mul_le_mul_of_nonneg_left r hNpos.le
+  have hfirst : gK n * δ * M * (1 / (N : ℝ) ^ 3 * ∫ ω, ∑ q ∈ Finset.range N,
+      Hrow (cK d σ) X N q ω * Hrow (cK d σ) X N q ω ∂μ) ≤ 2 * gK n * δ * M ^ 3 / N := by
+    have h1 : 1 / (N : ℝ) ^ 3 * ∫ ω, ∑ q ∈ Finset.range N,
+        Hrow (cK d σ) X N q ω * Hrow (cK d σ) X N q ω ∂μ
+        ≤ 1 / (N : ℝ) ^ 3 * (N * (2 * N * M ^ 2)) :=
+      mul_le_mul_of_nonneg_left hS2 (by positivity)
+    have h2 := mul_le_mul_of_nonneg_left h1 (mul_nonneg (mul_nonneg hgK hδ0) hM0 :
+      0 ≤ gK n * δ * M)
+    have e : gK n * δ * M * (1 / (N : ℝ) ^ 3 * (N * (2 * N * M ^ 2)))
+        = 2 * gK n * δ * M ^ 3 / N := by
+      field_simp
+    linarith only [h2, e]
+  obtain ⟨i1, i2⟩ := abs_le.mp hint
+  obtain ⟨m1, m2⟩ := abs_le.mp hQm
+  rw [abs_le]; constructor <;> linarith only [i1, i2, m1, m2, hfirst]
+
+/-- **`prop:bias` for every `k = n + 1 ≥ 2`, with self-loops, heat kernel on the flat torus.**
+    Under the hypotheses of `norm_sample` (`σ ≤ 1`, `d ≥ 1`, `N ≥ 2`, `kernelC1 d · δ' ≤ 1`
+    with `δ' = √(m₁ log N / N)`):
+    `|E Tr P^k - m_k - β_k/N| ≤ 2 gK normC δ' m₁³/N + Ctot/N² + (N + CQT)/N³`. -/
+theorem bias_general_sample [IsProbabilityMeasure μ] {σ : ℝ} (hσ : 0 < σ) (hσ1 : σ ≤ 1) (d : ℕ)
+    (hd : 1 ≤ d) (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ)
+    (hX : ∀ j, Measurable (X j)) (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (N : ℕ)
+    (hN2 : 2 ≤ N) {Mp δp : ℝ} (hMp : Mp = heatTorus d (2 * Real.pi ^ 2 * σ) 0)
+    (hδp : δp = Real.sqrt (Mp * Real.log N / N)) (hrange : kernelC1 d * δp ≤ 1)
+    (n : ℕ) (hn : 1 ≤ n) :
+    |∫ ω, ((torusWalk d σ N (fun j => X j ω)) ^ (n + 1)).trace ∂μ
+        - (torusM d σ (n + 1) + betaK d σ (n + 1) / N)|
+      ≤ 2 * gK n * (TorusReductionL1.normC d * δp) * torusM d σ 1 ^ 3 / N
+        + Ctot d σ n / (N : ℝ) ^ 2 + (N + CQT d σ n) * (1 / (N : ℝ) ^ 3) := by
+  have hr : kernelC1 d * δp * Real.sqrt ((1 : ℕ) : ℝ) ≤ 1 := by
+    rw [Nat.cast_one, Real.sqrt_one, mul_one]; exact hrange
+  obtain ⟨h8, hp⟩ := TorusReductionL1.norm_sample hσ hσ1 d hd X h_indep hX hlaw N 1 hN2
+    Nat.one_pos hMp hδp hr
+  have hδ0 : 0 ≤ TorusReductionL1.normC d * δp := by
+    rw [hδp]; exact mul_nonneg (TorusReductionL1.normC_nonneg d) (Real.sqrt_nonneg _)
+  have h := bias_general X h_indep hX hlaw hσ N (by omega) hδ0 h8 n hn
+  have hM := torusM_one_ge hσ d
+  have hc : (0 : ℝ) ≤ N + CQT d σ n := by
+    have := B4_nonneg hσ d n
+    unfold CQT; positivity
+  have := mul_le_mul_of_nonneg_left hp hc
+  linarith only [h, this]
+
+end Final
+
+end BiasGeneral6
+
 end CTG.Reals2
