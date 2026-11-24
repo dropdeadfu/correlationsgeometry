@@ -41442,4 +41442,909 @@ end Sample
 
 end BiasNoLoops
 
+namespace VarianceGeneral3
+
+open PiBound VarianceOne VarianceTwo CTG.Reals.TorusReduction
+open BiasGeneral BiasGeneral2 BiasGeneral4 BiasGeneral5 BiasGeneral6
+
+/-! # A105 (1): `QT` as a combination of tuple statistics of translation-invariant kernels -/
+
+section Reindex
+
+variable {G : Type*}
+
+/-- `∑_{ι : Fin (s+1) → Fin N} g ι = ∑_u ∑_w g (cons u w)`. -/
+theorem sum_cons_split {N s : ℕ} (g : (Fin (s + 1) → Fin N) → ℝ) :
+    ∑ ι : Fin (s + 1) → Fin N, g ι = ∑ u : Fin N, ∑ w : Fin s → Fin N, g (Fin.cons u w) := by
+  rw [← (Fin.consEquiv fun _ => Fin N).sum_comp, Fintype.sum_prod_type]
+  rfl
+
+/-- The kernel of a statistic `∑_w ∑_u Φ(x_w, x_u)`. -/
+def K1 {s : ℕ} (Φ : (Fin s → G) × G → ℝ) (y : Fin (s + 1) → G) : ℝ := Φ (Fin.tail y, y 0)
+
+/-- The kernel of a statistic `∑_w ∑_u ∑_{u'} Φ(x_w, x_u, x_{u'})`. -/
+def K2 {s : ℕ} (Φ : (Fin s → G) × G × G → ℝ) (y : Fin (s + 2) → G) : ℝ :=
+  Φ (Fin.tail (Fin.tail y), y 0, y 1)
+
+variable {Ω : Type*}
+
+theorem sAll_K1 (X : ℕ → Ω → G) (N : ℕ) {s : ℕ} (Φ : (Fin s → G) × G → ℝ) (ω : Ω) :
+    sAll X N (K1 Φ) ω = ∑ w : Fin s → Fin N, ∑ u : Fin N, Φ (fun a => X (w a) ω, X u ω) := by
+  unfold sAll
+  rw [sum_cons_split, Finset.sum_comm]
+  rfl
+
+theorem sAll_K2 (X : ℕ → Ω → G) (N : ℕ) {s : ℕ} (Φ : (Fin s → G) × G × G → ℝ) (ω : Ω) :
+    sAll X N (K2 Φ) ω
+      = ∑ w : Fin s → Fin N, ∑ u : Fin N, ∑ u' : Fin N, Φ (fun a => X (w a) ω, X u ω, X u' ω) := by
+  unfold sAll
+  rw [sum_cons_split]
+  simp_rw [sum_cons_split]
+  calc _ = ∑ u : Fin N, ∑ u' : Fin N, ∑ w : Fin s → Fin N,
+        Φ (fun a => X (w a) ω, X u ω, X u' ω) := rfl
+    _ = ∑ u : Fin N, ∑ w : Fin s → Fin N, ∑ u' : Fin N,
+        Φ (fun a => X (w a) ω, X u ω, X u' ω) :=
+      Finset.sum_congr rfl fun u _ => Finset.sum_comm
+    _ = _ := Finset.sum_comm
+
+end Reindex
+
+section TIsec
+
+variable {G : Type*} [AddCommGroup G]
+
+/-- Translation invariance of a kernel with one extra point. -/
+def TI1 {s : ℕ} (Φ : (Fin s → G) × G → ℝ) : Prop :=
+  ∀ (y : Fin s → G) (z c : G), Φ (fun i => y i + c, z + c) = Φ (y, z)
+
+/-- Translation invariance of a kernel with two extra points. -/
+def TI2 {s : ℕ} (Φ : (Fin s → G) × G × G → ℝ) : Prop :=
+  ∀ (y : Fin s → G) (z z' c : G), Φ (fun i => y i + c, z + c, z' + c) = Φ (y, z, z')
+
+theorem K1_TI {s : ℕ} {Φ : (Fin s → G) × G → ℝ} (h : TI1 Φ) : VarianceGeneral2.TI (K1 Φ) :=
+  fun y c => h (Fin.tail y) (y 0) c
+
+theorem K2_TI {s : ℕ} {Φ : (Fin s → G) × G × G → ℝ} (h : TI2 Φ) : VarianceGeneral2.TI (K2 Φ) :=
+  fun y c => h (Fin.tail (Fin.tail y)) (y 0) (y 1) c
+
+end TIsec
+
+section TorusKernels
+
+variable {d : ℕ} {σ : ℝ}
+
+theorem cyT_TI {n : ℕ} (y : Fin (n + 1) → FlatTorus d) (c : FlatTorus d) :
+    cyT d σ (fun i => y i + c) = cyT d σ y := by
+  unfold cyT cycP; simp only [add_sub_add_right_eq_sub]
+
+theorem cy2_TI {n : ℕ} (y : Fin (n + 2) → FlatTorus d) (c : FlatTorus d) :
+    cy2 d σ (fun i => y i + c) = cy2 d σ y := by
+  unfold cy2; exact cyT_TI (fun a : Fin (n + 1) => y a.castSucc) c
+
+theorem cy3_TI {n : ℕ} (y : Fin (n + 3) → FlatTorus d) (c : FlatTorus d) :
+    cy3 d σ (fun i => y i + c) = cy3 d σ y := by
+  unfold cy3; exact cyT_TI (fun a : Fin (n + 1) => y a.castSucc.castSucc) c
+
+theorem PhiA_TI (n : ℕ) : TI1 (PhiA d σ n) := fun y z c => by
+  unfold PhiA; simp only [add_sub_add_right_eq_sub]; rw [cyT_TI]
+
+theorem PhiB_TI (n : ℕ) : TI1 (PhiB d σ n) := fun y z c => by
+  unfold PhiB; simp only [add_sub_add_right_eq_sub]
+  rw [cyT_TI (fun i : Fin (n + 1) => y i.castSucc)]
+
+theorem PhiEE_TI (n : ℕ) : TI2 (PhiEE d σ n) := fun y z z' c => by
+  unfold PhiEE; simp only [add_sub_add_right_eq_sub]; rw [cyT_TI]
+
+theorem PhiEB_TI (n : ℕ) : TI2 (PhiEB d σ n) := fun y z z' c => by
+  unfold PhiEB; simp only [add_sub_add_right_eq_sub]; rw [cy2_TI]
+
+theorem PhiS_TI (n : ℕ) : TI2 (PhiS d σ n) := fun y z z' c => by
+  unfold PhiS; simp only [add_sub_add_right_eq_sub]; rw [cy2_TI]
+
+theorem PhiBB_TI (n : ℕ) : TI2 (PhiBB d σ n) := fun y z z' c => by
+  unfold PhiBB; simp only [add_sub_add_right_eq_sub]; rw [cy3_TI]
+
+theorem PhiQee_TI (n : ℕ) (l : Fin (n + 1)) : TI2 (PhiQee d σ n l) := fun y z z' c => by
+  unfold PhiQee; simp only [add_sub_add_right_eq_sub]; rw [cyT_TI]
+
+theorem PhiQeb_TI (n : ℕ) (l : Fin (n + 1)) : TI2 (PhiQeb d σ n l) := fun y z z' c => by
+  unfold PhiQeb; simp only [add_sub_add_right_eq_sub]; rw [cy2_TI]
+
+theorem PhiQbe_TI (n : ℕ) (l : Fin (n + 1)) : TI2 (PhiQbe d σ n l) := fun y z z' c => by
+  unfold PhiQbe; simp only [add_sub_add_right_eq_sub]; rw [cy2_TI]
+
+theorem PhiQbb_TI (n : ℕ) (l : Fin (n + 1)) : TI2 (PhiQbb d σ n l) := fun y z z' c => by
+  unfold PhiQbb; simp only [add_sub_add_right_eq_sub]; rw [cy3_TI]
+
+end TorusKernels
+
+
+
+
+open PiBound VarianceOne VarianceTwo CTG.Reals.TorusReduction
+open BiasGeneral BiasGeneral2 BiasGeneral4 BiasGeneral5 BiasGeneral6
+
+section Bounds
+
+variable {G : Type*} [MeasurableSpace G]
+
+theorem K1_bm {s : ℕ} {Φ : (Fin s → G) × G → ℝ} (hΦ : Measurable Φ) {C : ℝ}
+    (hC : ∀ p, |Φ p| ≤ C) : BM (K1 Φ) ∧ ∀ y, |K1 Φ y| ≤ C :=
+  ⟨⟨hΦ.comp ((measurable_pi_lambda _ fun i => measurable_pi_apply _).prodMk
+      (measurable_pi_apply 0)), C, fun y => hC _⟩, fun y => hC _⟩
+
+theorem K2_bm {s : ℕ} {Φ : (Fin s → G) × G × G → ℝ} (hΦ : Measurable Φ) {C : ℝ}
+    (hC : ∀ p, |Φ p| ≤ C) : BM (K2 Φ) ∧ ∀ y, |K2 Φ y| ≤ C :=
+  ⟨⟨hΦ.comp ((measurable_pi_lambda _ fun i => measurable_pi_apply _).prodMk
+      ((measurable_pi_apply 0).prodMk (measurable_pi_apply 1))), C, fun y => hC _⟩,
+    fun y => hC _⟩
+
+end Bounds
+
+section QTStat
+
+variable {d : ℕ} {σ : ℝ}
+
+theorem cyT_le_B4 (hσ : 0 < σ) (n : ℕ) (y : Fin (n + 1) → FlatTorus d) :
+    |cyT d σ y| ≤ B4 d σ n := by
+  have hM := torusM_one_ge hσ d
+  rw [abs_of_nonneg (cyT_bounds hσ d y).1]
+  refine (cyT_bounds hσ d y).2.trans ?_
+  unfold B4
+  have h1 : (1 : ℝ) ≤ torusM d σ 1 ^ 4 := one_le_pow₀ hM
+  have h0 : 0 ≤ torusM d σ 1 ^ (n + 1) := by positivity
+  nlinarith
+
+theorem PhiA_le_B4 (hσ : 0 < σ) (n : ℕ) (p : (Fin (n + 1) → FlatTorus d) × FlatTorus d) :
+    |PhiA d σ n p| ≤ B4 d σ n := by
+  have hM := torusM_one_ge hσ d
+  unfold PhiA
+  rw [abs_mul, abs_of_nonneg (cyT_bounds hσ d p.1).1]
+  have h1 := mul_le_mul (cyT_bounds hσ d p.1).2 (cK_bound hσ d (p.1 0 - p.2)) (abs_nonneg _)
+    (by positivity)
+  refine h1.trans ?_
+  unfold B4
+  have h2 : torusM d σ 1 ≤ torusM d σ 1 ^ 4 := by
+    calc torusM d σ 1 = torusM d σ 1 ^ 1 := (pow_one _).symm
+      _ ≤ torusM d σ 1 ^ 4 := pow_le_pow_right₀ hM (by norm_num)
+  exact mul_le_mul_of_nonneg_left h2 (by positivity)
+
+theorem PhiB_le_B4 (hσ : 0 < σ) (n : ℕ) (p : (Fin (n + 2) → FlatTorus d) × FlatTorus d) :
+    |PhiB d σ n p| ≤ B4 d σ n := by
+  have hM := torusM_one_ge hσ d
+  unfold PhiB
+  rw [abs_mul, abs_mul, abs_of_nonneg (cyT_bounds hσ d _).1,
+    abs_of_nonneg (heatP_nonneg hσ d 1 _)]
+  have h1 := mul_le_mul (mul_le_mul (cyT_bounds hσ d (fun i : Fin (n + 1) => p.1 i.castSucc)).2
+      (heatP_le hσ d le_rfl (p.1 0 - p.1 (Fin.last (n + 1))))
+      (heatP_nonneg hσ d 1 _) (by positivity))
+      (cK_bound hσ d (p.1 (Fin.last (n + 1)) - p.2)) (abs_nonneg _) (by positivity)
+  refine h1.trans ?_
+  unfold B4
+  have h2 : torusM d σ 1 * torusM d σ 1 ≤ torusM d σ 1 ^ 4 := by
+    calc torusM d σ 1 * torusM d σ 1 = torusM d σ 1 ^ 2 := by ring
+      _ ≤ torusM d σ 1 ^ 4 := pow_le_pow_right₀ hM (by norm_num)
+  have h0 : 0 ≤ torusM d σ 1 ^ (n + 1) := by positivity
+  calc torusM d σ 1 ^ (n + 1) * torusM d σ 1 * torusM d σ 1
+      = torusM d σ 1 ^ (n + 1) * (torusM d σ 1 * torusM d σ 1) := by ring
+    _ ≤ torusM d σ 1 ^ (n + 1) * torusM d σ 1 ^ 4 := mul_le_mul_of_nonneg_left h2 h0
+
+variable {Ω : Type*}
+
+/-- **`QT` as a combination of normalised tuple statistics** (every `k = n + 1`). -/
+theorem QT_eq_stat (N n : ℕ) (X : ℕ → Ω → FlatTorus d) (ω : Ω) :
+    QT d σ N n (fun j => X j ω)
+      = 1 / (N : ℝ) ^ (n + 1) * sAll X N (cyT d σ (n := n)) ω
+        + ((n : ℝ) + 1) * (-2 * (1 / (N : ℝ) ^ (n + 1 + 1) * sAll X N (K1 (PhiA d σ n)) ω)
+          + 1 / (N : ℝ) ^ (n + 2 + 1) * sAll X N (K1 (PhiB d σ n)) ω
+          + 3 * (1 / (N : ℝ) ^ (n + 1 + 2) * sAll X N (K2 (PhiEE d σ n)) ω)
+          - 3 * (1 / (N : ℝ) ^ (n + 2 + 2) * sAll X N (K2 (PhiEB d σ n)) ω)
+          + 1 / (N : ℝ) ^ (n + 3 + 2) * sAll X N (K2 (PhiBB d σ n)) ω
+          - 1 / (N : ℝ) ^ (n + 2 + 2) * sAll X N (K2 (PhiS d σ n)) ω)
+        + ((n : ℝ) + 1) / 2 * ∑ l ∈ Finset.univ.erase (0 : Fin (n + 1)),
+            (4 * (1 / (N : ℝ) ^ (n + 1 + 2) * sAll X N (K2 (PhiQee d σ n l)) ω)
+              - 2 * (1 / (N : ℝ) ^ (n + 2 + 2) * sAll X N (K2 (PhiQeb d σ n l)) ω)
+              - 2 * (1 / (N : ℝ) ^ (n + 2 + 2) * sAll X N (K2 (PhiQbe d σ n l)) ω)
+              + 1 / (N : ℝ) ^ (n + 3 + 2) * sAll X N (K2 (PhiQbb d σ n l)) ω) := by
+  unfold QT gA gB g3
+  simp only [sAll_K1, sAll_K2]
+  unfold sAll
+  ring
+
+end QTStat
+
+
+
+
+open PiBound VarianceOne VarianceTwo CTG.Reals.TorusReduction
+open BiasGeneral BiasGeneral2 BiasGeneral4 BiasGeneral5 BiasGeneral6
+
+section SoffLin
+
+variable {Ω G : Type*} [AddCommGroup G]
+
+theorem Soff_add (f g : G → ℝ) (X : ℕ → Ω → G) (N : ℕ) (ω : Ω) :
+    Soff (fun u => f u + g u) X N ω = Soff f X N ω + Soff g X N ω := by
+  unfold Soff
+  rw [← Finset.sum_add_distrib]
+  refine Finset.sum_congr rfl fun i _ => ?_
+  rw [← Finset.sum_add_distrib]
+  refine Finset.sum_congr rfl fun j _ => ?_
+  unfold aT; split_ifs <;> ring
+
+theorem Soff_sub (f g : G → ℝ) (X : ℕ → Ω → G) (N : ℕ) (ω : Ω) :
+    Soff (fun u => f u - g u) X N ω = Soff f X N ω - Soff g X N ω := by
+  unfold Soff
+  rw [← Finset.sum_sub_distrib]
+  refine Finset.sum_congr rfl fun i _ => ?_
+  rw [← Finset.sum_sub_distrib]
+  refine Finset.sum_congr rfl fun j _ => ?_
+  unfold aT; split_ifs <;> ring
+
+theorem Soff_mul (a : ℝ) (f : G → ℝ) (X : ℕ → Ω → G) (N : ℕ) (ω : Ω) :
+    Soff (fun u => a * f u) X N ω = a * Soff f X N ω :=
+  VarianceGeneral.Soff_smul a f X N ω
+
+theorem Soff_fsum {κ : Type*} (s : Finset κ) (f : κ → G → ℝ) (X : ℕ → Ω → G) (N : ℕ) (ω : Ω) :
+    Soff (fun u => ∑ l ∈ s, f l u) X N ω = ∑ l ∈ s, Soff (f l) X N ω := by
+  unfold Soff
+  rw [Finset.sum_comm (s := s)]
+  refine Finset.sum_congr rfl fun i _ => ?_
+  rw [Finset.sum_comm (s := s)]
+  refine Finset.sum_congr rfl fun j _ => ?_
+  unfold aT; split_ifs
+  · simp
+  · rfl
+
+theorem Soff_bm [MeasurableSpace G] [MeasurableSub₂ G] {mΩ : MeasurableSpace Ω}
+    {X : ℕ → Ω → G} (hX : ∀ j, Measurable (X j)) {h : G → ℝ} (hm : Measurable h) {C : ℝ}
+    (hC : ∀ y, |h y| ≤ C) (N : ℕ) : BM (Soff h X N) := by
+  refine BM.sum _ _ fun i _ => BM.sum _ _ fun j _ => ?_
+  by_cases hij : i = j
+  · have e : aT h X i j = fun _ => (0 : ℝ) := by funext ω; simp [aT, hij]
+    rw [e]; exact BM.const 0
+  · have e : aT h X i j = fun ω => h (X i ω - X j ω) := by funext ω; simp [aT, hij]
+    rw [e]
+    exact ⟨hm.comp ((hX i).sub (hX j)), C, fun ω => hC _⟩
+
+end SoffLin
+
+section HpairBM
+
+variable {G : Type*} [AddCommGroup G] [MeasurableSpace G] {ν : Measure G}
+
+theorem hpair_bm [IsProbabilityMeasure ν] {n : ℕ} {F : (Fin n → G) → ℝ} (hF : BM F) {B : ℝ}
+    (hB : ∀ x, |F x| ≤ B) :
+    Measurable (VarianceGeneral2.hpair ν F)
+      ∧ ∀ y, |VarianceGeneral2.hpair ν F y| ≤ (VarianceGeneral2.pairs n).card * (2 * B) := by
+  constructor
+  · unfold VarianceGeneral2.hpair
+    exact Finset.measurable_sum _ fun p _ =>
+      ((VarianceGeneral2.AW_bm _ hF).meas.comp (measurable_update 0)).sub measurable_const
+  · intro y
+    unfold VarianceGeneral2.hpair
+    refine (Finset.abs_sum_le_sum_abs _ _).trans ?_
+    have h1 : ∀ p ∈ VarianceGeneral2.pairs n,
+        |VarianceGeneral2.AW ν ({p.1, p.2} : Finset (Fin n))ᶜ F (Function.update 0 p.1 y)
+          - VarianceGeneral2.AW ν Finset.univ F 0| ≤ 2 * B := fun p _ => by
+      have a1 := VarianceGeneral2.AW_bound (ν := ν) ({p.1, p.2} : Finset (Fin n))ᶜ hB
+        (Function.update 0 p.1 y)
+      have a2 := VarianceGeneral2.AW_bound (ν := ν) (Finset.univ : Finset (Fin n)) hB 0
+      calc _ ≤ |VarianceGeneral2.AW ν ({p.1, p.2} : Finset (Fin n))ᶜ F (Function.update 0 p.1 y)|
+            + |VarianceGeneral2.AW ν Finset.univ F 0| := abs_sub _ _
+        _ ≤ 2 * B := by linarith
+    refine (Finset.sum_le_sum h1).trans ?_
+    rw [Finset.sum_const, nsmul_eq_mul]
+
+theorem pairs_card_le (n : ℕ) : ((VarianceGeneral2.pairs n).card : ℝ) ≤ (n : ℝ) ^ 2 := by
+  have h : (VarianceGeneral2.pairs n).card ≤ (Finset.univ : Finset (Fin n × Fin n)).card :=
+    Finset.card_filter_le _ _
+  rw [Finset.card_univ, Fintype.card_prod, Fintype.card_fin] at h
+  have : ((VarianceGeneral2.pairs n).card : ℝ) ≤ ((n * n : ℕ) : ℝ) := by exact_mod_cast h
+  rw [Nat.cast_mul] at this; nlinarith
+
+end HpairBM
+
+/-! ## One block: `D_F = N^{-a} ∑_ι F(X_ι) - N^{-2} ∑_{i≠j} h_F(X_i - X_j)` -/
+
+section Block
+
+variable {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+
+/-- The pair kernel on the flat torus. -/
+noncomputable def hp {d a : ℕ} (F : (Fin a → FlatTorus d) → ℝ) : FlatTorus d → ℝ :=
+  VarianceGeneral2.hpair (flatTorusMeasure d) F
+
+/-- The block statistic minus its pair projection. -/
+noncomputable def Dblk {d a : ℕ} (F : (Fin a → FlatTorus d) → ℝ) (X : ℕ → Ω → FlatTorus d)
+    (N : ℕ) (ω : Ω) : ℝ :=
+  1 / (N : ℝ) ^ a * sAll X N F ω - 1 / (N : ℝ) ^ 2 * Soff (hp F) X N ω
+
+/-- The constant `10 (n+5)⁶ 16^{n+5}` (arity at most `n + 5`). -/
+noncomputable def cA (n : ℕ) : ℝ := 10 * ((n : ℝ) + 5) ^ 6 * 16 ^ (n + 5)
+
+theorem cA_nonneg (n : ℕ) : 0 ≤ cA n := by unfold cA; positivity
+
+theorem block_var [IsProbabilityMeasure μ] {d : ℕ} {X : ℕ → Ω → FlatTorus d}
+    (H : SP μ (flatTorusMeasure d) X) {N : ℕ} (hN : 0 < N) (n : ℕ) {a : ℕ} (ha : a ≤ n + 5)
+    {F : (Fin a → FlatTorus d) → ℝ} (hF : BM F) {B : ℝ} (hB : ∀ x, |F x| ≤ B)
+    (hT : VarianceGeneral2.TI F) :
+    BM (Dblk F X N) ∧ cv μ (Dblk F X N) ≤ cA n * B ^ 2 / (N : ℝ) ^ 3 := by
+  have hNpos : (0 : ℝ) < N := by exact_mod_cast hN
+  obtain ⟨hm, hb⟩ := hpair_bm (ν := flatTorusMeasure d) hF hB
+  refine ⟨(BM.const_mul _ (H.sAll_bm N hF)).sub (BM.const_mul _ (Soff_bm H.meas hm hb N)), ?_⟩
+  have h := VarianceGeneral2.pair_projection H (VarianceGeneral2.torus_hinv d) hN hF hB hT
+  refine h.trans ?_
+  have hc : 10 * (a : ℝ) ^ 6 * 16 ^ a ≤ cA n := by
+    unfold cA
+    have h1 : (a : ℝ) ≤ (n : ℝ) + 5 := by exact_mod_cast ha
+    have h2 : (a : ℝ) ^ 6 ≤ ((n : ℝ) + 5) ^ 6 := pow_le_pow_left₀ (Nat.cast_nonneg _) h1 6
+    have h3 : (16 : ℝ) ^ a ≤ 16 ^ (n + 5) := pow_le_pow_right₀ (by norm_num) ha
+    have := mul_le_mul h2 h3 (by positivity) (by positivity)
+    nlinarith
+  have hB2 : 0 ≤ B ^ 2 / (N : ℝ) ^ 3 := by positivity
+  have := mul_le_mul_of_nonneg_right hc hB2
+  calc 10 * (a : ℝ) ^ 6 * 16 ^ a * B ^ 2 / (N : ℝ) ^ 3
+      = 10 * (a : ℝ) ^ 6 * 16 ^ a * (B ^ 2 / (N : ℝ) ^ 3) := by ring
+    _ ≤ cA n * (B ^ 2 / (N : ℝ) ^ 3) := this
+    _ = cA n * B ^ 2 / (N : ℝ) ^ 3 := by ring
+
+end Block
+
+/-! ## variance arithmetic -/
+
+section CvArith
+
+variable {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω} [IsProbabilityMeasure μ]
+  {f g : Ω → ℝ}
+
+theorem cv_add_bd (hf : BM f) (hg : BM g) {a b : ℝ} (ha : cv μ f ≤ a) (hb : cv μ g ≤ b) :
+    cv μ (fun ω => f ω + g ω) ≤ 2 * a + 2 * b := by
+  have := cv_add_le (μ := μ) hf hg; linarith
+
+theorem cv_sub_bd (hf : BM f) (hg : BM g) {a b : ℝ} (ha : cv μ f ≤ a) (hb : cv μ g ≤ b) :
+    cv μ (fun ω => f ω - g ω) ≤ 2 * a + 2 * b := by
+  have e : (fun ω => f ω - g ω) = fun ω => f ω + (-1) * g ω := by funext ω; ring
+  rw [e]
+  have h2 : cv μ (fun ω => (-1) * g ω) ≤ b := by rw [cv_const_mul]; norm_num; exact hb
+  exact cv_add_bd hf (BM.const_mul _ hg) ha h2
+
+theorem cv_mul_bd (c : ℝ) {a : ℝ} (ha : cv μ f ≤ a) : cv μ (fun ω => c * f ω) ≤ c ^ 2 * a := by
+  rw [cv_const_mul]; exact mul_le_mul_of_nonneg_left ha (_root_.sq_nonneg c)
+
+end CvArith
+
+
+
+
+open PiBound VarianceOne VarianceTwo CTG.Reals.TorusReduction
+open BiasGeneral BiasGeneral2 BiasGeneral4 BiasGeneral5 BiasGeneral6
+
+section QTpair
+
+variable {d : ℕ} {σ : ℝ}
+
+/-- **The pair kernel of `QT`** (every `k = n + 1`): the same linear combination of the pair kernels
+    `hpair` of the blocks as in `QT_eq_stat`. -/
+noncomputable def hQT (d : ℕ) (σ : ℝ) (n : ℕ) (u : FlatTorus d) : ℝ :=
+  hp (cyT d σ (n := n)) u
+    + ((n : ℝ) + 1) * (-2 * hp (K1 (PhiA d σ n)) u + hp (K1 (PhiB d σ n)) u
+      + 3 * hp (K2 (PhiEE d σ n)) u - 3 * hp (K2 (PhiEB d σ n)) u
+      + hp (K2 (PhiBB d σ n)) u - hp (K2 (PhiS d σ n)) u)
+    + ((n : ℝ) + 1) / 2 * ∑ l ∈ Finset.univ.erase (0 : Fin (n + 1)),
+        (4 * hp (K2 (PhiQee d σ n l)) u - 2 * hp (K2 (PhiQeb d σ n l)) u
+          - 2 * hp (K2 (PhiQbe d σ n l)) u + hp (K2 (PhiQbb d σ n l)) u)
+
+variable {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+
+theorem Soff_hQT (n : ℕ) (X : ℕ → Ω → FlatTorus d) (N : ℕ) (ω : Ω) :
+    Soff (hQT d σ n) X N ω
+      = Soff (hp (cyT d σ (n := n))) X N ω
+        + ((n : ℝ) + 1) * (-2 * Soff (hp (K1 (PhiA d σ n))) X N ω + Soff (hp (K1 (PhiB d σ n))) X N ω
+          + 3 * Soff (hp (K2 (PhiEE d σ n))) X N ω - 3 * Soff (hp (K2 (PhiEB d σ n))) X N ω
+          + Soff (hp (K2 (PhiBB d σ n))) X N ω - Soff (hp (K2 (PhiS d σ n))) X N ω)
+        + ((n : ℝ) + 1) / 2 * ∑ l ∈ Finset.univ.erase (0 : Fin (n + 1)),
+            (4 * Soff (hp (K2 (PhiQee d σ n l))) X N ω - 2 * Soff (hp (K2 (PhiQeb d σ n l))) X N ω
+              - 2 * Soff (hp (K2 (PhiQbe d σ n l))) X N ω + Soff (hp (K2 (PhiQbb d σ n l))) X N ω) := by
+  unfold hQT
+  simp only [Soff_add, Soff_sub, Soff_mul, Soff_fsum]
+
+/-- **`QT - N⁻² ∑_{i≠j} h_QT(X_i - X_j)` is the same combination of the block remainders.** -/
+theorem QT_sub_eq (n : ℕ) (X : ℕ → Ω → FlatTorus d) (N : ℕ) (ω : Ω) :
+    QT d σ N n (fun j => X j ω) - 1 / (N : ℝ) ^ 2 * Soff (hQT d σ n) X N ω
+      = Dblk (cyT d σ (n := n)) X N ω
+        + ((n : ℝ) + 1) * (-2 * Dblk (K1 (PhiA d σ n)) X N ω + Dblk (K1 (PhiB d σ n)) X N ω
+          + 3 * Dblk (K2 (PhiEE d σ n)) X N ω - 3 * Dblk (K2 (PhiEB d σ n)) X N ω
+          + Dblk (K2 (PhiBB d σ n)) X N ω - Dblk (K2 (PhiS d σ n)) X N ω)
+        + ((n : ℝ) + 1) / 2 * ∑ l ∈ Finset.univ.erase (0 : Fin (n + 1)),
+            (4 * Dblk (K2 (PhiQee d σ n l)) X N ω - 2 * Dblk (K2 (PhiQeb d σ n l)) X N ω
+              - 2 * Dblk (K2 (PhiQbe d σ n l)) X N ω + Dblk (K2 (PhiQbb d σ n l)) X N ω) := by
+  rw [QT_eq_stat, Soff_hQT]
+  have key : ∑ l ∈ Finset.univ.erase (0 : Fin (n + 1)),
+        (4 * Dblk (K2 (PhiQee d σ n l)) X N ω - 2 * Dblk (K2 (PhiQeb d σ n l)) X N ω
+          - 2 * Dblk (K2 (PhiQbe d σ n l)) X N ω + Dblk (K2 (PhiQbb d σ n l)) X N ω)
+      = ∑ l ∈ Finset.univ.erase (0 : Fin (n + 1)),
+          (4 * (1 / (N : ℝ) ^ (n + 1 + 2) * sAll X N (K2 (PhiQee d σ n l)) ω)
+            - 2 * (1 / (N : ℝ) ^ (n + 2 + 2) * sAll X N (K2 (PhiQeb d σ n l)) ω)
+            - 2 * (1 / (N : ℝ) ^ (n + 2 + 2) * sAll X N (K2 (PhiQbe d σ n l)) ω)
+            + 1 / (N : ℝ) ^ (n + 3 + 2) * sAll X N (K2 (PhiQbb d σ n l)) ω)
+        - 1 / (N : ℝ) ^ 2 * ∑ l ∈ Finset.univ.erase (0 : Fin (n + 1)),
+            (4 * Soff (hp (K2 (PhiQee d σ n l))) X N ω - 2 * Soff (hp (K2 (PhiQeb d σ n l))) X N ω
+              - 2 * Soff (hp (K2 (PhiQbe d σ n l))) X N ω
+              + Soff (hp (K2 (PhiQbb d σ n l))) X N ω) := by
+    rw [Finset.mul_sum, ← Finset.sum_sub_distrib]
+    refine Finset.sum_congr rfl fun l _ => ?_
+    unfold Dblk; ring
+  unfold Dblk at key ⊢
+  linear_combination (-(((n : ℝ) + 1) / 2)) * key
+
+/-- The constant of `QT_pair`. -/
+noncomputable def Cq (n : ℕ) : ℝ :=
+  4 + 1528 * ((n : ℝ) + 1) ^ 2 + 89 * ((n : ℝ) + 1) ^ 2 * (n : ℝ) ^ 2
+
+/-- **(1): `Var(QT - N⁻² ∑_{i≠j} h_QT(X_i - X_j)) = O(N⁻³)` for every `k = n + 1`**, with
+    `R = Cq n · cA n · B4² / N³` (independent uniform points on the flat torus, `N ≥ 1`). -/
+theorem QT_pair [IsProbabilityMeasure μ] (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ)
+    (hX : ∀ j, Measurable (X j)) (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d)
+    (hσ : 0 < σ) {N : ℕ} (hN : 0 < N) (n : ℕ) :
+    BM (fun ω => QT d σ N n (fun j => X j ω) - 1 / (N : ℝ) ^ 2 * Soff (hQT d σ n) X N ω)
+    ∧ cv μ (fun ω => QT d σ N n (fun j => X j ω) - 1 / (N : ℝ) ^ 2 * Soff (hQT d σ n) X N ω)
+      ≤ Cq n * (cA n * B4 d σ n ^ 2 / (N : ℝ) ^ 3) := by
+  have H : SP μ (flatTorusMeasure d) X := ⟨h_indep, hX, hlaw⟩
+  obtain ⟨r, hr⟩ : ∃ r : ℝ, r = cA n * B4 d σ n ^ 2 / (N : ℝ) ^ 3 := ⟨_, rfl⟩
+  have hNpos : (0 : ℝ) < N := by exact_mod_cast hN
+  have hr0 : 0 ≤ r := by rw [hr]; have := cA_nonneg n; positivity
+  have hPB := fun l => phi_bounds hσ d n l
+  -- the blocks
+  obtain ⟨b0, v0⟩ := block_var H hN n (a := n + 1) (by omega) (F := cyT d σ (n := n))
+    ⟨cyT_meas hσ d n, _, cyT_le_B4 hσ n⟩ (cyT_le_B4 hσ n) (fun y c => cyT_TI y c)
+  obtain ⟨kA, kAb⟩ := K1_bm (PhiA_meas hσ d n) (PhiA_le_B4 hσ n)
+  obtain ⟨bA, vA⟩ := block_var H hN n (by omega) kA kAb (K1_TI (PhiA_TI n))
+  obtain ⟨kB, kBb⟩ := K1_bm (PhiB_meas hσ d n) (PhiB_le_B4 hσ n)
+  obtain ⟨bB, vB⟩ := block_var H hN n (by omega) kB kBb (K1_TI (PhiB_TI n))
+  obtain ⟨kEE, kEEb⟩ := K2_bm (PhiEE_meas hσ d n) (hPB 0).1
+  obtain ⟨bEE, vEE⟩ := block_var H hN n (by omega) kEE kEEb (K2_TI (PhiEE_TI n))
+  obtain ⟨kEB, kEBb⟩ := K2_bm (PhiEB_meas hσ d n) (hPB 0).2.1
+  obtain ⟨bEB, vEB⟩ := block_var H hN n (by omega) kEB kEBb (K2_TI (PhiEB_TI n))
+  obtain ⟨kBB, kBBb⟩ := K2_bm (PhiBB_meas hσ d n) (hPB 0).2.2.1
+  obtain ⟨bBB, vBB⟩ := block_var H hN n (by omega) kBB kBBb (K2_TI (PhiBB_TI n))
+  obtain ⟨kS, kSb⟩ := K2_bm (PhiS_meas hσ d n) (hPB 0).2.2.2.1
+  obtain ⟨bS, vS⟩ := block_var H hN n (by omega) kS kSb (K2_TI (PhiS_TI n))
+  have bl : ∀ l : Fin (n + 1),
+      (BM (Dblk (K2 (PhiQee d σ n l)) X N) ∧ cv μ (Dblk (K2 (PhiQee d σ n l)) X N) ≤ r)
+      ∧ (BM (Dblk (K2 (PhiQeb d σ n l)) X N) ∧ cv μ (Dblk (K2 (PhiQeb d σ n l)) X N) ≤ r)
+      ∧ (BM (Dblk (K2 (PhiQbe d σ n l)) X N) ∧ cv μ (Dblk (K2 (PhiQbe d σ n l)) X N) ≤ r)
+      ∧ (BM (Dblk (K2 (PhiQbb d σ n l)) X N) ∧ cv μ (Dblk (K2 (PhiQbb d σ n l)) X N) ≤ r) := by
+    intro l
+    rw [hr]
+    obtain ⟨k1, k1b⟩ := K2_bm (PhiQee_meas hσ d n l) (hPB l).2.2.2.2.1
+    obtain ⟨k2, k2b⟩ := K2_bm (PhiQeb_meas hσ d n l) (hPB l).2.2.2.2.2.1
+    obtain ⟨k3, k3b⟩ := K2_bm (PhiQbe_meas hσ d n l) (hPB l).2.2.2.2.2.2.1
+    obtain ⟨k4, k4b⟩ := K2_bm (PhiQbb_meas hσ d n l) (hPB l).2.2.2.2.2.2.2
+    exact ⟨block_var H hN n (by omega) k1 k1b (K2_TI (PhiQee_TI n l)),
+      block_var H hN n (by omega) k2 k2b (K2_TI (PhiQeb_TI n l)),
+      block_var H hN n (by omega) k3 k3b (K2_TI (PhiQbe_TI n l)),
+      block_var H hN n (by omega) k4 k4b (K2_TI (PhiQbb_TI n l))⟩
+  rw [← hr] at v0 vA vB vEE vEB vBB vS
+  -- the first group
+  have g1 := cv_mul_bd (μ := μ) (-2) vA
+  have g2 := cv_add_bd (BM.const_mul (-2) bA) bB g1 vB
+  have g3 := cv_add_bd ((BM.const_mul (-2) bA).add bB) (BM.const_mul 3 bEE) g2
+    (cv_mul_bd (μ := μ) 3 vEE)
+  have g4 := cv_sub_bd (((BM.const_mul (-2) bA).add bB).add (BM.const_mul 3 bEE))
+    (BM.const_mul 3 bEB) g3 (cv_mul_bd (μ := μ) 3 vEB)
+  have bG4 := ((((BM.const_mul (-2) bA).add bB).add (BM.const_mul 3 bEE)).sub
+    (BM.const_mul 3 bEB))
+  have g5 := cv_add_bd bG4 bBB g4 vBB
+  have g6 := cv_sub_bd (bG4.add bBB) bS g5 vS
+  have bG1 := (bG4.add bBB).sub bS
+  -- the second group, for each `l`
+  have gl : ∀ l : Fin (n + 1),
+      BM (fun ω => 4 * Dblk (K2 (PhiQee d σ n l)) X N ω - 2 * Dblk (K2 (PhiQeb d σ n l)) X N ω
+        - 2 * Dblk (K2 (PhiQbe d σ n l)) X N ω + Dblk (K2 (PhiQbb d σ n l)) X N ω)
+      ∧ cv μ (fun ω => 4 * Dblk (K2 (PhiQee d σ n l)) X N ω - 2 * Dblk (K2 (PhiQeb d σ n l)) X N ω
+        - 2 * Dblk (K2 (PhiQbe d σ n l)) X N ω + Dblk (K2 (PhiQbb d σ n l)) X N ω) ≤ 178 * r := by
+    intro l
+    obtain ⟨⟨b1, v1⟩, ⟨b2, v2⟩, ⟨b3, v3⟩, ⟨b4, v4⟩⟩ := bl l
+    have h1 := cv_sub_bd (BM.const_mul 4 b1) (BM.const_mul 2 b2) (cv_mul_bd (μ := μ) 4 v1)
+      (cv_mul_bd (μ := μ) 2 v2)
+    have h2 := cv_sub_bd ((BM.const_mul 4 b1).sub (BM.const_mul 2 b2)) (BM.const_mul 2 b3) h1
+      (cv_mul_bd (μ := μ) 2 v3)
+    have h3 := cv_add_bd (((BM.const_mul 4 b1).sub (BM.const_mul 2 b2)).sub (BM.const_mul 2 b3))
+      b4 h2 v4
+    refine ⟨(((BM.const_mul 4 b1).sub (BM.const_mul 2 b2)).sub (BM.const_mul 2 b3)).add b4,
+      h3.trans (le_of_eq (by ring))⟩
+  have bG2 : BM (fun ω => ∑ l ∈ Finset.univ.erase (0 : Fin (n + 1)),
+      (4 * Dblk (K2 (PhiQee d σ n l)) X N ω - 2 * Dblk (K2 (PhiQeb d σ n l)) X N ω
+        - 2 * Dblk (K2 (PhiQbe d σ n l)) X N ω + Dblk (K2 (PhiQbb d σ n l)) X N ω)) :=
+    BM.sum _ _ fun l _ => (gl l).1
+  have vG2 := cv_sum_le (μ := μ) (Finset.univ.erase (0 : Fin (n + 1)))
+    (fun l ω => 4 * Dblk (K2 (PhiQee d σ n l)) X N ω - 2 * Dblk (K2 (PhiQeb d σ n l)) X N ω
+        - 2 * Dblk (K2 (PhiQbe d σ n l)) X N ω + Dblk (K2 (PhiQbb d σ n l)) X N ω)
+    (fun l => (gl l).1)
+  have hE : ((Finset.univ.erase (0 : Fin (n + 1))).card : ℝ) = n := by
+    rw [Finset.card_erase_of_mem (Finset.mem_univ _), Finset.card_univ, Fintype.card_fin]
+    push_cast; ring
+  have hsum : ∑ l ∈ Finset.univ.erase (0 : Fin (n + 1)),
+      cv μ (fun ω => 4 * Dblk (K2 (PhiQee d σ n l)) X N ω - 2 * Dblk (K2 (PhiQeb d σ n l)) X N ω
+        - 2 * Dblk (K2 (PhiQbe d σ n l)) X N ω + Dblk (K2 (PhiQbb d σ n l)) X N ω)
+      ≤ n * (178 * r) := by
+    have := Finset.sum_le_sum fun l (_ : l ∈ Finset.univ.erase (0 : Fin (n + 1))) => (gl l).2
+    rwa [Finset.sum_const, nsmul_eq_mul, hE] at this
+  have hn0 : (0 : ℝ) ≤ n := Nat.cast_nonneg n
+  have vG2' : cv μ (fun ω => ∑ l ∈ Finset.univ.erase (0 : Fin (n + 1)),
+      (4 * Dblk (K2 (PhiQee d σ n l)) X N ω - 2 * Dblk (K2 (PhiQeb d σ n l)) X N ω
+        - 2 * Dblk (K2 (PhiQbe d σ n l)) X N ω + Dblk (K2 (PhiQbb d σ n l)) X N ω))
+      ≤ n * (n * (178 * r)) := by
+    rw [hE] at vG2
+    exact vG2.trans (mul_le_mul_of_nonneg_left hsum hn0)
+  -- the total
+  have t1 := cv_add_bd b0 (BM.const_mul ((n : ℝ) + 1) bG1) v0
+    (cv_mul_bd (μ := μ) ((n : ℝ) + 1) g6)
+  have t2 := cv_add_bd (b0.add (BM.const_mul ((n : ℝ) + 1) bG1))
+    (BM.const_mul (((n : ℝ) + 1) / 2) bG2) t1 (cv_mul_bd (μ := μ) (((n : ℝ) + 1) / 2) vG2')
+  have bT := (b0.add (BM.const_mul ((n : ℝ) + 1) bG1)).add (BM.const_mul (((n : ℝ) + 1) / 2) bG2)
+  have e : (fun ω => QT d σ N n (fun j => X j ω) - 1 / (N : ℝ) ^ 2 * Soff (hQT d σ n) X N ω)
+      = fun ω => Dblk (cyT d σ (n := n)) X N ω
+        + ((n : ℝ) + 1) * (-2 * Dblk (K1 (PhiA d σ n)) X N ω + Dblk (K1 (PhiB d σ n)) X N ω
+          + 3 * Dblk (K2 (PhiEE d σ n)) X N ω - 3 * Dblk (K2 (PhiEB d σ n)) X N ω
+          + Dblk (K2 (PhiBB d σ n)) X N ω - Dblk (K2 (PhiS d σ n)) X N ω)
+        + ((n : ℝ) + 1) / 2 * ∑ l ∈ Finset.univ.erase (0 : Fin (n + 1)),
+            (4 * Dblk (K2 (PhiQee d σ n l)) X N ω - 2 * Dblk (K2 (PhiQeb d σ n l)) X N ω
+              - 2 * Dblk (K2 (PhiQbe d σ n l)) X N ω + Dblk (K2 (PhiQbb d σ n l)) X N ω) :=
+    funext fun ω => QT_sub_eq n X N ω
+  rw [e]
+  refine ⟨bT, t2.trans ?_⟩
+  unfold Cq
+  rw [← hr]
+  exact le_of_eq (by ring)
+
+end QTpair
+
+
+
+
+open PiBound VarianceOne VarianceTwo CTG.Reals.TorusReduction
+open BiasGeneral BiasGeneral2 BiasGeneral4 BiasGeneral5 BiasGeneral6
+
+/-! ## (3): the pair kernel of `QT` is bounded, measurable, of mean zero; its symmetrisation gives a
+degenerate two-point statistic with exact variance; the unconditional variance theorem with the
+coefficient `v'_k = 2 ∫ hsym²` (its identification with `v_k = ½ ∫ H_k²` is OPEN) -/
+
+section MeanZero
+
+variable {G : Type*} [AddCommGroup G] [MeasurableSpace G] {ν : Measure G}
+
+/-- **`∫ h_F = 0`** for a translation-invariant bounded measurable kernel. -/
+theorem hpair_int [IsProbabilityMeasure ν]
+    (hinv : ∀ f : G → ℝ, Measurable f → ∀ c, ∫ z, f (z + c) ∂ν = ∫ z, f z ∂ν)
+    {n : ℕ} {F : (Fin n → G) → ℝ} (hF : BM F) (hT : VarianceGeneral2.TI F) :
+    ∫ y, VarianceGeneral2.hpair ν F y ∂ν = 0 := by
+  classical
+  have hbm : ∀ p : Fin n × Fin n, BM (fun y =>
+      VarianceGeneral2.AW ν ({p.1, p.2} : Finset (Fin n))ᶜ F (Function.update 0 p.1 y)) :=
+    fun p => ⟨(VarianceGeneral2.AW_bm _ hF).meas.comp (measurable_update 0),
+      ((VarianceGeneral2.AW_bm (ν := ν) ({p.1, p.2} : Finset (Fin n))ᶜ hF).bdd).imp
+        fun C h y => h _⟩
+  have hint : ∀ p : Fin n × Fin n, Integrable (fun y =>
+      VarianceGeneral2.AW ν ({p.1, p.2} : Finset (Fin n))ᶜ F (Function.update 0 p.1 y)
+        - VarianceGeneral2.AW ν Finset.univ F 0) ν := fun p =>
+    ((hbm p).sub (BM.const _)).integrable
+  unfold VarianceGeneral2.hpair
+  rw [integral_finset_sum _ fun p _ => hint p]
+  refine Finset.sum_eq_zero fun p hp => ?_
+  have hne : p.1 ≠ p.2 := (Finset.mem_filter.mp hp).2.ne
+  rw [integral_sub (hbm p).integrable (integrable_const _), integral_const, probReal_univ,
+    one_smul]
+  have e : ∫ y, VarianceGeneral2.AW ν ({p.1, p.2} : Finset (Fin n))ᶜ F (Function.update 0 p.1 y) ∂ν
+      = VarianceGeneral2.Av ν p.1 (VarianceGeneral2.AW ν ({p.1, p.2} : Finset (Fin n))ᶜ F) 0 := rfl
+  have hv : p.1 ∉ ({p.1, p.2} : Finset (Fin n))ᶜ := by simp
+  rw [e, ← VarianceGeneral2.AW_insert hv hF]
+  have hc : insert p.1 ({p.1, p.2} : Finset (Fin n))ᶜ = ({p.2} : Finset (Fin n))ᶜ := by
+    ext i
+    by_cases h1 : i = p.1
+    · subst h1; simp [hne]
+    · by_cases h2 : i = p.2
+      · subst h2; simp [h1]
+      · simp [h1, h2]
+  rw [hc, VarianceGeneral2.AW_le1_const hinv hF hT (S := {p.2}) (by simp) 0, sub_self]
+
+end MeanZero
+
+
+
+
+open PiBound VarianceOne VarianceTwo CTG.Reals.TorusReduction BiasVariance
+open BiasGeneral BiasGeneral2 BiasGeneral4 BiasGeneral5 BiasGeneral6
+
+section SymKernel
+
+variable {d : ℕ} {σ : ℝ}
+
+/-- Bounded measurable with mean zero on the torus. -/
+def ZM (d : ℕ) (f : FlatTorus d → ℝ) : Prop := BM f ∧ ∫ u, f u ∂flatTorusMeasure d = 0
+
+theorem ZM_add {f g : FlatTorus d → ℝ} (hf : ZM d f) (hg : ZM d g) : ZM d (fun u => f u + g u) :=
+  ⟨hf.1.add hg.1, by rw [integral_add hf.1.integrable hg.1.integrable, hf.2, hg.2, add_zero]⟩
+
+theorem ZM_sub {f g : FlatTorus d → ℝ} (hf : ZM d f) (hg : ZM d g) : ZM d (fun u => f u - g u) :=
+  ⟨hf.1.sub hg.1, by rw [integral_sub hf.1.integrable hg.1.integrable, hf.2, hg.2, sub_zero]⟩
+
+theorem ZM_mul (c : ℝ) {f : FlatTorus d → ℝ} (hf : ZM d f) : ZM d (fun u => c * f u) :=
+  ⟨BM.const_mul c hf.1, by rw [integral_const_mul, hf.2, mul_zero]⟩
+
+theorem ZM_sum {κ : Type*} (s : Finset κ) {f : κ → FlatTorus d → ℝ} (hf : ∀ l, ZM d (f l)) :
+    ZM d (fun u => ∑ l ∈ s, f l u) :=
+  ⟨BM.sum _ _ fun l _ => (hf l).1, by
+    rw [integral_finset_sum _ fun l _ => (hf l).1.integrable]
+    exact Finset.sum_eq_zero fun l _ => (hf l).2⟩
+
+theorem hp_ZM {a : ℕ} {F : (Fin a → FlatTorus d) → ℝ} (hF : BM F) {B : ℝ}
+    (hB : ∀ x, |F x| ≤ B) (hT : VarianceGeneral2.TI F) : ZM d (hp F) := by
+  obtain ⟨hm, hb⟩ := hpair_bm (ν := flatTorusMeasure d) hF hB
+  exact ⟨⟨hm, _, hb⟩, hpair_int (VarianceGeneral2.torus_hinv d) hF hT⟩
+
+theorem hQT_ZM (hσ : 0 < σ) (n : ℕ) : ZM d (hQT d σ n) := by
+  have hPB := fun l => phi_bounds hσ d n l
+  have z0 : ZM d (hp (cyT d σ (n := n))) :=
+    hp_ZM ⟨cyT_meas hσ d n, _, cyT_le_B4 hσ n⟩ (cyT_le_B4 hσ n) (fun y c => cyT_TI y c)
+  have zA := hp_ZM (K1_bm (PhiA_meas hσ d n) (PhiA_le_B4 hσ n)).1
+    (K1_bm (PhiA_meas hσ d n) (PhiA_le_B4 hσ n)).2 (K1_TI (PhiA_TI n))
+  have zB := hp_ZM (K1_bm (PhiB_meas hσ d n) (PhiB_le_B4 hσ n)).1
+    (K1_bm (PhiB_meas hσ d n) (PhiB_le_B4 hσ n)).2 (K1_TI (PhiB_TI n))
+  have zEE := hp_ZM (K2_bm (PhiEE_meas hσ d n) (hPB 0).1).1
+    (K2_bm (PhiEE_meas hσ d n) (hPB 0).1).2 (K2_TI (PhiEE_TI n))
+  have zEB := hp_ZM (K2_bm (PhiEB_meas hσ d n) (hPB 0).2.1).1
+    (K2_bm (PhiEB_meas hσ d n) (hPB 0).2.1).2 (K2_TI (PhiEB_TI n))
+  have zBB := hp_ZM (K2_bm (PhiBB_meas hσ d n) (hPB 0).2.2.1).1
+    (K2_bm (PhiBB_meas hσ d n) (hPB 0).2.2.1).2 (K2_TI (PhiBB_TI n))
+  have zS := hp_ZM (K2_bm (PhiS_meas hσ d n) (hPB 0).2.2.2.1).1
+    (K2_bm (PhiS_meas hσ d n) (hPB 0).2.2.2.1).2 (K2_TI (PhiS_TI n))
+  have zl : ∀ l : Fin (n + 1), ZM d (fun u => 4 * hp (K2 (PhiQee d σ n l)) u
+      - 2 * hp (K2 (PhiQeb d σ n l)) u - 2 * hp (K2 (PhiQbe d σ n l)) u
+      + hp (K2 (PhiQbb d σ n l)) u) := by
+    intro l
+    have z1 := hp_ZM (K2_bm (PhiQee_meas hσ d n l) (hPB l).2.2.2.2.1).1
+      (K2_bm (PhiQee_meas hσ d n l) (hPB l).2.2.2.2.1).2 (K2_TI (PhiQee_TI n l))
+    have z2 := hp_ZM (K2_bm (PhiQeb_meas hσ d n l) (hPB l).2.2.2.2.2.1).1
+      (K2_bm (PhiQeb_meas hσ d n l) (hPB l).2.2.2.2.2.1).2 (K2_TI (PhiQeb_TI n l))
+    have z3 := hp_ZM (K2_bm (PhiQbe_meas hσ d n l) (hPB l).2.2.2.2.2.2.1).1
+      (K2_bm (PhiQbe_meas hσ d n l) (hPB l).2.2.2.2.2.2.1).2 (K2_TI (PhiQbe_TI n l))
+    have z4 := hp_ZM (K2_bm (PhiQbb_meas hσ d n l) (hPB l).2.2.2.2.2.2.2).1
+      (K2_bm (PhiQbb_meas hσ d n l) (hPB l).2.2.2.2.2.2.2).2 (K2_TI (PhiQbb_TI n l))
+    exact ZM_add (ZM_sub (ZM_sub (ZM_mul 4 z1) (ZM_mul 2 z2)) (ZM_mul 2 z3)) z4
+  have zG1 := ZM_sub (ZM_add (ZM_sub (ZM_add (ZM_add (ZM_mul (-2) zA) zB) (ZM_mul 3 zEE))
+    (ZM_mul 3 zEB)) zBB) zS
+  have zG2 := ZM_sum (Finset.univ.erase (0 : Fin (n + 1))) zl
+  exact ZM_add (ZM_add z0 (ZM_mul ((n : ℝ) + 1) zG1)) (ZM_mul (((n : ℝ) + 1) / 2) zG2)
+
+/-- The symmetrised pair kernel `hsym(u) = ½ (h_QT(u) + h_QT(-u))`. -/
+noncomputable def hS (d : ℕ) (σ : ℝ) (n : ℕ) (u : FlatTorus d) : ℝ :=
+  1 / 2 * (hQT d σ n u + hQT d σ n (-u))
+
+/-- **`v'_k = 2 ∫ hsym²`**, the variance coefficient of `QT` (`k = n + 1`). -/
+noncomputable def vq (d : ℕ) (σ : ℝ) (n : ℕ) : ℝ := 2 * ∫ u, hS d σ n u ^ 2 ∂flatTorusMeasure d
+
+theorem Soff_neg {Ω G : Type*} [AddCommGroup G] (f : G → ℝ) (X : ℕ → Ω → G) (N : ℕ) (ω : Ω) :
+    Soff (fun u => f (-u)) X N ω = Soff f X N ω := by
+  unfold Soff
+  rw [Finset.sum_comm]
+  refine Finset.sum_congr rfl fun j _ => Finset.sum_congr rfl fun i _ => ?_
+  unfold aT
+  by_cases h : i = j
+  · subst h; simp
+  · rw [if_neg (Ne.symm h), if_neg h]
+    show f (-(X i ω - X j ω)) = f (X j ω - X i ω)
+    rw [neg_sub]
+
+theorem Soff_hS {Ω : Type*} (n : ℕ) (X : ℕ → Ω → FlatTorus d) (N : ℕ) (ω : Ω) :
+    Soff (hS d σ n) X N ω = Soff (hQT d σ n) X N ω := by
+  unfold hS
+  rw [Soff_mul, Soff_add, Soff_neg]
+  ring
+
+theorem hS_deg2 {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω} [IsProbabilityMeasure μ]
+    {X : ℕ → Ω → FlatTorus d} (H : SP μ (flatTorusMeasure d) X) (hσ : 0 < σ) (n : ℕ) :
+    ∃ C, Deg2 μ (flatTorusMeasure d) X (hS d σ n) C (C ^ 2) := by
+  obtain ⟨⟨hm, C, hC⟩, h0⟩ := hQT_ZM (d := d) hσ n
+  have hmS : Measurable (hS d σ n) := by
+    unfold hS; exact (hm.add (hm.comp measurable_neg)).const_mul _
+  refine ⟨C, deg2_of H hmS (fun u => ?_) (fun u => ?_) (fun x => ?_)⟩
+  · unfold hS
+    have h1 := abs_le.mp (hC u)
+    have h2 := abs_le.mp (hC (-u))
+    rw [abs_le]; constructor <;> linarith [h1.1, h1.2, h2.1, h2.2]
+  · unfold hS; rw [neg_neg]; ring
+  · rw [(torus_vk (d := d) hσ).inv (hS d σ n) hmS x]
+    unfold hS
+    have i1 : Integrable (hQT d σ n) (flatTorusMeasure d) := (⟨hm, C, hC⟩ : BM _).integrable
+    have i2 : Integrable (fun u => hQT d σ n (-u)) (flatTorusMeasure d) :=
+      (⟨hm.comp measurable_neg, C, fun u => hC _⟩ : BM _).integrable
+    rw [integral_const_mul, integral_add i1 i2,
+      VarianceGeneral.neg_inv_int d (hQT d σ n), h0]
+    ring
+
+end SymKernel
+
+/-! ## the degenerate statistic `U'_k = N⁻² ∑_{i≠j} hsym(X_i - X_j)` and the final theorems -/
+
+section Final
+
+variable {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+
+/-- `U'_k = N⁻² ∑_{i≠j} hsym(X_i - X_j)` (`k = n + 1`). -/
+noncomputable def Uq (d : ℕ) (σ : ℝ) (n : ℕ) (X : ℕ → Ω → FlatTorus d) (N : ℕ) (ω : Ω) : ℝ :=
+  1 / (N : ℝ) ^ 2 * Soff (hS d σ n) X N ω
+
+theorem Uq_var [IsProbabilityMeasure μ] {d : ℕ} (X : ℕ → Ω → FlatTorus d)
+    (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) {σ : ℝ} (hσ : 0 < σ) (n N : ℕ) :
+    BM (Uq d σ n X N) ∧ cv μ (Uq d σ n X N) = vq d σ n * ((N : ℝ) - 1) / (N : ℝ) ^ 3 := by
+  have H : SP μ (flatTorusMeasure d) X := ⟨h_indep, hX, hlaw⟩
+  have V := torus_vk (d := d) hσ
+  obtain ⟨C, Dψ⟩ := hS_deg2 H hσ n
+  obtain ⟨W, hWd⟩ : ∃ W : ℝ, W = ∫ u, hS d σ n u ^ 2 ∂flatTorusMeasure d := ⟨_, rfl⟩
+  have hW : ∀ x, ∫ z, hS d σ n (x - z) ^ 2 ∂flatTorusMeasure d = W := fun x => by
+    rw [hWd]; exact V.inv (fun u => hS d σ n u ^ 2) (Dψ.psi_meas.pow_const 2) x
+  have sm := deg_second_moment Dψ hW N
+  have mz := deg_mean Dψ N
+  have bS : BM (Soff (hS d σ n) X N) :=
+    ⟨OracleTwo.Soff_meas Dψ N, _, OracleTwo.Soff_bound Dψ N⟩
+  have bU : BM (Uq d σ n X N) := BM.const_mul _ bS
+  have hU0 : ∫ ω, Uq d σ n X N ω ∂μ = 0 := by
+    unfold Uq; rw [integral_const_mul, mz, mul_zero]
+  refine ⟨bU, ?_⟩
+  rw [cv_of_mean_zero bU hU0]
+  have hv : vq d σ n = 2 * W := by rw [hWd]; rfl
+  have e : ∀ ω, Uq d σ n X N ω ^ 2 = (1 / (N : ℝ) ^ 2) ^ 2 * Soff (hS d σ n) X N ω ^ 2 :=
+    fun ω => by unfold Uq; ring
+  simp_rw [e]
+  rw [integral_const_mul, sm, hv]
+  rcases Nat.eq_zero_or_pos N with h0 | hpos
+  · subst h0; simp
+  · have hN0 : (N : ℝ) ≠ 0 := by exact_mod_cast hpos.ne'
+    field_simp
+
+/-- **`prop:variance` for every `k = n + 1` with the coefficient `v'_k = vq d σ n`
+    (UNCONDITIONAL; heat kernel on the flat torus, self-loops, general normalisation event).**
+    For independent uniform points, `N ≥ 1`, `0 ≤ δ ≤ 1/8`, `θ > 0`:
+    `Var U'_k = v'_k (N-1)/N³` exactly, and
+    `|Var Tr P^k - v'_k (N-1)/N³| ≤ θ v'_k (N-1)/N³ + (1 + 1/θ)(2 E₁ + 2 R)` with
+    `E₁ = (gK δ m₁)² δ² (2 m₁²/N) + (N + CQT)² P(max|ρ - 1| > δ)` (`trace_QT_sq`) and
+    `R = Cq n · cA n · B4² / N³` (`QT_pair`).  `v'_k = 2 ∫ hsym²` with `hsym` the symmetrised pair
+    kernel of `QT`; that `hsym = H_k / 2`, i.e. `v'_k = v_k` of the paper, is NOT proved here. -/
+theorem variance_general_v' [IsProbabilityMeasure μ] {d : ℕ} (X : ℕ → Ω → FlatTorus d)
+    (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) {σ : ℝ} (hσ : 0 < σ) (N : ℕ) (hN : 1 ≤ N)
+    {δ : ℝ} (hδ0 : 0 ≤ δ) (hδ : δ ≤ 1 / 8) (n : ℕ) {θ : ℝ} (hθ : 0 < θ) :
+    cv μ (Uq d σ n X N) = vq d σ n * ((N : ℝ) - 1) / (N : ℝ) ^ 3
+    ∧ |cv μ (fun ω => ((torusWalk d σ N (fun j => X j ω)) ^ (n + 1)).trace)
+        - vq d σ n * ((N : ℝ) - 1) / (N : ℝ) ^ 3|
+      ≤ θ * (vq d σ n * ((N : ℝ) - 1) / (N : ℝ) ^ 3)
+        + (1 + 1 / θ) * (2 * ((gK n * δ * torusM d σ 1) ^ 2 * δ ^ 2 * (2 * torusM d σ 1 ^ 2 / N)
+          + (N + CQT d σ n) ^ 2
+            * μ.real {ω | ¬ ∀ a : Fin N, |heatRho d σ N (fun j => X j ω) a - 1| ≤ δ})
+          + 2 * (Cq n * (cA n * B4 d σ n ^ 2 / (N : ℝ) ^ 3))) := by
+  have hN' : 0 < N := hN
+  obtain ⟨bU, hcvU⟩ := Uq_var X h_indep hX hlaw hσ n N
+  obtain ⟨bT, _⟩ := VarianceGeneral.trace_pow_bm hσ X hX N (n + 1)
+  have bQ := VarianceGeneral.QT_bm (μ := μ) hσ d X hX (N := N) (n := n)
+  have hsq := VarianceGeneral.trace_QT_sq X h_indep hX hlaw hσ N hN hδ0 hδ n
+  obtain ⟨_, hR⟩ := QT_pair X h_indep hX hlaw hσ hN' n
+  have eU : ∀ ω, Uq d σ n X N ω = 1 / (N : ℝ) ^ 2 * Soff (hQT d σ n) X N ω := fun ω => by
+    unfold Uq; rw [Soff_hS]
+  have hR' : cv μ (fun ω => QT d σ N n (fun j => X j ω) - Uq d σ n X N ω)
+      ≤ Cq n * (cA n * B4 d σ n ^ 2 / (N : ℝ) ^ 3) := by
+    simp_rw [eU]; exact hR
+  obtain ⟨E1, hE1⟩ : ∃ E1 : ℝ, E1 = (gK n * δ * torusM d σ 1) ^ 2 * δ ^ 2
+      * (2 * torusM d σ 1 ^ 2 / N) + (N + CQT d σ n) ^ 2
+        * μ.real {ω | ¬ ∀ a : Fin N, |heatRho d σ N (fun j => X j ω) a - 1| ≤ δ} := ⟨_, rfl⟩
+  obtain ⟨R, hRd⟩ : ∃ R : ℝ, R = Cq n * (cA n * B4 d σ n ^ 2 / (N : ℝ) ^ 3) := ⟨_, rfl⟩
+  rw [← hE1] at hsq ⊢
+  rw [← hRd] at hR' ⊢
+  have bTQ : BM (fun ω => ((torusWalk d σ N (fun j => X j ω)) ^ (n + 1)).trace
+      - QT d σ N n (fun j => X j ω)) := bT.sub bQ
+  have bQU : BM (fun ω => QT d σ N n (fun j => X j ω) - Uq d σ n X N ω) := bQ.sub bU
+  have hTQ := cv_le_sq (μ := μ) bTQ
+  have hg : cv μ (fun ω => ((torusWalk d σ N (fun j => X j ω)) ^ (n + 1)).trace
+      - Uq d σ n X N ω) ≤ 2 * E1 + 2 * R := by
+    have e : (fun ω => ((torusWalk d σ N (fun j => X j ω)) ^ (n + 1)).trace - Uq d σ n X N ω)
+        = fun ω => (((torusWalk d σ N (fun j => X j ω)) ^ (n + 1)).trace
+          - QT d σ N n (fun j => X j ω))
+          + (QT d σ N n (fun j => X j ω) - Uq d σ n X N ω) := by funext ω; ring
+    rw [e]
+    have := cv_add_le (μ := μ) bTQ bQU
+    linarith only [this, hTQ, hsq, hR']
+  refine ⟨hcvU, ?_⟩
+  have hper := cv_perturb (μ := μ) bU (bT.sub bU) hθ
+  have e : (fun ω => Uq d σ n X N ω + (((torusWalk d σ N (fun j => X j ω)) ^ (n + 1)).trace
+      - Uq d σ n X N ω)) = fun ω => ((torusWalk d σ N (fun j => X j ω)) ^ (n + 1)).trace := by
+    funext ω; ring
+  rw [e, hcvU] at hper
+  have hθ' : 0 ≤ 1 + 1 / θ := by positivity
+  have := mul_le_mul_of_nonneg_left hg hθ'
+  linarith only [hper, this]
+
+/-- **The same with the normalisation event of `norm_sample`** (`σ ≤ 1`, `d ≥ 1`, `N ≥ 2`,
+    `kernelC1 d · δ' ≤ 1`, `δ' = √(m₁ log N / N)`): the probability term is at most `1/N³`. -/
+theorem variance_general_v'_sample [IsProbabilityMeasure μ] {σ : ℝ} (hσ : 0 < σ) (hσ1 : σ ≤ 1)
+    (d : ℕ) (hd : 1 ≤ d) (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ)
+    (hX : ∀ j, Measurable (X j)) (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (N : ℕ)
+    (hN2 : 2 ≤ N) {Mp δp : ℝ} (hMp : Mp = heatTorus d (2 * Real.pi ^ 2 * σ) 0)
+    (hδp : δp = Real.sqrt (Mp * Real.log N / N)) (hrange : kernelC1 d * δp ≤ 1)
+    (n : ℕ) {θ : ℝ} (hθ : 0 < θ) :
+    |cv μ (fun ω => ((torusWalk d σ N (fun j => X j ω)) ^ (n + 1)).trace)
+        - vq d σ n * ((N : ℝ) - 1) / (N : ℝ) ^ 3|
+      ≤ θ * (vq d σ n * ((N : ℝ) - 1) / (N : ℝ) ^ 3)
+        + (1 + 1 / θ) * (2 * ((gK n * (TorusReductionL1.normC d * δp) * torusM d σ 1) ^ 2
+            * (TorusReductionL1.normC d * δp) ^ 2 * (2 * torusM d σ 1 ^ 2 / N)
+          + (N + CQT d σ n) ^ 2 * (1 / (N : ℝ) ^ 3))
+          + 2 * (Cq n * (cA n * B4 d σ n ^ 2 / (N : ℝ) ^ 3))) := by
+  have hr : kernelC1 d * δp * Real.sqrt ((1 : ℕ) : ℝ) ≤ 1 := by
+    rw [Nat.cast_one, Real.sqrt_one, mul_one]; exact hrange
+  obtain ⟨h8, hp⟩ := TorusReductionL1.norm_sample hσ hσ1 d hd X h_indep hX hlaw N 1 hN2
+    Nat.one_pos hMp hδp hr
+  have hδ0 : 0 ≤ TorusReductionL1.normC d * δp := by
+    rw [hδp]; exact mul_nonneg (TorusReductionL1.normC_nonneg d) (Real.sqrt_nonneg _)
+  obtain ⟨_, h⟩ := variance_general_v' X h_indep hX hlaw hσ N (by omega) hδ0 h8 n hθ
+  refine h.trans ?_
+  have hc : (0 : ℝ) ≤ (N + CQT d σ n) ^ 2 := _root_.sq_nonneg _
+  have h1 := mul_le_mul_of_nonneg_left hp hc
+  have hθ' : 0 ≤ 1 + 1 / θ := by positivity
+  have := mul_le_mul_of_nonneg_left (by linarith : 2 * ((gK n * (TorusReductionL1.normC d * δp)
+      * torusM d σ 1) ^ 2 * (TorusReductionL1.normC d * δp) ^ 2 * (2 * torusM d σ 1 ^ 2 / N)
+      + (N + CQT d σ n) ^ 2 * μ.real {ω | ¬ ∀ a : Fin N,
+        |heatRho d σ N (fun j => X j ω) a - 1| ≤ TorusReductionL1.normC d * δp})
+      + 2 * (Cq n * (cA n * B4 d σ n ^ 2 / (N : ℝ) ^ 3))
+      ≤ 2 * ((gK n * (TorusReductionL1.normC d * δp) * torusM d σ 1) ^ 2
+            * (TorusReductionL1.normC d * δp) ^ 2 * (2 * torusM d σ 1 ^ 2 / N)
+          + (N + CQT d σ n) ^ 2 * (1 / (N : ℝ) ^ 3))
+          + 2 * (Cq n * (cA n * B4 d σ n ^ 2 / (N : ℝ) ^ 3))) hθ'
+  linarith
+
+end Final
+
+
+
+
+open PiBound VarianceOne VarianceTwo CTG.Reals.TorusReduction BiasVariance
+open BiasGeneral BiasGeneral2 BiasGeneral4 BiasGeneral5 BiasGeneral6
+
+/-! ## (2), the remaining identification, stated as a HYPOTHESIS -/
+
+/-- If the symmetrised pair kernel of `QT` is `H_k / 2` (Steps 3–4 of the paper; NOT proved here),
+    then `v'_k = v_k`. -/
+theorem vq_eq_vk {d : ℕ} {σ : ℝ} (n : ℕ)
+    (hid : ∀ u, hS d σ n u = 1 / 2 * VarianceGeneral.Hk d σ (n + 1) u) :
+    vq d σ n = VarianceGeneral.vk d σ (n + 1) := by
+  unfold vq VarianceGeneral.vk
+  simp_rw [hid]
+  have e : ∀ u, (1 / 2 * VarianceGeneral.Hk d σ (n + 1) u) ^ 2
+      = 1 / 4 * VarianceGeneral.Hk d σ (n + 1) u ^ 2 := fun u => by ring
+  simp_rw [e]
+  rw [integral_const_mul]; ring
+
+/-- **`prop:variance` for every `k = n + 1` with `v_k = ½ ∫ H_k²`, CONDITIONAL only on the
+    identification `hsym = H_k / 2` (HYPOTHESIS `hid`)**, with the normalisation event of
+    `norm_sample`. -/
+theorem variance_general_of_ident {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {σ : ℝ} (hσ : 0 < σ) (hσ1 : σ ≤ 1)
+    (d : ℕ) (hd : 1 ≤ d) (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ)
+    (hX : ∀ j, Measurable (X j)) (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (N : ℕ)
+    (hN2 : 2 ≤ N) {Mp δp : ℝ} (hMp : Mp = heatTorus d (2 * Real.pi ^ 2 * σ) 0)
+    (hδp : δp = Real.sqrt (Mp * Real.log N / N)) (hrange : kernelC1 d * δp ≤ 1)
+    (n : ℕ) {θ : ℝ} (hθ : 0 < θ)
+    (hid : ∀ u, hS d σ n u = 1 / 2 * VarianceGeneral.Hk d σ (n + 1) u) :
+    |cv μ (fun ω => ((torusWalk d σ N (fun j => X j ω)) ^ (n + 1)).trace)
+        - VarianceGeneral.vk d σ (n + 1) * ((N : ℝ) - 1) / (N : ℝ) ^ 3|
+      ≤ θ * (VarianceGeneral.vk d σ (n + 1) * ((N : ℝ) - 1) / (N : ℝ) ^ 3)
+        + (1 + 1 / θ) * (2 * ((gK n * (TorusReductionL1.normC d * δp) * torusM d σ 1) ^ 2
+            * (TorusReductionL1.normC d * δp) ^ 2 * (2 * torusM d σ 1 ^ 2 / N)
+          + (N + CQT d σ n) ^ 2 * (1 / (N : ℝ) ^ 3))
+          + 2 * (Cq n * (cA n * B4 d σ n ^ 2 / (N : ℝ) ^ 3))) := by
+  rw [← vq_eq_vk n hid]
+  exact variance_general_v'_sample hσ hσ1 d hd X h_indep hX hlaw N hN2 hMp hδp hrange n hθ
+
+end VarianceGeneral3
+
 end CTG.Reals2
