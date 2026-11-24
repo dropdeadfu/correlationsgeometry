@@ -36406,4 +36406,1008 @@ end TorusEE
 
 end BiasGeneral4
 
+namespace BiasGeneral5
+
+open WalkCount Function BiasGeneral2 BiasGeneral3 BiasGeneral4 PiBound CTG.Reals.TorusReduction
+
+/-! # A100: `prop:bias` for every `k`, the rest of Point 4 -/
+
+section Tools
+
+variable {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω} [IsProbabilityMeasure μ]
+  {G : Type*} [MeasurableSpace G] {ν : Measure G} [IsProbabilityMeasure ν]
+
+theorem snoc_meas {m : ℕ} : Measurable fun p : (Fin m → G) × G => (Fin.snoc p.1 p.2 : Fin (m + 1) → G) := by
+  refine measurable_pi_lambda _ fun i => ?_
+  induction i using Fin.lastCases with
+  | last => simpa [Fin.snoc_last] using measurable_snd
+  | cast j => simpa [Fin.snoc_castSucc] using (measurable_pi_apply j).comp measurable_fst
+
+/-- Integrate the last point of an injective tuple first. -/
+theorem int_last (X : ℕ → Ω → G) (h_indep : ProbabilityTheory.iIndepFun X μ)
+    (hX : ∀ j, Measurable (X j)) (hlaw : ∀ j, μ.map (X j) = ν) {N m : ℕ}
+    (w : Fin (m + 1) → Fin N) (hw : Injective w) (F : (Fin (m + 1) → G) → ℝ) (hF : Measurable F)
+    {B : ℝ} (hB : ∀ y, |F y| ≤ B) :
+    ∫ ω, F (fun i => X (w i) ω) ∂μ
+      = ∫ ω, (∫ z, F (Fin.snoc (fun i : Fin m => X (w i.castSucc) ω) z) ∂ν) ∂μ := by
+  have hu : ∀ i : Fin m, (w i.castSucc : ℕ) ≠ (w (Fin.last m) : ℕ) :=
+    fun i h => Fin.castSucc_ne_last i (hw (Fin.ext h))
+  have h := integrate_extra X h_indep hX hlaw (fun i : Fin m => (w i.castSucc : ℕ))
+    (w (Fin.last m) : ℕ) hu (fun p => F (Fin.snoc p.1 p.2)) (hF.comp snoc_meas) (B := B)
+    (fun p => hB _)
+  rw [← h]
+  refine integral_congr_ae (Filter.Eventually.of_forall fun ω => ?_)
+  show F (fun i => X (w i) ω) = F (Fin.snoc (fun i : Fin m => X (w i.castSucc) ω) (X (w (Fin.last m)) ω))
+  congr 1
+  exact (Fin.snoc_init_self (fun i => X (w i) ω)).symm
+
+end Tools
+
+section Conv
+
+theorem cont_int {d : ℕ} {f : FlatTorus d → ℝ} (hf : Continuous f) {C : ℝ} (hC : ∀ z, |f z| ≤ C) :
+    Integrable f (flatTorusMeasure d) :=
+  Integrable.of_bound hf.measurable.aestronglyMeasurable C
+    (Filter.Eventually.of_forall fun z => by rw [Real.norm_eq_abs]; exact hC z)
+
+theorem hP_abs {σ : ℝ} (hσ : 0 < σ) (d : ℕ) {k : ℕ} (hk : 1 ≤ k) (u : FlatTorus d) :
+    |heatP d σ k u| ≤ torusM d σ 1 := by
+  rw [abs_of_nonneg (heatP_nonneg hσ d k u)]
+  exact (heatP_le hσ d hk u).trans (torusM_anti hσ d le_rfl hk)
+
+/-- `∫ p(a - z) (p_k(b - z) - 1) dz = p_{k+1}(a - b) - 1`. -/
+theorem conv_pk {σ : ℝ} (hσ : 0 < σ) (d : ℕ) {k : ℕ} (hk : 1 ≤ k) (a b : FlatTorus d) :
+    ∫ z, heatP d σ 1 (a - z) * (heatP d σ k (b - z) - 1) ∂flatTorusMeasure d
+      = heatP d σ (k + 1) (a - b) - 1 := by
+  have hM := torusM_one_ge hσ d
+  have c1 : Continuous fun z : FlatTorus d => heatP d σ 1 (a - z) :=
+    (heatP_cont hσ d le_rfl).comp (continuous_const.sub continuous_id)
+  have ck : Continuous fun z : FlatTorus d => heatP d σ k (z - b) :=
+    (heatP_cont hσ d hk).comp (continuous_id.sub continuous_const)
+  have e : ∀ z, heatP d σ 1 (a - z) * (heatP d σ k (b - z) - 1)
+      = heatP d σ 1 (a - z) * heatP d σ k (z - b) - heatP d σ 1 (a - z) := fun z => by
+    rw [heatP_flip d σ k b z]; ring
+  simp_rw [e]
+  have i1 : Integrable (fun z => heatP d σ 1 (a - z) * heatP d σ k (z - b)) (flatTorusMeasure d) :=
+    cont_int (c1.mul ck) (C := torusM d σ 1 * torusM d σ 1) fun z => by
+      rw [abs_mul]; exact mul_le_mul (hP_abs hσ d le_rfl _) (hP_abs hσ d hk _) (abs_nonneg _)
+        (by linarith)
+  have i2 : Integrable (fun z => heatP d σ 1 (a - z)) (flatTorusMeasure d) :=
+    cont_int c1 (C := torusM d σ 1) fun z => hP_abs hσ d le_rfl _
+  rw [integral_sub i1 i2,
+    heatP_semi hσ d le_rfl hk a b, heatP_mass hσ d le_rfl a, add_comm]
+
+/-- `∫ (p(a - z) - 1)(p(b - z) - 1) dz = p₂(a - b) - 1`. -/
+theorem conv_cc {σ : ℝ} (hσ : 0 < σ) (d : ℕ) (a b : FlatTorus d) :
+    ∫ z, (heatP d σ 1 (a - z) - 1) * (heatP d σ 1 (b - z) - 1) ∂flatTorusMeasure d
+      = heatP d σ 2 (a - b) - 1 := by
+  have hM := torusM_one_ge hσ d
+  have c1 : Continuous fun z : FlatTorus d => heatP d σ 1 (a - z) :=
+    (heatP_cont hσ d le_rfl).comp (continuous_const.sub continuous_id)
+  have cb : Continuous fun z : FlatTorus d => heatP d σ 1 (b - z) :=
+    (heatP_cont hσ d le_rfl).comp (continuous_const.sub continuous_id)
+  have e : ∀ z, (heatP d σ 1 (a - z) - 1) * (heatP d σ 1 (b - z) - 1)
+      = heatP d σ 1 (a - z) * (heatP d σ 1 (b - z) - 1) - (heatP d σ 1 (b - z) - 1) :=
+    fun z => by ring
+  simp_rw [e]
+  have h1 := conv_pk hσ d (le_refl 1) a b
+  have i1 : Integrable (fun z => heatP d σ 1 (a - z) * (heatP d σ 1 (b - z) - 1))
+      (flatTorusMeasure d) :=
+    cont_int (c1.mul (cb.sub continuous_const)) (C := torusM d σ 1 * torusM d σ 1) fun z => by
+      rw [abs_mul]; exact mul_le_mul (hP_abs hσ d le_rfl _) (cK_bound hσ d _) (abs_nonneg _)
+        (by linarith)
+  have i2 : Integrable (fun z => heatP d σ 1 (b - z) - 1) (flatTorusMeasure d) :=
+    cont_int (cb.sub continuous_const) (C := torusM d σ 1) fun z => cK_bound hσ d _
+  have i3 : Integrable (fun z => heatP d σ 1 (b - z)) (flatTorusMeasure d) :=
+    cont_int cb (C := torusM d σ 1) fun z => hP_abs hσ d le_rfl _
+  rw [integral_sub i1 i2, h1, integral_sub i3 (integrable_const 1), heatP_mass hσ d le_rfl]
+  simp
+
+/-- `∫ p(a - z) dz = 1`, in the `heatP` notation. -/
+theorem mass1 {σ : ℝ} (hσ : 0 < σ) (d : ℕ) (a : FlatTorus d) :
+    ∫ z, heatP d σ 1 (a - z) ∂flatTorusMeasure d = 1 := heatP_mass hσ d le_rfl a
+
+end Conv
+
+open WalkCount Function BiasGeneral2 BiasGeneral3 BiasGeneral4 PiBound CTG.Reals.TorusReduction
+
+/-! ## The three remaining parts of `Q₂` for every `k` -/
+
+section Q2rest
+
+variable {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω} [IsProbabilityMeasure μ]
+
+theorem cent {σ : ℝ} (hσ : 0 < σ) (d : ℕ) (K : ℝ) (a : FlatTorus d) :
+    ∫ z, K * (heatP d σ 1 (a - z) - 1) ∂flatTorusMeasure d = 0 := by
+  rw [integral_const_mul, integral_sub (p1_int hσ d a) (integrable_const 1), mass1 hσ d]
+  simp
+
+theorem bd3 {M C a b e f : ℝ} (hM : 1 ≤ M) (hC0 : 0 ≤ C) (ha0 : 0 ≤ a) (ha : a ≤ C)
+    (h1 : |b| ≤ M) (h2 : |e| ≤ M) (h3 : |f| ≤ M) : |a * b * e * f| ≤ C * M ^ 4 := by
+  rw [abs_mul, abs_mul, abs_mul, abs_of_nonneg ha0]
+  have hM0 : 0 ≤ M := by linarith
+  have : a * |b| * |e| * |f| ≤ C * M * M * M :=
+    mul_le_mul (mul_le_mul (mul_le_mul ha h1 (abs_nonneg _) hC0) h2 (abs_nonneg _)
+      (by positivity)) h3 (abs_nonneg _) (by positivity)
+  have hM4 : C * M * M * M ≤ C * M ^ 4 := by
+    have : M ^ 3 ≤ M ^ 4 := pow_le_pow_right₀ hM (by norm_num)
+    nlinarith [mul_le_mul_of_nonneg_left this hC0]
+  linarith
+
+theorem bd4 {M C a b e f g : ℝ} (hM : 1 ≤ M) (hC0 : 0 ≤ C) (ha0 : 0 ≤ a) (ha : a ≤ C)
+    (h1 : |b| ≤ M) (h2 : |e| ≤ M) (h3 : |f| ≤ M) (h4 : |g| ≤ M) :
+    |a * b * e * f * g| ≤ C * M ^ 4 := by
+  rw [abs_mul, abs_mul, abs_mul, abs_mul, abs_of_nonneg ha0]
+  have hM0 : 0 ≤ M := by linarith
+  have : a * |b| * |e| * |f| * |g| ≤ C * M * M * M * M :=
+    mul_le_mul (mul_le_mul (mul_le_mul (mul_le_mul ha h1 (abs_nonneg _) hC0) h2 (abs_nonneg _)
+      (by positivity)) h3 (abs_nonneg _) (by positivity)) h4 (abs_nonneg _) (by positivity)
+  nlinarith
+
+theorem bd2 {M C a b e : ℝ} (hM : 1 ≤ M) (hC0 : 0 ≤ C) (ha0 : 0 ≤ a) (ha : a ≤ C)
+    (h1 : |b| ≤ M) (h2 : |e| ≤ M) : |a * b * e| ≤ C * M ^ 4 := by
+  rw [abs_mul, abs_mul, abs_of_nonneg ha0]
+  have hM0 : 0 ≤ M := by linarith
+  have : a * |b| * |e| ≤ C * M * M :=
+    mul_le_mul (mul_le_mul ha h1 (abs_nonneg _) hC0) h2 (abs_nonneg _) (by positivity)
+  have hM4 : C * M * M ≤ C * M ^ 4 := by
+    have : M ^ 2 ≤ M ^ 4 := pow_le_pow_right₀ hM (by norm_num)
+    nlinarith [mul_le_mul_of_nonneg_left this hC0]
+  linarith
+
+theorem cKc_bound {σ : ℝ} (hσ : 0 < σ) (d : ℕ) {c : ℕ} (hc : 1 ≤ c) (u : FlatTorus d) :
+    |heatP d σ c u - 1| ≤ torusM d σ 1 := by
+  have h0 := heatP_nonneg hσ d c u
+  have h1 := (heatP_le hσ d hc u).trans (torusM_anti hσ d le_rfl hc)
+  have hM := torusM_one_ge hσ d
+  rw [abs_le]; constructor <;> linarith
+
+/-- The cycle part of a tuple `(v, q)`. -/
+noncomputable def cy2 (d : ℕ) (σ : ℝ) {n : ℕ} (y : Fin (n + 2) → FlatTorus d) : ℝ :=
+  cyT d σ (fun a : Fin (n + 1) => y a.castSucc)
+
+theorem cy2_meas {σ : ℝ} (hσ : 0 < σ) (d n : ℕ) :
+    Measurable fun y : Fin (n + 2) → FlatTorus d => cy2 d σ y :=
+  (cyT_meas hσ d n).comp (measurable_pi_lambda _ fun a => measurable_pi_apply _)
+
+/-- `(P̃ε²)_i`: `cycle · p(x₀ - x_q) c(x_q - z) c(x_q - z')`. -/
+noncomputable def PhiS (d : ℕ) (σ : ℝ) (n : ℕ)
+    (p : (Fin (n + 2) → FlatTorus d) × FlatTorus d × FlatTorus d) : ℝ :=
+  cy2 d σ p.1 * heatP d σ 1 (p.1 (0 : Fin (n + 1)).castSucc - p.1 (Fin.last (n + 1)))
+    * (heatP d σ 1 (p.1 (Fin.last (n + 1)) - p.2.1) - 1)
+    * (heatP d σ 1 (p.1 (Fin.last (n + 1)) - p.2.2) - 1)
+
+/-- `ε_i (P̃ε)_i`: `cycle · c(x₀ - z) p(x₀ - x_q) c(x_q - z')`. -/
+noncomputable def PhiEB (d : ℕ) (σ : ℝ) (n : ℕ)
+    (p : (Fin (n + 2) → FlatTorus d) × FlatTorus d × FlatTorus d) : ℝ :=
+  cy2 d σ p.1 * (heatP d σ 1 (p.1 (0 : Fin (n + 1)).castSucc - p.2.1) - 1)
+    * heatP d σ 1 (p.1 (0 : Fin (n + 1)).castSucc - p.1 (Fin.last (n + 1)))
+    * (heatP d σ 1 (p.1 (Fin.last (n + 1)) - p.2.2) - 1)
+
+/-- `E[cycle · p(x₀ - x_q) · g]` after integrating the tail point `q`:
+    `E[cy2(X_w) p(x₀ - x_q) (p_c(x₀ - x_q) - 1)] = (m_{c+1} - 1) m_k`; for `c = 0` (no
+    factor) the value is `m_k`. -/
+theorem tail_mean {σ : ℝ} (hσ : 0 < σ) (d : ℕ) (X : ℕ → Ω → FlatTorus d)
+    (h_indep : ProbabilityTheory.iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) {N n : ℕ} (w : Fin (n + 2) → Fin N)
+    (hw : Injective w) (c : ℕ) (hc : 1 ≤ c) :
+    ∫ ω, cy2 d σ (fun i => X (w i) ω)
+        * heatP d σ 1 (X (w (0 : Fin (n + 1)).castSucc) ω - X (w (Fin.last (n + 1))) ω)
+        * (heatP d σ c (X (w (0 : Fin (n + 1)).castSucc) ω - X (w (Fin.last (n + 1))) ω) - 1) ∂μ
+      = (torusM d σ (c + 1) - 1) * torusM d σ (n + 1) := by
+  have hM := torusM_one_ge hσ d
+  have hp := (heatP_cont hσ d (le_refl 1)).measurable
+  have hpc := (heatP_cont hσ d hc).measurable
+  have hF : Measurable fun y : Fin (n + 2) → FlatTorus d => cy2 d σ y
+      * heatP d σ 1 (y (0 : Fin (n + 1)).castSucc - y (Fin.last (n + 1)))
+      * (heatP d σ c (y (0 : Fin (n + 1)).castSucc - y (Fin.last (n + 1))) - 1) :=
+    ((cy2_meas hσ d n).mul (hp.comp ((measurable_pi_apply (0 : Fin (n + 1)).castSucc).sub (measurable_pi_apply (Fin.last (n + 1)))))).mul
+      ((hpc.comp ((measurable_pi_apply (0 : Fin (n + 1)).castSucc).sub (measurable_pi_apply (Fin.last (n + 1))))).sub_const 1)
+  have h := int_last X h_indep hX hlaw w hw _ hF (B := torusM d σ 1 ^ (n + 1) * torusM d σ 1 ^ 4)
+    (fun y => bd2 hM (by positivity) (cyT_bounds hσ d _).1 (cyT_bounds hσ d _).2
+      (hP_abs hσ d le_rfl _) (cKc_bound hσ d hc _))
+  rw [h]
+  have e : ∀ (y' : Fin (n + 1) → FlatTorus d), ∫ z, cy2 d σ (Fin.snoc y' z : Fin (n + 2) → _)
+      * heatP d σ 1 ((Fin.snoc y' z : Fin (n + 2) → _) (0 : Fin (n + 1)).castSucc
+          - (Fin.snoc y' z : Fin (n + 2) → _) (Fin.last (n + 1)))
+      * (heatP d σ c ((Fin.snoc y' z : Fin (n + 2) → _) (0 : Fin (n + 1)).castSucc
+          - (Fin.snoc y' z : Fin (n + 2) → _) (Fin.last (n + 1))) - 1) ∂flatTorusMeasure d
+      = cyT d σ y' * (torusM d σ (c + 1) - 1) := by
+    intro y'
+    simp only [cy2, Fin.snoc_castSucc, Fin.snoc_last]
+    have : ∀ z, cyT d σ y' * heatP d σ 1 (y' 0 - z) * (heatP d σ c (y' 0 - z) - 1)
+        = cyT d σ y' * (heatP d σ 1 (y' 0 - z) * (heatP d σ c (y' 0 - z) - 1)) :=
+      fun z => by ring
+    simp_rw [this]
+    rw [integral_const_mul, conv_pk hσ d hc, sub_self, heatP_zero d σ (by omega)]
+  simp only [e]
+  rw [integral_mul_const]
+  have hmean := cycle_mean (torusRK hσ d) X h_indep hX hlaw (fun i : Fin (n + 1) => (w i.castSucc : ℕ))
+    (fun a b h => Fin.castSucc_injective _ (hw (Fin.ext h)))
+  rw [show ∫ ω, cyT d σ (fun i : Fin (n + 1) => X (w i.castSucc) ω) ∂μ = torusM d σ (n + 1)
+    from hmean]
+  ring
+
+end Q2rest
+
+open WalkCount Function BiasGeneral2 BiasGeneral3 BiasGeneral4 PiBound CTG.Reals.TorusReduction
+
+section Q2stats
+
+variable {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω} [IsProbabilityMeasure μ]
+
+theorem tail_mean0 {σ : ℝ} (hσ : 0 < σ) (d : ℕ) (X : ℕ → Ω → FlatTorus d)
+    (h_indep : ProbabilityTheory.iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) {N n : ℕ} (w : Fin (n + 2) → Fin N)
+    (hw : Injective w) :
+    ∫ ω, cy2 d σ (fun i => X (w i) ω)
+        * heatP d σ 1 (X (w (0 : Fin (n + 1)).castSucc) ω - X (w (Fin.last (n + 1))) ω) ∂μ
+      = torusM d σ (n + 1) := by
+  have hM := torusM_one_ge hσ d
+  have hp := (heatP_cont hσ d (le_refl 1)).measurable
+  have hF : Measurable fun y : Fin (n + 2) → FlatTorus d => cy2 d σ y
+      * heatP d σ 1 (y (0 : Fin (n + 1)).castSucc - y (Fin.last (n + 1))) :=
+    (cy2_meas hσ d n).mul (hp.comp ((measurable_pi_apply (0 : Fin (n + 1)).castSucc).sub (measurable_pi_apply (Fin.last (n + 1)))))
+  have h := int_last X h_indep hX hlaw w hw _ hF (B := torusM d σ 1 ^ (n + 1) * torusM d σ 1 ^ 4)
+    (fun y => by
+      simp only [cy2]
+      rw [abs_mul, abs_of_nonneg (cyT_bounds hσ d (fun a : Fin (n + 1) => y a.castSucc)).1]
+      have h1 := (cyT_bounds hσ d (fun a : Fin (n + 1) => y a.castSucc)).2
+      have h2 := hP_abs hσ d le_rfl (y (0 : Fin (n + 1)).castSucc - y (Fin.last (n + 1)))
+      have h4 : torusM d σ 1 ≤ torusM d σ 1 ^ 4 := le_self_pow₀ hM (by norm_num)
+      calc _ ≤ torusM d σ 1 ^ (n + 1) * torusM d σ 1 :=
+            mul_le_mul h1 h2 (abs_nonneg _) (by positivity)
+        _ ≤ _ := mul_le_mul_of_nonneg_left h4 (by positivity))
+  rw [h]
+  have e : ∀ (y' : Fin (n + 1) → FlatTorus d), ∫ z, cy2 d σ (Fin.snoc y' z : Fin (n + 2) → _)
+      * heatP d σ 1 ((Fin.snoc y' z : Fin (n + 2) → _) (0 : Fin (n + 1)).castSucc
+          - (Fin.snoc y' z : Fin (n + 2) → _) (Fin.last (n + 1))) ∂flatTorusMeasure d
+      = cyT d σ y' := by
+    intro y'
+    simp only [cy2, Fin.snoc_castSucc, Fin.snoc_last]
+    rw [integral_const_mul, mass1 hσ d, mul_one]
+  simp only [e]
+  exact cycle_mean (torusRK hσ d) X h_indep hX hlaw (fun i : Fin (n + 1) => (w i.castSucc : ℕ))
+    (fun a b h => Fin.castSucc_injective _ (hw (Fin.ext h)))
+
+theorem PhiS_meas {σ : ℝ} (hσ : 0 < σ) (d n : ℕ) : Measurable (PhiS d σ n) := by
+  unfold PhiS
+  have hp := (heatP_cont hσ d (le_refl 1)).measurable
+  have a0 : Measurable fun p : (Fin (n + 2) → FlatTorus d) × FlatTorus d × FlatTorus d =>
+      p.1 (0 : Fin (n + 1)).castSucc := (measurable_pi_apply _).comp measurable_fst
+  have aq : Measurable fun p : (Fin (n + 2) → FlatTorus d) × FlatTorus d × FlatTorus d =>
+      p.1 (Fin.last (n + 1)) := (measurable_pi_apply _).comp measurable_fst
+  exact ((((cy2_meas hσ d n).comp measurable_fst).mul (hp.comp (a0.sub aq))).mul
+    ((hp.comp (aq.sub (measurable_fst.comp measurable_snd))).sub_const 1)).mul
+    ((hp.comp (aq.sub (measurable_snd.comp measurable_snd))).sub_const 1)
+
+theorem PhiEB_meas {σ : ℝ} (hσ : 0 < σ) (d n : ℕ) : Measurable (PhiEB d σ n) := by
+  unfold PhiEB
+  have hp := (heatP_cont hσ d (le_refl 1)).measurable
+  have a0 : Measurable fun p : (Fin (n + 2) → FlatTorus d) × FlatTorus d × FlatTorus d =>
+      p.1 (0 : Fin (n + 1)).castSucc := (measurable_pi_apply _).comp measurable_fst
+  have aq : Measurable fun p : (Fin (n + 2) → FlatTorus d) × FlatTorus d × FlatTorus d =>
+      p.1 (Fin.last (n + 1)) := (measurable_pi_apply _).comp measurable_fst
+  exact ((((cy2_meas hσ d n).comp measurable_fst).mul ((hp.comp
+    (a0.sub (measurable_fst.comp measurable_snd))).sub_const 1)).mul
+    (hp.comp (a0.sub aq))).mul
+    ((hp.comp (aq.sub (measurable_snd.comp measurable_snd))).sub_const 1)
+
+/-- The common constant of the bounds: `B = M^{k} M^4`. -/
+noncomputable def B4 (d : ℕ) (σ : ℝ) (n : ℕ) : ℝ := torusM d σ 1 ^ (n + 1) * torusM d σ 1 ^ 4
+
+theorem B4_nonneg {σ : ℝ} (hσ : 0 < σ) (d n : ℕ) : 0 ≤ B4 d σ n := by
+  have := torusM_one_ge hσ d; unfold B4; positivity
+
+theorem m_bound {σ : ℝ} (hσ : 0 < σ) (d n : ℕ) {c : ℕ} (hc : 1 ≤ c) :
+    |(torusM d σ c - 1) * torusM d σ (n + 1)| ≤ B4 d σ n := by
+  have hM := torusM_one_ge hσ d
+  have hm1 : torusM d σ (n + 1) ≤ torusM d σ 1 := torusM_anti hσ d le_rfl (by omega)
+  have hm0 : 0 ≤ torusM d σ (n + 1) := (torusM_pos hσ d (by omega)).le
+  have hc1 : torusM d σ c ≤ torusM d σ 1 := torusM_anti hσ d le_rfl hc
+  have hc0 : 1 ≤ torusM d σ c := torusM_ge_one hσ d hc
+  have hM2 : torusM d σ 1 * torusM d σ 1 ≤ B4 d σ n := by
+    unfold B4
+    have h1 : torusM d σ 1 ^ 2 ≤ torusM d σ 1 ^ 4 := pow_le_pow_right₀ hM (by norm_num)
+    have h2 : 1 ≤ torusM d σ 1 ^ (n + 1) := one_le_pow₀ hM
+    nlinarith
+  rw [abs_le]; constructor <;> nlinarith
+
+/-- **`E ∑ (P̃ε²)-statistic` for every `k = n + 1`:** main term `N^{k+2} (m₂ - 1) m_k`. -/
+theorem meanS {σ : ℝ} (hσ : 0 < σ) (d : ℕ) (X : ℕ → Ω → FlatTorus d)
+    (h_indep : ProbabilityTheory.iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (N n : ℕ) :
+    |∑ w : Fin (n + 2) → Fin N, ∑ u : Fin N, ∑ u' : Fin N,
+          ∫ ω, PhiS d σ n (fun i => X (w i) ω, X u ω, X u' ω) ∂μ
+        - (N : ℝ) ^ (n + 2 + 1) * ((torusM d σ 2 - 1) * torusM d σ (n + 1))|
+      ≤ B4 d σ n * ((((n + 2 : ℕ) : ℝ) + ((n + 2 : ℕ) : ℝ) ^ 2) * (N : ℝ) ^ (n + 2)
+          + ((Prs (n + 2)).card : ℝ) * (N : ℝ) ^ (n + 2 - 1) * (2 * N + ((n + 2 : ℕ) : ℝ) ^ 2)) := by
+  have hM := torusM_one_ge hσ d
+  have hB : ∀ p, |PhiS d σ n p| ≤ B4 d σ n := fun p =>
+    bd3 hM (by positivity) (cyT_bounds hσ d _).1 (cyT_bounds hσ d _).2 (hP_abs hσ d le_rfl _)
+      (cK_bound hσ d _) (cK_bound hσ d _)
+  have hc1 : ∀ y z', ∫ z, PhiS d σ n (y, z, z') ∂flatTorusMeasure d = 0 := by
+    intro y z'
+    have e : (fun z => PhiS d σ n (y, z, z')) = fun z => (cy2 d σ y
+        * heatP d σ 1 (y (0 : Fin (n + 1)).castSucc - y (Fin.last (n + 1)))
+        * (heatP d σ 1 (y (Fin.last (n + 1)) - z') - 1))
+        * (heatP d σ 1 (y (Fin.last (n + 1)) - z) - 1) := funext fun z => by simp only [PhiS]; ring
+    rw [e, cent hσ d]
+  have hc2 : ∀ y z, ∫ z', PhiS d σ n (y, z, z') ∂flatTorusMeasure d = 0 := by
+    intro y z
+    have e : (fun z' => PhiS d σ n (y, z, z')) = fun z' => (cy2 d σ y
+        * heatP d σ 1 (y (0 : Fin (n + 1)).castSucc - y (Fin.last (n + 1)))
+        * (heatP d σ 1 (y (Fin.last (n + 1)) - z) - 1))
+        * (heatP d σ 1 (y (Fin.last (n + 1)) - z') - 1) := funext fun z' => by simp only [PhiS]
+    rw [e, cent hσ d]
+  have hL : ∀ w : Fin (n + 2) → Fin N, Injective w → ∀ u, u ∉ Finset.univ.image w →
+      ∫ ω, PhiS d σ n (fun i => X (w i) ω, X u ω, X u ω) ∂μ
+        = (torusM d σ 2 - 1) * torusM d σ (n + 1) := by
+    intro w hw u hu
+    have hu' : ∀ i, (w i : ℕ) ≠ (u : ℕ) := fun i h =>
+      hu (Finset.mem_image.mpr ⟨i, Finset.mem_univ _, Fin.ext h⟩)
+    rw [integrate_extra X h_indep hX hlaw (fun i => (w i : ℕ)) u hu'
+      (fun p => PhiS d σ n (p.1, p.2, p.2))
+      ((PhiS_meas hσ d n).comp (measurable_fst.prodMk (measurable_snd.prodMk measurable_snd)))
+      (B := B4 d σ n) (fun p => hB _)]
+    have e : ∀ y : Fin (n + 2) → FlatTorus d, ∫ z, PhiS d σ n (y, z, z) ∂flatTorusMeasure d
+        = cy2 d σ y * heatP d σ 1 (y (0 : Fin (n + 1)).castSucc - y (Fin.last (n + 1)))
+          * (torusM d σ 2 - 1) := by
+      intro y
+      have e1 : (fun z => PhiS d σ n (y, z, z)) = fun z => (cy2 d σ y
+          * heatP d σ 1 (y (0 : Fin (n + 1)).castSucc - y (Fin.last (n + 1))))
+          * ((heatP d σ 1 (y (Fin.last (n + 1)) - z) - 1)
+            * (heatP d σ 1 (y (Fin.last (n + 1)) - z) - 1)) := funext fun z => by
+        simp only [PhiS]; ring
+      rw [e1, integral_const_mul, csq_int hσ d]
+    simp only [e]
+    rw [integral_mul_const, tail_mean0 hσ d X h_indep hX hlaw w hw]
+    ring
+  exact quad_stat_gen X h_indep hX hlaw N (n + 2) (PhiS d σ n) (PhiS_meas hσ d n)
+    (B4_nonneg hσ d n) hB hc1 hc2 _ (m_bound hσ d n (by norm_num)) hL
+
+/-- **`E ∑ ε(P̃ε)-statistic` for every `k = n + 1`:** main term `N^{k+2} (m₃ - 1) m_k`. -/
+theorem meanEB {σ : ℝ} (hσ : 0 < σ) (d : ℕ) (X : ℕ → Ω → FlatTorus d)
+    (h_indep : ProbabilityTheory.iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (N n : ℕ) :
+    |∑ w : Fin (n + 2) → Fin N, ∑ u : Fin N, ∑ u' : Fin N,
+          ∫ ω, PhiEB d σ n (fun i => X (w i) ω, X u ω, X u' ω) ∂μ
+        - (N : ℝ) ^ (n + 2 + 1) * ((torusM d σ 3 - 1) * torusM d σ (n + 1))|
+      ≤ B4 d σ n * ((((n + 2 : ℕ) : ℝ) + ((n + 2 : ℕ) : ℝ) ^ 2) * (N : ℝ) ^ (n + 2)
+          + ((Prs (n + 2)).card : ℝ) * (N : ℝ) ^ (n + 2 - 1) * (2 * N + ((n + 2 : ℕ) : ℝ) ^ 2)) := by
+  have hM := torusM_one_ge hσ d
+  have hB : ∀ p, |PhiEB d σ n p| ≤ B4 d σ n := fun p =>
+    bd3 hM (by positivity) (cyT_bounds hσ d _).1 (cyT_bounds hσ d _).2 (cK_bound hσ d _)
+      (hP_abs hσ d le_rfl _) (cK_bound hσ d _)
+  have hc1 : ∀ y z', ∫ z, PhiEB d σ n (y, z, z') ∂flatTorusMeasure d = 0 := by
+    intro y z'
+    have e : (fun z => PhiEB d σ n (y, z, z')) = fun z => (cy2 d σ y
+        * heatP d σ 1 (y (0 : Fin (n + 1)).castSucc - y (Fin.last (n + 1)))
+        * (heatP d σ 1 (y (Fin.last (n + 1)) - z') - 1))
+        * (heatP d σ 1 (y (0 : Fin (n + 1)).castSucc - z) - 1) := funext fun z => by
+      simp only [PhiEB]; ring
+    rw [e, cent hσ d]
+  have hc2 : ∀ y z, ∫ z', PhiEB d σ n (y, z, z') ∂flatTorusMeasure d = 0 := by
+    intro y z
+    have e : (fun z' => PhiEB d σ n (y, z, z')) = fun z' => (cy2 d σ y
+        * (heatP d σ 1 (y (0 : Fin (n + 1)).castSucc - z) - 1)
+        * heatP d σ 1 (y (0 : Fin (n + 1)).castSucc - y (Fin.last (n + 1))))
+        * (heatP d σ 1 (y (Fin.last (n + 1)) - z') - 1) := funext fun z' => by simp only [PhiEB]
+    rw [e, cent hσ d]
+  have hL : ∀ w : Fin (n + 2) → Fin N, Injective w → ∀ u, u ∉ Finset.univ.image w →
+      ∫ ω, PhiEB d σ n (fun i => X (w i) ω, X u ω, X u ω) ∂μ
+        = (torusM d σ 3 - 1) * torusM d σ (n + 1) := by
+    intro w hw u hu
+    have hu' : ∀ i, (w i : ℕ) ≠ (u : ℕ) := fun i h =>
+      hu (Finset.mem_image.mpr ⟨i, Finset.mem_univ _, Fin.ext h⟩)
+    rw [integrate_extra X h_indep hX hlaw (fun i => (w i : ℕ)) u hu'
+      (fun p => PhiEB d σ n (p.1, p.2, p.2))
+      ((PhiEB_meas hσ d n).comp (measurable_fst.prodMk (measurable_snd.prodMk measurable_snd)))
+      (B := B4 d σ n) (fun p => hB _)]
+    have e : ∀ y : Fin (n + 2) → FlatTorus d, ∫ z, PhiEB d σ n (y, z, z) ∂flatTorusMeasure d
+        = cy2 d σ y * heatP d σ 1 (y (0 : Fin (n + 1)).castSucc - y (Fin.last (n + 1)))
+          * (heatP d σ 2 (y (0 : Fin (n + 1)).castSucc - y (Fin.last (n + 1))) - 1) := by
+      intro y
+      have e1 : (fun z => PhiEB d σ n (y, z, z)) = fun z => (cy2 d σ y
+          * heatP d σ 1 (y (0 : Fin (n + 1)).castSucc - y (Fin.last (n + 1))))
+          * ((heatP d σ 1 (y (0 : Fin (n + 1)).castSucc - z) - 1)
+            * (heatP d σ 1 (y (Fin.last (n + 1)) - z) - 1)) := funext fun z => by
+        simp only [PhiEB]; ring
+      rw [e1, integral_const_mul, conv_cc hσ d]
+    simp only [e]
+    exact tail_mean hσ d X h_indep hX hlaw w hw 2 (by norm_num)
+  exact quad_stat_gen X h_indep hX hlaw N (n + 2) (PhiEB d σ n) (PhiEB_meas hσ d n)
+    (B4_nonneg hσ d n) hB hc1 hc2 _ (m_bound hσ d n (by norm_num)) hL
+
+end Q2stats
+
+open WalkCount Function BiasGeneral2 BiasGeneral3 BiasGeneral4 PiBound CTG.Reals.TorusReduction
+
+section Q2BB
+
+variable {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω} [IsProbabilityMeasure μ]
+
+/-- The cycle part of a tuple `(v, q, q')`. -/
+noncomputable def cy3 (d : ℕ) (σ : ℝ) {n : ℕ} (y : Fin (n + 3) → FlatTorus d) : ℝ :=
+  cyT d σ (fun a : Fin (n + 1) => y a.castSucc.castSucc)
+
+theorem cy3_meas {σ : ℝ} (hσ : 0 < σ) (d n : ℕ) :
+    Measurable fun y : Fin (n + 3) → FlatTorus d => cy3 d σ y :=
+  (cyT_meas hσ d n).comp (measurable_pi_lambda _ fun a => measurable_pi_apply _)
+
+/-- `(P̃ε)_i²`: `cycle · p(x₀ - x_q) c(x_q - z) p(x₀ - x_{q'}) c(x_{q'} - z')`. -/
+noncomputable def PhiBB (d : ℕ) (σ : ℝ) (n : ℕ)
+    (p : (Fin (n + 3) → FlatTorus d) × FlatTorus d × FlatTorus d) : ℝ :=
+  cy3 d σ p.1 * heatP d σ 1 (p.1 (0 : Fin (n + 1)).castSucc.castSucc - p.1 (Fin.last (n + 1)).castSucc)
+    * (heatP d σ 1 (p.1 (Fin.last (n + 1)).castSucc - p.2.1) - 1)
+    * heatP d σ 1 (p.1 (0 : Fin (n + 1)).castSucc.castSucc - p.1 (Fin.last (n + 2)))
+    * (heatP d σ 1 (p.1 (Fin.last (n + 2)) - p.2.2) - 1)
+
+theorem PhiBB_meas {σ : ℝ} (hσ : 0 < σ) (d n : ℕ) : Measurable (PhiBB d σ n) := by
+  unfold PhiBB
+  have hp := (heatP_cont hσ d (le_refl 1)).measurable
+  have a0 : Measurable fun p : (Fin (n + 3) → FlatTorus d) × FlatTorus d × FlatTorus d =>
+      p.1 (0 : Fin (n + 1)).castSucc.castSucc := (measurable_pi_apply _).comp measurable_fst
+  have aq : Measurable fun p : (Fin (n + 3) → FlatTorus d) × FlatTorus d × FlatTorus d =>
+      p.1 (Fin.last (n + 1)).castSucc := (measurable_pi_apply _).comp measurable_fst
+  have aq' : Measurable fun p : (Fin (n + 3) → FlatTorus d) × FlatTorus d × FlatTorus d =>
+      p.1 (Fin.last (n + 2)) := (measurable_pi_apply _).comp measurable_fst
+  exact (((((cy3_meas hσ d n).comp measurable_fst).mul (hp.comp (a0.sub aq))).mul
+    ((hp.comp (aq.sub (measurable_fst.comp measurable_snd))).sub_const 1)).mul
+    (hp.comp (a0.sub aq'))).mul
+    ((hp.comp (aq'.sub (measurable_snd.comp measurable_snd))).sub_const 1)
+
+/-- **`E ∑ (P̃ε)²-statistic` for every `k = n + 1`:** main term `N^{k+3} (m₄ - 1) m_k`. -/
+theorem meanBB {σ : ℝ} (hσ : 0 < σ) (d : ℕ) (X : ℕ → Ω → FlatTorus d)
+    (h_indep : ProbabilityTheory.iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (N n : ℕ) :
+    |∑ w : Fin (n + 3) → Fin N, ∑ u : Fin N, ∑ u' : Fin N,
+          ∫ ω, PhiBB d σ n (fun i => X (w i) ω, X u ω, X u' ω) ∂μ
+        - (N : ℝ) ^ (n + 3 + 1) * ((torusM d σ 4 - 1) * torusM d σ (n + 1))|
+      ≤ B4 d σ n * ((((n + 3 : ℕ) : ℝ) + ((n + 3 : ℕ) : ℝ) ^ 2) * (N : ℝ) ^ (n + 3)
+          + ((Prs (n + 3)).card : ℝ) * (N : ℝ) ^ (n + 3 - 1) * (2 * N + ((n + 3 : ℕ) : ℝ) ^ 2)) := by
+  have hM := torusM_one_ge hσ d
+  have hp := (heatP_cont hσ d (le_refl 1)).measurable
+  have hB : ∀ p, |PhiBB d σ n p| ≤ B4 d σ n := fun p =>
+    bd4 hM (by positivity) (cyT_bounds hσ d _).1 (cyT_bounds hσ d _).2 (hP_abs hσ d le_rfl _)
+      (cK_bound hσ d _) (hP_abs hσ d le_rfl _) (cK_bound hσ d _)
+  have hc1 : ∀ y z', ∫ z, PhiBB d σ n (y, z, z') ∂flatTorusMeasure d = 0 := by
+    intro y z'
+    have e : (fun z => PhiBB d σ n (y, z, z')) = fun z => (cy3 d σ y
+        * heatP d σ 1 (y (0 : Fin (n + 1)).castSucc.castSucc - y (Fin.last (n + 1)).castSucc)
+        * heatP d σ 1 (y (0 : Fin (n + 1)).castSucc.castSucc - y (Fin.last (n + 2)))
+        * (heatP d σ 1 (y (Fin.last (n + 2)) - z') - 1))
+        * (heatP d σ 1 (y (Fin.last (n + 1)).castSucc - z) - 1) := funext fun z => by
+      simp only [PhiBB]; ring
+    rw [e, cent hσ d]
+  have hc2 : ∀ y z, ∫ z', PhiBB d σ n (y, z, z') ∂flatTorusMeasure d = 0 := by
+    intro y z
+    have e : (fun z' => PhiBB d σ n (y, z, z')) = fun z' => (cy3 d σ y
+        * heatP d σ 1 (y (0 : Fin (n + 1)).castSucc.castSucc - y (Fin.last (n + 1)).castSucc)
+        * (heatP d σ 1 (y (Fin.last (n + 1)).castSucc - z) - 1)
+        * heatP d σ 1 (y (0 : Fin (n + 1)).castSucc.castSucc - y (Fin.last (n + 2))))
+        * (heatP d σ 1 (y (Fin.last (n + 2)) - z') - 1) := funext fun z' => by
+      simp only [PhiBB]
+    rw [e, cent hσ d]
+  have hL : ∀ w : Fin (n + 3) → Fin N, Injective w → ∀ u, u ∉ Finset.univ.image w →
+      ∫ ω, PhiBB d σ n (fun i => X (w i) ω, X u ω, X u ω) ∂μ
+        = (torusM d σ 4 - 1) * torusM d σ (n + 1) := by
+    intro w hw u hu
+    have hu' : ∀ i, (w i : ℕ) ≠ (u : ℕ) := fun i h =>
+      hu (Finset.mem_image.mpr ⟨i, Finset.mem_univ _, Fin.ext h⟩)
+    rw [integrate_extra X h_indep hX hlaw (fun i => (w i : ℕ)) u hu'
+      (fun p => PhiBB d σ n (p.1, p.2, p.2))
+      ((PhiBB_meas hσ d n).comp (measurable_fst.prodMk (measurable_snd.prodMk measurable_snd)))
+      (B := B4 d σ n) (fun p => hB _)]
+    obtain ⟨F, hFd⟩ : ∃ F : (Fin (n + 3) → FlatTorus d) → ℝ, F = fun y => cy3 d σ y
+        * heatP d σ 1 (y (0 : Fin (n + 1)).castSucc.castSucc - y (Fin.last (n + 1)).castSucc)
+        * heatP d σ 1 (y (0 : Fin (n + 1)).castSucc.castSucc - y (Fin.last (n + 2)))
+        * (heatP d σ 2 (y (Fin.last (n + 1)).castSucc - y (Fin.last (n + 2))) - 1) := ⟨_, rfl⟩
+    have e : ∀ y : Fin (n + 3) → FlatTorus d, ∫ z, PhiBB d σ n (y, z, z) ∂flatTorusMeasure d
+        = F y := by
+      intro y
+      have e1 : (fun z => PhiBB d σ n (y, z, z)) = fun z => (cy3 d σ y
+          * heatP d σ 1 (y (0 : Fin (n + 1)).castSucc.castSucc - y (Fin.last (n + 1)).castSucc)
+          * heatP d σ 1 (y (0 : Fin (n + 1)).castSucc.castSucc - y (Fin.last (n + 2))))
+          * ((heatP d σ 1 (y (Fin.last (n + 1)).castSucc - z) - 1)
+            * (heatP d σ 1 (y (Fin.last (n + 2)) - z) - 1)) := funext fun z => by
+        simp only [PhiBB]; ring
+      rw [e1, integral_const_mul, conv_cc hσ d, hFd]
+    simp only [e]
+    have hF : Measurable F := by
+      rw [hFd]
+      have hp2 := (heatP_cont hσ d (by norm_num : 1 ≤ 2)).measurable
+      exact (((cy3_meas hσ d n).mul (hp.comp ((measurable_pi_apply _).sub (measurable_pi_apply _)))).mul
+        (hp.comp ((measurable_pi_apply _).sub (measurable_pi_apply _)))).mul
+        ((hp2.comp ((measurable_pi_apply (Fin.last (n + 1)).castSucc).sub
+          (measurable_pi_apply (Fin.last (n + 2))))).sub_const 1)
+    rw [int_last X h_indep hX hlaw w hw F hF (B := B4 d σ n) (fun y => by
+      rw [hFd]
+      exact bd3 hM (by positivity) (cyT_bounds hσ d _).1 (cyT_bounds hσ d _).2
+        (hP_abs hσ d le_rfl _) (hP_abs hσ d le_rfl _) (cKc_bound hσ d (by norm_num) _))]
+    have e2 : ∀ y' : Fin (n + 2) → FlatTorus d,
+        ∫ z, F (Fin.snoc y' z) ∂flatTorusMeasure d
+          = cy2 d σ y' * heatP d σ 1 (y' (0 : Fin (n + 1)).castSucc - y' (Fin.last (n + 1)))
+            * (heatP d σ 3 (y' (0 : Fin (n + 1)).castSucc - y' (Fin.last (n + 1))) - 1) := by
+      intro y'
+      rw [hFd]
+      simp only [cy3, cy2, Fin.snoc_castSucc, Fin.snoc_last]
+      have : ∀ z, cyT d σ (fun a : Fin (n + 1) => y' a.castSucc)
+          * heatP d σ 1 (y' (0 : Fin (n + 1)).castSucc - y' (Fin.last (n + 1)))
+          * heatP d σ 1 (y' (0 : Fin (n + 1)).castSucc - z)
+          * (heatP d σ 2 (y' (Fin.last (n + 1)) - z) - 1)
+          = (cyT d σ (fun a : Fin (n + 1) => y' a.castSucc)
+            * heatP d σ 1 (y' (0 : Fin (n + 1)).castSucc - y' (Fin.last (n + 1))))
+            * (heatP d σ 1 (y' (0 : Fin (n + 1)).castSucc - z)
+              * (heatP d σ 2 (y' (Fin.last (n + 1)) - z) - 1)) := fun z => by ring
+      simp_rw [this]
+      rw [integral_const_mul, conv_pk hσ d (by norm_num : 1 ≤ 2)]
+    simp only [e2]
+    exact tail_mean hσ d X h_indep hX hlaw (fun i => w i.castSucc)
+      (fun a b h => Fin.castSucc_injective _ (hw h)) 3 (by norm_num)
+  exact quad_stat_gen X h_indep hX hlaw N (n + 3) (PhiBB d σ n) (PhiBB_meas hσ d n)
+    (B4_nonneg hσ d n) hB hc1 hc2 _ (m_bound hσ d n (by norm_num)) hL
+
+end Q2BB
+
+open WalkCount Function BiasGeneral2 BiasGeneral3 BiasGeneral4 PiBound CTG.Reals.TorusReduction
+
+/-! ## `Q₃` for every `k`: the statistics with the two row sums at the positions `0` and `l` -/
+
+section Q3stats
+
+variable {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω} [IsProbabilityMeasure μ]
+
+theorem Ch_bound4 {σ : ℝ} (hσ : 0 < σ) (d n : ℕ) (l : Fin (n + 1)) (hl : l ≠ 0) {c : ℕ}
+    (hc : 1 ≤ c) : |Ch d σ (n + 1) l.val c - torusM d σ (n + 1)| ≤ B4 d σ n := by
+  have hM := torusM_one_ge hσ d
+  have hr1 : 1 ≤ l.val := Nat.one_le_iff_ne_zero.mpr (fun h => hl (Fin.ext h))
+  have hrn : l.val ≤ n := by have := l.isLt; omega
+  obtain ⟨c0, cM⟩ := Ch_bounds hσ d n l.val c hr1 hrn hc
+  have hm1 : torusM d σ (n + 1) ≤ torusM d σ 1 := torusM_anti hσ d le_rfl (by omega)
+  have hm0 : 0 ≤ torusM d σ (n + 1) := (torusM_pos hσ d (by omega)).le
+  have hM3 : torusM d σ 1 * torusM d σ 1 * torusM d σ 1 ≤ B4 d σ n := by
+    unfold B4
+    have h1 : torusM d σ 1 ^ 3 ≤ torusM d σ 1 ^ 4 := pow_le_pow_right₀ hM (by norm_num)
+    have h2 : 1 ≤ torusM d σ 1 ^ (n + 1) := one_le_pow₀ hM
+    nlinarith
+  rw [abs_le]; constructor <;> nlinarith
+
+/-- `ε_{v_0} ε_{v_l}`: `cycle · c(x₀ - z) c(x_l - z')`. -/
+noncomputable def PhiQee (d : ℕ) (σ : ℝ) (n : ℕ) (l : Fin (n + 1))
+    (p : (Fin (n + 1) → FlatTorus d) × FlatTorus d × FlatTorus d) : ℝ :=
+  cyT d σ p.1 * (heatP d σ 1 (p.1 0 - p.2.1) - 1) * (heatP d σ 1 (p.1 l - p.2.2) - 1)
+
+theorem PhiQee_meas {σ : ℝ} (hσ : 0 < σ) (d n : ℕ) (l : Fin (n + 1)) :
+    Measurable (PhiQee d σ n l) := by
+  unfold PhiQee
+  have hp := (heatP_cont hσ d (le_refl 1)).measurable
+  have a0 : Measurable fun p : (Fin (n + 1) → FlatTorus d) × FlatTorus d × FlatTorus d =>
+      p.1 0 := (measurable_pi_apply _).comp measurable_fst
+  have al : Measurable fun p : (Fin (n + 1) → FlatTorus d) × FlatTorus d × FlatTorus d =>
+      p.1 l := (measurable_pi_apply _).comp measurable_fst
+  exact (((cyT_meas hσ d n).comp measurable_fst).mul
+    ((hp.comp (a0.sub (measurable_fst.comp measurable_snd))).sub_const 1)).mul
+    ((hp.comp (al.sub (measurable_snd.comp measurable_snd))).sub_const 1)
+
+/-- **`Q₃`, type `εε` at the positions `0, l`, every `k = n + 1`:** main term
+    `N^{k+1} (∫ p_l p_{k-l} p₂ - m_k)`. -/
+theorem meanQee {σ : ℝ} (hσ : 0 < σ) (d : ℕ) (X : ℕ → Ω → FlatTorus d)
+    (h_indep : ProbabilityTheory.iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (N n : ℕ) (l : Fin (n + 1)) (hl : l ≠ 0) :
+    |∑ w : Fin (n + 1) → Fin N, ∑ u : Fin N, ∑ u' : Fin N,
+          ∫ ω, PhiQee d σ n l (fun i => X (w i) ω, X u ω, X u' ω) ∂μ
+        - (N : ℝ) ^ (n + 1 + 1) * (Ch d σ (n + 1) l.val 2 - torusM d σ (n + 1))|
+      ≤ B4 d σ n * ((((n + 1 : ℕ) : ℝ) + ((n + 1 : ℕ) : ℝ) ^ 2) * (N : ℝ) ^ (n + 1)
+          + ((Prs (n + 1)).card : ℝ) * (N : ℝ) ^ (n + 1 - 1) * (2 * N + ((n + 1 : ℕ) : ℝ) ^ 2)) := by
+  have hM := torusM_one_ge hσ d
+  have hB : ∀ p, |PhiQee d σ n l p| ≤ B4 d σ n := fun p =>
+    bd2 hM (by positivity) (cyT_bounds hσ d _).1 (cyT_bounds hσ d _).2 (cK_bound hσ d _)
+      (cK_bound hσ d _)
+  have hc1 : ∀ y z', ∫ z, PhiQee d σ n l (y, z, z') ∂flatTorusMeasure d = 0 := by
+    intro y z'
+    have e : (fun z => PhiQee d σ n l (y, z, z')) = fun z => (cyT d σ y
+        * (heatP d σ 1 (y l - z') - 1)) * (heatP d σ 1 (y 0 - z) - 1) := funext fun z => by
+      simp only [PhiQee]; ring
+    rw [e, cent hσ d]
+  have hc2 : ∀ y z, ∫ z', PhiQee d σ n l (y, z, z') ∂flatTorusMeasure d = 0 := by
+    intro y z
+    have e : (fun z' => PhiQee d σ n l (y, z, z')) = fun z' => (cyT d σ y
+        * (heatP d σ 1 (y 0 - z) - 1)) * (heatP d σ 1 (y l - z') - 1) := funext fun z' => by
+      simp only [PhiQee]
+    rw [e, cent hσ d]
+  have hL : ∀ w : Fin (n + 1) → Fin N, Injective w → ∀ u, u ∉ Finset.univ.image w →
+      ∫ ω, PhiQee d σ n l (fun i => X (w i) ω, X u ω, X u ω) ∂μ
+        = Ch d σ (n + 1) l.val 2 - torusM d σ (n + 1) := by
+    intro w hw u hu
+    have hu' : ∀ i, (w i : ℕ) ≠ (u : ℕ) := fun i h =>
+      hu (Finset.mem_image.mpr ⟨i, Finset.mem_univ _, Fin.ext h⟩)
+    rw [integrate_extra X h_indep hX hlaw (fun i => (w i : ℕ)) u hu'
+      (fun p => PhiQee d σ n l (p.1, p.2, p.2))
+      ((PhiQee_meas hσ d n l).comp (measurable_fst.prodMk (measurable_snd.prodMk measurable_snd)))
+      (B := B4 d σ n) (fun p => hB _)]
+    have e : ∀ y : Fin (n + 1) → FlatTorus d, ∫ z, PhiQee d σ n l (y, z, z) ∂flatTorusMeasure d
+        = cyT d σ y * (heatP d σ 2 (y 0 - y l) - 1) := by
+      intro y
+      have e1 : (fun z => PhiQee d σ n l (y, z, z)) = fun z => cyT d σ y
+          * ((heatP d σ 1 (y 0 - z) - 1) * (heatP d σ 1 (y l - z) - 1)) := funext fun z => by
+        simp only [PhiQee]; ring
+      rw [e1, integral_const_mul, conv_cc hσ d]
+    simp only [e]
+    rw [chordc_value hσ d X h_indep hX hlaw w hw l 2 (by norm_num), if_neg hl]
+  exact quad_stat_gen X h_indep hX hlaw N (n + 1) (PhiQee d σ n l) (PhiQee_meas hσ d n l)
+    (B4_nonneg hσ d n) hB hc1 hc2 _ (Ch_bound4 hσ d n l hl (by norm_num)) hL
+
+end Q3stats
+
+open WalkCount Function BiasGeneral2 BiasGeneral3 BiasGeneral4 PiBound CTG.Reals.TorusReduction
+
+section Q3stats2
+
+variable {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω} [IsProbabilityMeasure μ]
+
+/-- `E[cy2(X_w) p(x_l - x_q) (p_c(x_0 - x_q) - 1)] = ∫ p_l p_{k-l} p_{c+1} - m_k` (`l ≠ 0`). -/
+theorem tail_chord {σ : ℝ} (hσ : 0 < σ) (d : ℕ) (X : ℕ → Ω → FlatTorus d)
+    (h_indep : ProbabilityTheory.iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) {N n : ℕ} (w : Fin (n + 2) → Fin N)
+    (hw : Injective w) (l : Fin (n + 1)) (hl : l ≠ 0) (c : ℕ) (hc : 1 ≤ c) :
+    ∫ ω, cy2 d σ (fun i => X (w i) ω)
+        * heatP d σ 1 (X (w l.castSucc) ω - X (w (Fin.last (n + 1))) ω)
+        * (heatP d σ c (X (w (0 : Fin (n + 1)).castSucc) ω - X (w (Fin.last (n + 1))) ω) - 1) ∂μ
+      = Ch d σ (n + 1) l.val (c + 1) - torusM d σ (n + 1) := by
+  have hM := torusM_one_ge hσ d
+  have hp := (heatP_cont hσ d (le_refl 1)).measurable
+  have hpc := (heatP_cont hσ d hc).measurable
+  have hF : Measurable fun y : Fin (n + 2) → FlatTorus d => cy2 d σ y
+      * heatP d σ 1 (y l.castSucc - y (Fin.last (n + 1)))
+      * (heatP d σ c (y (0 : Fin (n + 1)).castSucc - y (Fin.last (n + 1))) - 1) :=
+    ((cy2_meas hσ d n).mul (hp.comp ((measurable_pi_apply l.castSucc).sub
+      (measurable_pi_apply (Fin.last (n + 1)))))).mul
+      ((hpc.comp ((measurable_pi_apply (0 : Fin (n + 1)).castSucc).sub
+        (measurable_pi_apply (Fin.last (n + 1))))).sub_const 1)
+  rw [int_last X h_indep hX hlaw w hw _ hF (B := B4 d σ n)
+    (fun y => bd2 hM (by positivity) (cyT_bounds hσ d _).1 (cyT_bounds hσ d _).2
+      (hP_abs hσ d le_rfl _) (cKc_bound hσ d hc _))]
+  have e : ∀ (y' : Fin (n + 1) → FlatTorus d), ∫ z, cy2 d σ (Fin.snoc y' z : Fin (n + 2) → _)
+      * heatP d σ 1 ((Fin.snoc y' z : Fin (n + 2) → _) l.castSucc
+          - (Fin.snoc y' z : Fin (n + 2) → _) (Fin.last (n + 1)))
+      * (heatP d σ c ((Fin.snoc y' z : Fin (n + 2) → _) (0 : Fin (n + 1)).castSucc
+          - (Fin.snoc y' z : Fin (n + 2) → _) (Fin.last (n + 1))) - 1) ∂flatTorusMeasure d
+      = cyT d σ y' * (heatP d σ (c + 1) (y' 0 - y' l) - 1) := by
+    intro y'
+    simp only [cy2, Fin.snoc_castSucc, Fin.snoc_last]
+    have : ∀ z, cyT d σ y' * heatP d σ 1 (y' l - z) * (heatP d σ c (y' 0 - z) - 1)
+        = cyT d σ y' * (heatP d σ 1 (y' l - z) * (heatP d σ c (y' 0 - z) - 1)) :=
+      fun z => by ring
+    simp_rw [this]
+    rw [integral_const_mul, conv_pk hσ d hc, heatP_flip d σ (c + 1) (y' l) (y' 0)]
+  simp only [e]
+  rw [chordc_value hσ d X h_indep hX hlaw (fun i => w i.castSucc)
+    (fun a b h => Fin.castSucc_injective _ (hw h)) l (c + 1) (by omega), if_neg hl]
+
+/-- `E[cy2(X_w) p(x_0 - x_q) (p_c(x_l - x_q) - 1)] = ∫ p_l p_{k-l} p_{c+1} - m_k` (`l ≠ 0`). -/
+theorem tail_chord' {σ : ℝ} (hσ : 0 < σ) (d : ℕ) (X : ℕ → Ω → FlatTorus d)
+    (h_indep : ProbabilityTheory.iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) {N n : ℕ} (w : Fin (n + 2) → Fin N)
+    (hw : Injective w) (l : Fin (n + 1)) (hl : l ≠ 0) (c : ℕ) (hc : 1 ≤ c) :
+    ∫ ω, cy2 d σ (fun i => X (w i) ω)
+        * heatP d σ 1 (X (w (0 : Fin (n + 1)).castSucc) ω - X (w (Fin.last (n + 1))) ω)
+        * (heatP d σ c (X (w l.castSucc) ω - X (w (Fin.last (n + 1))) ω) - 1) ∂μ
+      = Ch d σ (n + 1) l.val (c + 1) - torusM d σ (n + 1) := by
+  have hM := torusM_one_ge hσ d
+  have hp := (heatP_cont hσ d (le_refl 1)).measurable
+  have hpc := (heatP_cont hσ d hc).measurable
+  have hF : Measurable fun y : Fin (n + 2) → FlatTorus d => cy2 d σ y
+      * heatP d σ 1 (y (0 : Fin (n + 1)).castSucc - y (Fin.last (n + 1)))
+      * (heatP d σ c (y l.castSucc - y (Fin.last (n + 1))) - 1) :=
+    ((cy2_meas hσ d n).mul (hp.comp ((measurable_pi_apply (0 : Fin (n + 1)).castSucc).sub
+      (measurable_pi_apply (Fin.last (n + 1)))))).mul
+      ((hpc.comp ((measurable_pi_apply l.castSucc).sub
+        (measurable_pi_apply (Fin.last (n + 1))))).sub_const 1)
+  rw [int_last X h_indep hX hlaw w hw _ hF (B := B4 d σ n)
+    (fun y => bd2 hM (by positivity) (cyT_bounds hσ d _).1 (cyT_bounds hσ d _).2
+      (hP_abs hσ d le_rfl _) (cKc_bound hσ d hc _))]
+  have e : ∀ (y' : Fin (n + 1) → FlatTorus d), ∫ z, cy2 d σ (Fin.snoc y' z : Fin (n + 2) → _)
+      * heatP d σ 1 ((Fin.snoc y' z : Fin (n + 2) → _) (0 : Fin (n + 1)).castSucc
+          - (Fin.snoc y' z : Fin (n + 2) → _) (Fin.last (n + 1)))
+      * (heatP d σ c ((Fin.snoc y' z : Fin (n + 2) → _) l.castSucc
+          - (Fin.snoc y' z : Fin (n + 2) → _) (Fin.last (n + 1))) - 1) ∂flatTorusMeasure d
+      = cyT d σ y' * (heatP d σ (c + 1) (y' 0 - y' l) - 1) := by
+    intro y'
+    simp only [cy2, Fin.snoc_castSucc, Fin.snoc_last]
+    have : ∀ z, cyT d σ y' * heatP d σ 1 (y' 0 - z) * (heatP d σ c (y' l - z) - 1)
+        = cyT d σ y' * (heatP d σ 1 (y' 0 - z) * (heatP d σ c (y' l - z) - 1)) :=
+      fun z => by ring
+    simp_rw [this]
+    rw [integral_const_mul, conv_pk hσ d hc]
+  simp only [e]
+  rw [chordc_value hσ d X h_indep hX hlaw (fun i => w i.castSucc)
+    (fun a b h => Fin.castSucc_injective _ (hw h)) l (c + 1) (by omega), if_neg hl]
+
+end Q3stats2
+
+open WalkCount Function BiasGeneral2 BiasGeneral3 BiasGeneral4 PiBound CTG.Reals.TorusReduction
+
+section Q3stats3
+
+variable {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω} [IsProbabilityMeasure μ]
+
+/-- `ε_{v_0} (P̃ε)_{v_l}`: `cycle · c(x₀ - z) p(x_l - x_q) c(x_q - z')`. -/
+noncomputable def PhiQeb (d : ℕ) (σ : ℝ) (n : ℕ) (l : Fin (n + 1))
+    (p : (Fin (n + 2) → FlatTorus d) × FlatTorus d × FlatTorus d) : ℝ :=
+  cy2 d σ p.1 * (heatP d σ 1 (p.1 (0 : Fin (n + 1)).castSucc - p.2.1) - 1)
+    * heatP d σ 1 (p.1 l.castSucc - p.1 (Fin.last (n + 1)))
+    * (heatP d σ 1 (p.1 (Fin.last (n + 1)) - p.2.2) - 1)
+
+/-- `(P̃ε)_{v_0} ε_{v_l}`: `cycle · p(x₀ - x_q) c(x_q - z) c(x_l - z')`. -/
+noncomputable def PhiQbe (d : ℕ) (σ : ℝ) (n : ℕ) (l : Fin (n + 1))
+    (p : (Fin (n + 2) → FlatTorus d) × FlatTorus d × FlatTorus d) : ℝ :=
+  cy2 d σ p.1 * heatP d σ 1 (p.1 (0 : Fin (n + 1)).castSucc - p.1 (Fin.last (n + 1)))
+    * (heatP d σ 1 (p.1 (Fin.last (n + 1)) - p.2.1) - 1)
+    * (heatP d σ 1 (p.1 l.castSucc - p.2.2) - 1)
+
+theorem PhiQeb_meas {σ : ℝ} (hσ : 0 < σ) (d n : ℕ) (l : Fin (n + 1)) :
+    Measurable (PhiQeb d σ n l) := by
+  unfold PhiQeb
+  have hp := (heatP_cont hσ d (le_refl 1)).measurable
+  have a0 : Measurable fun p : (Fin (n + 2) → FlatTorus d) × FlatTorus d × FlatTorus d =>
+      p.1 (0 : Fin (n + 1)).castSucc := (measurable_pi_apply _).comp measurable_fst
+  have al : Measurable fun p : (Fin (n + 2) → FlatTorus d) × FlatTorus d × FlatTorus d =>
+      p.1 l.castSucc := (measurable_pi_apply _).comp measurable_fst
+  have aq : Measurable fun p : (Fin (n + 2) → FlatTorus d) × FlatTorus d × FlatTorus d =>
+      p.1 (Fin.last (n + 1)) := (measurable_pi_apply _).comp measurable_fst
+  exact ((((cy2_meas hσ d n).comp measurable_fst).mul ((hp.comp
+    (a0.sub (measurable_fst.comp measurable_snd))).sub_const 1)).mul (hp.comp (al.sub aq))).mul
+    ((hp.comp (aq.sub (measurable_snd.comp measurable_snd))).sub_const 1)
+
+theorem PhiQbe_meas {σ : ℝ} (hσ : 0 < σ) (d n : ℕ) (l : Fin (n + 1)) :
+    Measurable (PhiQbe d σ n l) := by
+  unfold PhiQbe
+  have hp := (heatP_cont hσ d (le_refl 1)).measurable
+  have a0 : Measurable fun p : (Fin (n + 2) → FlatTorus d) × FlatTorus d × FlatTorus d =>
+      p.1 (0 : Fin (n + 1)).castSucc := (measurable_pi_apply _).comp measurable_fst
+  have al : Measurable fun p : (Fin (n + 2) → FlatTorus d) × FlatTorus d × FlatTorus d =>
+      p.1 l.castSucc := (measurable_pi_apply _).comp measurable_fst
+  have aq : Measurable fun p : (Fin (n + 2) → FlatTorus d) × FlatTorus d × FlatTorus d =>
+      p.1 (Fin.last (n + 1)) := (measurable_pi_apply _).comp measurable_fst
+  exact ((((cy2_meas hσ d n).comp measurable_fst).mul (hp.comp (a0.sub aq))).mul
+    ((hp.comp (aq.sub (measurable_fst.comp measurable_snd))).sub_const 1)).mul
+    ((hp.comp (al.sub (measurable_snd.comp measurable_snd))).sub_const 1)
+
+/-- **`Q₃`, type `ε (P̃ε)` at the positions `0, l`:** main term `N^{k+2} (∫ p_l p_{k-l} p₃ - m_k)`. -/
+theorem meanQeb {σ : ℝ} (hσ : 0 < σ) (d : ℕ) (X : ℕ → Ω → FlatTorus d)
+    (h_indep : ProbabilityTheory.iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (N n : ℕ) (l : Fin (n + 1)) (hl : l ≠ 0) :
+    |∑ w : Fin (n + 2) → Fin N, ∑ u : Fin N, ∑ u' : Fin N,
+          ∫ ω, PhiQeb d σ n l (fun i => X (w i) ω, X u ω, X u' ω) ∂μ
+        - (N : ℝ) ^ (n + 2 + 1) * (Ch d σ (n + 1) l.val 3 - torusM d σ (n + 1))|
+      ≤ B4 d σ n * ((((n + 2 : ℕ) : ℝ) + ((n + 2 : ℕ) : ℝ) ^ 2) * (N : ℝ) ^ (n + 2)
+          + ((Prs (n + 2)).card : ℝ) * (N : ℝ) ^ (n + 2 - 1) * (2 * N + ((n + 2 : ℕ) : ℝ) ^ 2)) := by
+  have hM := torusM_one_ge hσ d
+  have hB : ∀ p, |PhiQeb d σ n l p| ≤ B4 d σ n := fun p =>
+    bd3 hM (by positivity) (cyT_bounds hσ d _).1 (cyT_bounds hσ d _).2 (cK_bound hσ d _)
+      (hP_abs hσ d le_rfl _) (cK_bound hσ d _)
+  have hc1 : ∀ y z', ∫ z, PhiQeb d σ n l (y, z, z') ∂flatTorusMeasure d = 0 := by
+    intro y z'
+    have e : (fun z => PhiQeb d σ n l (y, z, z')) = fun z => (cy2 d σ y
+        * heatP d σ 1 (y l.castSucc - y (Fin.last (n + 1)))
+        * (heatP d σ 1 (y (Fin.last (n + 1)) - z') - 1))
+        * (heatP d σ 1 (y (0 : Fin (n + 1)).castSucc - z) - 1) := funext fun z => by
+      simp only [PhiQeb]; ring
+    rw [e, cent hσ d]
+  have hc2 : ∀ y z, ∫ z', PhiQeb d σ n l (y, z, z') ∂flatTorusMeasure d = 0 := by
+    intro y z
+    have e : (fun z' => PhiQeb d σ n l (y, z, z')) = fun z' => (cy2 d σ y
+        * (heatP d σ 1 (y (0 : Fin (n + 1)).castSucc - z) - 1)
+        * heatP d σ 1 (y l.castSucc - y (Fin.last (n + 1))))
+        * (heatP d σ 1 (y (Fin.last (n + 1)) - z') - 1) := funext fun z' => by
+      simp only [PhiQeb]
+    rw [e, cent hσ d]
+  have hL : ∀ w : Fin (n + 2) → Fin N, Injective w → ∀ u, u ∉ Finset.univ.image w →
+      ∫ ω, PhiQeb d σ n l (fun i => X (w i) ω, X u ω, X u ω) ∂μ
+        = Ch d σ (n + 1) l.val 3 - torusM d σ (n + 1) := by
+    intro w hw u hu
+    have hu' : ∀ i, (w i : ℕ) ≠ (u : ℕ) := fun i h =>
+      hu (Finset.mem_image.mpr ⟨i, Finset.mem_univ _, Fin.ext h⟩)
+    rw [integrate_extra X h_indep hX hlaw (fun i => (w i : ℕ)) u hu'
+      (fun p => PhiQeb d σ n l (p.1, p.2, p.2))
+      ((PhiQeb_meas hσ d n l).comp (measurable_fst.prodMk (measurable_snd.prodMk measurable_snd)))
+      (B := B4 d σ n) (fun p => hB _)]
+    have e : ∀ y : Fin (n + 2) → FlatTorus d, ∫ z, PhiQeb d σ n l (y, z, z) ∂flatTorusMeasure d
+        = cy2 d σ y * heatP d σ 1 (y l.castSucc - y (Fin.last (n + 1)))
+          * (heatP d σ 2 (y (0 : Fin (n + 1)).castSucc - y (Fin.last (n + 1))) - 1) := by
+      intro y
+      have e1 : (fun z => PhiQeb d σ n l (y, z, z)) = fun z => (cy2 d σ y
+          * heatP d σ 1 (y l.castSucc - y (Fin.last (n + 1))))
+          * ((heatP d σ 1 (y (0 : Fin (n + 1)).castSucc - z) - 1)
+            * (heatP d σ 1 (y (Fin.last (n + 1)) - z) - 1)) := funext fun z => by
+        simp only [PhiQeb]; ring
+      rw [e1, integral_const_mul, conv_cc hσ d]
+    simp only [e]
+    exact tail_chord hσ d X h_indep hX hlaw w hw l hl 2 (by norm_num)
+  exact quad_stat_gen X h_indep hX hlaw N (n + 2) (PhiQeb d σ n l) (PhiQeb_meas hσ d n l)
+    (B4_nonneg hσ d n) hB hc1 hc2 _ (Ch_bound4 hσ d n l hl (by norm_num)) hL
+
+/-- **`Q₃`, type `(P̃ε) ε` at the positions `0, l`:** main term `N^{k+2} (∫ p_l p_{k-l} p₃ - m_k)`. -/
+theorem meanQbe {σ : ℝ} (hσ : 0 < σ) (d : ℕ) (X : ℕ → Ω → FlatTorus d)
+    (h_indep : ProbabilityTheory.iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (N n : ℕ) (l : Fin (n + 1)) (hl : l ≠ 0) :
+    |∑ w : Fin (n + 2) → Fin N, ∑ u : Fin N, ∑ u' : Fin N,
+          ∫ ω, PhiQbe d σ n l (fun i => X (w i) ω, X u ω, X u' ω) ∂μ
+        - (N : ℝ) ^ (n + 2 + 1) * (Ch d σ (n + 1) l.val 3 - torusM d σ (n + 1))|
+      ≤ B4 d σ n * ((((n + 2 : ℕ) : ℝ) + ((n + 2 : ℕ) : ℝ) ^ 2) * (N : ℝ) ^ (n + 2)
+          + ((Prs (n + 2)).card : ℝ) * (N : ℝ) ^ (n + 2 - 1) * (2 * N + ((n + 2 : ℕ) : ℝ) ^ 2)) := by
+  have hM := torusM_one_ge hσ d
+  have hB : ∀ p, |PhiQbe d σ n l p| ≤ B4 d σ n := fun p =>
+    bd3 hM (by positivity) (cyT_bounds hσ d _).1 (cyT_bounds hσ d _).2 (hP_abs hσ d le_rfl _)
+      (cK_bound hσ d _) (cK_bound hσ d _)
+  have hc1 : ∀ y z', ∫ z, PhiQbe d σ n l (y, z, z') ∂flatTorusMeasure d = 0 := by
+    intro y z'
+    have e : (fun z => PhiQbe d σ n l (y, z, z')) = fun z => (cy2 d σ y
+        * heatP d σ 1 (y (0 : Fin (n + 1)).castSucc - y (Fin.last (n + 1)))
+        * (heatP d σ 1 (y l.castSucc - z') - 1))
+        * (heatP d σ 1 (y (Fin.last (n + 1)) - z) - 1) := funext fun z => by
+      simp only [PhiQbe]; ring
+    rw [e, cent hσ d]
+  have hc2 : ∀ y z, ∫ z', PhiQbe d σ n l (y, z, z') ∂flatTorusMeasure d = 0 := by
+    intro y z
+    have e : (fun z' => PhiQbe d σ n l (y, z, z')) = fun z' => (cy2 d σ y
+        * heatP d σ 1 (y (0 : Fin (n + 1)).castSucc - y (Fin.last (n + 1)))
+        * (heatP d σ 1 (y (Fin.last (n + 1)) - z) - 1))
+        * (heatP d σ 1 (y l.castSucc - z') - 1) := funext fun z' => by
+      simp only [PhiQbe]
+    rw [e, cent hσ d]
+  have hL : ∀ w : Fin (n + 2) → Fin N, Injective w → ∀ u, u ∉ Finset.univ.image w →
+      ∫ ω, PhiQbe d σ n l (fun i => X (w i) ω, X u ω, X u ω) ∂μ
+        = Ch d σ (n + 1) l.val 3 - torusM d σ (n + 1) := by
+    intro w hw u hu
+    have hu' : ∀ i, (w i : ℕ) ≠ (u : ℕ) := fun i h =>
+      hu (Finset.mem_image.mpr ⟨i, Finset.mem_univ _, Fin.ext h⟩)
+    rw [integrate_extra X h_indep hX hlaw (fun i => (w i : ℕ)) u hu'
+      (fun p => PhiQbe d σ n l (p.1, p.2, p.2))
+      ((PhiQbe_meas hσ d n l).comp (measurable_fst.prodMk (measurable_snd.prodMk measurable_snd)))
+      (B := B4 d σ n) (fun p => hB _)]
+    have e : ∀ y : Fin (n + 2) → FlatTorus d, ∫ z, PhiQbe d σ n l (y, z, z) ∂flatTorusMeasure d
+        = cy2 d σ y * heatP d σ 1 (y (0 : Fin (n + 1)).castSucc - y (Fin.last (n + 1)))
+          * (heatP d σ 2 (y l.castSucc - y (Fin.last (n + 1))) - 1) := by
+      intro y
+      have e1 : (fun z => PhiQbe d σ n l (y, z, z)) = fun z => (cy2 d σ y
+          * heatP d σ 1 (y (0 : Fin (n + 1)).castSucc - y (Fin.last (n + 1))))
+          * ((heatP d σ 1 (y (Fin.last (n + 1)) - z) - 1)
+            * (heatP d σ 1 (y l.castSucc - z) - 1)) := funext fun z => by
+        simp only [PhiQbe]; ring
+      rw [e1, integral_const_mul, conv_cc hσ d, heatP_flip d σ 2 (y (Fin.last (n + 1)))]
+    simp only [e]
+    exact tail_chord' hσ d X h_indep hX hlaw w hw l hl 2 (by norm_num)
+  exact quad_stat_gen X h_indep hX hlaw N (n + 2) (PhiQbe d σ n l) (PhiQbe_meas hσ d n l)
+    (B4_nonneg hσ d n) hB hc1 hc2 _ (Ch_bound4 hσ d n l hl (by norm_num)) hL
+
+end Q3stats3
+
+open WalkCount Function BiasGeneral2 BiasGeneral3 BiasGeneral4 PiBound CTG.Reals.TorusReduction
+
+section Q3BB
+
+variable {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω} [IsProbabilityMeasure μ]
+
+/-- `(P̃ε)_{v_0} (P̃ε)_{v_l}`: `cycle · p(x₀ - x_q) c(x_q - z) p(x_l - x_{q'}) c(x_{q'} - z')`. -/
+noncomputable def PhiQbb (d : ℕ) (σ : ℝ) (n : ℕ) (l : Fin (n + 1))
+    (p : (Fin (n + 3) → FlatTorus d) × FlatTorus d × FlatTorus d) : ℝ :=
+  cy3 d σ p.1 * heatP d σ 1 (p.1 (0 : Fin (n + 1)).castSucc.castSucc - p.1 (Fin.last (n + 1)).castSucc)
+    * (heatP d σ 1 (p.1 (Fin.last (n + 1)).castSucc - p.2.1) - 1)
+    * heatP d σ 1 (p.1 l.castSucc.castSucc - p.1 (Fin.last (n + 2)))
+    * (heatP d σ 1 (p.1 (Fin.last (n + 2)) - p.2.2) - 1)
+
+theorem PhiQbb_meas {σ : ℝ} (hσ : 0 < σ) (d n : ℕ) (l : Fin (n + 1)) :
+    Measurable (PhiQbb d σ n l) := by
+  unfold PhiQbb
+  have hp := (heatP_cont hσ d (le_refl 1)).measurable
+  have a0 : Measurable fun p : (Fin (n + 3) → FlatTorus d) × FlatTorus d × FlatTorus d =>
+      p.1 (0 : Fin (n + 1)).castSucc.castSucc := (measurable_pi_apply _).comp measurable_fst
+  have aq : Measurable fun p : (Fin (n + 3) → FlatTorus d) × FlatTorus d × FlatTorus d =>
+      p.1 (Fin.last (n + 1)).castSucc := (measurable_pi_apply _).comp measurable_fst
+  have al : Measurable fun p : (Fin (n + 3) → FlatTorus d) × FlatTorus d × FlatTorus d =>
+      p.1 l.castSucc.castSucc := (measurable_pi_apply _).comp measurable_fst
+  have aq' : Measurable fun p : (Fin (n + 3) → FlatTorus d) × FlatTorus d × FlatTorus d =>
+      p.1 (Fin.last (n + 2)) := (measurable_pi_apply _).comp measurable_fst
+  exact (((((cy3_meas hσ d n).comp measurable_fst).mul (hp.comp (a0.sub aq))).mul
+    ((hp.comp (aq.sub (measurable_fst.comp measurable_snd))).sub_const 1)).mul
+    (hp.comp (al.sub aq'))).mul
+    ((hp.comp (aq'.sub (measurable_snd.comp measurable_snd))).sub_const 1)
+
+/-- **`Q₃`, type `(P̃ε)(P̃ε)` at the positions `0, l`:** main term `N^{k+3} (∫ p_l p_{k-l} p₄ - m_k)`. -/
+theorem meanQbb {σ : ℝ} (hσ : 0 < σ) (d : ℕ) (X : ℕ → Ω → FlatTorus d)
+    (h_indep : ProbabilityTheory.iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (N n : ℕ) (l : Fin (n + 1)) (hl : l ≠ 0) :
+    |∑ w : Fin (n + 3) → Fin N, ∑ u : Fin N, ∑ u' : Fin N,
+          ∫ ω, PhiQbb d σ n l (fun i => X (w i) ω, X u ω, X u' ω) ∂μ
+        - (N : ℝ) ^ (n + 3 + 1) * (Ch d σ (n + 1) l.val 4 - torusM d σ (n + 1))|
+      ≤ B4 d σ n * ((((n + 3 : ℕ) : ℝ) + ((n + 3 : ℕ) : ℝ) ^ 2) * (N : ℝ) ^ (n + 3)
+          + ((Prs (n + 3)).card : ℝ) * (N : ℝ) ^ (n + 3 - 1) * (2 * N + ((n + 3 : ℕ) : ℝ) ^ 2)) := by
+  have hM := torusM_one_ge hσ d
+  have hp := (heatP_cont hσ d (le_refl 1)).measurable
+  have hB : ∀ p, |PhiQbb d σ n l p| ≤ B4 d σ n := fun p =>
+    bd4 hM (by positivity) (cyT_bounds hσ d _).1 (cyT_bounds hσ d _).2 (hP_abs hσ d le_rfl _)
+      (cK_bound hσ d _) (hP_abs hσ d le_rfl _) (cK_bound hσ d _)
+  have hc1 : ∀ y z', ∫ z, PhiQbb d σ n l (y, z, z') ∂flatTorusMeasure d = 0 := by
+    intro y z'
+    have e : (fun z => PhiQbb d σ n l (y, z, z')) = fun z => (cy3 d σ y
+        * heatP d σ 1 (y (0 : Fin (n + 1)).castSucc.castSucc - y (Fin.last (n + 1)).castSucc)
+        * heatP d σ 1 (y l.castSucc.castSucc - y (Fin.last (n + 2)))
+        * (heatP d σ 1 (y (Fin.last (n + 2)) - z') - 1))
+        * (heatP d σ 1 (y (Fin.last (n + 1)).castSucc - z) - 1) := funext fun z => by
+      simp only [PhiQbb]; ring
+    rw [e, cent hσ d]
+  have hc2 : ∀ y z, ∫ z', PhiQbb d σ n l (y, z, z') ∂flatTorusMeasure d = 0 := by
+    intro y z
+    have e : (fun z' => PhiQbb d σ n l (y, z, z')) = fun z' => (cy3 d σ y
+        * heatP d σ 1 (y (0 : Fin (n + 1)).castSucc.castSucc - y (Fin.last (n + 1)).castSucc)
+        * (heatP d σ 1 (y (Fin.last (n + 1)).castSucc - z) - 1)
+        * heatP d σ 1 (y l.castSucc.castSucc - y (Fin.last (n + 2))))
+        * (heatP d σ 1 (y (Fin.last (n + 2)) - z') - 1) := funext fun z' => by
+      simp only [PhiQbb]
+    rw [e, cent hσ d]
+  have hL : ∀ w : Fin (n + 3) → Fin N, Injective w → ∀ u, u ∉ Finset.univ.image w →
+      ∫ ω, PhiQbb d σ n l (fun i => X (w i) ω, X u ω, X u ω) ∂μ
+        = Ch d σ (n + 1) l.val 4 - torusM d σ (n + 1) := by
+    intro w hw u hu
+    have hu' : ∀ i, (w i : ℕ) ≠ (u : ℕ) := fun i h =>
+      hu (Finset.mem_image.mpr ⟨i, Finset.mem_univ _, Fin.ext h⟩)
+    rw [integrate_extra X h_indep hX hlaw (fun i => (w i : ℕ)) u hu'
+      (fun p => PhiQbb d σ n l (p.1, p.2, p.2))
+      ((PhiQbb_meas hσ d n l).comp (measurable_fst.prodMk (measurable_snd.prodMk measurable_snd)))
+      (B := B4 d σ n) (fun p => hB _)]
+    obtain ⟨F, hFd⟩ : ∃ F : (Fin (n + 3) → FlatTorus d) → ℝ, F = fun y => cy3 d σ y
+        * heatP d σ 1 (y (0 : Fin (n + 1)).castSucc.castSucc - y (Fin.last (n + 1)).castSucc)
+        * heatP d σ 1 (y l.castSucc.castSucc - y (Fin.last (n + 2)))
+        * (heatP d σ 2 (y (Fin.last (n + 1)).castSucc - y (Fin.last (n + 2))) - 1) := ⟨_, rfl⟩
+    have e : ∀ y : Fin (n + 3) → FlatTorus d, ∫ z, PhiQbb d σ n l (y, z, z) ∂flatTorusMeasure d
+        = F y := by
+      intro y
+      have e1 : (fun z => PhiQbb d σ n l (y, z, z)) = fun z => (cy3 d σ y
+          * heatP d σ 1 (y (0 : Fin (n + 1)).castSucc.castSucc - y (Fin.last (n + 1)).castSucc)
+          * heatP d σ 1 (y l.castSucc.castSucc - y (Fin.last (n + 2))))
+          * ((heatP d σ 1 (y (Fin.last (n + 1)).castSucc - z) - 1)
+            * (heatP d σ 1 (y (Fin.last (n + 2)) - z) - 1)) := funext fun z => by
+        simp only [PhiQbb]; ring
+      rw [e1, integral_const_mul, conv_cc hσ d, hFd]
+    simp only [e]
+    have hF : Measurable F := by
+      rw [hFd]
+      have hp2 := (heatP_cont hσ d (by norm_num : 1 ≤ 2)).measurable
+      exact (((cy3_meas hσ d n).mul (hp.comp ((measurable_pi_apply _).sub (measurable_pi_apply _)))).mul
+        (hp.comp ((measurable_pi_apply _).sub (measurable_pi_apply _)))).mul
+        ((hp2.comp ((measurable_pi_apply (Fin.last (n + 1)).castSucc).sub
+          (measurable_pi_apply (Fin.last (n + 2))))).sub_const 1)
+    rw [int_last X h_indep hX hlaw w hw F hF (B := B4 d σ n) (fun y => by
+      rw [hFd]
+      exact bd3 hM (by positivity) (cyT_bounds hσ d _).1 (cyT_bounds hσ d _).2
+        (hP_abs hσ d le_rfl _) (hP_abs hσ d le_rfl _) (cKc_bound hσ d (by norm_num) _))]
+    have e2 : ∀ y' : Fin (n + 2) → FlatTorus d,
+        ∫ z, F (Fin.snoc y' z) ∂flatTorusMeasure d
+          = cy2 d σ y' * heatP d σ 1 (y' (0 : Fin (n + 1)).castSucc - y' (Fin.last (n + 1)))
+            * (heatP d σ 3 (y' l.castSucc - y' (Fin.last (n + 1))) - 1) := by
+      intro y'
+      rw [hFd]
+      simp only [cy3, cy2, Fin.snoc_castSucc, Fin.snoc_last]
+      have : ∀ z, cyT d σ (fun a : Fin (n + 1) => y' a.castSucc)
+          * heatP d σ 1 (y' (0 : Fin (n + 1)).castSucc - y' (Fin.last (n + 1)))
+          * heatP d σ 1 (y' l.castSucc - z)
+          * (heatP d σ 2 (y' (Fin.last (n + 1)) - z) - 1)
+          = (cyT d σ (fun a : Fin (n + 1) => y' a.castSucc)
+            * heatP d σ 1 (y' (0 : Fin (n + 1)).castSucc - y' (Fin.last (n + 1))))
+            * (heatP d σ 1 (y' l.castSucc - z)
+              * (heatP d σ 2 (y' (Fin.last (n + 1)) - z) - 1)) := fun z => by ring
+      simp_rw [this]
+      rw [integral_const_mul, conv_pk hσ d (by norm_num : 1 ≤ 2)]
+    simp only [e2]
+    exact tail_chord' hσ d X h_indep hX hlaw (fun i => w i.castSucc)
+      (fun a b h => Fin.castSucc_injective _ (hw h)) l hl 3 (by norm_num)
+  exact quad_stat_gen X h_indep hX hlaw N (n + 3) (PhiQbb d σ n l) (PhiQbb_meas hσ d n l)
+    (B4_nonneg hσ d n) hB hc1 hc2 _ (Ch_bound4 hσ d n l hl (by norm_num)) hL
+
+end Q3BB
+
+end BiasGeneral5
+
 end CTG.Reals2
