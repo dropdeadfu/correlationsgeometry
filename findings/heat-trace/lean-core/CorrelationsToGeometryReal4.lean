@@ -5873,4 +5873,635 @@ end Sample
 
 end VarianceNoLoops
 
+namespace VarianceSharp
+
+/-! # A110: `prop:variance` with a remainder that is smaller than the main term
+
+Route (A) of the task: a normalisation event of probability `≤ N⁻⁵` instead of `N⁻³`.
+`rho_event_le` is the general Bernstein bound for `max_a |ρ_a - 1|` (net with `g^d` points,
+`heat_normalisation_whp`); with `g = N` and `ε = 3 √(N m₁ T)`, `T = log(2 N^{d+5})`, the
+threshold is `deltaN = (ε + 2 Lip)/N = O(√(log N / N))` and the probability is `≤ N⁻⁵`
+(`deltaN_event`).  Inserted into `VarianceGeneral3.variance_general_v'` (with self-loops) and
+`VarianceNoLoops.variance_noloops_v'` (without), with `θ = N^{-1/2}`, this gives remainders
+`O((log N)² N^{-5/2})` resp. `O((log N)³ N^{-5/2})` against the main term `v_k (N-1)/N³`. -/
+
+open WalkCount Function BiasGeneral BiasGeneral2 BiasGeneral3 BiasGeneral4 BiasGeneral5 BiasGeneral6
+  PiBound CTG.Reals.TorusReduction BiasVariance BiasVariance4 NoLoops BiasNoLoops VarianceOne
+
+section Defs
+
+/-- The Lipschitz constant of `heatTorus_lipschitz` for the kernel of variance `σ`. -/
+noncomputable def lipT (d : ℕ) (σ : ℝ) : ℝ :=
+  2 * Real.pi * (2 / (2 * Real.pi ^ 2 * σ)) * (1 + Real.sqrt (2 * Real.pi / (2 * Real.pi ^ 2 * σ))) ^ d
+
+/-- `T = log (2 N^{d+5})`. -/
+noncomputable def TN (d N : ℕ) : ℝ := Real.log (2 * (N : ℝ) ^ (d + 5))
+
+/-- `ε = 3 √(N m₁ T)`. -/
+noncomputable def epsN (d : ℕ) (σ : ℝ) (N : ℕ) : ℝ :=
+  3 * Real.sqrt (N * torusM d σ 1 * TN d N)
+
+/-- The threshold `δ_N = (ε + 2 N Lip / N)/N` of the normalisation event. -/
+noncomputable def deltaN (d : ℕ) (σ : ℝ) (N : ℕ) : ℝ :=
+  (epsN d σ N + 2 * (N * lipT d σ) * (1 / ((N : ℕ) : ℝ))) / N
+
+theorem lipT_nonneg {σ : ℝ} (hσ : 0 < σ) (d : ℕ) : 0 ≤ lipT d σ := by
+  have := Real.pi_pos; unfold lipT; positivity
+
+theorem TN_nonneg {N : ℕ} (hN : 1 ≤ N) (d : ℕ) : 0 ≤ TN d N := by
+  unfold TN
+  apply Real.log_nonneg
+  have : (1 : ℝ) ≤ (N : ℝ) ^ (d + 5) := one_le_pow₀ (by exact_mod_cast hN)
+  linarith
+
+theorem deltaN_nonneg {σ : ℝ} (hσ : 0 < σ) (d N : ℕ) : 0 ≤ deltaN d σ N := by
+  have := lipT_nonneg hσ d
+  unfold deltaN epsN; positivity
+
+end Defs
+
+section Event
+
+variable {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+
+/-- **The normalisation event, general parameters.** Independent uniform points, `N ≥ 1`, net
+    parameter `g > 0`, `ε > 0`:
+    `P(max_a |ρ_a - 1| > (ε + 2 N Lip/g)/N) ≤ g^d · 2 exp(-ε²/(4 N m₁ + 2 m₁ ε))`. -/
+theorem rho_event_le [IsProbabilityMeasure μ] {σ : ℝ} (hσ : 0 < σ) (d : ℕ)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (N : ℕ) (hN : 1 ≤ N) {g : ℕ} (hg : 0 < g)
+    {ε : ℝ} (hε : 0 < ε) :
+    μ.real {ω | ¬ ∀ a : Fin N, |heatRho d σ N (fun j => X j ω) a - 1|
+        ≤ (ε + 2 * (N * lipT d σ) * (1 / (g : ℝ))) / N}
+      ≤ (g : ℝ) ^ d * (2 * Real.exp (-ε ^ 2
+          / (4 * (N * torusM d σ 1) + 2 * torusM d σ 1 * ε))) := by
+  have hc : 0 < 2 * Real.pi ^ 2 * σ := by have := Real.pi_pos; positivity
+  have hN1 : (1 : ℝ) ≤ N := by exact_mod_cast hN
+  have hNpos : (0 : ℝ) < N := lt_of_lt_of_le zero_lt_one hN1
+  have hM : ∀ u, heatTorus d (2 * Real.pi ^ 2 * σ) u ≤ torusM d σ 1 := fun u => by
+    rw [torusM_one]; exact heatTorus_le_zero hc d _
+  have h := heat_normalisation_whp hσ d X h_indep hX hlaw N hg hM
+    (fun u u' => heatTorus_lipschitz hc d u u') (lipT_nonneg hσ d) hε
+  refine (measureReal_mono ?_ (measure_ne_top _ _)).trans h
+  intro ω hω
+  simp only [Set.mem_setOf_eq, not_forall, not_le] at hω
+  obtain ⟨a, ha⟩ := hω
+  refine ⟨X a ω, ?_⟩
+  have e : ∑ j ∈ Finset.range N, heatTorus d (2 * Real.pi ^ 2 * σ) (X a ω - X j ω) - N
+      = N * (heatRho d σ N (fun j => X j ω) a - 1) := by
+    unfold heatRho; field_simp
+  show ε + 2 * (N * lipT d σ) * (1 / g)
+    < |∑ j ∈ Finset.range N, heatTorus d (2 * Real.pi ^ 2 * σ) (X a ω - X j ω) - N|
+  rw [e, abs_mul, abs_of_nonneg hNpos.le]
+  have := mul_lt_mul_of_pos_left ha hNpos
+  rw [mul_div_cancel₀ _ hNpos.ne'] at this
+  exact this
+
+/-- **The normalisation event with probability `≤ N⁻⁵`.** If `δ_N ≤ 1/8` (`N ≥ 2`):
+    `P(max_a |ρ_a - 1| > δ_N) ≤ 1/N⁵`. -/
+theorem deltaN_event [IsProbabilityMeasure μ] {σ : ℝ} (hσ : 0 < σ) (d : ℕ)
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (N : ℕ) (hN2 : 2 ≤ N)
+    (hδ : deltaN d σ N ≤ 1 / 8) :
+    μ.real {ω | ¬ ∀ a : Fin N, |heatRho d σ N (fun j => X j ω) a - 1| ≤ deltaN d σ N}
+      ≤ 1 / (N : ℝ) ^ 5 := by
+  have hN : 1 ≤ N := by omega
+  have hN2r : (2 : ℝ) ≤ N := by exact_mod_cast hN2
+  have hNpos : (0 : ℝ) < N := by linarith
+  have hM1 : 1 ≤ torusM d σ 1 := torusM_one_ge hσ d
+  have hT0 := TN_nonneg hN d
+  have hL0 := lipT_nonneg hσ d
+  have hTpos : 0 < TN d N := by
+    unfold TN
+    apply Real.log_pos
+    have : (1 : ℝ) ≤ (N : ℝ) ^ (d + 5) := one_le_pow₀ (by linarith)
+    linarith
+  have hεpos : 0 < epsN d σ N := by
+    unfold epsN
+    have : 0 < (N : ℝ) * torusM d σ 1 * TN d N := by positivity
+    have := Real.sqrt_pos.mpr this
+    linarith
+  have hgN : 0 < N := by omega
+  have h := rho_event_le hσ d X h_indep hX hlaw N hN hgN hεpos
+  have eδ : (epsN d σ N + 2 * (N * lipT d σ) * (1 / ((N : ℕ) : ℝ))) / N = deltaN d σ N := rfl
+  rw [eδ] at h
+  refine h.trans ?_
+  -- `ε ≤ N`
+  have hεN : epsN d σ N ≤ N := by
+    have h1 : epsN d σ N / N ≤ deltaN d σ N := by
+      unfold deltaN
+      apply div_le_div_of_nonneg_right _ hNpos.le
+      have : 0 ≤ 2 * (N * lipT d σ) * (1 / ((N : ℕ) : ℝ)) := by positivity
+      linarith
+    have h2 : epsN d σ N / N ≤ 1 := by linarith
+    rwa [div_le_one hNpos] at h2
+  have hε2 : epsN d σ N ^ 2 = 9 * (N * torusM d σ 1 * TN d N) := by
+    unfold epsN
+    rw [mul_pow, Real.sq_sqrt (by positivity)]; norm_num
+  obtain ⟨D, hD⟩ : ∃ D : ℝ, D = 4 * (N * torusM d σ 1) + 2 * torusM d σ 1 * epsN d σ N :=
+    ⟨_, rfl⟩
+  rw [← hD]
+  have hDpos : 0 < D := by rw [hD]; positivity
+  have hDle : D ≤ 6 * (N * torusM d σ 1) := by
+    rw [hD]; nlinarith
+  have hratio : TN d N ≤ epsN d σ N ^ 2 / D := by
+    rw [le_div_iff₀ hDpos, hε2]
+    have := mul_le_mul_of_nonneg_left hDle hT0
+    nlinarith [mul_nonneg (mul_nonneg hNpos.le (by linarith : (0:ℝ) ≤ torusM d σ 1)) hT0]
+  have hexp : Real.exp (-epsN d σ N ^ 2 / D) ≤ Real.exp (-TN d N) := by
+    apply Real.exp_le_exp.mpr
+    rw [neg_div]; linarith
+  have hexpT : Real.exp (-TN d N) = 1 / (2 * (N : ℝ) ^ (d + 5)) := by
+    unfold TN
+    rw [Real.exp_neg, Real.exp_log (by positivity), one_div]
+  have hg0 : (0 : ℝ) ≤ ((N : ℕ) : ℝ) ^ d := by positivity
+  calc ((N : ℕ) : ℝ) ^ d * (2 * Real.exp (-epsN d σ N ^ 2 / D))
+      ≤ ((N : ℕ) : ℝ) ^ d * (2 * Real.exp (-TN d N)) := by gcongr
+    _ = 1 / (N : ℝ) ^ 5 := by
+      rw [hexpT, pow_add]; field_simp
+
+end Event
+
+section Sharp
+
+variable {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+
+/-- **`prop:variance` for every `k = n + 1`, with self-loops, sharp form.** Independent uniform
+    points on `FlatTorus d`, Gaussian kernel of variance `σ > 0`, `N ≥ 2` and `δ_N ≤ 1/8`
+    (`δ_N = deltaN d σ N = O(√(log N / N))`):
+    `|Var Tr P^k - v_k (N-1)/N³| ≤ N^{-1/2} v_k (N-1)/N³
+       + (1 + √N)(2 ((gK δ_N m₁)² δ_N² (2m₁²/N) + (N + CQT)²/N⁵) + 2 Cq cA B4²/N³)`. -/
+theorem variance_general_sharp [IsProbabilityMeasure μ] {d : ℕ} (X : ℕ → Ω → FlatTorus d)
+    (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) {σ : ℝ} (hσ : 0 < σ) (N : ℕ) (hN2 : 2 ≤ N)
+    (hδ : deltaN d σ N ≤ 1 / 8) (n : ℕ) :
+    |cv μ (fun ω => ((torusWalk d σ N (fun j => X j ω)) ^ (n + 1)).trace)
+        - VarianceGeneral.vk d σ (n + 1) * ((N : ℝ) - 1) / (N : ℝ) ^ 3|
+      ≤ 1 / Real.sqrt N * (VarianceGeneral.vk d σ (n + 1) * ((N : ℝ) - 1) / (N : ℝ) ^ 3)
+        + (1 + Real.sqrt N) * (2 * ((gK n * deltaN d σ N * torusM d σ 1) ^ 2 * deltaN d σ N ^ 2
+            * (2 * torusM d σ 1 ^ 2 / N) + (N + CQT d σ n) ^ 2 * (1 / (N : ℝ) ^ 5))
+          + 2 * (VarianceGeneral3.Cq n * (VarianceGeneral3.cA n * B4 d σ n ^ 2
+            / (N : ℝ) ^ 3))) := by
+  have hNpos : (0 : ℝ) < N := by exact_mod_cast (by omega : 0 < N)
+  have hs : 0 < Real.sqrt N := Real.sqrt_pos.mpr hNpos
+  have hθ : 0 < 1 / Real.sqrt N := by positivity
+  rw [← VarianceGeneral5.vq_eq_vk_ae hσ n]
+  obtain ⟨_, h⟩ := VarianceGeneral3.variance_general_v' X h_indep hX hlaw hσ N (by omega)
+    (deltaN_nonneg hσ d N) hδ n hθ
+  rw [one_div_one_div] at h
+  have hP := deltaN_event hσ d X h_indep hX hlaw N hN2 hδ
+  refine h.trans ?_
+  gcongr
+
+end Sharp
+
+section Rate
+
+/-- `K₀ = 18 m₁ (d+6) + 8 Lip²`: `δ_N² ≤ K₀ (log N + 1)/N`. -/
+noncomputable def K0 (d : ℕ) (σ : ℝ) : ℝ := 18 * torusM d σ 1 * ((d : ℝ) + 6) + 8 * lipT d σ ^ 2
+
+theorem K0_nonneg {σ : ℝ} (hσ : 0 < σ) (d : ℕ) : 0 ≤ K0 d σ := by
+  have := torusM_one_ge hσ d; unfold K0; positivity
+
+theorem TN_le {N : ℕ} (hN2 : 2 ≤ N) (d : ℕ) : TN d N ≤ ((d : ℝ) + 6) * (Real.log N + 1) := by
+  have hN2r : (2 : ℝ) ≤ N := by exact_mod_cast hN2
+  have hNpos : (0 : ℝ) < N := by linarith
+  have hl0 : 0 ≤ Real.log N := Real.log_nonneg (by linarith)
+  have hl2 : Real.log 2 ≤ Real.log N := Real.log_le_log (by norm_num) hN2r
+  unfold TN
+  rw [Real.log_mul (by norm_num) (by positivity), Real.log_pow]
+  push_cast
+  have hd : (0 : ℝ) ≤ d := Nat.cast_nonneg d
+  nlinarith
+
+theorem deltaN_sq {σ : ℝ} (hσ : 0 < σ) (d : ℕ) {N : ℕ} (hN2 : 2 ≤ N) :
+    deltaN d σ N ^ 2 ≤ K0 d σ * (Real.log N + 1) / N := by
+  have hN2r : (2 : ℝ) ≤ N := by exact_mod_cast hN2
+  have hNpos : (0 : ℝ) < N := by linarith
+  have hl0 : 0 ≤ Real.log N := Real.log_nonneg (by linarith)
+  have hM1 : 1 ≤ torusM d σ 1 := torusM_one_ge hσ d
+  have hL0 := lipT_nonneg hσ d
+  have hT0 := TN_nonneg (by omega : 1 ≤ N) d
+  have hT := TN_le hN2 d
+  have e : deltaN d σ N = (epsN d σ N + 2 * lipT d σ) / N := by
+    unfold deltaN
+    congr 1
+    field_simp
+  have hε2 : epsN d σ N ^ 2 = 9 * (N * torusM d σ 1 * TN d N) := by
+    unfold epsN
+    rw [mul_pow, Real.sq_sqrt (by positivity)]; norm_num
+  rw [e, div_pow, div_le_div_iff₀ (by positivity) hNpos]
+  have h1 : (epsN d σ N + 2 * lipT d σ) ^ 2 ≤ 2 * epsN d σ N ^ 2 + 8 * lipT d σ ^ 2 := by
+    nlinarith [_root_.sq_nonneg (epsN d σ N - 2 * lipT d σ)]
+  rw [hε2] at h1
+  have hd : (0 : ℝ) ≤ d := Nat.cast_nonneg d
+  have h2 : 18 * (N * torusM d σ 1 * TN d N) * N
+      ≤ 18 * torusM d σ 1 * ((d : ℝ) + 6) * (Real.log N + 1) * (N : ℝ) ^ 2 := by
+    have := mul_le_mul_of_nonneg_left hT (by positivity : (0 : ℝ) ≤ 18 * torusM d σ 1 * N * N)
+    nlinarith [this]
+  have h3 : 8 * lipT d σ ^ 2 * N ≤ 8 * lipT d σ ^ 2 * (Real.log N + 1) * (N : ℝ) ^ 2 := by
+    have hA : (N : ℝ) ≤ (Real.log N + 1) * (N : ℝ) ^ 2 := by nlinarith
+    have := mul_le_mul_of_nonneg_left hA (by positivity : (0 : ℝ) ≤ 8 * lipT d σ ^ 2)
+    nlinarith [this]
+  have h4 := mul_le_mul_of_nonneg_right h1 hNpos.le
+  unfold K0
+  nlinarith [h2, h3, h4]
+
+/-- **The algebra of the closing step**: with `s = √N ≥ 1`, `W ≥ 1`, `X ≤ c W / N³`:
+    `N^{-1/2} V (N-1)/N³ + (1 + s) X ≤ (V + 2c) W / (N² s)`. -/
+theorem rate_alg {N s W V X c : ℝ} (hs1 : 1 ≤ s) (hsN : s ^ 2 = N) (hW : 1 ≤ W) (hV : 0 ≤ V)
+    (hc : 0 ≤ c) (hX : X ≤ c * W / N ^ 3) :
+    1 / s * (V * (N - 1) / N ^ 3) + (1 + s) * X ≤ (V + 2 * c) * W / (N ^ 2 * s) := by
+  subst hsN
+  have hs0 : 0 < s := by linarith
+  have e1 : 1 / s * (V * (s ^ 2 - 1) / (s ^ 2) ^ 3) = V * (s ^ 2 - 1) / s ^ 7 := by
+    field_simp <;> ring
+  have e2 : (V + 2 * c) * W / ((s ^ 2) ^ 2 * s) = V * W / s ^ 5 + 2 * c * W / s ^ 5 := by
+    field_simp <;> ring
+  have h1 : V * (s ^ 2 - 1) / s ^ 7 ≤ V * W / s ^ 5 := by
+    rw [div_le_div_iff₀ (by positivity) (by positivity)]
+    have key : 0 ≤ V * s ^ 5 * (W * s ^ 2 - s ^ 2 + 1) :=
+      mul_nonneg (by positivity) (by nlinarith)
+    nlinarith [key]
+  have h6 : ((s ^ 2) ^ 3) = s ^ 6 := by ring
+  rw [h6] at hX
+  have h2 : (1 + s) * X ≤ 2 * c * W / s ^ 5 := by
+    calc (1 + s) * X ≤ (1 + s) * (c * W / s ^ 6) := mul_le_mul_of_nonneg_left hX (by linarith)
+      _ ≤ (2 * s) * (c * W / s ^ 6) :=
+          mul_le_mul_of_nonneg_right (by linarith) (by positivity)
+      _ = 2 * c * W / s ^ 5 := by field_simp <;> ring
+  rw [e1, e2]; linarith
+
+/-- The constant of the closing corollary (with self-loops), without `v_k`. -/
+noncomputable def rateC1 (d : ℕ) (σ : ℝ) (n : ℕ) : ℝ :=
+  2 * gK n ^ 2 * torusM d σ 1 ^ 4 * K0 d σ ^ 2 + (1 + CQT d σ n) ^ 2
+    + VarianceGeneral3.Cq n * VarianceGeneral3.cA n * B4 d σ n ^ 2
+
+/-- The constant of the closing corollary (with self-loops). -/
+noncomputable def rateC (d : ℕ) (σ : ℝ) (n : ℕ) : ℝ :=
+  VarianceGeneral.vk d σ (n + 1) + 2 * (2 * rateC1 d σ n)
+
+theorem CQT_nonneg {σ : ℝ} (hσ : 0 < σ) (d n : ℕ) : 0 ≤ CQT d σ n := by
+  have := B4_nonneg hσ d n; have := torusM_one_ge hσ d; unfold CQT; positivity
+
+theorem Cq_nonneg (n : ℕ) : 0 ≤ VarianceGeneral3.Cq n := by
+  unfold VarianceGeneral3.Cq; positivity
+
+/-- The bracket of `variance_general_sharp` is `≤ 2 rateC1 (log N + 1)² / N³`. -/
+theorem bracket_le {σ : ℝ} (hσ : 0 < σ) (d : ℕ) {N : ℕ} (hN2 : 2 ≤ N) (n : ℕ) :
+    2 * ((gK n * deltaN d σ N * torusM d σ 1) ^ 2 * deltaN d σ N ^ 2
+        * (2 * torusM d σ 1 ^ 2 / N) + (N + CQT d σ n) ^ 2 * (1 / (N : ℝ) ^ 5))
+      + 2 * (VarianceGeneral3.Cq n * (VarianceGeneral3.cA n * B4 d σ n ^ 2 / (N : ℝ) ^ 3))
+      ≤ 2 * rateC1 d σ n * (Real.log N + 1) ^ 2 / (N : ℝ) ^ 3 := by
+  have hN2r : (2 : ℝ) ≤ N := by exact_mod_cast hN2
+  have hNpos : (0 : ℝ) < N := by linarith
+  have hl0 : 0 ≤ Real.log N := Real.log_nonneg (by linarith)
+  obtain ⟨Λ, hΛ⟩ : ∃ Λ : ℝ, Λ = Real.log N + 1 := ⟨_, rfl⟩
+  rw [← hΛ]
+  have hΛ1 : 1 ≤ Λ := by rw [hΛ]; linarith
+  have hΛ2 : 1 ≤ Λ ^ 2 := one_le_pow₀ hΛ1
+  have hδ2 := deltaN_sq hσ d hN2
+  rw [← hΛ] at hδ2
+  have hK0 := K0_nonneg hσ d
+  have hCQ := CQT_nonneg hσ d n
+  have hCq := Cq_nonneg n
+  have hcA := VarianceGeneral3.cA_nonneg n
+  have hB4 := B4_nonneg hσ d n
+  obtain ⟨D2, hD2⟩ : ∃ D2 : ℝ, D2 = deltaN d σ N ^ 2 := ⟨_, rfl⟩
+  have hD20 : 0 ≤ D2 := by rw [hD2]; positivity
+  rw [← hD2] at hδ2
+  have pA : (gK n * deltaN d σ N * torusM d σ 1) ^ 2 * deltaN d σ N ^ 2
+      * (2 * torusM d σ 1 ^ 2 / N)
+      ≤ 2 * gK n ^ 2 * torusM d σ 1 ^ 4 * K0 d σ ^ 2 * (Λ ^ 2 / (N : ℝ) ^ 3) := by
+    have e : (gK n * deltaN d σ N * torusM d σ 1) ^ 2 * deltaN d σ N ^ 2
+        * (2 * torusM d σ 1 ^ 2 / N) = 2 * gK n ^ 2 * torusM d σ 1 ^ 4 * D2 ^ 2 / N := by
+      rw [hD2]; ring
+    rw [e]
+    have hsq : D2 ^ 2 ≤ (K0 d σ * Λ / N) ^ 2 := pow_le_pow_left₀ hD20 hδ2 2
+    calc 2 * gK n ^ 2 * torusM d σ 1 ^ 4 * D2 ^ 2 / N
+        ≤ 2 * gK n ^ 2 * torusM d σ 1 ^ 4 * (K0 d σ * Λ / N) ^ 2 / N := by gcongr
+      _ = 2 * gK n ^ 2 * torusM d σ 1 ^ 4 * K0 d σ ^ 2 * (Λ ^ 2 / (N : ℝ) ^ 3) := by
+          field_simp
+  have pQ : (N + CQT d σ n) ^ 2 * (1 / (N : ℝ) ^ 5) ≤ (1 + CQT d σ n) ^ 2 * (Λ ^ 2 / (N : ℝ) ^ 3) := by
+    have h1 : (N : ℝ) + CQT d σ n ≤ N * (1 + CQT d σ n) := by nlinarith
+    have h2 : ((N : ℝ) + CQT d σ n) ^ 2 ≤ (N * (1 + CQT d σ n)) ^ 2 :=
+      pow_le_pow_left₀ (by positivity) h1 2
+    calc (N + CQT d σ n) ^ 2 * (1 / (N : ℝ) ^ 5) ≤ (N * (1 + CQT d σ n)) ^ 2 * (1 / (N : ℝ) ^ 5) :=
+          mul_le_mul_of_nonneg_right h2 (by positivity)
+      _ = (1 + CQT d σ n) ^ 2 * (1 / (N : ℝ) ^ 3) := by field_simp
+      _ ≤ (1 + CQT d σ n) ^ 2 * (Λ ^ 2 / (N : ℝ) ^ 3) := by gcongr
+  have pR : VarianceGeneral3.Cq n * (VarianceGeneral3.cA n * B4 d σ n ^ 2 / (N : ℝ) ^ 3)
+      ≤ VarianceGeneral3.Cq n * VarianceGeneral3.cA n * B4 d σ n ^ 2 * (Λ ^ 2 / (N : ℝ) ^ 3) := by
+    calc VarianceGeneral3.Cq n * (VarianceGeneral3.cA n * B4 d σ n ^ 2 / (N : ℝ) ^ 3)
+        = VarianceGeneral3.Cq n * VarianceGeneral3.cA n * B4 d σ n ^ 2 * (1 / (N : ℝ) ^ 3) := by
+          ring
+      _ ≤ _ := by gcongr
+  have e2 : 2 * rateC1 d σ n * Λ ^ 2 / (N : ℝ) ^ 3
+      = 2 * (2 * gK n ^ 2 * torusM d σ 1 ^ 4 * K0 d σ ^ 2 * (Λ ^ 2 / (N : ℝ) ^ 3)
+        + (1 + CQT d σ n) ^ 2 * (Λ ^ 2 / (N : ℝ) ^ 3)
+        + VarianceGeneral3.Cq n * VarianceGeneral3.cA n * B4 d σ n ^ 2 * (Λ ^ 2 / (N : ℝ) ^ 3)) := by
+    unfold rateC1; ring
+  rw [e2]
+  linarith
+
+variable {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+
+/-- **Closing corollary, with self-loops**: under the hypotheses of `variance_general_sharp`
+    (independent uniform points, `σ > 0`, `N ≥ 2`, `δ_N ≤ 1/8`):
+    `|Var Tr P^k - v_k (N-1)/N³| ≤ rateC · (log N + 1)² · N^{-5/2}`, where `rateC` depends only on
+    `d`, `σ`, `k`.  Since the main term is `v_k (N-1)/N³ ≍ v_k N⁻²`, the remainder is
+    `o(N⁻²)`. -/
+theorem variance_general_rate [IsProbabilityMeasure μ] {d : ℕ} (X : ℕ → Ω → FlatTorus d)
+    (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) {σ : ℝ} (hσ : 0 < σ) (N : ℕ) (hN2 : 2 ≤ N)
+    (hδ : deltaN d σ N ≤ 1 / 8) (n : ℕ) :
+    |cv μ (fun ω => ((torusWalk d σ N (fun j => X j ω)) ^ (n + 1)).trace)
+        - VarianceGeneral.vk d σ (n + 1) * ((N : ℝ) - 1) / (N : ℝ) ^ 3|
+      ≤ rateC d σ n * (Real.log N + 1) ^ 2 / ((N : ℝ) ^ 2 * Real.sqrt N) := by
+  have hN2r : (2 : ℝ) ≤ N := by exact_mod_cast hN2
+  have hl0 : 0 ≤ Real.log N := Real.log_nonneg (by linarith)
+  have h := variance_general_sharp X h_indep hX hlaw hσ N hN2 hδ n
+  refine h.trans ?_
+  have hs1 : 1 ≤ Real.sqrt N := by
+    rw [show (1 : ℝ) = Real.sqrt 1 from Real.sqrt_one.symm]
+    exact Real.sqrt_le_sqrt (by linarith)
+  have hsN : Real.sqrt N ^ 2 = N := Real.sq_sqrt (by linarith)
+  have hW : 1 ≤ (Real.log N + 1) ^ 2 := one_le_pow₀ (by linarith)
+  have hc : 0 ≤ 2 * rateC1 d σ n := by
+    have := K0_nonneg hσ d; have := CQT_nonneg hσ d n; have := Cq_nonneg n
+    have := VarianceGeneral3.cA_nonneg n
+    unfold rateC1; positivity
+  have hX' := bracket_le hσ d hN2 n
+  have hX'' : 2 * ((gK n * deltaN d σ N * torusM d σ 1) ^ 2 * deltaN d σ N ^ 2
+        * (2 * torusM d σ 1 ^ 2 / N) + (N + CQT d σ n) ^ 2 * (1 / (N : ℝ) ^ 5))
+      + 2 * (VarianceGeneral3.Cq n * (VarianceGeneral3.cA n * B4 d σ n ^ 2 / (N : ℝ) ^ 3))
+      ≤ 2 * rateC1 d σ n * (Real.log N + 1) ^ 2 / (N : ℝ) ^ 3 := hX'
+  have := rate_alg hs1 hsN hW (VarianceGeneral.vk_nonneg d σ (n + 1)) hc hX''
+  unfold rateC
+  exact this
+
+end Rate
+
+section NoLoops
+
+variable {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+
+/-- **`prop:variance` WITHOUT self-loops, every `k = n + 1 ≥ 2`, sharp form.** Independent uniform
+    points, `σ > 0`, `N ≥ 2`, `δ_N + m₁/N ≤ 1/8`:
+    `|Var Tr P°^k - v_k (N-1)/N³| ≤ N^{-1/2} v_k (N-1)/N³ + (1 + √N)(4 E₁ + 4 R + 2 D)` with
+    `E₁ = (gK δ_N m₁)² δ_N² (2m₁²/N) + (N + CQT)²/N⁵`, `R = Cq cA B4²/N³`,
+    `D = DbNL(δ_N) + 6 BoffNL²/N⁵`. -/
+theorem variance_noloops_sharp [IsProbabilityMeasure μ] {d : ℕ} (X : ℕ → Ω → FlatTorus d)
+    (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) {σ : ℝ} (hσ : 0 < σ) (N : ℕ) (hN2 : 2 ≤ N)
+    (hu : deltaN d σ N + torusM d σ 1 / N ≤ 1 / 8) (n : ℕ) (hn : 1 ≤ n) :
+    |cv μ (fun ω => ((noloopWalk d σ N (fun j => X j ω)) ^ (n + 1)).trace)
+        - VarianceGeneral.vk d σ (n + 1) * ((N : ℝ) - 1) / (N : ℝ) ^ 3|
+      ≤ 1 / Real.sqrt N * (VarianceGeneral.vk d σ (n + 1) * ((N : ℝ) - 1) / (N : ℝ) ^ 3)
+        + (1 + Real.sqrt N) * (4 * ((gK n * deltaN d σ N * torusM d σ 1) ^ 2 * deltaN d σ N ^ 2
+            * (2 * torusM d σ 1 ^ 2 / N) + (N + CQT d σ n) ^ 2 * (1 / (N : ℝ) ^ 5))
+          + 4 * (VarianceGeneral3.Cq n * (VarianceGeneral3.cA n * B4 d σ n ^ 2 / (N : ℝ) ^ 3))
+          + 2 * (VarianceNoLoops.DbNL d σ N n (deltaN d σ N)
+            + 6 * VarianceNoLoops.BoffNL d σ N n ^ 2 * (1 / (N : ℝ) ^ 5))) := by
+  have hNpos : (0 : ℝ) < N := by exact_mod_cast (by omega : 0 < N)
+  have hs : 0 < Real.sqrt N := Real.sqrt_pos.mpr hNpos
+  have hθ : 0 < 1 / Real.sqrt N := by positivity
+  have hδ : deltaN d σ N ≤ 1 / 8 := by
+    have : 0 ≤ torusM d σ 1 / N := div_nonneg (zero_le_one.trans (torusM_one_ge hσ d)) hNpos.le
+    linarith
+  rw [← VarianceGeneral5.vq_eq_vk_ae hσ n]
+  have h := VarianceNoLoops.variance_noloops_v' X h_indep hX hlaw hσ N (by omega)
+    (deltaN_nonneg hσ d N) hu n hn hθ
+  rw [one_div_one_div] at h
+  have hP := deltaN_event hσ d X h_indep hX hlaw N hN2 hδ
+  refine h.trans ?_
+  gcongr
+
+/-- `K₁ = 2 K₀ + 2 m₁²`: `(δ_N + m₁/N)² ≤ K₁ (log N + 1)/N`. -/
+noncomputable def K1 (d : ℕ) (σ : ℝ) : ℝ := 2 * K0 d σ + 2 * torusM d σ 1 ^ 2
+
+set_option maxHeartbeats 1000000 in
+/-- The algebra of the comparison error: `(Eb + Rb)² ≤ (50 g² M² K₁³ + 2 (Cd + Cr)² M² K₁) Λ³/N³`. -/
+theorem eb_alg {g M Cd Cr δ c K Λ N : ℝ} (hg : 0 ≤ g) (hM : 0 ≤ M) (hCd : 0 ≤ Cd) (hCr : 0 ≤ Cr)
+    (hδ : 0 ≤ δ) (hN : 1 ≤ N) (hcd : c = M / N) (hΛ : 1 ≤ Λ) (hK : 0 ≤ K)
+    (hr : (δ + c) ^ 2 ≤ K * Λ / N) :
+    (g * ((δ + c) * M * (2 * δ ^ 2 + 2 * c ^ 2)) + g * (δ * M * δ ^ 2) + Cd * c * (δ + c)
+        + c ^ 2 * Cr) ^ 2
+      ≤ (50 * g ^ 2 * M ^ 2 * K ^ 3 + 2 * (Cd + Cr) ^ 2 * M ^ 2 * K) * Λ ^ 3 / N ^ 3 := by
+  have hNpos : 0 < N := by linarith
+  have hc : 0 ≤ c := by rw [hcd]; positivity
+  obtain ⟨r, hrd⟩ : ∃ r, r = δ + c := ⟨_, rfl⟩
+  rw [← hrd] at hr ⊢
+  have hr0 : 0 ≤ r := by rw [hrd]; linarith
+  have hδr : δ ≤ r := by rw [hrd]; linarith
+  have hcr : c ≤ r := by rw [hrd]; linarith
+  have hE : g * (r * M * (2 * δ ^ 2 + 2 * c ^ 2)) + g * (δ * M * δ ^ 2) + Cd * c * r + c ^ 2 * Cr
+      ≤ 5 * g * M * r ^ 3 + (Cd + Cr) * c * r := by
+    have a1 : 2 * δ ^ 2 + 2 * c ^ 2 ≤ 4 * r ^ 2 := by nlinarith
+    have a2 : δ * δ ^ 2 ≤ r ^ 3 := by
+      have : δ ^ 3 ≤ r ^ 3 := pow_le_pow_left₀ hδ hδr 3
+      nlinarith
+    have a3 : c ^ 2 ≤ c * r := by nlinarith
+    have b1 := mul_le_mul_of_nonneg_left a1 (by positivity : 0 ≤ g * (r * M))
+    have b2 := mul_le_mul_of_nonneg_left a2 (by positivity : 0 ≤ g * M)
+    have b3 := mul_le_mul_of_nonneg_right a3 hCr
+    linarith [b1, b2, b3]
+  have hE0 : 0 ≤ g * (r * M * (2 * δ ^ 2 + 2 * c ^ 2)) + g * (δ * M * δ ^ 2) + Cd * c * r
+      + c ^ 2 * Cr := by positivity
+  have hsq := pow_le_pow_left₀ hE0 hE 2
+  have h2 : (5 * g * M * r ^ 3 + (Cd + Cr) * c * r) ^ 2
+      ≤ 2 * (25 * g ^ 2 * M ^ 2 * (r ^ 2) ^ 3) + 2 * ((Cd + Cr) ^ 2 * c ^ 2 * r ^ 2) := by
+    nlinarith [_root_.sq_nonneg (5 * g * M * r ^ 3 - (Cd + Cr) * c * r)]
+  have hr2 : 0 ≤ r ^ 2 := by positivity
+  have h3 : (r ^ 2) ^ 3 ≤ (K * Λ / N) ^ 3 := pow_le_pow_left₀ hr2 hr 3
+  have h4 : c ^ 2 * r ^ 2 ≤ (M / N) ^ 2 * (K * Λ / N) := by
+    rw [hcd]; exact mul_le_mul_of_nonneg_left hr (by positivity)
+  have hΛ3 : Λ ≤ Λ ^ 3 := by
+    have h1 : 1 ≤ Λ ^ 2 := one_le_pow₀ hΛ
+    have h2 := mul_le_mul_of_nonneg_left h1 (by linarith : (0 : ℝ) ≤ Λ)
+    have e : Λ * Λ ^ 2 = Λ ^ 3 := by ring
+    linarith
+  have e1 : (K * Λ / N) ^ 3 = K ^ 3 * Λ ^ 3 / N ^ 3 := by field_simp
+  have e2 : (M / N) ^ 2 * (K * Λ / N) = M ^ 2 * K * Λ / N ^ 3 := by field_simp
+  have h5 : M ^ 2 * K * Λ / N ^ 3 ≤ M ^ 2 * K * Λ ^ 3 / N ^ 3 := by gcongr
+  rw [e1] at h3; rw [e2] at h4
+  have h6 := mul_le_mul_of_nonneg_left h3 (by positivity : (0 : ℝ) ≤ 2 * (25 * g ^ 2 * M ^ 2))
+  have h7 := mul_le_mul_of_nonneg_left (h4.trans h5) (by positivity : (0 : ℝ) ≤ 2 * (Cd + Cr) ^ 2)
+  have e3 : (50 * g ^ 2 * M ^ 2 * K ^ 3 + 2 * (Cd + Cr) ^ 2 * M ^ 2 * K) * Λ ^ 3 / N ^ 3
+      = 2 * (25 * g ^ 2 * M ^ 2) * (K ^ 3 * Λ ^ 3 / N ^ 3)
+        + 2 * (Cd + Cr) ^ 2 * (M ^ 2 * K * Λ ^ 3 / N ^ 3) := by ring
+  rw [e3]
+  linarith [hsq, h2, h6, h7]
+
+/-- The constant of the comparison part of the closing corollary without self-loops. -/
+noncomputable def DbC (d : ℕ) (σ : ℝ) (n : ℕ) : ℝ :=
+  3 * ((n : ℝ) + 1) ^ 2 * torusM d σ 1 ^ 2
+      * ((3 * ((n : ℝ) + 1) ^ 2 * torusM d σ 1 ^ (n + 1)) ^ 2
+        + (3 * (n : ℝ) ^ 2 * torusM d σ 1 ^ n) ^ 2)
+    + 6 * (50 * gK n ^ 2 * torusM d σ 1 ^ 2 * K1 d σ ^ 3
+      + 2 * (CdetT n (torusM d σ 1) + (2 ^ (n + 1) * torusM d σ 1 ^ (n + 1) + torusM d σ 1)) ^ 2
+        * torusM d σ 1 ^ 2 * K1 d σ)
+
+/-- `BoffNL ≤ N · BoC`. -/
+noncomputable def BoC (d : ℕ) (σ : ℝ) (n : ℕ) : ℝ :=
+  2 + 2 * torusM d σ 1 ^ (n + 1) + ((n : ℝ) + 1) * torusM d σ 1 ^ (n + 2)
+
+/-- The constant of the closing corollary without self-loops, without `v_k`. -/
+noncomputable def rateNL1 (d : ℕ) (σ : ℝ) (n : ℕ) : ℝ := 2 * rateC1 d σ n + DbC d σ n + 6 * BoC d σ n ^ 2
+
+/-- The constant of the closing corollary without self-loops. -/
+noncomputable def rateNC (d : ℕ) (σ : ℝ) (n : ℕ) : ℝ :=
+  VarianceGeneral.vk d σ (n + 1) + 2 * (2 * rateNL1 d σ n)
+
+set_option maxHeartbeats 1000000 in
+theorem DbNL_le {σ : ℝ} (hσ : 0 < σ) (d : ℕ) {N : ℕ} (hN2 : 2 ≤ N) (n : ℕ) :
+    VarianceNoLoops.DbNL d σ N n (deltaN d σ N) ≤ DbC d σ n * (Real.log N + 1) ^ 3 / (N : ℝ) ^ 3 := by
+  have hN2r : (2 : ℝ) ≤ N := by exact_mod_cast hN2
+  have hN1 : (1 : ℝ) ≤ N := by linarith
+  have hNpos : (0 : ℝ) < N := by linarith
+  have hl0 : 0 ≤ Real.log N := Real.log_nonneg (by linarith)
+  obtain ⟨Λ, hΛ⟩ : ∃ Λ : ℝ, Λ = Real.log N + 1 := ⟨_, rfl⟩
+  rw [← hΛ]
+  have hΛ1 : 1 ≤ Λ := by rw [hΛ]; linarith
+  have hΛ3 : 1 ≤ Λ ^ 3 := one_le_pow₀ hΛ1
+  have hM1 := torusM_one_ge hσ d
+  have hM0 : 0 ≤ torusM d σ 1 := by linarith
+  have hK0 := K0_nonneg hσ d
+  have hK1 : 0 ≤ K1 d σ := by unfold K1; positivity
+  have hδ0 := deltaN_nonneg hσ d N
+  have hδ2 := deltaN_sq hσ d hN2
+  rw [← hΛ] at hδ2
+  -- `(δ + c)² ≤ K₁ Λ / N`
+  have hr : (deltaN d σ N + torusM d σ 1 / N) ^ 2 ≤ K1 d σ * Λ / N := by
+    have h1 : (deltaN d σ N + torusM d σ 1 / N) ^ 2
+        ≤ 2 * deltaN d σ N ^ 2 + 2 * (torusM d σ 1 / N) ^ 2 := by
+      nlinarith [_root_.sq_nonneg (deltaN d σ N - torusM d σ 1 / N)]
+    have h2 : (torusM d σ 1 / N) ^ 2 ≤ torusM d σ 1 ^ 2 * Λ / N := by
+      rw [div_pow, div_le_div_iff₀ (by positivity) hNpos]
+      have : (N : ℝ) ≤ Λ * (N : ℝ) ^ 2 := by nlinarith
+      nlinarith [mul_le_mul_of_nonneg_left this (by positivity : (0 : ℝ) ≤ torusM d σ 1 ^ 2)]
+    have e : K1 d σ * Λ / N = 2 * (K0 d σ * Λ / N) + 2 * (torusM d σ 1 ^ 2 * Λ / N) := by
+      unfold K1; ring
+    rw [e]; linarith
+  have hgK := gK_nonneg n
+  have hCd := CdetT_nonneg n hM0
+  have hEb := eb_alg (g := gK n) (M := torusM d σ 1) (Cd := CdetT n (torusM d σ 1))
+    (Cr := 2 ^ (n + 1) * torusM d σ 1 ^ (n + 1) + torusM d σ 1) hgK hM0 hCd (by positivity)
+    hδ0 hN1 rfl hΛ1 hK1 hr
+  have eEb : VarianceNoLoops.EbNL d σ N n (deltaN d σ N) + VarianceNoLoops.RbNL d σ N n
+      = gK n * ((deltaN d σ N + torusM d σ 1 / N) * torusM d σ 1
+          * (2 * deltaN d σ N ^ 2 + 2 * (torusM d σ 1 / N) ^ 2))
+        + gK n * (deltaN d σ N * torusM d σ 1 * deltaN d σ N ^ 2)
+        + CdetT n (torusM d σ 1) * (torusM d σ 1 / N) * (deltaN d σ N + torusM d σ 1 / N)
+        + (torusM d σ 1 / N) ^ 2 * (2 ^ (n + 1) * torusM d σ 1 ^ (n + 1) + torusM d σ 1) := by
+    unfold VarianceNoLoops.EbNL VarianceNoLoops.RbNL; ring
+  -- the first term
+  obtain ⟨P, hP⟩ : ∃ P : ℝ, P = 3 * ((n : ℝ) + 1) ^ 2 * torusM d σ 1 ^ 2
+      * ((3 * ((n : ℝ) + 1) ^ 2 * torusM d σ 1 ^ (n + 1)) ^ 2
+        + (3 * (n : ℝ) ^ 2 * torusM d σ 1 ^ n) ^ 2) := ⟨_, rfl⟩
+  have hP0 : 0 ≤ P := by rw [hP]; positivity
+  have e1 : 3 * ((n : ℝ) + 1) ^ 2 * (torusM d σ 1 / N) ^ 2
+      * ((3 * ((n : ℝ) + 1) ^ 2 * torusM d σ 1 ^ (n + 1) / N) ^ 2
+        + (3 * (n : ℝ) ^ 2 * torusM d σ 1 ^ n / N) ^ 2) = P / (N : ℝ) ^ 4 := by
+    rw [hP]; field_simp
+  have h1 : P / (N : ℝ) ^ 4 ≤ P * Λ ^ 3 / (N : ℝ) ^ 3 := by
+    rw [div_le_div_iff₀ (by positivity) (by positivity)]
+    have h34 : (N : ℝ) ^ 3 ≤ (N : ℝ) ^ 4 := pow_le_pow_right₀ hN1 (by norm_num)
+    have h44 : (N : ℝ) ^ 4 ≤ Λ ^ 3 * (N : ℝ) ^ 4 :=
+      le_mul_of_one_le_left (by positivity) hΛ3
+    have := mul_le_mul_of_nonneg_left (h34.trans h44) hP0
+    linarith
+  unfold VarianceNoLoops.DbNL
+  rw [e1, eEb]
+  have e3 : DbC d σ n * Λ ^ 3 / (N : ℝ) ^ 3 = P * Λ ^ 3 / (N : ℝ) ^ 3
+      + 6 * ((50 * gK n ^ 2 * torusM d σ 1 ^ 2 * K1 d σ ^ 3
+        + 2 * (CdetT n (torusM d σ 1) + (2 ^ (n + 1) * torusM d σ 1 ^ (n + 1) + torusM d σ 1)) ^ 2
+          * torusM d σ 1 ^ 2 * K1 d σ) * Λ ^ 3 / (N : ℝ) ^ 3) := by
+    rw [hP]; unfold DbC; ring
+  rw [e3]
+  linarith
+
+theorem Boff_le {σ : ℝ} (hσ : 0 < σ) (d : ℕ) {N : ℕ} (hN2 : 2 ≤ N) (n : ℕ) :
+    6 * VarianceNoLoops.BoffNL d σ N n ^ 2 * (1 / (N : ℝ) ^ 5)
+      ≤ 6 * BoC d σ n ^ 2 * (Real.log N + 1) ^ 3 / (N : ℝ) ^ 3 := by
+  have hN2r : (2 : ℝ) ≤ N := by exact_mod_cast hN2
+  have hN1 : (1 : ℝ) ≤ N := by linarith
+  have hNpos : (0 : ℝ) < N := by linarith
+  have hl0 : 0 ≤ Real.log N := Real.log_nonneg (by linarith)
+  have hΛ3 : 1 ≤ (Real.log N + 1) ^ 3 := one_le_pow₀ (by linarith)
+  have hM1 := torusM_one_ge hσ d
+  have hb : VarianceNoLoops.BoffNL d σ N n ≤ N * BoC d σ n := by
+    unfold VarianceNoLoops.BoffNL BoC
+    have h1 : 1 ≤ torusM d σ 1 ^ (n + 1) := one_le_pow₀ hM1
+    have h2 : 1 ≤ torusM d σ 1 ^ (n + 2) := one_le_pow₀ hM1
+    have := mul_nonneg (by linarith : 0 ≤ (N : ℝ) - 1)
+      (by positivity : 0 ≤ 2 * torusM d σ 1 ^ (n + 1) + ((n : ℝ) + 1) * torusM d σ 1 ^ (n + 2))
+    linarith
+  have hb0 : 0 ≤ VarianceNoLoops.BoffNL d σ N n := by unfold VarianceNoLoops.BoffNL; positivity
+  have hsq := pow_le_pow_left₀ hb0 hb 2
+  calc 6 * VarianceNoLoops.BoffNL d σ N n ^ 2 * (1 / (N : ℝ) ^ 5)
+      ≤ 6 * (N * BoC d σ n) ^ 2 * (1 / (N : ℝ) ^ 5) := by gcongr
+    _ = 6 * BoC d σ n ^ 2 * 1 / (N : ℝ) ^ 3 := by field_simp
+    _ ≤ 6 * BoC d σ n ^ 2 * (Real.log N + 1) ^ 3 / (N : ℝ) ^ 3 := by gcongr
+
+/-- **Closing corollary WITHOUT self-loops**: under the hypotheses of `variance_noloops_sharp`
+    (`σ > 0`, `N ≥ 2`, `δ_N + m₁/N ≤ 1/8`, `k = n + 1 ≥ 2`):
+    `|Var Tr P°^k - v_k (N-1)/N³| ≤ rateNC · (log N + 1)³ · N^{-5/2}`, `rateNC` depending only on
+    `d`, `σ`, `k`; `o(N⁻²)` against the main term `v_k (N-1)/N³`. -/
+theorem variance_noloops_rate [IsProbabilityMeasure μ] {d : ℕ} (X : ℕ → Ω → FlatTorus d)
+    (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) {σ : ℝ} (hσ : 0 < σ) (N : ℕ) (hN2 : 2 ≤ N)
+    (hu : deltaN d σ N + torusM d σ 1 / N ≤ 1 / 8) (n : ℕ) (hn : 1 ≤ n) :
+    |cv μ (fun ω => ((noloopWalk d σ N (fun j => X j ω)) ^ (n + 1)).trace)
+        - VarianceGeneral.vk d σ (n + 1) * ((N : ℝ) - 1) / (N : ℝ) ^ 3|
+      ≤ rateNC d σ n * (Real.log N + 1) ^ 3 / ((N : ℝ) ^ 2 * Real.sqrt N) := by
+  have hN2r : (2 : ℝ) ≤ N := by exact_mod_cast hN2
+  have hNpos : (0 : ℝ) < N := by linarith
+  have hl0 : 0 ≤ Real.log N := Real.log_nonneg (by linarith)
+  have h := variance_noloops_sharp X h_indep hX hlaw hσ N hN2 hu n hn
+  refine h.trans ?_
+  have hs1 : 1 ≤ Real.sqrt N := by
+    rw [show (1 : ℝ) = Real.sqrt 1 from Real.sqrt_one.symm]
+    exact Real.sqrt_le_sqrt (by linarith)
+  have hsN : Real.sqrt N ^ 2 = N := Real.sq_sqrt (by linarith)
+  have hW : 1 ≤ (Real.log N + 1) ^ 3 := one_le_pow₀ (by linarith)
+  have hW2 : (Real.log N + 1) ^ 2 ≤ (Real.log N + 1) ^ 3 :=
+    pow_le_pow_right₀ (by linarith) (by norm_num)
+  have hC1 : 0 ≤ rateC1 d σ n := by
+    have := K0_nonneg hσ d; have := CQT_nonneg hσ d n; have := Cq_nonneg n
+    have := VarianceGeneral3.cA_nonneg n
+    unfold rateC1; positivity
+  have hDbC : 0 ≤ DbC d σ n := by
+    have := torusM_one_ge hσ d; have := gK_nonneg n
+    have := CdetT_nonneg n (zero_le_one.trans (torusM_one_ge hσ d))
+    have := K0_nonneg hσ d
+    unfold DbC K1; positivity
+  have hc : 0 ≤ rateNL1 d σ n := by unfold rateNL1; positivity
+  have hB := bracket_le hσ d hN2 n
+  have hB' : 2 * rateC1 d σ n * (Real.log N + 1) ^ 2 / (N : ℝ) ^ 3
+      ≤ 2 * rateC1 d σ n * (Real.log N + 1) ^ 3 / (N : ℝ) ^ 3 := by gcongr
+  have hD := DbNL_le hσ d hN2 n
+  have hBo := Boff_le hσ d hN2 n
+  have hX : 4 * ((gK n * deltaN d σ N * torusM d σ 1) ^ 2 * deltaN d σ N ^ 2
+            * (2 * torusM d σ 1 ^ 2 / N) + (N + CQT d σ n) ^ 2 * (1 / (N : ℝ) ^ 5))
+          + 4 * (VarianceGeneral3.Cq n * (VarianceGeneral3.cA n * B4 d σ n ^ 2 / (N : ℝ) ^ 3))
+          + 2 * (VarianceNoLoops.DbNL d σ N n (deltaN d σ N)
+            + 6 * VarianceNoLoops.BoffNL d σ N n ^ 2 * (1 / (N : ℝ) ^ 5))
+      ≤ 2 * rateNL1 d σ n * (Real.log N + 1) ^ 3 / (N : ℝ) ^ 3 := by
+    have e : 2 * rateNL1 d σ n * (Real.log N + 1) ^ 3 / (N : ℝ) ^ 3
+        = 2 * (2 * rateC1 d σ n * (Real.log N + 1) ^ 3 / (N : ℝ) ^ 3)
+          + 2 * (DbC d σ n * (Real.log N + 1) ^ 3 / (N : ℝ) ^ 3)
+          + 2 * (6 * BoC d σ n ^ 2 * (Real.log N + 1) ^ 3 / (N : ℝ) ^ 3) := by
+      unfold rateNL1; ring
+    rw [e]
+    linarith
+  have hc2 : 0 ≤ 2 * rateNL1 d σ n := by linarith
+  have := rate_alg hs1 hsN hW (VarianceGeneral.vk_nonneg d σ (n + 1)) hc2 hX
+  unfold rateNC
+  exact this
+
+end NoLoops
+
+end VarianceSharp
+
 end CTG.Reals2
