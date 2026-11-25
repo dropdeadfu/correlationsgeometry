@@ -32,7 +32,7 @@ def zeta(s, J=200000):
     return float(np.sum(c * j ** (-s)) + tail)
 
 
-def node_energy(n, xi, eps, q):
+def node_energy(n, xi, eps, q, second=False):
     """<h_i> as a function of the first coordinate i/n (the metric depends on x_1 only)."""
     w = int(np.ceil(7.5 * xi * n))
     assert 2 * w + 1 <= n
@@ -48,8 +48,29 @@ def node_energy(n, xi, eps, q):
         else:
             a = 2 * np.pi * q
             mean = (np.sin(a * (x1 + d1)) - np.sin(a * x1)) / (a * d1)
-        fac = (1.0 - eps * mean) ** 2                           # (d / Euclidean length)^2
-        K[:, b] = np.exp(-(d1 ** 2 + r2)[None] * fac[:, None, None] / (2 * xi ** 2))
+        if not second:
+            fac = (1.0 - eps * mean) ** 2                       # (d / Euclidean length)^2, first order
+            K[:, b] = np.exp(-(d1 ** 2 + r2)[None] * fac[:, None, None] / (2 * xi ** 2))
+        else:
+            # distance to second order in eps: length of the straight segment in the metric,
+            # L <1 - Psi - Psi^2/2>, minus the Fermat correction (1/2) int int G grad_perp(n) grad_perp(n)
+            # with the Dirichlet Green function G of -d^2/ds^2; for Psi = eps cos(a x_1) the correction is
+            # eps^2 a^2 r_perp^2 L Q,  Q = int_0^1 int_0^1 v^2 w (1-v) sin(a(x_1+d_1 v w)) sin(a(x_1+d_1 v)) dv dw.
+            a = 2 * np.pi * q
+            if o == 0:
+                mean2 = np.cos(a * x1) ** 2
+            else:
+                mean2 = 0.5 + (np.sin(2 * a * (x1 + d1)) - np.sin(2 * a * x1)) / (4 * a * d1)
+            gv, gw = np.polynomial.legendre.leggauss(12)
+            gv = 0.5 * (gv + 1); gw = 0.5 * gw
+            V, Wq = np.meshgrid(gv, gv, indexing='ij')
+            wt = np.outer(gw, gw) * V ** 2 * Wq * (1 - V)
+            Q = np.einsum('vw,ivw->i', wt, np.sin(a * (x1[:, None, None] + d1 * V * Wq))
+                          * np.sin(a * (x1[:, None, None] + d1 * V)))
+            Lr = np.sqrt(d1 ** 2 + r2)[None]
+            lin = (1.0 - eps * mean - 0.5 * eps ** 2 * mean2)[:, None, None]
+            d = Lr * lin - eps ** 2 * a ** 2 * r2[None] * Lr * Q[:, None, None]
+            K[:, b] = np.exp(-d ** 2 / (2 * xi ** 2))
     idx = (np.arange(n)[:, None] + off[None, :]) % n            # neighbour index in direction 1
     qn = K.sum(axis=(1, 2, 3))
     W = K / (qn[:, None, None, None] * qn[idx][:, :, None, None])
@@ -96,6 +117,22 @@ def main():
         bl2 = (cq + 3 * rho_meas) / (4 * (2 * np.pi * q) ** 2)
         print(f" {q}   {(2 * np.pi * q * xi) ** 2:9.4f}   {cq:12.6g}   {-3 * rho_eff:12.6g}   {bl:12.6g}"
               f"   {bl / b_R:8.4f}   {bl2 / b_R:8.4f}   (non-cosine part of the response: {np.abs(res).max() * n ** 3:.2e})")
+    # second order: total energy.  A local covariant energy  int sqrt(g)(rho_eff - b R)  gives
+    #   (mean_i <h_i>(eps) - <h>(0)) n^3 / eps^2 = (3/4) rho - b_int (2 pi q)^2 ;  gamma = b_loc / b_int.
+    print()
+    print("second order (total energy), Richardson in eps = 0.02, 0.04:")
+    print(" q   E2 = d^2E/d eps^2 /2 * n^3     (3/4) rho (measured flat)    b_int(q)     b_int/b_R    b_loc/b_R    gamma(q) = b_loc/b_int")
+    for q in (1, 2, 3):
+        vals = []
+        for e in (0.02, 0.04):
+            vals.append((node_energy(n, xi, e, q, second=True).mean() - e0.mean()) * n ** 3 / e ** 2)
+        E2 = (4 * vals[0] - vals[1]) / 3
+        b_int = (0.75 * rho_meas - E2) / (2 * np.pi * q) ** 2
+        de = (node_energy(n, xi, eps, q) - node_energy(n, xi, -eps, q)) / (2 * eps)
+        cq = 2 * np.mean(de * np.cos(2 * np.pi * q * x1)) * n ** 3
+        bl2 = (cq + 3 * rho_meas) / (4 * (2 * np.pi * q) ** 2)
+        print(f" {q}   {E2:14.6f} ({vals[0]:.4f}, {vals[1]:.4f})   {0.75 * rho_meas:12.4f}   {b_int:10.5f}   {b_int / b_R:8.4f}"
+              f"   {bl2 / b_R:8.4f}   {bl2 / b_int:8.4f}")
 
 
 if __name__ == "__main__":
