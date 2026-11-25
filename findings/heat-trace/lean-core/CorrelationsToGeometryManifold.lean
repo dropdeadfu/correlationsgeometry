@@ -415,4 +415,421 @@ theorem kernel_two_times_zero (s : Set ℝ) (hs : Convex ℝ s)
     le_antisymm hhi ENNReal.toReal_nonneg
   rw [this, hzero]
 
+
+/-! ### Comparability of two continuous metrics on a compact base (block A109)
+
+General vector-bundle form: `V` is a continuous Riemannian bundle (Mathlib's
+`IsContinuousRiemannianBundle`), `g` a second family of bilinear forms on the fibres that depends
+continuously on the base point (as a section of the hom bundle).  On a compact base `g` is bounded
+by a constant times the bundle norm, and if `g` is positive definite and the model fibre is
+finite-dimensional, it is bounded below by a positive constant times the bundle norm. -/
+
+section Comparability
+
+open Filter ContinuousLinearMap
+
+/- The scoped instance `NormedAddCommGroup` of `RiemannianBundle` (active because the file opens
+`Bundle`) makes instance search on spaces of bilinear maps time out in this general section; it is
+not needed here (the fibres carry their own norm), so it is switched off locally. -/
+attribute [-instance]
+  Bundle.instNormedAddCommGroupOfRiemannianBundleOfIsTopologicalAddGroupOfContinuousConstSMulReal
+
+/-- A property `P y C`, monotone in the constant `C`, that holds locally with some constant, holds
+globally with one constant on a compact space. -/
+theorem compact_bound {X : Type*} [TopologicalSpace X] [CompactSpace X] (P : X → ℝ → Prop)
+    (hmono : ∀ y C C', C ≤ C' → P y C → P y C') (hloc : ∀ x, ∃ C, ∀ᶠ y in 𝓝 x, P y C) :
+    ∃ C, ∀ y, P y C := by
+  choose C hC using hloc
+  obtain ⟨t, ht⟩ := CompactSpace.elim_nhds_subcover (fun x => {y | P y (C x)}) hC
+  refine ⟨∑ x ∈ t, |C x|, fun y => ?_⟩
+  have hy : y ∈ ⋃ x ∈ t, {y | P y (C x)} := by rw [ht]; trivial
+  simp only [Set.mem_iUnion] at hy
+  obtain ⟨x, hx, hPy⟩ := hy
+  exact hmono y _ _ ((le_abs_self _).trans
+    (Finset.single_le_sum (f := fun i => |C i|) (fun i _ => abs_nonneg (C i)) hx)) hPy
+
+/-- A positive definite continuous bilinear form on a finite-dimensional space is bounded below by
+a positive multiple of the squared norm. -/
+theorem quad_lower {F : Type*} [NormedAddCommGroup F] [NormedSpace ℝ F] [FiniteDimensional ℝ F]
+    (b : F →L[ℝ] F →L[ℝ] ℝ) (hb : ∀ w, w ≠ 0 → 0 < b w w) :
+    ∃ μ > 0, ∀ w, μ * ‖w‖ ^ 2 ≤ b w w := by
+  have hq : Continuous fun w => b w w := by fun_prop
+  have hne : ∀ w ∈ Metric.sphere (0 : F) 1, b w w ≠ 0 := fun w hw => by
+    have : w ≠ 0 := by
+      intro h; rw [h, mem_sphere_zero_iff_norm, norm_zero] at hw; exact zero_ne_one hw
+    exact (hb w this).ne'
+  obtain ⟨K, hK⟩ := (isCompact_sphere (0 : F) 1).exists_bound_of_continuousOn
+    (hq.continuousOn.inv₀ hne)
+  refine ⟨(max K 1)⁻¹, by positivity, fun w => ?_⟩
+  rcases eq_or_ne w 0 with rfl | hw
+  · simp
+  have hn : 0 < ‖w‖ := norm_pos_iff.mpr hw
+  set u : F := ‖w‖⁻¹ • w with hu
+  have hus : u ∈ Metric.sphere (0 : F) 1 := by
+    rw [mem_sphere_zero_iff_norm, hu, norm_smul, norm_inv, norm_norm, inv_mul_cancel₀ hn.ne']
+  have hu0 : u ≠ 0 := by
+    intro h; rw [h, mem_sphere_zero_iff_norm, norm_zero] at hus; exact zero_ne_one hus
+  have hpos := hb u hu0
+  have h1 : (b u u)⁻¹ ≤ max K 1 := by
+    have := hK u hus
+    rw [Real.norm_eq_abs, abs_of_pos (inv_pos.mpr hpos)] at this
+    exact this.trans (le_max_left _ _)
+  have h2 : (max K 1)⁻¹ ≤ b u u := inv_le_of_inv_le₀ hpos h1
+  have hw' : w = ‖w‖ • u := by rw [hu, smul_smul, mul_inv_cancel₀ hn.ne', one_smul]
+  have h3 : b w w = ‖w‖ ^ 2 * b u u := by
+    calc b w w = b (‖w‖ • u) (‖w‖ • u) := by rw [← hw']
+      _ = ‖w‖ ^ 2 * b u u := by simp only [map_smul, smul_apply, smul_eq_mul]; ring
+  rw [h3]
+  have := mul_le_mul_of_nonneg_left h2 (sq_nonneg ‖w‖)
+  linarith
+
+variable {B : Type*} [TopologicalSpace B]
+  {F : Type*} [NormedAddCommGroup F] [NormedSpace ℝ F]
+  {V : B → Type*} [TopologicalSpace (TotalSpace F V)] [∀ x, NormedAddCommGroup (V x)]
+  [∀ x, InnerProductSpace ℝ (V x)] [FiberBundle F V] [VectorBundle ℝ F V]
+
+/-- A bilinear form on the fibre over `y` read in the trivialisation at `x`. -/
+theorem bilin_inCoordinates (g : ∀ x, V x →L[ℝ] V x →L[ℝ] ℝ) (x y : B)
+    (hy : y ∈ (trivializationAt F V x).baseSet) (v w : V y) :
+    g y v w = inCoordinates F V (F →L[ℝ] ℝ) (fun x ↦ V x →L[ℝ] ℝ) x y x y (g y)
+      ((trivializationAt F V x).continuousLinearMapAt ℝ y v)
+      ((trivializationAt F V x).continuousLinearMapAt ℝ y w) := by
+  rw [inCoordinates_apply_eq₂ hy hy (Set.mem_univ _)]
+  have A : ∀ u : V y,
+      ((trivializationAt F V x).symm y) ((trivializationAt F V x).linearMapAt ℝ y u) = u := by
+    intro u
+    convert ((trivializationAt F V x).continuousLinearEquivAt ℝ _ hy).symm_apply_apply u
+    rw [Trivialization.coe_continuousLinearEquivAt_eq _ hy]
+    rfl
+  simp [A]
+
+theorem triv_symm_apply (x y : B) (hy : y ∈ (trivializationAt F V x).baseSet) (u : V y) :
+    (trivializationAt F V x).symmL ℝ y ((trivializationAt F V x).continuousLinearMapAt ℝ y u)
+      = u := by
+  simp only [Trivialization.symmL_apply, Trivialization.continuousLinearMapAt_apply]
+  convert ((trivializationAt F V x).continuousLinearEquivAt ℝ _ hy).symm_apply_apply u
+  rw [Trivialization.coe_continuousLinearEquivAt_eq _ hy]
+  rfl
+
+theorem triv_apply_symm (x y : B) (hy : y ∈ (trivializationAt F V x).baseSet) (w : F) :
+    (trivializationAt F V x).continuousLinearMapAt ℝ y ((trivializationAt F V x).symmL ℝ y w)
+      = w := by
+  simp only [Trivialization.continuousLinearMapAt_apply, Trivialization.symmL_apply]
+  convert ((trivializationAt F V x).continuousLinearEquivAt ℝ _ hy).apply_symm_apply w
+  rw [Trivialization.coe_continuousLinearEquivAt_eq _ hy]
+  rfl
+
+variable [IsContinuousRiemannianBundle F V]
+
+/-- Local upper bound of a continuous family of bilinear forms against the bundle norm. -/
+theorem local_bilin_upper (g : ∀ x, V x →L[ℝ] V x →L[ℝ] ℝ)
+    (hg : Continuous (fun x ↦ TotalSpace.mk' (F →L[ℝ] F →L[ℝ] ℝ) x (g x))) (x : B) :
+    ∃ C, ∀ᶠ y in 𝓝 x, ∀ v w : V y, |g y v w| ≤ C * ‖v‖ * ‖w‖ := by
+  obtain ⟨C, hC0, hC⟩ := eventually_norm_trivializationAt_lt F V x
+  let g' : B → F →L[ℝ] F →L[ℝ] ℝ := fun y ↦
+    inCoordinates F V (F →L[ℝ] ℝ) (fun x ↦ V x →L[ℝ] ℝ) x y x y (g y)
+  have hg' : ContinuousAt g' x := by
+    have W := hg.continuousAt (x := x)
+    simp only [continuousAt_hom_bundle] at W
+    exact W.2
+  have hev : ∀ᶠ y in 𝓝 x, dist (g' y) (g' x) < 1 :=
+    hg' (Metric.ball_mem_nhds (g' x) one_pos)
+  refine ⟨(‖g' x‖ + 1) * C * C, ?_⟩
+  filter_upwards [hC, hev, (trivializationAt F V x).open_baseSet.mem_nhds
+    (FiberBundle.mem_baseSet_trivializationAt' x)] with y hy1 hy2 hy3 v w
+  rw [bilin_inCoordinates g x y hy3 v w]
+  set a := (trivializationAt F V x).continuousLinearMapAt ℝ y v with ha
+  set b := (trivializationAt F V x).continuousLinearMapAt ℝ y w with hb
+  have h1 : ‖a‖ ≤ C * ‖v‖ :=
+    (le_opNorm _ _).trans (mul_le_mul_of_nonneg_right hy1.le (norm_nonneg _))
+  have h2 : ‖b‖ ≤ C * ‖w‖ :=
+    (le_opNorm _ _).trans (mul_le_mul_of_nonneg_right hy1.le (norm_nonneg _))
+  have hd : ‖g' y - g' x‖ ≤ 1 := by
+    have h := hy2.le
+    rw [dist_eq_norm (E := F →L[ℝ] F →L[ℝ] ℝ)] at h
+    exact h
+  have e1 : g' y a b = (g' y - g' x) a b + g' x a b := by simp
+  have e2 : |(g' y - g' x) a b| ≤ ‖g' y - g' x‖ * ‖a‖ * ‖b‖ := by
+    rw [← Real.norm_eq_abs]; exact le_opNorm₂ _ _ _
+  have e3 : |g' x a b| ≤ ‖g' x‖ * ‖a‖ * ‖b‖ := by
+    rw [← Real.norm_eq_abs]; exact le_opNorm₂ _ _ _
+  have e4 : ‖g' y - g' x‖ * ‖a‖ * ‖b‖ ≤ 1 * ‖a‖ * ‖b‖ :=
+    mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_right hd (norm_nonneg _)) (norm_nonneg _)
+  have hab : ‖a‖ * ‖b‖ ≤ (C * ‖v‖) * (C * ‖w‖) :=
+    mul_le_mul h1 h2 (norm_nonneg _) (by positivity)
+  have hg0 : 0 ≤ ‖g' x‖ + 1 := by positivity
+  have e5 := mul_le_mul_of_nonneg_left hab hg0
+  rw [e1]
+  calc |(g' y - g' x) a b + g' x a b| ≤ |(g' y - g' x) a b| + |g' x a b| := abs_add_le _ _
+    _ ≤ (‖g' x‖ + 1) * (‖a‖ * ‖b‖) := by nlinarith
+    _ ≤ (‖g' x‖ + 1) * ((C * ‖v‖) * (C * ‖w‖)) := e5
+    _ = (‖g' x‖ + 1) * C * C * ‖v‖ * ‖w‖ := by ring
+
+/-- COMPARABILITY, upper half: on a compact base, a continuous family of bilinear forms on the
+fibres of a continuous Riemannian bundle is bounded by a constant times the bundle norm. -/
+theorem bilin_upper [CompactSpace B] (g : ∀ x, V x →L[ℝ] V x →L[ℝ] ℝ)
+    (hg : Continuous (fun x ↦ TotalSpace.mk' (F →L[ℝ] F →L[ℝ] ℝ) x (g x))) :
+    ∃ C, ∀ y (v w : V y), |g y v w| ≤ C * ‖v‖ * ‖w‖ :=
+  compact_bound (fun y C => ∀ v w : V y, |g y v w| ≤ C * ‖v‖ * ‖w‖)
+    (fun y C C' hCC' h v w => (h v w).trans (by gcongr)) (local_bilin_upper g hg)
+
+/-- Local lower bound for a positive definite continuous family (finite-dimensional fibres). -/
+theorem local_bilin_lower [FiniteDimensional ℝ F] (g : ∀ x, V x →L[ℝ] V x →L[ℝ] ℝ)
+    (hg : Continuous (fun x ↦ TotalSpace.mk' (F →L[ℝ] F →L[ℝ] ℝ) x (g x)))
+    (hpos : ∀ y (v : V y), v ≠ 0 → 0 < g y v v) (x : B) :
+    ∃ K, ∀ᶠ y in 𝓝 x, ∀ v : V y, ‖v‖ ^ 2 ≤ K * g y v v := by
+  have h'x : x ∈ (trivializationAt F V x).baseSet := FiberBundle.mem_baseSet_trivializationAt' x
+  obtain ⟨C, hC0, hC⟩ := eventually_norm_symmL_trivializationAt_lt F V x
+  let g' : B → F →L[ℝ] F →L[ℝ] ℝ := fun y ↦
+    inCoordinates F V (F →L[ℝ] ℝ) (fun x ↦ V x →L[ℝ] ℝ) x y x y (g y)
+  have hg' : ContinuousAt g' x := by
+    have W := hg.continuousAt (x := x)
+    simp only [continuousAt_hom_bundle] at W
+    exact W.2
+  have hbpos : ∀ w : F, w ≠ 0 → 0 < g' x w w := by
+    intro w hw
+    have e := bilin_inCoordinates g x x h'x ((trivializationAt F V x).symmL ℝ x w)
+      ((trivializationAt F V x).symmL ℝ x w)
+    rw [triv_apply_symm x x h'x] at e
+    have hne : (trivializationAt F V x).symmL ℝ x w ≠ 0 := by
+      intro h0; apply hw
+      have := triv_apply_symm (V := V) x x h'x w
+      rw [h0, map_zero] at this; exact this.symm
+    have := hpos x _ hne
+    rw [e] at this; exact this
+  obtain ⟨μ, hμ, hμb⟩ := quad_lower (g' x) hbpos
+  have hev : ∀ᶠ y in 𝓝 x, dist (g' y) (g' x) < μ / 2 :=
+    hg' (Metric.ball_mem_nhds (g' x) (by positivity))
+  refine ⟨C ^ 2 * (2 / μ), ?_⟩
+  filter_upwards [hC, hev, (trivializationAt F V x).open_baseSet.mem_nhds h'x] with y hy1 hy2 hy3 v
+  set w := (trivializationAt F V x).continuousLinearMapAt ℝ y v with hw
+  have hv : ‖v‖ ≤ C * ‖w‖ := by
+    have e := triv_symm_apply x y hy3 v
+    calc ‖v‖ = ‖(trivializationAt F V x).symmL ℝ y w‖ := by rw [e]
+      _ ≤ ‖(trivializationAt F V x).symmL ℝ y‖ * ‖w‖ := le_opNorm _ _
+      _ ≤ C * ‖w‖ := mul_le_mul_of_nonneg_right hy1.le (norm_nonneg _)
+  have hgv : g y v v = g' y w w := bilin_inCoordinates g x y hy3 v v
+  have hd : ‖g' y - g' x‖ ≤ μ / 2 := by
+    have h := hy2.le
+    rw [dist_eq_norm (E := F →L[ℝ] F →L[ℝ] ℝ)] at h
+    exact h
+  have hlow : μ / 2 * ‖w‖ ^ 2 ≤ g' y w w := by
+    have e1 : g' y w w = (g' y - g' x) w w + g' x w w := by simp
+    have e2 : |(g' y - g' x) w w| ≤ ‖g' y - g' x‖ * ‖w‖ * ‖w‖ := by
+      rw [← Real.norm_eq_abs]; exact le_opNorm₂ _ _ _
+    have e3 : ‖g' y - g' x‖ * ‖w‖ * ‖w‖ ≤ μ / 2 * ‖w‖ ^ 2 := by
+      rw [pow_two, ← mul_assoc]
+      exact mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_right hd (norm_nonneg _))
+        (norm_nonneg _)
+    have := neg_abs_le ((g' y - g' x) w w)
+    have := hμb w
+    linarith
+  rw [hgv]
+  have hv2 : ‖v‖ ^ 2 ≤ C ^ 2 * ‖w‖ ^ 2 := by
+    rw [← mul_pow]; exact pow_le_pow_left₀ (norm_nonneg _) hv 2
+  have hw2 : ‖w‖ ^ 2 ≤ 2 / μ * g' y w w := by
+    rw [div_mul_eq_mul_div, le_div_iff₀ hμ]; linarith
+  calc ‖v‖ ^ 2 ≤ C ^ 2 * ‖w‖ ^ 2 := hv2
+    _ ≤ C ^ 2 * (2 / μ * g' y w w) := by gcongr
+    _ = C ^ 2 * (2 / μ) * g' y w w := by ring
+
+/-- COMPARABILITY, lower half: on a compact base, with finite-dimensional model fibre, a positive
+definite continuous family of bilinear forms is bounded below by a positive constant times the
+squared bundle norm. -/
+theorem bilin_lower [CompactSpace B] [FiniteDimensional ℝ F] (g : ∀ x, V x →L[ℝ] V x →L[ℝ] ℝ)
+    (hg : Continuous (fun x ↦ TotalSpace.mk' (F →L[ℝ] F →L[ℝ] ℝ) x (g x)))
+    (hpos : ∀ y (v : V y), v ≠ 0 → 0 < g y v v) :
+    ∃ c > 0, ∀ y (v : V y), c * ‖v‖ ^ 2 ≤ g y v v := by
+  have hnn : ∀ y (v : V y), 0 ≤ g y v v := fun y v => by
+    rcases eq_or_ne v 0 with rfl | hv
+    · simp
+    · exact (hpos y v hv).le
+  obtain ⟨K, hK⟩ := compact_bound (fun y K => ∀ v : V y, ‖v‖ ^ 2 ≤ K * g y v v)
+    (fun y K K' hKK' h v => (h v).trans (mul_le_mul_of_nonneg_right hKK' (hnn y v)))
+    (local_bilin_lower g hg hpos)
+  refine ⟨(max K 1)⁻¹, by positivity, fun y v => ?_⟩
+  have h1 : ‖v‖ ^ 2 ≤ max K 1 * g y v v :=
+    (hK y v).trans (mul_le_mul_of_nonneg_right (le_max_left _ _) (hnn y v))
+  rw [inv_mul_le_iff₀ (by positivity)]
+  exact h1
+
+end Comparability
+
+/-! ### The tangent bundle: a second continuous metric against the Riemannian bundle (block A109)
+
+`quadENorm g` is the family of norms `‖v‖_g = (g_x(v,v))^{1/2}` of a family of bilinear forms
+`g` on the tangent spaces.  On a compact manifold whose tangent bundle is a continuous Riemannian
+bundle, a continuous `g` (as a section of the hom bundle) is dominated by a multiple of the bundle
+norm; if `g` is positive definite and the model space is finite-dimensional, it also dominates a
+multiple of the bundle norm.  Hence the hypothesis of `riemannianEDist_ne_top_of_le` and of the
+two-sided comparison hold with explicit (non-computed) constants. -/
+
+section TangentComparability
+
+/-- The family of extended norms `v ↦ (g_x(v,v))^{1/2}` defined by bilinear forms on the tangent
+spaces (the square root of a negative number is `0` in Mathlib). -/
+def quadENorm (g : ∀ x : M, TangentSpace I x →L[ℝ] TangentSpace I x →L[ℝ] ℝ) (x : M) :
+    ENorm (TangentSpace I x) :=
+  ⟨fun v => ENNReal.ofReal (Real.sqrt (g x v v))⟩
+
+variable {M' : Type*} [PseudoEMetricSpace M'] [ChartedSpace H M'] [IsManifold I 1 M']
+  [RiemannianBundle (fun (x : M') ↦ TangentSpace I x)]
+  [IsContinuousRiemannianBundle E (fun (x : M') ↦ TangentSpace I x)]
+
+/-- Upper comparability on a compact manifold: `‖v‖_g ≤ c ‖v‖` with `0 < c < ∞`. -/
+theorem quadENorm_le_bundle [CompactSpace M']
+    (g : ∀ x : M', TangentSpace I x →L[ℝ] TangentSpace I x →L[ℝ] ℝ)
+    (hg : Continuous (fun x ↦ TotalSpace.mk' (E →L[ℝ] E →L[ℝ] ℝ) x (g x))) :
+    ∃ c : ℝ≥0∞, c ≠ 0 ∧ c ≠ ⊤ ∧ ∀ (x : M') (v : TangentSpace I x),
+      @enorm _ (quadENorm g x) v ≤ c * @enorm _ SeminormedAddGroup.toContinuousENorm.toENorm v := by
+  obtain ⟨C, hC⟩ := bilin_upper (V := fun x : M' ↦ TangentSpace I x) g hg
+  refine ⟨ENNReal.ofReal (Real.sqrt (max C 1)), by simp, ENNReal.ofReal_ne_top, fun x v => ?_⟩
+  show ENNReal.ofReal (Real.sqrt (g x v v)) ≤ _
+  rw [← ofReal_norm_eq_enorm, ← ENNReal.ofReal_mul (Real.sqrt_nonneg _)]
+  apply ENNReal.ofReal_le_ofReal
+  have h1 : g x v v ≤ max C 1 * ‖v‖ ^ 2 := by
+    have := (le_abs_self _).trans (hC x v v)
+    have h2 : C * ‖v‖ * ‖v‖ ≤ max C 1 * ‖v‖ * ‖v‖ := by gcongr; exact le_max_left _ _
+    nlinarith
+  calc Real.sqrt (g x v v) ≤ Real.sqrt (max C 1 * ‖v‖ ^ 2) := Real.sqrt_le_sqrt h1
+    _ = Real.sqrt (max C 1) * ‖v‖ := by
+      rw [Real.sqrt_mul (by positivity), Real.sqrt_sq (norm_nonneg _)]
+
+/-- Lower comparability on a compact manifold with finite-dimensional model space, for positive
+definite `g`: `‖v‖ ≤ c ‖v‖_g` with `0 < c < ∞`. -/
+theorem bundle_le_quadENorm [CompactSpace M'] [FiniteDimensional ℝ E]
+    (g : ∀ x : M', TangentSpace I x →L[ℝ] TangentSpace I x →L[ℝ] ℝ)
+    (hg : Continuous (fun x ↦ TotalSpace.mk' (E →L[ℝ] E →L[ℝ] ℝ) x (g x)))
+    (hpos : ∀ (x : M') (v : TangentSpace I x), v ≠ 0 → 0 < g x v v) :
+    ∃ c : ℝ≥0∞, c ≠ 0 ∧ c ≠ ⊤ ∧ ∀ (x : M') (v : TangentSpace I x),
+      @enorm _ SeminormedAddGroup.toContinuousENorm.toENorm v ≤ c * @enorm _ (quadENorm g x) v := by
+  obtain ⟨c, hc, hcb⟩ := bilin_lower (V := fun x : M' ↦ TangentSpace I x) g hg hpos
+  refine ⟨ENNReal.ofReal (Real.sqrt c⁻¹), by simp [hc], ENNReal.ofReal_ne_top, fun x v => ?_⟩
+  show _ ≤ _ * ENNReal.ofReal (Real.sqrt (g x v v))
+  rw [← ofReal_norm_eq_enorm, ← ENNReal.ofReal_mul (Real.sqrt_nonneg _)]
+  apply ENNReal.ofReal_le_ofReal
+  rw [← Real.sqrt_mul (by positivity)]
+  have h1 : ‖v‖ ^ 2 ≤ c⁻¹ * g x v v := by
+    rw [le_inv_mul_iff₀ hc]; exact hcb x v
+  calc ‖v‖ = Real.sqrt (‖v‖ ^ 2) := (Real.sqrt_sq (norm_nonneg _)).symm
+    _ ≤ Real.sqrt (c⁻¹ * g x v v) := Real.sqrt_le_sqrt h1
+
+/-- Finiteness of the distance of a second continuous metric on a compact connected Riemannian
+manifold (Mathlib's `IsRiemannianManifold`). -/
+theorem quadENorm_riemannianEDist_ne_top [CompactSpace M'] [PreconnectedSpace M']
+    [IsRiemannianManifold I M']
+    (g : ∀ x : M', TangentSpace I x →L[ℝ] TangentSpace I x →L[ℝ] ℝ)
+    (hg : Continuous (fun x ↦ TotalSpace.mk' (E →L[ℝ] E →L[ℝ] ℝ) x (g x))) (x y : M') :
+    (letI := quadENorm g; Manifold.riemannianEDist I x y) ≠ ⊤ := by
+  obtain ⟨c, hc0, hc, h⟩ := quadENorm_le_bundle g hg
+  exact riemannianEDist_ne_top_of_le (quadENorm g) c hc0 hc h x y
+
+/-- Two-sided comparison of the distances: `d_g ≤ c₁ d` and `d ≤ c₂ d_g` with `0 < c₁, c₂ < ∞`,
+for a positive definite continuous `g` on a compact manifold with finite-dimensional model. -/
+theorem quadENorm_riemannianEDist_comparable [CompactSpace M'] [FiniteDimensional ℝ E]
+    (g : ∀ x : M', TangentSpace I x →L[ℝ] TangentSpace I x →L[ℝ] ℝ)
+    (hg : Continuous (fun x ↦ TotalSpace.mk' (E →L[ℝ] E →L[ℝ] ℝ) x (g x)))
+    (hpos : ∀ (x : M') (v : TangentSpace I x), v ≠ 0 → 0 < g x v v) :
+    ∃ c₁ c₂ : ℝ≥0∞, c₁ ≠ 0 ∧ c₁ ≠ ⊤ ∧ c₂ ≠ 0 ∧ c₂ ≠ ⊤ ∧ ∀ x y : M',
+      (letI := quadENorm g; Manifold.riemannianEDist I x y)
+          ≤ c₁ * Manifold.riemannianEDist I x y ∧
+      Manifold.riemannianEDist I x y
+          ≤ c₂ * (letI := quadENorm g; Manifold.riemannianEDist I x y) := by
+  obtain ⟨c₁, h10, h1t, h1⟩ := quadENorm_le_bundle g hg
+  obtain ⟨c₂, h20, h2t, h2⟩ := bundle_le_quadENorm g hg hpos
+  refine ⟨c₁, c₂, h10, h1t, h20, h2t, fun x y => ⟨?_, ?_⟩⟩
+  · exact riemannianEDist_le_mul (I := I) (M := M')
+      (fun x => SeminormedAddGroup.toContinuousENorm.toENorm) (quadENorm g) c₁ h10 h1t h1 x y
+  · exact riemannianEDist_le_mul (I := I) (M := M')
+      (quadENorm g) (fun x => SeminormedAddGroup.toContinuousENorm.toENorm) c₂ h20 h2t h2 x y
+
+end TangentComparability
+
+/-! ### A time-dependent metric as an object (block A109)
+
+`TimeMetric I M s` packages a family `τ ↦ g_τ` of positive definite bilinear forms on the tangent
+spaces, for times `τ` in a convex set `s`, with a derivative in `τ` of the quadratic forms and the
+bound `|∂_τ g_τ(v,v)| ≤ 2κ g_τ(v,v)` (`∂_τ h_τ = 2K_τ`, `|K_τ(v,v)| ≤ κ h_τ(v,v)`).  The hypotheses
+`hn`, `hcase` of the earlier statements hold automatically for it. -/
+
+variable (I M) in
+/-- A time-dependent family of positive definite bilinear forms on the tangent spaces with
+`|∂_τ g_τ(v,v)| ≤ 2κ g_τ(v,v)` on a convex set of times.  No continuity in the base point is
+required here (it enters only for finiteness, `TimeMetric.riemannianEDist_ne_top`). -/
+structure TimeMetric (s : Set ℝ) where
+  /-- The metric at time `τ`. -/
+  g : ℝ → ∀ x : M, TangentSpace I x →L[ℝ] TangentSpace I x →L[ℝ] ℝ
+  /-- The time derivative of the quadratic form `τ ↦ g τ x v v`. -/
+  g' : ℝ → (x : M) → TangentSpace I x → ℝ
+  /-- The constant in `|∂_τ g| ≤ 2κ g`. -/
+  κ : ℝ
+  κ_nonneg : 0 ≤ κ
+  convex : Convex ℝ s
+  pos : ∀ τ ∈ s, ∀ (x : M) (v : TangentSpace I x), v ≠ 0 → 0 < g τ x v v
+  deriv : ∀ τ ∈ s, ∀ (x : M) (v : TangentSpace I x),
+    HasDerivWithinAt (fun u => g u x v v) (g' τ x v) s τ
+  bound : ∀ τ ∈ s, ∀ (x : M) (v : TangentSpace I x), |g' τ x v| ≤ 2 * κ * g τ x v v
+
+namespace TimeMetric
+
+variable {s : Set ℝ} (G : TimeMetric I M s)
+
+/-- The family of norms at time `τ`. -/
+def norms (τ : ℝ) (x : M) : ENorm (TangentSpace I x) := quadENorm (G.g τ) x
+
+theorem hcase (x : M) (v : TangentSpace I x) :
+    (∀ τ ∈ s, G.g τ x v v = 0) ∨ (∀ τ ∈ s, 0 < G.g τ x v v) := by
+  rcases eq_or_ne v 0 with rfl | hv
+  · left; intro τ _; simp
+  · right; intro τ hτ; exact G.pos τ hτ x v hv
+
+/-- Comparison of the distances at two times: `d_b ≤ e^{κ|b−a|} d_a`. -/
+theorem riemannianEDist_le {a b : ℝ} (ha : a ∈ s) (hb : b ∈ s) (p q : M) :
+    (letI := G.norms b; Manifold.riemannianEDist I p q)
+      ≤ ENNReal.ofReal (Real.exp (G.κ * |b - a|))
+          * (letI := G.norms a; Manifold.riemannianEDist I p q) :=
+  riemannianEDist_time_on s G.convex G.norms (fun τ x v => G.g τ x v v) G.g' G.κ
+    (fun _ _ _ _ => rfl) G.hcase G.deriv G.bound ha hb p q
+
+/-- `riemannianDist_lipschitz_time` for a `TimeMetric`. -/
+theorem lipschitz {a b : ℝ} (ha : a ∈ s) (hb : b ∈ s) (p q : M)
+    (hfin : (letI := G.norms a; Manifold.riemannianEDist I p q) ≠ ⊤) :
+    |(letI := G.norms b; Manifold.riemannianEDist I p q).toReal
+        - (letI := G.norms a; Manifold.riemannianEDist I p q).toReal|
+      ≤ (Real.exp (G.κ * |b - a|) - 1) * (letI := G.norms a; Manifold.riemannianEDist I p q).toReal :=
+  riemannianDist_lipschitz_time s G.convex G.norms (fun τ x v => G.g τ x v v) G.g' G.κ G.κ_nonneg
+    (fun _ _ _ _ => rfl) G.hcase G.deriv G.bound ha hb p q hfin
+
+/-- `kernel_two_times` for a `TimeMetric`. -/
+theorem kernel {a b : ℝ} (ha : a ∈ s) (hb : b ∈ s) (hab : G.κ * |b - a| ≤ 1) (p q : M)
+    (hfin : (letI := G.norms a; Manifold.riemannianEDist I p q) ≠ ⊤)
+    (hpos : 0 < (letI := G.norms a; Manifold.riemannianEDist I p q).toReal)
+    (h h' : ℝ → ℝ) (A ξ : ℝ) (hA : 0 ≤ A) (hξ : 0 < ξ)
+    (hder : ∀ t, HasDerivAt h (h' t) t) (hbd : ∀ t, 0 ≤ t → |h' t| ≤ A * Real.exp (-t)) :
+    |h ((letI := G.norms b; Manifold.riemannianEDist I p q).toReal / ξ)
+        - h ((letI := G.norms a; Manifold.riemannianEDist I p q).toReal / ξ)|
+      ≤ 2 * (G.κ * |b - a|) * A * ((letI := G.norms a; Manifold.riemannianEDist I p q).toReal / ξ)
+        * Real.exp (-((letI := G.norms a; Manifold.riemannianEDist I p q).toReal / ξ
+            * Real.exp (-1))) :=
+  kernel_two_times s G.convex G.norms (fun τ x v => G.g τ x v v) G.g' G.κ G.κ_nonneg
+    (fun _ _ _ _ => rfl) G.hcase G.deriv G.bound ha hb hab p q hfin hpos h h' A ξ hA hξ hder hbd
+
+end TimeMetric
+
+/-- Finiteness at all times: on a compact connected Riemannian manifold (Mathlib's
+`IsRiemannianManifold`, continuous Riemannian tangent bundle), if the metric of a `TimeMetric` is
+continuous in the base point at one time `a ∈ s`, then all its distances are finite at every time
+`b ∈ s`. -/
+theorem TimeMetric.riemannianEDist_ne_top {M' : Type*} [PseudoEMetricSpace M'] [ChartedSpace H M']
+    [IsManifold I 1 M'] [RiemannianBundle (fun (x : M') ↦ TangentSpace I x)]
+    [IsContinuousRiemannianBundle E (fun (x : M') ↦ TangentSpace I x)]
+    [IsRiemannianManifold I M'] [CompactSpace M'] [PreconnectedSpace M']
+    {s : Set ℝ} (G : TimeMetric I M' s) {a b : ℝ} (ha : a ∈ s) (hb : b ∈ s)
+    (hcont : Continuous (fun x ↦ TotalSpace.mk' (E →L[ℝ] E →L[ℝ] ℝ) x (G.g a x))) (p q : M') :
+    (letI := G.norms b; Manifold.riemannianEDist I p q) ≠ ⊤ := by
+  have hfa : (letI := G.norms a; Manifold.riemannianEDist I p q) ≠ ⊤ :=
+    quadENorm_riemannianEDist_ne_top (G.g a) hcont p q
+  exact ne_top_of_le_ne_top (ENNReal.mul_ne_top ENNReal.ofReal_ne_top hfa)
+    (G.riemannianEDist_le ha hb p q)
+
 end CTG.ManifoldDistance
