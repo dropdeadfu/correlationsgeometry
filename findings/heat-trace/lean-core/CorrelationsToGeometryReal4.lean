@@ -4085,4 +4085,1303 @@ end CycleBlock
 
 end VarianceGeneral4
 
+namespace VarianceGeneral5
+
+/-! # Steps 3–4 of `prop:variance` for every `k`: the symmetrised pair kernel is `H_k / 2`
+
+(A107.)  For every `k = n + 1`, with the Gaussian kernel on the flat torus and self-loops:
+(a) the pair kernels of all blocks of `QT` (lines `Q₀`–`Q₃` of Step 3), tested against even bounded
+measurable `g` (`block_A`, `block_B`, `block_EE`, `block_EB`, `block_S`, `block_BB`, `block_Qee`,
+`block_Qeb`, `block_Qbe`, `block_Qbb`; `Q₀` is `VarianceGeneral4.hp_cyc`); (b) their sum
+`hQT_test`: `∫ h_QT g = ∫ (H_k/2) g`; (c) `hS_ae`: `hsym = H_k / 2` almost everywhere and
+`vq_eq_vk_ae`: `v'_k = v_k`; (d) `variance_general`: `prop:variance` with `v_k`, without hypothesis.
+Route: test functions instead of conditional expectations; attached vertices are integrated out
+one by one (`int_c`, `int_p`), the remaining cycle is evaluated on a chord (`cyc_f`). -/
+
+open PiBound VarianceOne VarianceTwo CTG.Reals.TorusReduction
+open WalkCount BiasGeneral2 BiasGeneral3 BiasGeneral4 BiasGeneral5 VarianceGeneral
+
+/-! ## Operators on the torus: `𝒫 = Pop d σ 1`, integration lemmas -/
+
+section Ops
+
+variable {d : ℕ} {σ : ℝ}
+
+theorem hp1 (d : ℕ) (σ : ℝ) : heatP d σ 1 = pker d σ := by
+  funext u; rw [BiasGeneral6.heatP_eq_pker d σ le_rfl u]; norm_num
+
+theorem pker_bd (hσ : 0 < σ) (u : FlatTorus d) : 0 ≤ pker d σ u ∧ pker d σ u ≤ torusM d σ 1 := by
+  have h0 := heatP_nonneg hσ d 1 u
+  have h1 := heatP_le hσ d le_rfl u
+  rw [hp1] at h0 h1; exact ⟨h0, h1⟩
+
+theorem pker_bm (hσ : 0 < σ) : BM (pker d σ) :=
+  ⟨(pker_continuous hσ d).measurable, torusM d σ 1, fun u => by
+    rw [abs_of_nonneg (pker_bd hσ u).1]; exact (pker_bd hσ u).2⟩
+
+theorem pker_ev (d : ℕ) (σ : ℝ) (u : FlatTorus d) : pker d σ (-u) = pker d σ u := by
+  unfold pker; rw [heatTorus_even]
+
+theorem pker_sw (d : ℕ) (σ : ℝ) (a b : FlatTorus d) : pker d σ (a - b) = pker d σ (b - a) := by
+  rw [← neg_sub, pker_ev]
+
+theorem bm_comp {f : FlatTorus d → ℝ} (hf : BM f) {φ : FlatTorus d → FlatTorus d}
+    (hφ : Measurable φ) : BM (fun z => f (φ z)) :=
+  ⟨hf.meas.comp hφ, hf.bdd.imp fun C h z => h _⟩
+
+theorem pkb (hσ : 0 < σ) (u : FlatTorus d) : BM (fun z => pker d σ (u - z)) :=
+  bm_comp (pker_bm hσ) (measurable_const.sub measurable_id)
+
+theorem Pop_one (g : FlatTorus d → ℝ) (u : FlatTorus d) :
+    Pop d σ 1 g u = ∫ z, pker d σ (u - z) * g z ∂flatTorusMeasure d := rfl
+
+theorem Pop_succ' (j : ℕ) (g : FlatTorus d → ℝ) : Pop d σ (j + 1) g = Pop d σ 1 (Pop d σ j g) :=
+  rfl
+
+theorem conv_bm (hσ : 0 < σ) {h : FlatTorus d → ℝ} (hh : BM h) : BM (Pop d σ 1 h) := by
+  obtain ⟨C, hC⟩ := hh.bdd
+  have hm : Measurable (Function.uncurry fun (u z : FlatTorus d) => pker d σ (u - z) * h z) :=
+    ((pker_continuous hσ d).measurable.comp (measurable_fst.sub measurable_snd)).mul
+      (hh.meas.comp measurable_snd)
+  refine ⟨(hm.stronglyMeasurable.integral_prod_right).measurable, C, fun u => ?_⟩
+  rw [Pop_one]
+  have hi : Integrable (fun z => pker d σ (u - z) * C) (flatTorusMeasure d) :=
+    ((pkb hσ _).mul
+      (BM.const C)).integrable
+  have h1 : ‖∫ z, pker d σ (u - z) * h z ∂flatTorusMeasure d‖
+      ≤ ∫ z, pker d σ (u - z) * C ∂flatTorusMeasure d := by
+    refine norm_integral_le_of_norm_le hi (Filter.Eventually.of_forall fun z => ?_)
+    rw [Real.norm_eq_abs, abs_mul, abs_of_nonneg (pker_bd hσ _).1]
+    exact mul_le_mul_of_nonneg_left (hC z) (pker_bd hσ _).1
+  rw [Real.norm_eq_abs, integral_mul_const, pker_mass hσ d u, one_mul] at h1
+  exact h1
+
+theorem Pop_bm (hσ : 0 < σ) {h : FlatTorus d → ℝ} (hh : BM h) : ∀ j, BM (Pop d σ j h) := by
+  intro j
+  induction j with
+  | zero => exact hh
+  | succ j ih => rw [Pop_succ']; exact conv_bm hσ ih
+
+theorem prod_bm {F : FlatTorus d × FlatTorus d → ℝ} (hF : BM F) :
+    Integrable F ((flatTorusMeasure d).prod (flatTorusMeasure d)) := hF.integrable
+
+/-- Self-adjointness of `𝒫`. -/
+theorem Pop_adj (hσ : 0 < σ) {f h : FlatTorus d → ℝ} (hf : BM f) (hh : BM h) :
+    ∫ u, Pop d σ 1 f u * h u ∂flatTorusMeasure d = ∫ u, f u * Pop d σ 1 h u ∂flatTorusMeasure d := by
+  obtain ⟨Cf, hCf⟩ := hf.bdd
+  obtain ⟨Ch, hCh⟩ := hh.bdd
+  have hF : BM (Function.uncurry fun (u z : FlatTorus d) => pker d σ (u - z) * f z * h u) :=
+    ⟨(((pker_continuous hσ d).measurable.comp (measurable_fst.sub measurable_snd)).mul
+      (hf.meas.comp measurable_snd)).mul (hh.meas.comp measurable_fst),
+      torusM d σ 1 * Cf * Ch, fun p => by
+        show |pker d σ (p.1 - p.2) * f p.2 * h p.1| ≤ _
+        rw [abs_mul, abs_mul, abs_of_nonneg (pker_bd hσ _).1]
+        have h1 := (pker_bd hσ (p.1 - p.2)).2
+        have h2 := hCf p.2
+        have h3 := hCh p.1
+        have h4 := (pker_bd hσ (p.1 - p.2)).1
+        have h5 := abs_nonneg (f p.2)
+        have h6 := abs_nonneg (h p.1)
+        calc pker d σ (p.1 - p.2) * |f p.2| * |h p.1|
+            ≤ torusM d σ 1 * Cf * Ch := by
+              apply mul_le_mul (mul_le_mul h1 h2 h5 (h4.trans h1)) h3 h6
+              exact mul_nonneg (h4.trans h1) (h5.trans h2)⟩
+  have e1 : ∀ u, Pop d σ 1 f u * h u = ∫ z, pker d σ (u - z) * f z * h u ∂flatTorusMeasure d :=
+    fun u => by rw [Pop_one, ← integral_mul_const]
+  simp_rw [e1]
+  rw [integral_integral_swap (prod_bm hF)]
+  refine integral_congr_ae (Filter.Eventually.of_forall fun z => ?_)
+  show ∫ u, pker d σ (u - z) * f z * h u ∂flatTorusMeasure d = f z * Pop d σ 1 h z
+  rw [Pop_one, ← integral_const_mul]
+  refine integral_congr_ae (Filter.Eventually.of_forall fun u => ?_)
+  show pker d σ (u - z) * f z * h u = f z * (pker d σ (z - u) * h u)
+  rw [pker_sw]; ring
+
+theorem Pop_const (hσ : 0 < σ) (c : ℝ) (u : FlatTorus d) : Pop d σ 1 (fun _ => c) u = c := by
+  rw [Pop_one, integral_mul_const, pker_mass hσ d u, one_mul]
+
+theorem Pop_sub_const (hσ : 0 < σ) {f : FlatTorus d → ℝ} (hf : BM f) (c : ℝ) (u : FlatTorus d) :
+    Pop d σ 1 (fun z => f z - c) u = Pop d σ 1 f u - c := by
+  rw [Pop_one, Pop_one]
+  have e : ∀ z, pker d σ (u - z) * (f z - c) = pker d σ (u - z) * f z - pker d σ (u - z) * c :=
+    fun z => by ring
+  simp_rw [e]
+  rw [integral_sub ((pkb hσ _).mul hf).integrable
+    ((pkb hσ _).mul (BM.const c)).integrable,
+    integral_mul_const, pker_mass hσ d u, one_mul]
+
+theorem Pop_mean (hσ : 0 < σ) {f : FlatTorus d → ℝ} (hf : BM f) :
+    ∫ u, Pop d σ 1 f u ∂flatTorusMeasure d = ∫ u, f u ∂flatTorusMeasure d := by
+  have h := Pop_adj hσ hf (BM.const (1 : ℝ))
+  simp only [mul_one, Pop_const hσ] at h
+  exact h
+
+theorem Pop_at0 (hσ : 0 < σ) (h : FlatTorus d → ℝ) :
+    ∫ z, pker d σ z * h z ∂flatTorusMeasure d = Pop d σ 1 h 0 := by
+  rw [Pop_one]
+  refine integral_congr_ae (Filter.Eventually.of_forall fun z => ?_)
+  show pker d σ z * h z = pker d σ (0 - z) * h z
+  rw [zero_sub, pker_ev]
+
+/-- Integrating a vertex attached by a `p`-edge: `∫ p(x - q) h(q - y) dq = (𝒫h)(x - y)`. -/
+theorem int_p (hσ : 0 < σ) {h : FlatTorus d → ℝ} (hh : BM h) (x y : FlatTorus d) :
+    ∫ q, pker d σ (x - q) * h (q - y) ∂flatTorusMeasure d = Pop d σ 1 h (x - y) := by
+  rw [Pop_one]
+  have hm : Measurable fun w => pker d σ (x - y - w) * h w :=
+    ((pker_continuous hσ d).measurable.comp (measurable_const.sub measurable_id)).mul hh.meas
+  have h1 := VarianceGeneral2.torus_hinv d (fun w => pker d σ (x - y - w) * h w) hm (-y)
+  rw [← h1]
+  refine integral_congr_ae (Filter.Eventually.of_forall fun q => ?_)
+  show pker d σ (x - q) * h (q - y) = pker d σ (x - y - (q + -y)) * h (q + -y)
+  rw [← sub_eq_add_neg, show x - y - (q - y) = x - q by abel]
+
+theorem int_shift {h : FlatTorus d → ℝ} (hh : BM h) (y : FlatTorus d) :
+    ∫ q, h (q - y) ∂flatTorusMeasure d = ∫ q, h q ∂flatTorusMeasure d := by
+  have h1 := VarianceGeneral2.torus_hinv d h hh.meas (-y)
+  simp_rw [sub_eq_add_neg]; exact h1
+
+/-- Integrating a vertex attached by a `c`-edge: `∫ (p(x - z) - 1) h(z - y) dz = (𝒫h)(x - y) - ∫ h`. -/
+theorem int_c (hσ : 0 < σ) {h : FlatTorus d → ℝ} (hh : BM h) (x y : FlatTorus d) :
+    ∫ z, (pker d σ (x - z) - 1) * h (z - y) ∂flatTorusMeasure d
+      = Pop d σ 1 h (x - y) - ∫ q, h q ∂flatTorusMeasure d := by
+  have e : ∀ z, (pker d σ (x - z) - 1) * h (z - y) = pker d σ (x - z) * h (z - y) - h (z - y) :=
+    fun z => by ring
+  simp_rw [e]
+  have hb : BM fun z => h (z - y) := bm_comp hh (measurable_id.sub measurable_const)
+  rw [integral_sub ((pkb hσ _).mul hb).integrable
+    hb.integrable, int_p hσ hh, int_shift hh]
+
+/-- A free `c`-vertex integrates to zero. -/
+theorem int_c0 (hσ : 0 < σ) (x : FlatTorus d) :
+    ∫ z, (pker d σ (x - z) - 1) ∂flatTorusMeasure d = 0 := by
+  rw [integral_sub (pkb hσ _).integrable
+    (integrable_const 1), pker_mass hσ d x]
+  simp
+
+theorem int_p1 (hσ : 0 < σ) (x : FlatTorus d) :
+    ∫ z, pker d σ (x - z) ∂flatTorusMeasure d = 1 := pker_mass hσ d x
+
+end Ops
+
+open PiBound VarianceOne VarianceTwo CTG.Reals.TorusReduction
+open WalkCount BiasGeneral2 BiasGeneral3 BiasGeneral4 BiasGeneral5 VarianceGeneral
+
+/-! ## Integrating one coordinate of the product measure; the pairs of `Fin (s+1)` -/
+
+section Prod
+
+variable {G : Type*} [MeasurableSpace G] {ν : Measure G} [IsProbabilityMeasure ν]
+
+theorem int_ins {s : ℕ} (i : Fin (s + 1)) {F : (Fin (s + 1) → G) → ℝ} (hF : BM F) :
+    ∫ x, F x ∂Measure.pi (fun _ : Fin (s + 1) => ν)
+      = ∫ v, ∫ z, F (Fin.insertNth i z v) ∂ν ∂Measure.pi (fun _ : Fin s => ν) := by
+  have h := measurePreserving_piFinSuccAbove (fun _ : Fin (s + 1) => ν) i
+  set e := MeasurableEquiv.piFinSuccAbove (fun _ : Fin (s + 1) => G) i with he
+  have hb : BM fun p : G × (Fin s → G) => F (e.symm p) :=
+    ⟨hF.meas.comp e.symm.measurable, hF.bdd.imp fun C h p => h _⟩
+  have h1 : ∫ x, F x ∂Measure.pi (fun _ : Fin (s + 1) => ν)
+      = ∫ p, F (e.symm p) ∂(ν.prod (Measure.pi fun _ : Fin s => ν)) := by
+    rw [← h.integral_comp' (fun p => F (e.symm p))]
+    simp
+  rw [h1, integral_prod _ hb.integrable, integral_integral_swap hb.integrable]
+  simp only [e, MeasurableEquiv.piFinSuccAbove_symm_apply]
+  rfl
+
+theorem bm_cons {s : ℕ} {F : (Fin (s + 1) → G) → ℝ} (hF : BM F) :
+    BM fun v : Fin s → G => ∫ z, F (Fin.cons z v) ∂ν := by
+  obtain ⟨C, hC⟩ := hF.bdd
+  have hm : Measurable fun p : (Fin s → G) × G => (Fin.cons p.2 p.1 : Fin (s + 1) → G) := by
+    refine measurable_pi_lambda _ fun i => ?_
+    refine Fin.cases ?_ (fun j => ?_) i
+    · simpa using measurable_snd
+    · simpa using (measurable_pi_apply j).comp measurable_fst
+  refine ⟨(StronglyMeasurable.integral_prod_right
+    (f := fun (v : Fin s → G) (z : G) => F (Fin.cons z v))
+    (hF.meas.comp hm).stronglyMeasurable).measurable, C, fun v => ?_⟩
+  refine (abs_integral_le_integral_abs).trans ?_
+  calc ∫ z, |F (Fin.cons z v)| ∂ν ≤ ∫ _z, C ∂ν :=
+        integral_mono (BM.integrable ⟨(hF.meas.comp hm).comp
+          (measurable_const.prodMk measurable_id), C, fun z => hC _⟩).abs
+          (integrable_const C) fun z => hC _
+    _ = C := by simp
+
+end Prod
+
+theorem pairs_succ {s : ℕ} (f : Fin (s + 1) → Fin (s + 1) → ℝ) :
+    ∑ p ∈ VarianceGeneral2.pairs (s + 1), f p.1 p.2
+      = ∑ b : Fin s, f 0 b.succ + ∑ p ∈ VarianceGeneral2.pairs s, f p.1.succ p.2.succ := by
+  unfold VarianceGeneral2.pairs
+  rw [Finset.sum_filter, Finset.sum_filter, Fintype.sum_prod_type, Fintype.sum_prod_type,
+    Fin.sum_univ_succ]
+  simp [Fin.sum_univ_succ, Fin.succ_lt_succ_iff, Fin.succ_pos]
+
+section HpTest
+
+variable {d : ℕ}
+
+theorem AW_univ_eq {a : ℕ} {F : (Fin a → FlatTorus d) → ℝ} (hF : BM F) :
+    VarianceGeneral2.AW (flatTorusMeasure d) Finset.univ F 0
+      = ∫ x, F x ∂Measure.pi (fun _ : Fin a => flatTorusMeasure d) := by
+  rw [VarianceGeneral4.AW_pi hF Finset.univ 0]
+  have hpwu : ∀ z : Fin a → FlatTorus d, VarianceGeneral4.pw Finset.univ z 0 = z := fun z => by
+    funext i; simp [VarianceGeneral4.pw]
+  simp_rw [hpwu]
+
+/-- **The pair kernel tested against `g`**: `∫ h_F g = ∑_{α<β} (∫ F(x) g(x_α - x_β) - E F · ∫ g)`. -/
+theorem hp_test {a : ℕ} {F : (Fin a → FlatTorus d) → ℝ} (hF : BM F) (hT : VarianceGeneral2.TI F)
+    {g : FlatTorus d → ℝ} (hg : BM g) :
+    ∫ u, VarianceGeneral3.hp F u * g u ∂flatTorusMeasure d
+      = ∑ p ∈ VarianceGeneral2.pairs a,
+          (∫ x, F x * g (x p.1 - x p.2) ∂Measure.pi (fun _ : Fin a => flatTorusMeasure d)
+            - (∫ x, F x ∂Measure.pi (fun _ : Fin a => flatTorusMeasure d))
+              * ∫ u, g u ∂flatTorusMeasure d) := by
+  have hJ : ∀ p : Fin a × Fin a,
+      BM (VarianceGeneral4.Jp (flatTorusMeasure d) F p.1 p.2) := fun p =>
+    ⟨(VarianceGeneral2.AW_bm _ hF).meas.comp (measurable_update 0),
+      ((VarianceGeneral2.AW_bm (ν := flatTorusMeasure d) _ hF).bdd).imp fun C h y => h _⟩
+  have e : ∀ u, VarianceGeneral3.hp F u * g u
+      = ∑ p ∈ VarianceGeneral2.pairs a,
+          (VarianceGeneral4.Jp (flatTorusMeasure d) F p.1 p.2 u * g u
+            - VarianceGeneral2.AW (flatTorusMeasure d) Finset.univ F 0 * g u) := fun u => by
+    unfold VarianceGeneral3.hp VarianceGeneral2.hpair VarianceGeneral4.Jp
+    rw [Finset.sum_mul]
+    refine Finset.sum_congr rfl fun p _ => by ring
+  simp_rw [e]
+  rw [integral_finset_sum _ (fun p _ => (((hJ p).mul hg).sub
+    ((BM.const (VarianceGeneral2.AW (flatTorusMeasure d) Finset.univ F 0)).mul hg)).integrable)]
+  refine Finset.sum_congr rfl fun p hp => ?_
+  have hab : p.1 ≠ p.2 := (Finset.mem_filter.mp hp).2.ne
+  rw [integral_sub ((hJ p).mul hg).integrable ((BM.const _).mul hg).integrable,
+    integral_const_mul, VarianceGeneral4.Jp_test (VarianceGeneral2.torus_hinv d) hF hT hab hg,
+    AW_univ_eq hF]
+
+end HpTest
+
+open PiBound VarianceOne VarianceTwo CTG.Reals.TorusReduction
+open WalkCount BiasGeneral2 BiasGeneral3 BiasGeneral4 BiasGeneral5 VarianceGeneral
+
+/-! ## Blocks with attached vertices: the generic computation (rule (b) and the attached
+    vertices integrated out) -/
+
+section Generic
+
+variable {d : ℕ} {σ : ℝ}
+
+theorem int_K1 {s : ℕ} {F : (Fin (s + 1) → FlatTorus d) → ℝ} (hF : BM F) :
+    ∫ x, F x ∂Measure.pi (fun _ : Fin (s + 1) => flatTorusMeasure d)
+      = ∫ v, ∫ z, F (Fin.cons z v) ∂flatTorusMeasure d
+          ∂Measure.pi (fun _ : Fin s => flatTorusMeasure d) := by
+  rw [int_ins 0 hF]; simp_rw [Fin.insertNth_zero']
+
+theorem int_K2 {s : ℕ} {F : (Fin (s + 2) → FlatTorus d) → ℝ} (hF : BM F) :
+    ∫ x, F x ∂Measure.pi (fun _ : Fin (s + 2) => flatTorusMeasure d)
+      = ∫ v, ∫ z', ∫ z, F (Fin.cons z (Fin.cons z' v)) ∂flatTorusMeasure d ∂flatTorusMeasure d
+          ∂Measure.pi (fun _ : Fin s => flatTorusMeasure d) := by
+  rw [int_K1 hF, int_K1 (bm_cons hF)]
+
+theorem bm_diff {a : ℕ} {g : FlatTorus d → ℝ} (hg : BM g) (α β : Fin a) :
+    BM fun x : Fin a → FlatTorus d => g (x α - x β) :=
+  ⟨hg.meas.comp ((measurable_pi_apply α).sub (measurable_pi_apply β)), hg.bdd.imp fun C h x => h _⟩
+
+theorem c_bm (hσ : 0 < σ) {a : ℕ} (i : Fin a) (φ : (Fin a → FlatTorus d) → FlatTorus d)
+    (hφ : Measurable φ) : BM fun x : Fin a → FlatTorus d => pker d σ (x i - φ x) - 1 :=
+  (⟨(pker_bm hσ).meas.comp ((measurable_pi_apply i).sub hφ), (pker_bm hσ (d := d)).bdd.imp
+    fun C h x => h _⟩ : BM fun x : Fin a → FlatTorus d => pker d σ (x i - φ x)).sub (BM.const 1)
+
+theorem K1_gen (hσ : 0 < σ) {s : ℕ} {Φ : (Fin s → FlatTorus d) × FlatTorus d → ℝ}
+    {A : (Fin s → FlatTorus d) → ℝ} (hA : BM A) (i : Fin s)
+    (hΦ : ∀ v z, Φ (v, z) = A v * (pker d σ (v i - z) - 1))
+    {g : FlatTorus d → ℝ} (hg : BM g) :
+    BM (VarianceGeneral3.K1 Φ)
+    ∧ (∫ x, VarianceGeneral3.K1 Φ x ∂Measure.pi (fun _ : Fin (s + 1) => flatTorusMeasure d) = 0)
+    ∧ ∑ p ∈ VarianceGeneral2.pairs (s + 1),
+        ∫ x, VarianceGeneral3.K1 Φ x * g (x p.1 - x p.2)
+          ∂Measure.pi (fun _ : Fin (s + 1) => flatTorusMeasure d)
+      = ∑ b : Fin s, ∫ v, A v * (Pop d σ 1 g (v i - v b) - ∫ u, g u ∂flatTorusMeasure d)
+          ∂Measure.pi (fun _ : Fin s => flatTorusMeasure d) := by
+  have hK : ∀ x : Fin (s + 1) → FlatTorus d,
+      VarianceGeneral3.K1 Φ x = A (Fin.tail x) * (pker d σ (x i.succ - x 0) - 1) := fun x => by
+    unfold VarianceGeneral3.K1; rw [hΦ]; rfl
+  have htail : Measurable fun x : Fin (s + 1) → FlatTorus d => Fin.tail x :=
+    measurable_pi_lambda _ fun j => measurable_pi_apply _
+  have hKb : BM (VarianceGeneral3.K1 Φ) := by
+    have : BM fun x : Fin (s + 1) → FlatTorus d => A (Fin.tail x) * (pker d σ (x i.succ - x 0) - 1) :=
+      (⟨hA.meas.comp htail, hA.bdd.imp fun C h x => h _⟩ : BM fun x : Fin (s + 1) → FlatTorus d =>
+        A (Fin.tail x)).mul (c_bm hσ i.succ (fun x => x 0) (measurable_pi_apply 0))
+    simpa only [← hK] using this
+  have hcons : ∀ (v : Fin s → FlatTorus d) z, VarianceGeneral3.K1 Φ (Fin.cons z v) = Φ (v, z) :=
+    fun v z => by unfold VarianceGeneral3.K1; simp
+  refine ⟨hKb, ?_, ?_⟩
+  · rw [int_K1 hKb]
+    refine (integral_congr_ae (Filter.Eventually.of_forall fun v => ?_)).trans (integral_zero _ _)
+    show ∫ z, VarianceGeneral3.K1 Φ (Fin.cons z v) ∂flatTorusMeasure d = 0
+    simp_rw [hcons, hΦ]
+    rw [integral_const_mul, int_c0 hσ, mul_zero]
+  · rw [pairs_succ (fun a b => ∫ x, VarianceGeneral3.K1 Φ x * g (x a - x b)
+      ∂Measure.pi (fun _ : Fin (s + 1) => flatTorusMeasure d))]
+    have h2 : ∑ p ∈ VarianceGeneral2.pairs s, ∫ x, VarianceGeneral3.K1 Φ x
+        * g (x p.1.succ - x p.2.succ) ∂Measure.pi (fun _ : Fin (s + 1) => flatTorusMeasure d) = 0 := by
+      refine Finset.sum_eq_zero fun p _ => ?_
+      rw [int_K1 (hKb.mul (bm_diff hg _ _))]
+      refine (integral_congr_ae (Filter.Eventually.of_forall fun v => ?_)).trans (integral_zero _ _)
+      show ∫ z, VarianceGeneral3.K1 Φ (Fin.cons z v) * g ((Fin.cons z v : Fin (s + 1) → FlatTorus d) p.1.succ
+        - (Fin.cons z v : Fin (s + 1) → FlatTorus d) p.2.succ) ∂flatTorusMeasure d = 0
+      simp only [hcons, hΦ, Fin.cons_succ]
+      have e : ∀ z, A v * (pker d σ (v i - z) - 1) * g (v p.1 - v p.2)
+          = A v * g (v p.1 - v p.2) * (pker d σ (v i - z) - 1) := fun z => by ring
+      simp_rw [e]
+      rw [integral_const_mul, int_c0 hσ, mul_zero]
+    rw [h2, add_zero]
+    refine Finset.sum_congr rfl fun b _ => ?_
+    rw [int_K1 (hKb.mul (bm_diff hg _ _))]
+    refine integral_congr_ae (Filter.Eventually.of_forall fun v => ?_)
+    show ∫ z, VarianceGeneral3.K1 Φ (Fin.cons z v) * g ((Fin.cons z v : Fin (s + 1) → FlatTorus d) 0
+        - (Fin.cons z v : Fin (s + 1) → FlatTorus d) b.succ) ∂flatTorusMeasure d = _
+    simp only [hcons, hΦ, Fin.cons_succ, Fin.cons_zero]
+    have e : ∀ z, A v * (pker d σ (v i - z) - 1) * g (z - v b)
+        = A v * ((pker d σ (v i - z) - 1) * g (z - v b)) := fun z => by ring
+    simp_rw [e]
+    rw [integral_const_mul, int_c hσ hg]
+
+/-- The function `𝒬g = 𝒫g - ∫ g` and its iterate in the form used below. -/
+theorem Q2_eval (hσ : 0 < σ) {g : FlatTorus d → ℝ} (hg : BM g) (hge : ∀ u, g (-u) = g u)
+    (x y : FlatTorus d) :
+    ∫ z', (pker d σ (x - z') - 1) * (Pop d σ 1 g (y - z') - ∫ u, g u ∂flatTorusMeasure d)
+        ∂flatTorusMeasure d
+      = Pop d σ 1 (Pop d σ 1 g) (y - x) - ∫ u, g u ∂flatTorusMeasure d := by
+  have hQ : BM fun w => Pop d σ 1 g w - ∫ u, g u ∂flatTorusMeasure d :=
+    (conv_bm hσ hg).sub (BM.const _)
+  have ev : ∀ z', Pop d σ 1 g (y - z') - ∫ u, g u ∂flatTorusMeasure d
+      = (fun w => Pop d σ 1 g w - ∫ u, g u ∂flatTorusMeasure d) (z' - y) := fun z' => by
+    show Pop d σ 1 g (y - z') - _ = Pop d σ 1 g (z' - y) - _
+    rw [show y - z' = -(z' - y) by abel, Pop_even d σ hge 1]
+  simp_rw [ev]
+  rw [int_c hσ hQ, Pop_sub_const hσ (conv_bm hσ hg)]
+  rw [integral_sub (conv_bm hσ hg).integrable (integrable_const _), Pop_mean hσ hg]
+  rw [show x - y = -(y - x) by abel, ← Pop_succ', Pop_even d σ hge 2, Pop_succ']
+  simp
+
+theorem K2_gen (hσ : 0 < σ) {s : ℕ} {Φ : (Fin s → FlatTorus d) × FlatTorus d × FlatTorus d → ℝ}
+    {A : (Fin s → FlatTorus d) → ℝ} (hA : BM A) (i j : Fin s)
+    (hΦ : ∀ v z z', Φ (v, z, z') = A v * (pker d σ (v i - z) - 1) * (pker d σ (v j - z') - 1))
+    {g : FlatTorus d → ℝ} (hg : BM g) (hge : ∀ u, g (-u) = g u) :
+    BM (VarianceGeneral3.K2 Φ)
+    ∧ (∫ x, VarianceGeneral3.K2 Φ x ∂Measure.pi (fun _ : Fin (s + 2) => flatTorusMeasure d) = 0)
+    ∧ ∑ p ∈ VarianceGeneral2.pairs (s + 2),
+        ∫ x, VarianceGeneral3.K2 Φ x * g (x p.1 - x p.2)
+          ∂Measure.pi (fun _ : Fin (s + 2) => flatTorusMeasure d)
+      = ∫ v, A v * (Pop d σ 1 (Pop d σ 1 g) (v i - v j) - ∫ u, g u ∂flatTorusMeasure d)
+          ∂Measure.pi (fun _ : Fin s => flatTorusMeasure d) := by
+  have hK : ∀ x : Fin (s + 2) → FlatTorus d,
+      VarianceGeneral3.K2 Φ x = A (Fin.tail (Fin.tail x)) * (pker d σ (x i.succ.succ - x 0) - 1)
+        * (pker d σ (x j.succ.succ - x 1) - 1) := fun x => by
+    unfold VarianceGeneral3.K2; rw [hΦ]; rfl
+  have htail : Measurable fun x : Fin (s + 2) → FlatTorus d => Fin.tail (Fin.tail x) :=
+    measurable_pi_lambda _ fun j => measurable_pi_apply _
+  have hKb : BM (VarianceGeneral3.K2 Φ) := by
+    have : BM fun x : Fin (s + 2) → FlatTorus d => A (Fin.tail (Fin.tail x))
+        * (pker d σ (x i.succ.succ - x 0) - 1) * (pker d σ (x j.succ.succ - x 1) - 1) :=
+      ((⟨hA.meas.comp htail, hA.bdd.imp fun C h x => h _⟩ : BM fun x : Fin (s + 2) → FlatTorus d =>
+        A (Fin.tail (Fin.tail x))).mul (c_bm hσ i.succ.succ (fun x => x 0) (measurable_pi_apply 0))).mul
+        (c_bm hσ j.succ.succ (fun x => x 1) (measurable_pi_apply 1))
+    simpa only [← hK] using this
+  have hcons : ∀ (v : Fin s → FlatTorus d) z z',
+      VarianceGeneral3.K2 Φ (Fin.cons z (Fin.cons z' v)) = Φ (v, z, z') :=
+    fun v z z' => by unfold VarianceGeneral3.K2; simp
+  -- a free `z`: the inner integral vanishes
+  have freez : ∀ (v : Fin s → FlatTorus d) z' (K : ℝ),
+      ∫ z, A v * (pker d σ (v i - z) - 1) * (pker d σ (v j - z') - 1) * K ∂flatTorusMeasure d = 0 :=
+    fun v z' K => by
+      have e : ∀ z, A v * (pker d σ (v i - z) - 1) * (pker d σ (v j - z') - 1) * K
+          = (A v * (pker d σ (v j - z') - 1) * K) * (pker d σ (v i - z) - 1) := fun z => by ring
+      simp_rw [e]; rw [integral_const_mul, int_c0 hσ, mul_zero]
+  refine ⟨hKb, ?_, ?_⟩
+  · rw [int_K2 hKb]
+    refine (integral_congr_ae (Filter.Eventually.of_forall fun v => ?_)).trans (integral_zero _ _)
+    refine (integral_congr_ae (Filter.Eventually.of_forall fun z' => ?_)).trans (integral_zero _ _)
+    show ∫ z, VarianceGeneral3.K2 Φ (Fin.cons z (Fin.cons z' v)) ∂flatTorusMeasure d = 0
+    have := freez v z' 1
+    simp_rw [mul_one] at this
+    simp_rw [hcons, hΦ]; exact this
+  · rw [pairs_succ (fun a b => ∫ x, VarianceGeneral3.K2 Φ x * g (x a - x b)
+      ∂Measure.pi (fun _ : Fin (s + 2) => flatTorusMeasure d)), Fin.sum_univ_succ,
+      pairs_succ (fun a b => ∫ x, VarianceGeneral3.K2 Φ x * g (x a.succ - x b.succ)
+      ∂Measure.pi (fun _ : Fin (s + 2) => flatTorusMeasure d))]
+    -- the vanishing terms
+    have z1 : ∀ b : Fin s, ∫ x, VarianceGeneral3.K2 Φ x * g (x 0 - x b.succ.succ)
+        ∂Measure.pi (fun _ : Fin (s + 2) => flatTorusMeasure d) = 0 := fun b => by
+      rw [int_K2 (hKb.mul (bm_diff hg _ _))]
+      refine (integral_congr_ae (Filter.Eventually.of_forall fun v => ?_)).trans (integral_zero _ _)
+      show ∫ z', ∫ z, VarianceGeneral3.K2 Φ (Fin.cons z (Fin.cons z' v))
+        * g ((Fin.cons z (Fin.cons z' v) : Fin (s + 2) → FlatTorus d) 0
+          - (Fin.cons z (Fin.cons z' v) : Fin (s + 2) → FlatTorus d) b.succ.succ)
+          ∂flatTorusMeasure d ∂flatTorusMeasure d = 0
+      simp only [hcons, hΦ, Fin.cons_succ, Fin.cons_zero]
+      have e : ∀ z' z, A v * (pker d σ (v i - z) - 1) * (pker d σ (v j - z') - 1) * g (z - v b)
+          = (pker d σ (v j - z') - 1) * (A v * ((pker d σ (v i - z) - 1) * g (z - v b))) :=
+        fun z' z => by ring
+      simp_rw [e, integral_const_mul]
+      rw [integral_mul_const, int_c0 hσ, zero_mul]
+    have z2 : ∀ b : Fin s, ∫ x, VarianceGeneral3.K2 Φ x * g (x (0 : Fin (s + 1)).succ - x b.succ.succ)
+        ∂Measure.pi (fun _ : Fin (s + 2) => flatTorusMeasure d) = 0 := fun b => by
+      rw [int_K2 (hKb.mul (bm_diff hg _ _))]
+      refine (integral_congr_ae (Filter.Eventually.of_forall fun v => ?_)).trans (integral_zero _ _)
+      refine (integral_congr_ae (Filter.Eventually.of_forall fun z' => ?_)).trans (integral_zero _ _)
+      show ∫ z, VarianceGeneral3.K2 Φ (Fin.cons z (Fin.cons z' v))
+        * g ((Fin.cons z (Fin.cons z' v) : Fin (s + 2) → FlatTorus d) (0 : Fin (s + 1)).succ
+          - (Fin.cons z (Fin.cons z' v) : Fin (s + 2) → FlatTorus d) b.succ.succ) ∂flatTorusMeasure d = 0
+      simp only [hcons, hΦ, Fin.cons_succ, Fin.cons_zero]
+      exact freez v z' _
+    have z3 : ∀ p ∈ VarianceGeneral2.pairs s, ∫ x, VarianceGeneral3.K2 Φ x
+        * g (x p.1.succ.succ - x p.2.succ.succ)
+        ∂Measure.pi (fun _ : Fin (s + 2) => flatTorusMeasure d) = 0 := fun p _ => by
+      rw [int_K2 (hKb.mul (bm_diff hg _ _))]
+      refine (integral_congr_ae (Filter.Eventually.of_forall fun v => ?_)).trans (integral_zero _ _)
+      refine (integral_congr_ae (Filter.Eventually.of_forall fun z' => ?_)).trans (integral_zero _ _)
+      show ∫ z, VarianceGeneral3.K2 Φ (Fin.cons z (Fin.cons z' v))
+        * g ((Fin.cons z (Fin.cons z' v) : Fin (s + 2) → FlatTorus d) p.1.succ.succ
+          - (Fin.cons z (Fin.cons z' v) : Fin (s + 2) → FlatTorus d) p.2.succ.succ) ∂flatTorusMeasure d = 0
+      simp only [hcons, hΦ, Fin.cons_succ]
+      exact freez v z' _
+    rw [Finset.sum_eq_zero (fun b _ => z1 b), Finset.sum_eq_zero (fun b _ => z2 b),
+      Finset.sum_eq_zero z3]
+    simp only [add_zero]
+    -- the pair `(z, z')`
+    rw [int_K2 (hKb.mul (bm_diff hg _ _))]
+    refine integral_congr_ae (Filter.Eventually.of_forall fun v => ?_)
+    show ∫ z', ∫ z, VarianceGeneral3.K2 Φ (Fin.cons z (Fin.cons z' v))
+        * g ((Fin.cons z (Fin.cons z' v) : Fin (s + 2) → FlatTorus d) 0
+          - (Fin.cons z (Fin.cons z' v) : Fin (s + 2) → FlatTorus d) (0 : Fin (s + 1)).succ)
+          ∂flatTorusMeasure d ∂flatTorusMeasure d = _
+    simp only [hcons, hΦ, Fin.cons_succ, Fin.cons_zero]
+    have e : ∀ z' z, A v * (pker d σ (v i - z) - 1) * (pker d σ (v j - z') - 1) * g (z - z')
+        = (A v * (pker d σ (v j - z') - 1)) * ((pker d σ (v i - z) - 1) * g (z - z')) :=
+      fun z' z => by ring
+    simp_rw [e, integral_const_mul, int_c hσ hg]
+    have e2 : ∀ z', A v * (pker d σ (v j - z') - 1) * (Pop d σ 1 g (v i - z') - ∫ u, g u ∂flatTorusMeasure d)
+        = A v * ((pker d σ (v j - z') - 1) * (Pop d σ 1 g (v i - z') - ∫ u, g u ∂flatTorusMeasure d)) :=
+      fun z' => by ring
+    simp_rw [e2]
+    rw [integral_const_mul, Q2_eval hσ hg hge]
+
+end Generic
+
+open PiBound VarianceOne VarianceTwo CTG.Reals.TorusReduction
+open WalkCount BiasGeneral2 BiasGeneral3 BiasGeneral4 BiasGeneral5 VarianceGeneral
+
+/-! ## The closed walk with a test function on a chord; attached `p`-vertices -/
+
+section Chords
+
+variable {d : ℕ} {σ : ℝ}
+
+/-- The chord functional: `m_k f(0)` for `r = 0`, `∫ p_r p_{k-r} f` otherwise (`k = n + 1`). -/
+noncomputable def chordF (d : ℕ) (σ : ℝ) (n : ℕ) (r : Fin (n + 1)) (f : FlatTorus d → ℝ) : ℝ :=
+  if r = 0 then torusM d σ (n + 1) * f 0
+  else ∫ u, heatP d σ r.val u * heatP d σ (n + 1 - r.val) u * f u ∂flatTorusMeasure d
+
+theorem cyT_int (hσ : 0 < σ) (n : ℕ) :
+    ∫ v, cyT d σ v ∂Measure.pi (fun _ : Fin (n + 1) => flatTorusMeasure d) = torusM d σ (n + 1) :=
+  cycP_int (torusRK hσ d) n
+
+theorem heatP_bm (hσ : 0 < σ) (s : ℕ) : BM (heatP d σ s) := by
+  by_cases hs : s = 0
+  · subst hs
+    have e0 : heatP d σ 0 = fun _ => 0 := by funext u; simp [heatP]
+    rw [e0]; exact BM.const 0
+  · exact ⟨(heatP_cont hσ d (by omega)).measurable, torusM d σ 1, fun u => by
+      rw [abs_of_nonneg (heatP_nonneg hσ d s u)]
+      exact (heatP_le hσ d (by omega) u).trans (torusM_anti hσ d le_rfl (by omega))⟩
+
+/-- **The closed walk tested on any chord, signed test functions**. -/
+theorem cyc_f (hσ : 0 < σ) {n : ℕ} {f : FlatTorus d → ℝ} (hf : BM f) (a b : Fin (n + 1)) :
+    ∫ v, cyT d σ v * f (v a - v b) ∂Measure.pi (fun _ : Fin (n + 1) => flatTorusMeasure d)
+      = chordF d σ n (b - a) f := by
+  unfold chordF
+  by_cases hab : a = b
+  · subst hab
+    simp only [sub_self, if_true]
+    rw [integral_mul_const, cyT_int hσ n]
+  · have hl : b - a ≠ 0 := sub_ne_zero.mpr (Ne.symm hab)
+    rw [if_neg hl]
+    obtain ⟨C, hC⟩ := hf.bdd
+    have hC0 : 0 ≤ C := (abs_nonneg _).trans (hC 0)
+    have hcy := VarianceGeneral4.cyT_bm (d := d) hσ n
+    have hP := (heatP_bm (d := d) hσ (b - a).val).mul (heatP_bm (d := d) hσ (n + 1 - (b - a).val))
+    have t1 := VarianceGeneral4.cyc_pair_test hσ hab (fun u => f u + C) (hf.meas.add_const C)
+      (fun u => by have := abs_le.mp (hC u); linarith) (C := 2 * C)
+      (fun u => by have := abs_le.mp (hC u); linarith)
+    have t2 := VarianceGeneral4.cyc_pair_test (d := d) hσ hab (fun _ => C) measurable_const
+      (fun _ => hC0) (C := C) (fun _ => le_rfl)
+    have e1 : ∀ v : Fin (n + 1) → FlatTorus d, cyT d σ v * f (v a - v b)
+        = cyT d σ v * (f (v a - v b) + C) - cyT d σ v * C := fun v => by ring
+    have e2 : ∀ u, heatP d σ (b - a).val u * heatP d σ (n + 1 - (b - a).val) u * f u
+        = heatP d σ (b - a).val u * heatP d σ (n + 1 - (b - a).val) u * (f u + C)
+          - heatP d σ (b - a).val u * heatP d σ (n + 1 - (b - a).val) u * C := fun u => by ring
+    simp_rw [e1, e2]
+    rw [integral_sub (hcy.mul ((bm_diff hf a b).add (BM.const C))).integrable
+      (hcy.mul (BM.const C)).integrable, integral_sub (hP.mul (hf.add (BM.const C))).integrable
+      (hP.mul (BM.const C)).integrable, t1, t2]
+
+theorem chordF_sub (hσ : 0 < σ) {n : ℕ} {f : FlatTorus d → ℝ} (hf : BM f) (c : ℝ)
+    (r : Fin (n + 1)) :
+    chordF d σ n r (fun u => f u - c) = chordF d σ n r f - torusM d σ (n + 1) * c := by
+  have h := cyc_f hσ (hf.sub (BM.const c)) 0 r
+  have h1 := cyc_f hσ hf 0 r
+  have hcy := VarianceGeneral4.cyT_bm (d := d) hσ n
+  simp only [sub_zero] at h h1
+  rw [← h, ← h1]
+  have e : ∀ v : Fin (n + 1) → FlatTorus d, cyT d σ v * (f (v 0 - v r) - c)
+      = cyT d σ v * f (v 0 - v r) - cyT d σ v * c := fun v => by ring
+  simp_rw [e]
+  rw [integral_sub (hcy.mul (bm_diff hf 0 r)).integrable (hcy.mul (BM.const c)).integrable,
+    integral_mul_const, cyT_int hσ n]
+
+end Chords
+
+section Attached
+
+variable {d : ℕ} {σ : ℝ}
+
+theorem int_last {s : ℕ} {F : (Fin (s + 1) → FlatTorus d) → ℝ} (hF : BM F) :
+    ∫ x, F x ∂Measure.pi (fun _ : Fin (s + 1) => flatTorusMeasure d)
+      = ∫ v, ∫ q, F (Fin.snoc v q) ∂flatTorusMeasure d
+          ∂Measure.pi (fun _ : Fin s => flatTorusMeasure d) := by
+  rw [int_ins (Fin.last s) hF]; simp_rw [Fin.insertNth_last']
+
+/-- The cycle with one vertex `q` attached to `v_a` by a `p`-edge. -/
+noncomputable def A2 (d : ℕ) (σ : ℝ) (n : ℕ) (a : Fin (n + 1)) (w : Fin (n + 2) → FlatTorus d) : ℝ :=
+  cy2 d σ w * pker d σ (w a.castSucc - w (Fin.last (n + 1)))
+
+/-- The cycle with `q` attached to `v_0` and `q'` attached to `v_l`. -/
+noncomputable def A3 (d : ℕ) (σ : ℝ) (n : ℕ) (l : Fin (n + 1)) (w : Fin (n + 3) → FlatTorus d) : ℝ :=
+  cy3 d σ w * pker d σ (w (0 : Fin (n + 1)).castSucc.castSucc - w (Fin.last (n + 1)).castSucc)
+    * pker d σ (w l.castSucc.castSucc - w (Fin.last (n + 2)))
+
+theorem cy2_bm (hσ : 0 < σ) (n : ℕ) : BM (cy2 d σ (n := n)) :=
+  ⟨cy2_meas hσ d n, _, fun w => VarianceGeneral3.cyT_le_B4 hσ n _⟩
+
+theorem cy3_bm (hσ : 0 < σ) (n : ℕ) : BM (cy3 d σ (n := n)) :=
+  ⟨cy3_meas hσ d n, _, fun w => VarianceGeneral3.cyT_le_B4 hσ n _⟩
+
+theorem pk_bm2 (hσ : 0 < σ) {a : ℕ} (i j : Fin a) :
+    BM fun w : Fin a → FlatTorus d => pker d σ (w i - w j) :=
+  ⟨(pker_bm hσ).meas.comp ((measurable_pi_apply i).sub (measurable_pi_apply j)),
+    (pker_bm hσ (d := d)).bdd.imp fun C h x => h _⟩
+
+theorem A2_bm (hσ : 0 < σ) (n : ℕ) (a : Fin (n + 1)) : BM (A2 d σ n a) :=
+  (cy2_bm hσ n).mul (pk_bm2 hσ _ _)
+
+theorem A3_bm (hσ : 0 < σ) (n : ℕ) (l : Fin (n + 1)) : BM (A3 d σ n l) :=
+  ((cy3_bm hσ n).mul (pk_bm2 hσ _ _)).mul (pk_bm2 hσ _ _)
+
+theorem A2_snoc (n : ℕ) (a : Fin (n + 1)) (v : Fin (n + 1) → FlatTorus d) (q : FlatTorus d) :
+    A2 d σ n a (Fin.snoc v q) = cyT d σ v * pker d σ (v a - q) := by
+  unfold A2 cy2; simp only [Fin.snoc_castSucc, Fin.snoc_last]
+
+theorem A2_f (hσ : 0 < σ) {n : ℕ} (a b : Fin (n + 1)) {f : FlatTorus d → ℝ} (hf : BM f) :
+    ∫ w, A2 d σ n a w * f (w (Fin.last (n + 1)) - w b.castSucc)
+        ∂Measure.pi (fun _ : Fin (n + 2) => flatTorusMeasure d)
+      = ∫ v, cyT d σ v * Pop d σ 1 f (v a - v b)
+          ∂Measure.pi (fun _ : Fin (n + 1) => flatTorusMeasure d) := by
+  rw [int_last ((A2_bm hσ n a).mul (bm_diff hf _ _))]
+  refine integral_congr_ae (Filter.Eventually.of_forall fun v => ?_)
+  show ∫ q, A2 d σ n a (Fin.snoc v q) * f ((Fin.snoc v q : Fin (n + 2) → FlatTorus d) (Fin.last (n + 1))
+    - (Fin.snoc v q : Fin (n + 2) → FlatTorus d) b.castSucc) ∂flatTorusMeasure d = _
+  simp only [A2_snoc, Fin.snoc_castSucc, Fin.snoc_last]
+  have e : ∀ q, cyT d σ v * pker d σ (v a - q) * f (q - v b)
+      = cyT d σ v * (pker d σ (v a - q) * f (q - v b)) := fun q => by ring
+  simp_rw [e]
+  rw [integral_const_mul, int_p hσ hf]
+
+theorem A2_c (hσ : 0 < σ) {n : ℕ} (a : Fin (n + 1)) (K : ℝ) :
+    ∫ w, A2 d σ n a w * K ∂Measure.pi (fun _ : Fin (n + 2) => flatTorusMeasure d)
+      = torusM d σ (n + 1) * K := by
+  rw [int_last ((A2_bm hσ n a).mul (BM.const K))]
+  have e : ∀ v : Fin (n + 1) → FlatTorus d,
+      ∫ q, A2 d σ n a (Fin.snoc v q) * K ∂flatTorusMeasure d = cyT d σ v * K := fun v => by
+    simp only [A2_snoc]
+    have e1 : ∀ q, cyT d σ v * pker d σ (v a - q) * K = (cyT d σ v * K) * pker d σ (v a - q) :=
+      fun q => by ring
+    simp_rw [e1]
+    rw [integral_const_mul, int_p1 hσ, mul_one]
+  simp_rw [e]
+  rw [integral_mul_const, cyT_int hσ n]
+
+theorem A3_snoc (n : ℕ) (l : Fin (n + 1)) (w : Fin (n + 2) → FlatTorus d) (q : FlatTorus d) :
+    A3 d σ n l (Fin.snoc w q) = A2 d σ n 0 w * pker d σ (w l.castSucc - q) := by
+  unfold A3 A2 cy3 cy2; simp only [Fin.snoc_castSucc, Fin.snoc_last]
+
+theorem A3_f (hσ : 0 < σ) {n : ℕ} (l : Fin (n + 1)) {f : FlatTorus d → ℝ} (hf : BM f)
+    (hfe : ∀ u, f (-u) = f u) :
+    ∫ w, A3 d σ n l w * f (w (Fin.last (n + 1)).castSucc - w (Fin.last (n + 2)))
+        ∂Measure.pi (fun _ : Fin (n + 3) => flatTorusMeasure d)
+      = ∫ v, cyT d σ v * Pop d σ 1 (Pop d σ 1 f) (v 0 - v l)
+          ∂Measure.pi (fun _ : Fin (n + 1) => flatTorusMeasure d) := by
+  rw [int_last ((A3_bm hσ n l).mul (bm_diff hf _ _)), ← A2_f hσ 0 l (conv_bm hσ hf)]
+  refine integral_congr_ae (Filter.Eventually.of_forall fun w => ?_)
+  show ∫ q, A3 d σ n l (Fin.snoc w q) * f ((Fin.snoc w q : Fin (n + 3) → FlatTorus d)
+    (Fin.last (n + 1)).castSucc - (Fin.snoc w q : Fin (n + 3) → FlatTorus d) (Fin.last (n + 2)))
+    ∂flatTorusMeasure d = _
+  simp only [A3_snoc, Fin.snoc_castSucc, Fin.snoc_last]
+  have e : ∀ q, A2 d σ n 0 w * pker d σ (w l.castSucc - q) * f (w (Fin.last (n + 1)) - q)
+      = A2 d σ n 0 w * (pker d σ (w l.castSucc - q) * f (q - w (Fin.last (n + 1)))) := fun q => by
+    rw [show w (Fin.last (n + 1)) - q = -(q - w (Fin.last (n + 1))) by abel, hfe]; ring
+  simp_rw [e]
+  rw [integral_const_mul, int_p hσ hf,
+    show w l.castSucc - w (Fin.last (n + 1)) = -(w (Fin.last (n + 1)) - w l.castSucc) by abel,
+    Pop_even d σ hfe 1]
+
+end Attached
+
+open PiBound VarianceOne VarianceTwo CTG.Reals.TorusReduction
+open WalkCount BiasGeneral2 BiasGeneral3 BiasGeneral4 BiasGeneral5 VarianceGeneral
+
+/-! ## (a) The pair kernels of the blocks with attached vertices, tested against even `g`
+    (Step 3, lines `Q₁`, `Q₂`, `Q₃`, every `k = n + 1`) -/
+
+section Blocks
+
+variable {d : ℕ} {σ : ℝ}
+
+theorem hp_test0 {a : ℕ} {F : (Fin a → FlatTorus d) → ℝ} (hF : BM F) (hT : VarianceGeneral2.TI F)
+    (h0 : ∫ x, F x ∂Measure.pi (fun _ : Fin a => flatTorusMeasure d) = 0)
+    {g : FlatTorus d → ℝ} (hg : BM g) :
+    ∫ u, VarianceGeneral3.hp F u * g u ∂flatTorusMeasure d
+      = ∑ p ∈ VarianceGeneral2.pairs a,
+          ∫ x, F x * g (x p.1 - x p.2) ∂Measure.pi (fun _ : Fin a => flatTorusMeasure d) := by
+  rw [hp_test hF hT hg, h0]; simp
+
+/-- `𝒬g = 𝒫g - ∫ g`. -/
+noncomputable def qg (d : ℕ) (σ : ℝ) (g : FlatTorus d → ℝ) (u : FlatTorus d) : ℝ :=
+  Pop d σ 1 g u - ∫ z, g z ∂flatTorusMeasure d
+
+/-- `𝒬²g = 𝒫²g - ∫ g`. -/
+noncomputable def q2 (d : ℕ) (σ : ℝ) (g : FlatTorus d → ℝ) (u : FlatTorus d) : ℝ :=
+  Pop d σ 1 (Pop d σ 1 g) u - ∫ z, g z ∂flatTorusMeasure d
+
+theorem qg_bm (hσ : 0 < σ) {g : FlatTorus d → ℝ} (hg : BM g) : BM (qg d σ g) :=
+  (conv_bm hσ hg).sub (BM.const _)
+
+theorem q2_bm (hσ : 0 < σ) {g : FlatTorus d → ℝ} (hg : BM g) : BM (q2 d σ g) :=
+  (conv_bm hσ (conv_bm hσ hg)).sub (BM.const _)
+
+theorem qg_ev {g : FlatTorus d → ℝ} (hge : ∀ u, g (-u) = g u) (u : FlatTorus d) :
+    qg d σ g (-u) = qg d σ g u := by unfold qg; rw [Pop_even d σ hge 1]
+
+theorem q2_ev {g : FlatTorus d → ℝ} (hge : ∀ u, g (-u) = g u) (u : FlatTorus d) :
+    q2 d σ g (-u) = q2 d σ g u := by
+  unfold q2; rw [← Pop_succ', Pop_even d σ hge 2]
+
+theorem P1_ev {f : FlatTorus d → ℝ} (hfe : ∀ u, f (-u) = f u) (u : FlatTorus d) :
+    Pop d σ 1 f (-u) = Pop d σ 1 f u := Pop_even d σ hfe 1 u
+
+theorem swap_ev {f : FlatTorus d → ℝ} (hfe : ∀ u, f (-u) = f u) (x y : FlatTorus d) :
+    f (x - y) = f (y - x) := by rw [← neg_sub, hfe]
+
+/-- Block `A` (line `Q₁`): `T_A(g) = ∑_{b} chord_b(𝒬g)`. -/
+theorem block_A (hσ : 0 < σ) (n : ℕ) {g : FlatTorus d → ℝ} (hg : BM g) :
+    ∫ u, VarianceGeneral3.hp (VarianceGeneral3.K1 (PhiA d σ n)) u * g u ∂flatTorusMeasure d
+      = ∑ b : Fin (n + 1), chordF d σ n b (qg d σ g) := by
+  have hΦ : ∀ v z, PhiA d σ n (v, z) = cyT d σ v * (pker d σ (v 0 - z) - 1) := fun v z => by
+    unfold PhiA; rw [hp1]
+  obtain ⟨hb, h0, hs⟩ := K1_gen hσ (VarianceGeneral4.cyT_bm hσ n) 0 hΦ hg
+  rw [hp_test0 hb (VarianceGeneral3.K1_TI (VarianceGeneral3.PhiA_TI n)) h0 hg, hs]
+  refine Finset.sum_congr rfl fun b _ => ?_
+  have h := cyc_f hσ (qg_bm hσ hg) 0 b
+  simp only [qg, sub_zero] at h
+  exact h
+
+/-- Block `B` (line `Q₁`): `T_B(g) = ∑_r chord_r(𝒫𝒬g) + m_k (𝒬g)(0)`. -/
+theorem block_B (hσ : 0 < σ) (n : ℕ) {g : FlatTorus d → ℝ} (hg : BM g) :
+    ∫ u, VarianceGeneral3.hp (VarianceGeneral3.K1 (PhiB d σ n)) u * g u ∂flatTorusMeasure d
+      = ∑ r : Fin (n + 1), chordF d σ n r (Pop d σ 1 (qg d σ g))
+        + torusM d σ (n + 1) * qg d σ g 0 := by
+  have hΦ : ∀ v z, PhiB d σ n (v, z)
+      = A2 d σ n 0 v * (pker d σ (v (Fin.last (n + 1)) - z) - 1) := fun v z => by
+    unfold PhiB A2 cy2; rw [hp1]; simp
+  obtain ⟨hb, h0, hs⟩ := K1_gen hσ (A2_bm hσ n 0) (Fin.last (n + 1)) hΦ hg
+  rw [hp_test0 hb (VarianceGeneral3.K1_TI (VarianceGeneral3.PhiB_TI n)) h0 hg, hs,
+    Fin.sum_univ_castSucc]
+  congr 1
+  · refine Finset.sum_congr rfl fun r _ => ?_
+    have h1 := A2_f hσ 0 r (qg_bm hσ hg)
+    have h2 := cyc_f hσ (conv_bm hσ (qg_bm hσ hg)) 0 r
+    simp only [qg, sub_zero] at h1 h2
+    rw [h1, h2]
+  · have h1 := A2_c hσ (d := d) (n := n) 0 (qg d σ g 0)
+    simp only [sub_self]
+    simp only [qg] at h1 ⊢
+    exact h1
+
+theorem fin00 (n : ℕ) : (0 : Fin (n + 1)) - 0 = 0 := sub_self 0
+
+/-- Block `ε²` (line `Q₂`): `T(g) = chord_0(𝒬²g) = m_k (𝒬²g)(0)`. -/
+theorem block_EE (hσ : 0 < σ) (n : ℕ) {g : FlatTorus d → ℝ} (hg : BM g) (hge : ∀ u, g (-u) = g u) :
+    ∫ u, VarianceGeneral3.hp (VarianceGeneral3.K2 (PhiEE d σ n)) u * g u ∂flatTorusMeasure d
+      = chordF d σ n 0 (q2 d σ g) := by
+  have hΦ : ∀ v z z', PhiEE d σ n (v, z, z')
+      = cyT d σ v * (pker d σ (v 0 - z) - 1) * (pker d σ (v 0 - z') - 1) := fun v z z' => by
+    unfold PhiEE; rw [hp1]
+  obtain ⟨hb, h0, hs⟩ := K2_gen hσ (VarianceGeneral4.cyT_bm hσ n) 0 0 hΦ hg hge
+  rw [hp_test0 hb (VarianceGeneral3.K2_TI (VarianceGeneral3.PhiEE_TI n)) h0 hg, hs]
+  have h := cyc_f hσ (q2_bm hσ hg) (0 : Fin (n + 1)) 0
+  rw [fin00] at h
+  exact h
+
+/-- Block `ε (P̃ε)` (line `Q₂`): `T(g) = chord_0(𝒫𝒬²g)`. -/
+theorem block_EB (hσ : 0 < σ) (n : ℕ) {g : FlatTorus d → ℝ} (hg : BM g) (hge : ∀ u, g (-u) = g u) :
+    ∫ u, VarianceGeneral3.hp (VarianceGeneral3.K2 (PhiEB d σ n)) u * g u ∂flatTorusMeasure d
+      = chordF d σ n 0 (Pop d σ 1 (q2 d σ g)) := by
+  have hΦ : ∀ v z z', PhiEB d σ n (v, z, z')
+      = A2 d σ n 0 v * (pker d σ (v (0 : Fin (n + 1)).castSucc - z) - 1)
+        * (pker d σ (v (Fin.last (n + 1)) - z') - 1) := fun v z z' => by
+    unfold PhiEB A2; rw [hp1]; ring
+  obtain ⟨hb, h0, hs⟩ := K2_gen hσ (A2_bm hσ n 0) _ _ hΦ hg hge
+  rw [hp_test0 hb (VarianceGeneral3.K2_TI (VarianceGeneral3.PhiEB_TI n)) h0 hg, hs]
+  have e1 : ∀ w : Fin (n + 2) → FlatTorus d,
+      A2 d σ n 0 w * (Pop d σ 1 (Pop d σ 1 g) (w (0 : Fin (n + 1)).castSucc - w (Fin.last (n + 1)))
+        - ∫ u, g u ∂flatTorusMeasure d)
+      = A2 d σ n 0 w * q2 d σ g (w (Fin.last (n + 1)) - w (0 : Fin (n + 1)).castSucc) := fun w => by
+    rw [swap_ev (q2_ev hge) (w (Fin.last (n + 1)))]; rfl
+  simp_rw [e1]
+  rw [A2_f hσ 0 0 (q2_bm hσ hg)]
+  have h := cyc_f hσ (conv_bm hσ (q2_bm hσ hg)) (0 : Fin (n + 1)) 0
+  rw [fin00] at h
+  exact h
+
+/-- Block `P̃ε²` (line `Q₂`): `T(g) = m_k (𝒬²g)(0)`. -/
+theorem block_S (hσ : 0 < σ) (n : ℕ) {g : FlatTorus d → ℝ} (hg : BM g) (hge : ∀ u, g (-u) = g u) :
+    ∫ u, VarianceGeneral3.hp (VarianceGeneral3.K2 (PhiS d σ n)) u * g u ∂flatTorusMeasure d
+      = torusM d σ (n + 1) * q2 d σ g 0 := by
+  have hΦ : ∀ v z z', PhiS d σ n (v, z, z')
+      = A2 d σ n 0 v * (pker d σ (v (Fin.last (n + 1)) - z) - 1)
+        * (pker d σ (v (Fin.last (n + 1)) - z') - 1) := fun v z z' => by
+    unfold PhiS A2; rw [hp1]
+  obtain ⟨hb, h0, hs⟩ := K2_gen hσ (A2_bm hσ n 0) _ _ hΦ hg hge
+  rw [hp_test0 hb (VarianceGeneral3.K2_TI (VarianceGeneral3.PhiS_TI n)) h0 hg, hs]
+  simp only [sub_self]
+  exact A2_c hσ (d := d) (n := n) 0 (q2 d σ g 0)
+
+/-- Block `(P̃ε)²` (line `Q₂`): `T(g) = chord_0(𝒫²𝒬²g)`. -/
+theorem block_BB (hσ : 0 < σ) (n : ℕ) {g : FlatTorus d → ℝ} (hg : BM g) (hge : ∀ u, g (-u) = g u) :
+    ∫ u, VarianceGeneral3.hp (VarianceGeneral3.K2 (PhiBB d σ n)) u * g u ∂flatTorusMeasure d
+      = chordF d σ n 0 (Pop d σ 1 (Pop d σ 1 (q2 d σ g))) := by
+  have hΦ : ∀ v z z', PhiBB d σ n (v, z, z')
+      = A3 d σ n 0 v * (pker d σ (v (Fin.last (n + 1)).castSucc - z) - 1)
+        * (pker d σ (v (Fin.last (n + 2)) - z') - 1) := fun v z z' => by
+    unfold PhiBB A3; rw [hp1]; ring
+  obtain ⟨hb, h0, hs⟩ := K2_gen hσ (A3_bm hσ n 0) _ _ hΦ hg hge
+  rw [hp_test0 hb (VarianceGeneral3.K2_TI (VarianceGeneral3.PhiBB_TI n)) h0 hg, hs]
+  show ∫ w, A3 d σ n 0 w * q2 d σ g (w (Fin.last (n + 1)).castSucc - w (Fin.last (n + 2)))
+    ∂Measure.pi (fun _ : Fin (n + 3) => flatTorusMeasure d) = _
+  rw [A3_f hσ 0 (q2_bm hσ hg) (q2_ev hge)]
+  have h := cyc_f hσ (conv_bm hσ (conv_bm hσ (q2_bm hσ hg))) (0 : Fin (n + 1)) 0
+  rw [fin00] at h
+  exact h
+
+/-- Block `ε_{v₀} ε_{v_l}` (line `Q₃`): `T(g) = chord_l(𝒬²g)`. -/
+theorem block_Qee (hσ : 0 < σ) (n : ℕ) (l : Fin (n + 1)) {g : FlatTorus d → ℝ} (hg : BM g)
+    (hge : ∀ u, g (-u) = g u) :
+    ∫ u, VarianceGeneral3.hp (VarianceGeneral3.K2 (PhiQee d σ n l)) u * g u ∂flatTorusMeasure d
+      = chordF d σ n l (q2 d σ g) := by
+  have hΦ : ∀ v z z', PhiQee d σ n l (v, z, z')
+      = cyT d σ v * (pker d σ (v 0 - z) - 1) * (pker d σ (v l - z') - 1) := fun v z z' => by
+    unfold PhiQee; rw [hp1]
+  obtain ⟨hb, h0, hs⟩ := K2_gen hσ (VarianceGeneral4.cyT_bm hσ n) 0 l hΦ hg hge
+  rw [hp_test0 hb (VarianceGeneral3.K2_TI (VarianceGeneral3.PhiQee_TI n l)) h0 hg, hs]
+  have h := cyc_f hσ (q2_bm hσ hg) (0 : Fin (n + 1)) l
+  rw [sub_zero] at h
+  exact h
+
+/-- Block `ε_{v₀} (P̃ε)_{v_l}` (line `Q₃`): `T(g) = chord_l(𝒫𝒬²g)`. -/
+theorem block_Qeb (hσ : 0 < σ) (n : ℕ) (l : Fin (n + 1)) {g : FlatTorus d → ℝ} (hg : BM g)
+    (hge : ∀ u, g (-u) = g u) :
+    ∫ u, VarianceGeneral3.hp (VarianceGeneral3.K2 (PhiQeb d σ n l)) u * g u ∂flatTorusMeasure d
+      = chordF d σ n l (Pop d σ 1 (q2 d σ g)) := by
+  have hΦ : ∀ v z z', PhiQeb d σ n l (v, z, z')
+      = A2 d σ n l v * (pker d σ (v (0 : Fin (n + 1)).castSucc - z) - 1)
+        * (pker d σ (v (Fin.last (n + 1)) - z') - 1) := fun v z z' => by
+    unfold PhiQeb A2; rw [hp1]; ring
+  obtain ⟨hb, h0, hs⟩ := K2_gen hσ (A2_bm hσ n l) _ _ hΦ hg hge
+  rw [hp_test0 hb (VarianceGeneral3.K2_TI (VarianceGeneral3.PhiQeb_TI n l)) h0 hg, hs]
+  have e1 : ∀ w : Fin (n + 2) → FlatTorus d,
+      A2 d σ n l w * (Pop d σ 1 (Pop d σ 1 g) (w (0 : Fin (n + 1)).castSucc - w (Fin.last (n + 1)))
+        - ∫ u, g u ∂flatTorusMeasure d)
+      = A2 d σ n l w * q2 d σ g (w (Fin.last (n + 1)) - w (0 : Fin (n + 1)).castSucc) := fun w => by
+    rw [swap_ev (q2_ev hge) (w (Fin.last (n + 1)))]; rfl
+  simp_rw [e1]
+  rw [A2_f hσ l 0 (q2_bm hσ hg)]
+  have e2 : ∀ v : Fin (n + 1) → FlatTorus d, cyT d σ v * Pop d σ 1 (q2 d σ g) (v l - v 0)
+      = cyT d σ v * Pop d σ 1 (q2 d σ g) (v 0 - v l) := fun v => by
+    rw [swap_ev (P1_ev (q2_ev hge)) (v l)]
+  simp_rw [e2]
+  have h := cyc_f hσ (conv_bm hσ (q2_bm hσ hg)) (0 : Fin (n + 1)) l
+  rw [sub_zero] at h
+  exact h
+
+/-- Block `(P̃ε)_{v₀} ε_{v_l}` (line `Q₃`): `T(g) = chord_l(𝒫𝒬²g)`. -/
+theorem block_Qbe (hσ : 0 < σ) (n : ℕ) (l : Fin (n + 1)) {g : FlatTorus d → ℝ} (hg : BM g)
+    (hge : ∀ u, g (-u) = g u) :
+    ∫ u, VarianceGeneral3.hp (VarianceGeneral3.K2 (PhiQbe d σ n l)) u * g u ∂flatTorusMeasure d
+      = chordF d σ n l (Pop d σ 1 (q2 d σ g)) := by
+  have hΦ : ∀ v z z', PhiQbe d σ n l (v, z, z')
+      = A2 d σ n 0 v * (pker d σ (v (Fin.last (n + 1)) - z) - 1)
+        * (pker d σ (v l.castSucc - z') - 1) := fun v z z' => by
+    unfold PhiQbe A2; rw [hp1]
+  obtain ⟨hb, h0, hs⟩ := K2_gen hσ (A2_bm hσ n 0) _ _ hΦ hg hge
+  rw [hp_test0 hb (VarianceGeneral3.K2_TI (VarianceGeneral3.PhiQbe_TI n l)) h0 hg, hs]
+  show ∫ w, A2 d σ n 0 w * q2 d σ g (w (Fin.last (n + 1)) - w l.castSucc)
+    ∂Measure.pi (fun _ : Fin (n + 2) => flatTorusMeasure d) = _
+  rw [A2_f hσ 0 l (q2_bm hσ hg)]
+  have h := cyc_f hσ (conv_bm hσ (q2_bm hσ hg)) (0 : Fin (n + 1)) l
+  rw [sub_zero] at h
+  exact h
+
+/-- Block `(P̃ε)_{v₀} (P̃ε)_{v_l}` (line `Q₃`): `T(g) = chord_l(𝒫²𝒬²g)`. -/
+theorem block_Qbb (hσ : 0 < σ) (n : ℕ) (l : Fin (n + 1)) {g : FlatTorus d → ℝ} (hg : BM g)
+    (hge : ∀ u, g (-u) = g u) :
+    ∫ u, VarianceGeneral3.hp (VarianceGeneral3.K2 (PhiQbb d σ n l)) u * g u ∂flatTorusMeasure d
+      = chordF d σ n l (Pop d σ 1 (Pop d σ 1 (q2 d σ g))) := by
+  have hΦ : ∀ v z z', PhiQbb d σ n l (v, z, z')
+      = A3 d σ n l v * (pker d σ (v (Fin.last (n + 1)).castSucc - z) - 1)
+        * (pker d σ (v (Fin.last (n + 2)) - z') - 1) := fun v z z' => by
+    unfold PhiQbb A3; rw [hp1]; ring
+  obtain ⟨hb, h0, hs⟩ := K2_gen hσ (A3_bm hσ n l) _ _ hΦ hg hge
+  rw [hp_test0 hb (VarianceGeneral3.K2_TI (VarianceGeneral3.PhiQbb_TI n l)) h0 hg, hs]
+  show ∫ w, A3 d σ n l w * q2 d σ g (w (Fin.last (n + 1)).castSucc - w (Fin.last (n + 2)))
+    ∂Measure.pi (fun _ : Fin (n + 3) => flatTorusMeasure d) = _
+  rw [A3_f hσ l (q2_bm hσ hg) (q2_ev hge)]
+  have h := cyc_f hσ (conv_bm hσ (conv_bm hσ (q2_bm hσ hg))) (0 : Fin (n + 1)) l
+  rw [sub_zero] at h
+  exact h
+
+end Blocks
+
+open PiBound VarianceOne VarianceTwo CTG.Reals.TorusReduction
+open WalkCount BiasGeneral2 BiasGeneral3 BiasGeneral4 BiasGeneral5 VarianceGeneral
+
+/-! ## (b) Summation: `∫ h_QT g = ∫ (H_k/2) g` for every even bounded measurable `g` -/
+
+section Sum
+
+variable {d : ℕ} {σ : ℝ}
+
+theorem int_comb {ι : Type*} (s : Finset ι) (c : ι → ℝ) (F : ι → FlatTorus d → ℝ)
+    (hF : ∀ i, BM (F i)) :
+    ∫ u, ∑ i ∈ s, c i * F i u ∂flatTorusMeasure d = ∑ i ∈ s, c i * ∫ u, F i u ∂flatTorusMeasure d := by
+  rw [integral_finset_sum _ (fun i _ => ((BM.const (c i)).mul (hF i)).integrable)]
+  exact Finset.sum_congr rfl fun i _ => integral_const_mul _ _
+
+theorem hp_bm' {a : ℕ} {F : (Fin a → FlatTorus d) → ℝ} (hF : BM F) : BM (VarianceGeneral3.hp F) := by
+  obtain ⟨B, hB⟩ := hF.bdd
+  obtain ⟨hm, hb⟩ := VarianceGeneral3.hpair_bm (ν := flatTorusMeasure d) hF hB
+  exact ⟨hm, _, hb⟩
+
+theorem Pop_comm (h : FlatTorus d → ℝ) : ∀ j, Pop d σ j (Pop d σ 1 h) = Pop d σ (j + 1) h := by
+  intro j
+  induction j with
+  | zero => rfl
+  | succ j ih => rw [Pop_succ', ih]; rfl
+
+theorem Pop_adj_n (hσ : 0 < σ) : ∀ j {f h : FlatTorus d → ℝ}, BM f → BM h →
+    ∫ u, Pop d σ j f u * h u ∂flatTorusMeasure d = ∫ u, f u * Pop d σ j h u ∂flatTorusMeasure d := by
+  intro j
+  induction j with
+  | zero => intro f h _ _; rfl
+  | succ j ih =>
+    intro f h hf hh
+    rw [Pop_succ', Pop_adj hσ (Pop_bm hσ hf j) hh, ih hf (conv_bm hσ hh), Pop_comm]
+
+/-- `S_j = ∑_{l=1}^{k-1} ∫ p_l p_{k-l} 𝒫ʲg` (`k = n + 1`). -/
+noncomputable def Sg (d : ℕ) (σ : ℝ) (n j : ℕ) (g : FlatTorus d → ℝ) : ℝ :=
+  ∑ l ∈ Finset.Ico 1 (n + 1),
+    ∫ u, heatP d σ l u * heatP d σ (n + 1 - l) u * Pop d σ j g u ∂flatTorusMeasure d
+
+theorem gam_bm (hσ : 0 < σ) (k : ℕ) : BM (gam d σ k) := by
+  obtain ⟨C, hC⟩ := bound_of_cont d (gam_cont hσ d k)
+  exact ⟨(gam_cont hσ d k).measurable, C, hC⟩
+
+theorem gam_test (hσ : 0 < σ) (n : ℕ) {h : FlatTorus d → ℝ} (hh : BM h) :
+    ∫ u, gam d σ (n + 1) u * h u ∂flatTorusMeasure d
+      = ∑ l ∈ Finset.Ico 1 (n + 1),
+          ∫ u, heatP d σ l u * heatP d σ (n + 1 - l) u * h u ∂flatTorusMeasure d := by
+  have e : ∀ u, gam d σ (n + 1) u * h u = ∑ l ∈ Finset.Ico 1 (n + 1),
+      heatP d σ l u * heatP d σ (n + 1 - l) u * h u := fun u => by
+    unfold gam
+    rw [Finset.sum_mul]
+    refine Finset.sum_congr rfl fun l hl => ?_
+    have hl' := Finset.mem_Ico.mp hl
+    rw [BiasGeneral6.heatP_eq_pker d σ hl'.1, BiasGeneral6.heatP_eq_pker d σ (by omega : 1 ≤ n + 1 - l)]
+  simp_rw [e]
+  exact integral_finset_sum _ fun l _ =>
+    (((heatP_bm hσ l).mul (heatP_bm hσ (n + 1 - l))).mul hh).integrable
+
+theorem pker_test (hσ : 0 < σ) (j : ℕ) {g : FlatTorus d → ℝ} (hg : BM g) :
+    ∫ u, Pop d σ j (pker d σ) u * g u ∂flatTorusMeasure d = Pop d σ (j + 1) g 0 := by
+  rw [Pop_adj_n hσ j (pker_bm hσ) hg, Pop_at0 hσ]; rfl
+
+theorem gamPop_test (hσ : 0 < σ) (n j : ℕ) {g : FlatTorus d → ℝ} (hg : BM g) :
+    ∫ u, Pop d σ j (gam d σ (n + 1)) u * g u ∂flatTorusMeasure d = Sg d σ n j g := by
+  rw [Pop_adj_n hσ j (gam_bm hσ (n + 1)) hg, gam_test hσ n (Pop_bm hσ hg j)]; rfl
+
+/-- **The target**: `∫ (H_k/2) g = (k/2)(S₀ - 4S₁ + 6S₂ - 4S₃ + S₄) - k m_k (e₁ - 3e₂ + 3e₃ - e₄)`,
+    `e_j = (𝒫ʲg)(0)`. -/
+theorem target_test (hσ : 0 < σ) (n : ℕ) {g : FlatTorus d → ℝ} (hg : BM g) :
+    ∫ u, 1 / 2 * Hk d σ (n + 1) u * g u ∂flatTorusMeasure d
+      = ((n : ℝ) + 1) / 2 * (Sg d σ n 0 g - 4 * Sg d σ n 1 g + 6 * Sg d σ n 2 g
+          - 4 * Sg d σ n 3 g + Sg d σ n 4 g)
+        - ((n : ℝ) + 1) * torusM d σ (n + 1) * (Pop d σ 1 g 0 - 3 * Pop d σ 2 g 0
+          + 3 * Pop d σ 3 g 0 - Pop d σ 4 g 0) := by
+  set k : ℝ := (n : ℝ) + 1 with hk
+  set m := torusM d σ (n + 1)
+  let F : Fin 9 → FlatTorus d → ℝ := ![fun u => Pop d σ 0 (gam d σ (n + 1)) u * g u,
+    fun u => Pop d σ 1 (gam d σ (n + 1)) u * g u, fun u => Pop d σ 2 (gam d σ (n + 1)) u * g u,
+    fun u => Pop d σ 3 (gam d σ (n + 1)) u * g u, fun u => Pop d σ 4 (gam d σ (n + 1)) u * g u,
+    fun u => Pop d σ 0 (pker d σ) u * g u, fun u => Pop d σ 1 (pker d σ) u * g u,
+    fun u => Pop d σ 2 (pker d σ) u * g u, fun u => Pop d σ 3 (pker d σ) u * g u]
+  let c : Fin 9 → ℝ := ![k / 2, -4 * (k / 2), 6 * (k / 2), -4 * (k / 2), k / 2,
+    -(k * m), 3 * (k * m), -3 * (k * m), k * m]
+  have hF : ∀ i, BM (F i) := by
+    intro i
+    fin_cases i
+    · exact (Pop_bm hσ (gam_bm hσ (n + 1)) 0).mul hg
+    · exact (Pop_bm hσ (gam_bm hσ (n + 1)) 1).mul hg
+    · exact (Pop_bm hσ (gam_bm hσ (n + 1)) 2).mul hg
+    · exact (Pop_bm hσ (gam_bm hσ (n + 1)) 3).mul hg
+    · exact (Pop_bm hσ (gam_bm hσ (n + 1)) 4).mul hg
+    · exact (Pop_bm hσ (pker_bm hσ) 0).mul hg
+    · exact (Pop_bm hσ (pker_bm hσ) 1).mul hg
+    · exact (Pop_bm hσ (pker_bm hσ) 2).mul hg
+    · exact (Pop_bm hσ (pker_bm hσ) 3).mul hg
+  have e : ∀ u, 1 / 2 * Hk d σ (n + 1) u * g u = ∑ i : Fin 9, c i * F i u := fun u => by
+    simp only [Fin.sum_univ_succ, Fin.sum_univ_zero, c, F, Matrix.cons_val_zero,
+      Matrix.cons_val_succ]
+    unfold Hk diff4 diff3
+    simp only [hk, m]
+    push_cast
+    ring
+  simp_rw [e]
+  rw [int_comb _ c F hF]
+  simp only [Fin.sum_univ_succ, Fin.sum_univ_zero, c, F, Matrix.cons_val_zero,
+    Matrix.cons_val_succ]
+  rw [gamPop_test hσ n 0 hg, gamPop_test hσ n 1 hg, gamPop_test hσ n 2 hg, gamPop_test hσ n 3 hg,
+    gamPop_test hσ n 4 hg, pker_test hσ 0 hg, pker_test hσ 1 hg, pker_test hσ 2 hg,
+    pker_test hσ 3 hg]
+  ring
+
+theorem chord_sum (n : ℕ) (f : FlatTorus d → ℝ) :
+    ∑ b : Fin (n + 1), chordF d σ n b f
+      = torusM d σ (n + 1) * f 0 + ∑ l ∈ Finset.Ico 1 (n + 1),
+          ∫ u, heatP d σ l u * heatP d σ (n + 1 - l) u * f u ∂flatTorusMeasure d := by
+  rw [Fin.sum_univ_succ]
+  unfold chordF
+  simp only [Fin.succ_ne_zero, if_false, Fin.val_succ]
+  congr 1
+  rw [Finset.sum_Ico_eq_sum_range, Fin.sum_univ_eq_sum_range
+    (fun i => ∫ u, heatP d σ (i + 1) u * heatP d σ (n + 1 - (i + 1)) u * f u ∂flatTorusMeasure d) n,
+    show n + 1 - 1 = n by omega]
+  exact Finset.sum_congr rfl fun i _ => by rw [add_comm 1 i]
+
+theorem chord_sum' (n : ℕ) (f : FlatTorus d → ℝ) :
+    ∑ l ∈ Finset.univ.erase (0 : Fin (n + 1)), chordF d σ n l f
+      = ∑ l ∈ Finset.Ico 1 (n + 1),
+          ∫ u, heatP d σ l u * heatP d σ (n + 1 - l) u * f u ∂flatTorusMeasure d := by
+  have h := Finset.sum_erase_eq_sub (s := Finset.univ) (f := fun l => chordF d σ n l f)
+    (Finset.mem_univ (0 : Fin (n + 1)))
+  rw [h, chord_sum]
+  unfold chordF; simp
+
+theorem Pop1_R (hσ : 0 < σ) {g : FlatTorus d → ℝ} (hg : BM g) (j : ℕ) (a : ℝ) :
+    Pop d σ 1 (fun u => Pop d σ j g u - a) = fun u => Pop d σ (j + 1) g u - a := by
+  funext u; rw [Pop_sub_const hσ (Pop_bm hσ hg j)]; rfl
+
+theorem chord_R_sum (hσ : 0 < σ) (n : ℕ) {g : FlatTorus d → ℝ} (hg : BM g) (j : ℕ) (a : ℝ) :
+    ∑ b : Fin (n + 1), chordF d σ n b (fun u => Pop d σ j g u - a)
+      = torusM d σ (n + 1) * Pop d σ j g 0 + Sg d σ n j g
+        - ((n : ℝ) + 1) * (torusM d σ (n + 1) * a) := by
+  simp_rw [chordF_sub hσ (Pop_bm hσ hg j) a]
+  rw [Finset.sum_sub_distrib, chord_sum]
+  simp [Sg]
+
+theorem chord_R_sum' (hσ : 0 < σ) (n : ℕ) {g : FlatTorus d → ℝ} (hg : BM g) (j : ℕ) (a : ℝ) :
+    ∑ l ∈ Finset.univ.erase (0 : Fin (n + 1)), chordF d σ n l (fun u => Pop d σ j g u - a)
+      = Sg d σ n j g - (n : ℝ) * (torusM d σ (n + 1) * a) := by
+  simp_rw [chordF_sub hσ (Pop_bm hσ hg j) a]
+  rw [Finset.sum_sub_distrib, chord_sum']
+  simp [Sg, Finset.card_erase_of_mem]
+
+theorem chord_R0 (n : ℕ) {g : FlatTorus d → ℝ} (j : ℕ) (a : ℝ) :
+    chordF d σ n 0 (fun u => Pop d σ j g u - a) = torusM d σ (n + 1) * (Pop d σ j g 0 - a) := by
+  unfold chordF; simp
+
+/-- **(b) for every `k = n + 1`**: the pair kernel of `QT` tested against an even bounded
+    measurable `g` gives the same value as `H_k / 2`. -/
+theorem hQT_test (hσ : 0 < σ) (n : ℕ) {g : FlatTorus d → ℝ} (hg : BM g) (hge : ∀ u, g (-u) = g u) :
+    ∫ u, VarianceGeneral3.hQT d σ n u * g u ∂flatTorusMeasure d
+      = ((n : ℝ) + 1) / 2 * (Sg d σ n 0 g - 4 * Sg d σ n 1 g + 6 * Sg d σ n 2 g
+          - 4 * Sg d σ n 3 g + Sg d σ n 4 g)
+        - ((n : ℝ) + 1) * torusM d σ (n + 1) * (Pop d σ 1 g 0 - 3 * Pop d σ 2 g 0
+          + 3 * Pop d σ 3 g 0 - Pop d σ 4 g 0) := by
+  set a := ∫ u, g u ∂flatTorusMeasure d with ha
+  set m := torusM d σ (n + 1) with hm
+  have hq1 : Pop d σ 1 (qg d σ g) = fun u => Pop d σ 2 g u - a := Pop1_R hσ hg 1 a
+  have hq2 : Pop d σ 1 (q2 d σ g) = fun u => Pop d σ 3 g u - a := Pop1_R hσ hg 2 a
+  -- the block values
+  have vA : ∫ u, VarianceGeneral3.hp (VarianceGeneral3.K1 (PhiA d σ n)) u * g u ∂flatTorusMeasure d
+      = m * Pop d σ 1 g 0 + Sg d σ n 1 g - ((n : ℝ) + 1) * (m * a) := by
+    rw [block_A hσ n hg]; exact chord_R_sum hσ n hg 1 a
+  have vB : ∫ u, VarianceGeneral3.hp (VarianceGeneral3.K1 (PhiB d σ n)) u * g u ∂flatTorusMeasure d
+      = m * Pop d σ 2 g 0 + Sg d σ n 2 g - ((n : ℝ) + 1) * (m * a) + m * (Pop d σ 1 g 0 - a) := by
+    rw [block_B hσ n hg, hq1, chord_R_sum hσ n hg 2 a]
+    rfl
+  have vEE : ∫ u, VarianceGeneral3.hp (VarianceGeneral3.K2 (PhiEE d σ n)) u * g u ∂flatTorusMeasure d
+      = m * (Pop d σ 2 g 0 - a) := by
+    rw [block_EE hσ n hg hge]; exact chord_R0 n 2 a
+  have vEB : ∫ u, VarianceGeneral3.hp (VarianceGeneral3.K2 (PhiEB d σ n)) u * g u ∂flatTorusMeasure d
+      = m * (Pop d σ 3 g 0 - a) := by
+    rw [block_EB hσ n hg hge, hq2]
+    exact chord_R0 n 3 a
+  have vS : ∫ u, VarianceGeneral3.hp (VarianceGeneral3.K2 (PhiS d σ n)) u * g u ∂flatTorusMeasure d
+      = m * (Pop d σ 2 g 0 - a) := by
+    rw [block_S hσ n hg hge]; rfl
+  have vBB : ∫ u, VarianceGeneral3.hp (VarianceGeneral3.K2 (PhiBB d σ n)) u * g u ∂flatTorusMeasure d
+      = m * (Pop d σ 4 g 0 - a) := by
+    rw [block_BB hσ n hg hge, hq2, Pop1_R hσ hg 3 a]
+    exact chord_R0 n 4 a
+  have vQ : ∑ l ∈ Finset.univ.erase (0 : Fin (n + 1)),
+      (4 * ∫ u, VarianceGeneral3.hp (VarianceGeneral3.K2 (PhiQee d σ n l)) u * g u ∂flatTorusMeasure d
+        - 2 * ∫ u, VarianceGeneral3.hp (VarianceGeneral3.K2 (PhiQeb d σ n l)) u * g u ∂flatTorusMeasure d
+        - 2 * ∫ u, VarianceGeneral3.hp (VarianceGeneral3.K2 (PhiQbe d σ n l)) u * g u ∂flatTorusMeasure d
+        + ∫ u, VarianceGeneral3.hp (VarianceGeneral3.K2 (PhiQbb d σ n l)) u * g u ∂flatTorusMeasure d)
+      = 4 * (Sg d σ n 2 g - n * (m * a)) - 4 * (Sg d σ n 3 g - n * (m * a))
+        + (Sg d σ n 4 g - n * (m * a)) := by
+    have e : ∀ l : Fin (n + 1),
+        4 * ∫ u, VarianceGeneral3.hp (VarianceGeneral3.K2 (PhiQee d σ n l)) u * g u ∂flatTorusMeasure d
+          - 2 * ∫ u, VarianceGeneral3.hp (VarianceGeneral3.K2 (PhiQeb d σ n l)) u * g u ∂flatTorusMeasure d
+          - 2 * ∫ u, VarianceGeneral3.hp (VarianceGeneral3.K2 (PhiQbe d σ n l)) u * g u ∂flatTorusMeasure d
+          + ∫ u, VarianceGeneral3.hp (VarianceGeneral3.K2 (PhiQbb d σ n l)) u * g u ∂flatTorusMeasure d
+        = 4 * chordF d σ n l (fun u => Pop d σ 2 g u - a)
+          - 4 * chordF d σ n l (fun u => Pop d σ 3 g u - a)
+          + chordF d σ n l (fun u => Pop d σ 4 g u - a) := fun l => by
+      rw [block_Qee hσ n l hg hge, block_Qeb hσ n l hg hge, block_Qbe hσ n l hg hge,
+        block_Qbb hσ n l hg hge, hq2, Pop1_R hσ hg 3 a]
+      have : chordF d σ n l (q2 d σ g) = chordF d σ n l (fun u => Pop d σ 2 g u - a) := rfl
+      rw [this]; ring
+    rw [Finset.sum_congr rfl fun l _ => e l, Finset.sum_add_distrib, Finset.sum_sub_distrib,
+      ← Finset.mul_sum, ← Finset.mul_sum, chord_R_sum' hσ n hg 2 a,
+      chord_R_sum' hσ n hg 3 a, chord_R_sum' hσ n hg 4 a]
+  have vC : ∫ u, VarianceGeneral3.hp (cyT d σ (n := n)) u * g u ∂flatTorusMeasure d
+      = ((n : ℝ) + 1) / 2 * Sg d σ n 0 g - ((n : ℝ) + 1) / 2 * n * (m * a) := by
+    have h1 : ∫ u, VarianceGeneral3.hp (cyT d σ (n := n)) u * g u ∂flatTorusMeasure d
+        = ∫ u, (1 / 2 * (((n : ℝ) + 1) * gam d σ (n + 1) u - ((n : ℝ) + 1) * n * m)) * g u
+          ∂flatTorusMeasure d :=
+      integral_congr_ae ((VarianceGeneral4.hp_cyc (d := d) hσ n).mono fun u hu => by
+        show VarianceGeneral3.hp (cyT d σ (n := n)) u * g u = _
+        rw [hu])
+    have e : ∀ u, (1 / 2 * (((n : ℝ) + 1) * gam d σ (n + 1) u - ((n : ℝ) + 1) * n * m)) * g u
+        = ((n : ℝ) + 1) / 2 * (gam d σ (n + 1) u * g u) - ((n : ℝ) + 1) / 2 * n * m * g u :=
+      fun u => by ring
+    rw [h1]; simp_rw [e]
+    rw [integral_sub (((gam_bm hσ (n + 1)).mul hg).const_mul _).integrable
+      ((BM.const _).mul hg).integrable, integral_const_mul, integral_const_mul,
+      gam_test hσ n hg]
+    unfold Sg; simp only [Pop_zero]; ring
+  -- the linear split of `∫ h_QT g`
+  let F : Fin 7 → FlatTorus d → ℝ := ![
+    fun u => VarianceGeneral3.hp (cyT d σ (n := n)) u * g u,
+    fun u => VarianceGeneral3.hp (VarianceGeneral3.K1 (PhiA d σ n)) u * g u,
+    fun u => VarianceGeneral3.hp (VarianceGeneral3.K1 (PhiB d σ n)) u * g u,
+    fun u => VarianceGeneral3.hp (VarianceGeneral3.K2 (PhiEE d σ n)) u * g u,
+    fun u => VarianceGeneral3.hp (VarianceGeneral3.K2 (PhiEB d σ n)) u * g u,
+    fun u => VarianceGeneral3.hp (VarianceGeneral3.K2 (PhiBB d σ n)) u * g u,
+    fun u => VarianceGeneral3.hp (VarianceGeneral3.K2 (PhiS d σ n)) u * g u]
+  let c : Fin 7 → ℝ := ![1, -2 * ((n : ℝ) + 1), (n : ℝ) + 1, 3 * ((n : ℝ) + 1),
+    -3 * ((n : ℝ) + 1), (n : ℝ) + 1, -((n : ℝ) + 1)]
+  let G : Fin (n + 1) → Fin 4 → FlatTorus d → ℝ := fun l => ![
+    fun u => VarianceGeneral3.hp (VarianceGeneral3.K2 (PhiQee d σ n l)) u * g u,
+    fun u => VarianceGeneral3.hp (VarianceGeneral3.K2 (PhiQeb d σ n l)) u * g u,
+    fun u => VarianceGeneral3.hp (VarianceGeneral3.K2 (PhiQbe d σ n l)) u * g u,
+    fun u => VarianceGeneral3.hp (VarianceGeneral3.K2 (PhiQbb d σ n l)) u * g u]
+  let c' : Fin 4 → ℝ := ![4, -2, -2, 1]
+  have hbA := (VarianceGeneral3.K1_bm (PhiA_meas hσ d n) (VarianceGeneral3.PhiA_le_B4 hσ n)).1
+  have hbB := (VarianceGeneral3.K1_bm (PhiB_meas hσ d n) (VarianceGeneral3.PhiB_le_B4 hσ n)).1
+  have hb2 : ∀ {s : ℕ} {Φ : (Fin s → FlatTorus d) × FlatTorus d × FlatTorus d → ℝ},
+      Measurable Φ → (∃ C, ∀ p, |Φ p| ≤ C) → BM (VarianceGeneral3.K2 Φ) := fun hΦ ⟨C, hC⟩ =>
+    (VarianceGeneral3.K2_bm hΦ hC).1
+  have hF : ∀ i, BM (F i) := by
+    have hPB := fun l => BiasGeneral6.phi_bounds hσ d n l
+    intro i
+    fin_cases i
+    · exact (hp_bm' (VarianceGeneral4.cyT_bm hσ n)).mul hg
+    · exact (hp_bm' hbA).mul hg
+    · exact (hp_bm' hbB).mul hg
+    · exact (hp_bm' (hb2 (PhiEE_meas hσ d n) ⟨_, (hPB 0).1⟩)).mul hg
+    · exact (hp_bm' (hb2 (PhiEB_meas hσ d n) ⟨_, (hPB 0).2.1⟩)).mul hg
+    · exact (hp_bm' (hb2 (PhiBB_meas hσ d n) ⟨_, (hPB 0).2.2.1⟩)).mul hg
+    · exact (hp_bm' (hb2 (PhiS_meas hσ d n) ⟨_, (hPB 0).2.2.2.1⟩)).mul hg
+  have hG : ∀ l i, BM (G l i) := by
+    have hPB := fun l => BiasGeneral6.phi_bounds hσ d n l
+    intro l i
+    fin_cases i
+    · exact (hp_bm' (hb2 (PhiQee_meas hσ d n l) ⟨_, (hPB l).2.2.2.2.1⟩)).mul hg
+    · exact (hp_bm' (hb2 (PhiQeb_meas hσ d n l) ⟨_, (hPB l).2.2.2.2.2.1⟩)).mul hg
+    · exact (hp_bm' (hb2 (PhiQbe_meas hσ d n l) ⟨_, (hPB l).2.2.2.2.2.2.1⟩)).mul hg
+    · exact (hp_bm' (hb2 (PhiQbb_meas hσ d n l) ⟨_, (hPB l).2.2.2.2.2.2.2⟩)).mul hg
+  have hsum : ∀ u, ∑ l ∈ Finset.univ.erase (0 : Fin (n + 1)), ∑ i : Fin 4, c' i * G l i u
+      = (∑ l ∈ Finset.univ.erase (0 : Fin (n + 1)),
+          (4 * VarianceGeneral3.hp (VarianceGeneral3.K2 (PhiQee d σ n l)) u
+            - 2 * VarianceGeneral3.hp (VarianceGeneral3.K2 (PhiQeb d σ n l)) u
+            - 2 * VarianceGeneral3.hp (VarianceGeneral3.K2 (PhiQbe d σ n l)) u
+            + VarianceGeneral3.hp (VarianceGeneral3.K2 (PhiQbb d σ n l)) u)) * g u := fun u => by
+    rw [Finset.sum_mul]
+    refine Finset.sum_congr rfl fun l _ => ?_
+    simp only [Fin.sum_univ_succ, Fin.sum_univ_zero, c', G, Matrix.cons_val_zero,
+      Matrix.cons_val_succ]
+    ring
+  have e : ∀ u, VarianceGeneral3.hQT d σ n u * g u
+      = ∑ i : Fin 7, c i * F i u
+        + ((n : ℝ) + 1) / 2 * ∑ l ∈ Finset.univ.erase (0 : Fin (n + 1)), ∑ i : Fin 4, c' i * G l i u :=
+    fun u => by
+      rw [hsum u]
+      simp only [Fin.sum_univ_succ, Fin.sum_univ_zero, c, F, Matrix.cons_val_zero,
+        Matrix.cons_val_succ]
+      unfold VarianceGeneral3.hQT
+      ring
+  have hB1 : BM fun u => ∑ i : Fin 7, c i * F i u :=
+    BM.sum _ _ fun i _ => (BM.const (c i)).mul (hF i)
+  have hB2 : BM fun u => ∑ l ∈ Finset.univ.erase (0 : Fin (n + 1)), ∑ i : Fin 4, c' i * G l i u :=
+    BM.sum _ _ fun l _ => BM.sum _ _ fun i _ => (BM.const (c' i)).mul (hG l i)
+  rw [show (fun u => VarianceGeneral3.hQT d σ n u * g u) = _ from funext e,
+    integral_add hB1.integrable (hB2.const_mul _).integrable, int_comb _ c F hF,
+    integral_const_mul, integral_finset_sum _ fun l _ => (BM.sum _ _ fun i _ =>
+      (BM.const (c' i)).mul (hG l i)).integrable]
+  simp_rw [int_comb _ c' (G _) (hG _)]
+  have vQ' : ∑ l ∈ Finset.univ.erase (0 : Fin (n + 1)), ∑ i : Fin 4,
+      c' i * ∫ u, G l i u ∂flatTorusMeasure d
+      = 4 * (Sg d σ n 2 g - n * (m * a)) - 4 * (Sg d σ n 3 g - n * (m * a))
+        + (Sg d σ n 4 g - n * (m * a)) := by
+    rw [← vQ]
+    refine Finset.sum_congr rfl fun l _ => ?_
+    simp only [Fin.sum_univ_succ, Fin.sum_univ_zero, c', G, Matrix.cons_val_zero,
+      Matrix.cons_val_succ]
+    ring
+  rw [vQ']
+  simp only [Fin.sum_univ_succ, Fin.sum_univ_zero, c, F, Matrix.cons_val_zero,
+    Matrix.cons_val_succ]
+  rw [vC, vA, vB, vEE, vEB, vBB, vS]
+  ring
+
+end Sum
+
+open PiBound VarianceOne VarianceTwo CTG.Reals.TorusReduction
+open WalkCount BiasGeneral2 BiasGeneral3 BiasGeneral4 BiasGeneral5 VarianceGeneral
+
+/-! ## (c), (d): `hsym = H_k / 2` almost everywhere, `v'_k = v_k`, `prop:variance` for every `k` -/
+
+section Final
+
+variable {d : ℕ} {σ : ℝ}
+
+theorem neg_int (f : FlatTorus d → ℝ) :
+    ∫ u, f (-u) ∂flatTorusMeasure d = ∫ u, f u ∂flatTorusMeasure d := VarianceGeneral.neg_inv_int d f
+
+theorem Hk_bm (hσ : 0 < σ) (k : ℕ) : BM (Hk d σ k) := by
+  obtain ⟨C, hC⟩ := bound_of_cont d (Hk_cont hσ d k)
+  exact ⟨(Hk_cont hσ d k).measurable, C, hC⟩
+
+/-- **(c) The symmetrised pair kernel of `QT` is `H_k / 2` almost everywhere, for every
+    `k = n + 1`.** -/
+theorem hS_ae (hσ : 0 < σ) (n : ℕ) :
+    VarianceGeneral3.hS d σ n =ᵐ[flatTorusMeasure d] fun u => 1 / 2 * Hk d σ (n + 1) u := by
+  have hQ : BM (VarianceGeneral3.hQT d σ n) := (VarianceGeneral3.hQT_ZM hσ n).1
+  have hQn : BM fun u => VarianceGeneral3.hQT d σ n (-u) :=
+    ⟨hQ.meas.comp measurable_neg, hQ.bdd.imp fun C h u => h _⟩
+  have hSb : BM (VarianceGeneral3.hS d σ n) := by
+    have : BM fun u => 1 / 2 * (VarianceGeneral3.hQT d σ n u + VarianceGeneral3.hQT d σ n (-u)) :=
+      (hQ.add hQn).const_mul _
+    exact this
+  have hH : BM fun u => 1 / 2 * Hk d σ (n + 1) u := (Hk_bm hσ (n + 1)).const_mul _
+  refine VarianceGeneral4.ae_of_test hSb hH fun g hg hg0 hgC => ?_
+  obtain ⟨C, hC⟩ := hgC
+  have hgb : BM g := ⟨hg, C, fun u => by rw [abs_of_nonneg (hg0 u)]; exact hC u⟩
+  have hgn : BM fun u => g (-u) := ⟨hg.comp measurable_neg, C, fun u => by
+    rw [abs_of_nonneg (hg0 _)]; exact hC _⟩
+  set gs : FlatTorus d → ℝ := fun u => 1 / 2 * (g u + g (-u)) with hgs
+  have hgsb : BM gs := (hgb.add hgn).const_mul _
+  have hgse : ∀ u, gs (-u) = gs u := fun u => by simp only [hgs, neg_neg]; ring
+  -- the left side
+  have L : ∫ u, VarianceGeneral3.hS d σ n u * g u ∂flatTorusMeasure d
+      = ∫ u, VarianceGeneral3.hQT d σ n u * gs u ∂flatTorusMeasure d := by
+    have e1 : ∀ u, VarianceGeneral3.hS d σ n u * g u
+        = 1 / 2 * (VarianceGeneral3.hQT d σ n u * g u)
+          + 1 / 2 * (VarianceGeneral3.hQT d σ n (-u) * g u) := fun u => by
+      unfold VarianceGeneral3.hS; ring
+    have e2 : ∀ u, VarianceGeneral3.hQT d σ n u * gs u
+        = 1 / 2 * (VarianceGeneral3.hQT d σ n u * g u)
+          + 1 / 2 * (VarianceGeneral3.hQT d σ n u * g (-u)) := fun u => by
+      simp only [hgs]; ring
+    simp_rw [e1, e2]
+    rw [integral_add ((hQ.mul hgb).const_mul _).integrable ((hQn.mul hgb).const_mul _).integrable,
+      integral_add ((hQ.mul hgb).const_mul _).integrable ((hQ.mul hgn).const_mul _).integrable]
+    simp only [integral_const_mul]
+    congr 2
+    rw [← neg_int (fun u => VarianceGeneral3.hQT d σ n u * g (-u))]
+    simp only [neg_neg]
+  -- the right side
+  have R : ∫ u, 1 / 2 * Hk d σ (n + 1) u * g u ∂flatTorusMeasure d
+      = ∫ u, 1 / 2 * Hk d σ (n + 1) u * gs u ∂flatTorusMeasure d := by
+    have hHb := Hk_bm (d := d) hσ (n + 1)
+    have e2 : ∀ u, 1 / 2 * Hk d σ (n + 1) u * gs u
+        = 1 / 2 * (1 / 2 * Hk d σ (n + 1) u * g u) + 1 / 2 * (1 / 2 * Hk d σ (n + 1) u * g (-u)) :=
+      fun u => by simp only [hgs]; ring
+    simp_rw [e2]
+    rw [integral_add ((hH.mul hgb).const_mul _).integrable ((hH.mul hgn).const_mul _).integrable]
+    simp only [integral_const_mul]
+    rw [← neg_int (fun u => 1 / 2 * Hk d σ (n + 1) u * g (-u))]
+    simp only [neg_neg, Hk_even]
+    ring
+  rw [L, R, hQT_test hσ n hgsb hgse, target_test hσ n hgsb]
+
+/-- **(c) `v'_k = v_k` for every `k = n + 1`** (no hypothesis). -/
+theorem vq_eq_vk_ae (hσ : 0 < σ) (n : ℕ) :
+    VarianceGeneral3.vq d σ n = vk d σ (n + 1) := by
+  unfold VarianceGeneral3.vq vk
+  rw [integral_congr_ae ((hS_ae (d := d) hσ n).mono fun u hu => by
+    show VarianceGeneral3.hS d σ n u ^ 2 = (1 / 2 * Hk d σ (n + 1) u) ^ 2
+    rw [hu])]
+  have e : ∀ u, (1 / 2 * Hk d σ (n + 1) u) ^ 2 = 1 / 4 * Hk d σ (n + 1) u ^ 2 := fun u => by ring
+  simp_rw [e]
+  rw [integral_const_mul]; ring
+
+/-- **(d) `prop:variance` for every `k = n + 1` with `v_k = ½ ∫ H_k²`, unconditional**:
+    independent uniform points on the flat torus `FlatTorus d` (`d ≥ 1`), Gaussian kernel of
+    variance `σ ≤ 1` with self-loops, `N ≥ 2`, `kernelC1 d · δ' ≤ 1` with `δ' = √(M log N / N)`,
+    and every `θ > 0`:
+    `|Var Tr P^k - v_k (N-1)/N³| ≤ θ v_k (N-1)/N³ + (1 + 1/θ) · Rest`, with exactly the rest of
+    `VarianceGeneral3.variance_general_v'_sample` (where `v'_k` is now replaced by `v_k` through
+    `vq_eq_vk_ae`).  The constants are those of the files and are not evaluated. -/
+theorem variance_general {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {σ : ℝ} (hσ : 0 < σ) (hσ1 : σ ≤ 1)
+    (d : ℕ) (hd : 1 ≤ d) (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ)
+    (hX : ∀ j, Measurable (X j)) (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) (N : ℕ)
+    (hN2 : 2 ≤ N) {Mp δp : ℝ} (hMp : Mp = heatTorus d (2 * Real.pi ^ 2 * σ) 0)
+    (hδp : δp = Real.sqrt (Mp * Real.log N / N)) (hrange : kernelC1 d * δp ≤ 1)
+    (n : ℕ) {θ : ℝ} (hθ : 0 < θ) :
+    |cv μ (fun ω => ((torusWalk d σ N (fun j => X j ω)) ^ (n + 1)).trace)
+        - vk d σ (n + 1) * ((N : ℝ) - 1) / (N : ℝ) ^ 3|
+      ≤ θ * (vk d σ (n + 1) * ((N : ℝ) - 1) / (N : ℝ) ^ 3)
+        + (1 + 1 / θ) * (2 * ((BiasGeneral6.gK n * (TorusReductionL1.normC d * δp) * torusM d σ 1) ^ 2
+            * (TorusReductionL1.normC d * δp) ^ 2 * (2 * torusM d σ 1 ^ 2 / N)
+          + (N + BiasGeneral6.CQT d σ n) ^ 2 * (1 / (N : ℝ) ^ 3))
+          + 2 * (VarianceGeneral3.Cq n * (VarianceGeneral3.cA n * BiasGeneral5.B4 d σ n ^ 2
+            / (N : ℝ) ^ 3))) := by
+  rw [← vq_eq_vk_ae hσ n]
+  exact VarianceGeneral3.variance_general_v'_sample hσ hσ1 d hd X h_indep hX hlaw N hN2 hMp hδp
+    hrange n hθ
+
+end Final
+
+end VarianceGeneral5
+
 end CTG.Reals2
