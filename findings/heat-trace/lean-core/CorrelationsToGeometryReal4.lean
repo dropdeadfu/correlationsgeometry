@@ -6504,4 +6504,1694 @@ end NoLoops
 
 end VarianceSharp
 
+namespace VarianceLimit
+
+/-! # A111, stage 1: the hypothesis `δ_N ≤ 1/8` holds for all large `N`; limit statements
+
+`deltaN d σ N = O(√(log N / N)) → 0` (`deltaN_tendsto`), hence `δ_N ≤ 1/8` and
+`δ_N + m₁/N ≤ 1/8` hold eventually.  Inserted into `VarianceSharp.variance_general_rate` and
+`VarianceSharp.variance_noloops_rate`, this gives the eventual bounds without the numerical
+hypothesis and the limits `N² · Var Tr P_N^k → v_k` (with self-loops, every `k ≥ 1`;
+without self-loops, every `k ≥ 2`).  The sample of size `N` is the first `N` points of one
+sequence of independent uniform points. -/
+
+open Filter Topology WalkCount Function BiasGeneral BiasGeneral2 BiasGeneral3 BiasGeneral4
+  BiasGeneral5 BiasGeneral6 PiBound CTG.Reals.TorusReduction BiasVariance BiasVariance4 NoLoops
+  BiasNoLoops VarianceOne VarianceSharp
+
+/-- `(log x + 1)^p ≤ 9^p x^{p/8}` for `x ≥ 1`. -/
+theorem log_add_one_pow_le {x : ℝ} (hx : 1 ≤ x) (p : ℕ) :
+    (Real.log x + 1) ^ p ≤ 9 ^ p * x ^ ((p : ℝ) / 8) := by
+  have h0 : 0 ≤ Real.log x := Real.log_nonneg hx
+  have h1 : Real.log x ≤ x ^ ((1 : ℝ) / 8) / (1 / 8) :=
+    Real.log_le_rpow_div (by linarith) (by norm_num)
+  have h3 : Real.log x + 1 ≤ 9 * x ^ ((1 : ℝ) / 8) := by
+    have h2 : 1 ≤ x ^ ((1 : ℝ) / 8) := Real.one_le_rpow hx (by norm_num)
+    have e : x ^ ((1 : ℝ) / 8) / (1 / 8) = 8 * x ^ ((1 : ℝ) / 8) := by ring
+    linarith
+  calc (Real.log x + 1) ^ p ≤ (9 * x ^ ((1 : ℝ) / 8)) ^ p := pow_le_pow_left₀ (by linarith) h3 p
+    _ = 9 ^ p * x ^ ((p : ℝ) / 8) := by
+      rw [mul_pow, ← Real.rpow_natCast (x ^ _), ← Real.rpow_mul (by linarith)]
+      congr 2; ring
+
+/-- `(log N + 1)^p / √N → 0` for `p ≤ 3`. -/
+theorem tendsto_log_pow_div_sqrt (p : ℕ) (hp : p ≤ 3) :
+    Tendsto (fun N : ℕ => (Real.log N + 1) ^ p / Real.sqrt N) atTop (𝓝 0) := by
+  have hneg : 0 < -((p : ℝ) / 8 - 1 / 2) := by
+    have : (p : ℝ) ≤ 3 := by exact_mod_cast hp
+    linarith
+  have hlim : Tendsto (fun N : ℕ => 9 ^ p * (N : ℝ) ^ ((p : ℝ) / 8 - 1 / 2)) atTop (𝓝 0) := by
+    have h1 := (tendsto_rpow_neg_atTop hneg).comp tendsto_natCast_atTop_atTop
+    have h2 := h1.const_mul ((9 : ℝ) ^ p)
+    rw [mul_zero] at h2
+    refine h2.congr (fun N => ?_)
+    simp only [Function.comp_apply, neg_neg]
+  refine squeeze_zero' (Eventually.of_forall fun N => by positivity) ?_ hlim
+  filter_upwards [eventually_ge_atTop 1] with N hN
+  have hN1 : (1 : ℝ) ≤ N := by exact_mod_cast hN
+  have hNpos : (0 : ℝ) < N := by linarith
+  rw [Real.sqrt_eq_rpow, Real.rpow_sub hNpos, ← mul_div_assoc]
+  exact div_le_div_of_nonneg_right (log_add_one_pow_le hN1 p) (by positivity)
+
+/-- **`δ_N → 0`** for fixed `d` and `σ > 0`. -/
+theorem deltaN_tendsto {σ : ℝ} (hσ : 0 < σ) (d : ℕ) :
+    Tendsto (fun N : ℕ => deltaN d σ N) atTop (𝓝 0) := by
+  have hq : Tendsto (fun N : ℕ => (Real.log N + 1) / N) atTop (𝓝 0) := by
+    have h1 := tendsto_log_pow_div_sqrt 1 (by norm_num)
+    simp only [pow_one] at h1
+    refine squeeze_zero' ?_ ?_ h1
+    · filter_upwards [eventually_ge_atTop 1] with N hN
+      have hN1 : (1 : ℝ) ≤ N := by exact_mod_cast hN
+      have : 0 ≤ Real.log N := Real.log_nonneg hN1
+      positivity
+    · filter_upwards [eventually_ge_atTop 1] with N hN
+      have hN1 : (1 : ℝ) ≤ N := by exact_mod_cast hN
+      have : 0 ≤ Real.log N := Real.log_nonneg hN1
+      have hs : Real.sqrt N ≤ N := by
+        rw [Real.sqrt_le_left (by linarith)]; nlinarith
+      exact div_le_div_of_nonneg_left (by linarith) (Real.sqrt_pos.mpr (by linarith)) hs
+  have hlim : Tendsto (fun N : ℕ => Real.sqrt (K0 d σ * ((Real.log N + 1) / N))) atTop (𝓝 0) := by
+    have := (hq.const_mul (K0 d σ)).sqrt
+    rwa [mul_zero, Real.sqrt_zero] at this
+  refine squeeze_zero' (Eventually.of_forall fun N => deltaN_nonneg hσ d N) ?_ hlim
+  filter_upwards [eventually_ge_atTop 2] with N hN
+  have h := Real.abs_le_sqrt (deltaN_sq hσ d hN)
+  rw [abs_of_nonneg (deltaN_nonneg hσ d N), mul_div_assoc] at h
+  exact h
+
+/-- `δ_N ≤ 1/8` for all large `N`. -/
+theorem deltaN_eventually {σ : ℝ} (hσ : 0 < σ) (d : ℕ) :
+    ∀ᶠ N : ℕ in atTop, deltaN d σ N ≤ 1 / 8 :=
+  ((deltaN_tendsto hσ d).eventually_lt_const (by norm_num : (0 : ℝ) < 1 / 8)).mono
+    fun _ h => h.le
+
+/-- `δ_N + m₁/N ≤ 1/8` for all large `N`. -/
+theorem deltaN_add_eventually {σ : ℝ} (hσ : 0 < σ) (d : ℕ) :
+    ∀ᶠ N : ℕ in atTop, deltaN d σ N + torusM d σ 1 / N ≤ 1 / 8 := by
+  have h := (deltaN_tendsto hσ d).add (tendsto_const_div_atTop_nhds_zero_nat (torusM d σ 1))
+  rw [add_zero] at h
+  exact (h.eventually_lt_const (by norm_num : (0 : ℝ) < 1 / 8)).mono fun _ h => h.le
+
+variable {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+
+/-- **Eventual rate, with self-loops, without the hypothesis `δ_N ≤ 1/8`.** Independent uniform
+    points on `FlatTorus d`, `σ > 0`, every `k = n + 1`: for all large `N`,
+    `|Var Tr P_N^k - v_k (N-1)/N³| ≤ rateC (log N + 1)² N^{-5/2}`. -/
+theorem variance_general_rate_eventually [IsProbabilityMeasure μ] {d : ℕ}
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) {σ : ℝ} (hσ : 0 < σ) (n : ℕ) :
+    ∀ᶠ N : ℕ in atTop,
+      |cv μ (fun ω => ((torusWalk d σ N (fun j => X j ω)) ^ (n + 1)).trace)
+          - VarianceGeneral.vk d σ (n + 1) * ((N : ℝ) - 1) / (N : ℝ) ^ 3|
+        ≤ rateC d σ n * (Real.log N + 1) ^ 2 / ((N : ℝ) ^ 2 * Real.sqrt N) := by
+  filter_upwards [eventually_ge_atTop 2, deltaN_eventually hσ d] with N hN hδ
+  exact variance_general_rate X h_indep hX hlaw hσ N hN hδ n
+
+/-- **Eventual rate, without self-loops, without the hypothesis `δ_N + m₁/N ≤ 1/8`.** Every
+    `k = n + 1 ≥ 2`: for all large `N`,
+    `|Var Tr P°_N^k - v_k (N-1)/N³| ≤ rateNC (log N + 1)³ N^{-5/2}`. -/
+theorem variance_noloops_rate_eventually [IsProbabilityMeasure μ] {d : ℕ}
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) {σ : ℝ} (hσ : 0 < σ) (n : ℕ) (hn : 1 ≤ n) :
+    ∀ᶠ N : ℕ in atTop,
+      |cv μ (fun ω => ((noloopWalk d σ N (fun j => X j ω)) ^ (n + 1)).trace)
+          - VarianceGeneral.vk d σ (n + 1) * ((N : ℝ) - 1) / (N : ℝ) ^ 3|
+        ≤ rateNC d σ n * (Real.log N + 1) ^ 3 / ((N : ℝ) ^ 2 * Real.sqrt N) := by
+  filter_upwards [eventually_ge_atTop 2, deltaN_add_eventually hσ d] with N hN hu
+  exact variance_noloops_rate X h_indep hX hlaw hσ N hN hu n hn
+
+/-- The passage from the eventual rate to the limit `N² V_N → v`. -/
+theorem limit_of_rate {V : ℕ → ℝ} {v C : ℝ} {p : ℕ} (hp : p ≤ 3)
+    (h : ∀ᶠ N : ℕ in atTop, |V N - v * ((N : ℝ) - 1) / (N : ℝ) ^ 3|
+      ≤ C * (Real.log N + 1) ^ p / ((N : ℝ) ^ 2 * Real.sqrt N)) :
+    Tendsto (fun N : ℕ => (N : ℝ) ^ 2 * V N) atTop (𝓝 v) := by
+  have hdiff : Tendsto (fun N : ℕ => (N : ℝ) ^ 2 * V N - v * (1 - 1 / (N : ℝ))) atTop (𝓝 0) := by
+    have ha := (tendsto_log_pow_div_sqrt p hp).const_mul |C|
+    rw [mul_zero] at ha
+    refine squeeze_zero_norm' ?_ ha
+    filter_upwards [h, eventually_ge_atTop 1] with N hN hN1
+    have hN1r : (1 : ℝ) ≤ N := by exact_mod_cast hN1
+    have hNpos : (0 : ℝ) < N := by linarith
+    have hs : 0 < Real.sqrt N := Real.sqrt_pos.mpr hNpos
+    have e : (N : ℝ) ^ 2 * V N - v * (1 - 1 / (N : ℝ))
+        = (N : ℝ) ^ 2 * (V N - v * ((N : ℝ) - 1) / (N : ℝ) ^ 3) := by
+      field_simp
+    rw [Real.norm_eq_abs, e, abs_mul, abs_of_nonneg (by positivity)]
+    have hl : 0 ≤ Real.log N := Real.log_nonneg hN1r
+    calc (N : ℝ) ^ 2 * |V N - v * ((N : ℝ) - 1) / (N : ℝ) ^ 3|
+        ≤ (N : ℝ) ^ 2 * (C * (Real.log N + 1) ^ p / ((N : ℝ) ^ 2 * Real.sqrt N)) :=
+          mul_le_mul_of_nonneg_left hN (by positivity)
+      _ = C * ((Real.log N + 1) ^ p / Real.sqrt N) := by field_simp
+      _ ≤ |C| * ((Real.log N + 1) ^ p / Real.sqrt N) :=
+          mul_le_mul_of_nonneg_right (le_abs_self C) (by positivity)
+  have hg : Tendsto (fun N : ℕ => v * (1 - 1 / (N : ℝ))) atTop (𝓝 v) := by
+    have h1 : Tendsto (fun N : ℕ => (1 : ℝ) - 1 / (N : ℝ)) atTop (𝓝 (1 - 0)) :=
+      tendsto_const_nhds.sub (tendsto_const_div_atTop_nhds_zero_nat (1 : ℝ))
+    have := h1.const_mul v
+    rwa [sub_zero, mul_one] at this
+  have h2 := hdiff.add hg
+  rw [zero_add] at h2
+  exact h2.congr (fun N => sub_add_cancel _ _)
+
+/-- **Limit, with self-loops.** Independent uniform points on `FlatTorus d` (the sample of size
+    `N` is `X 0, …, X (N-1)`), `σ > 0`, every `k = n + 1 ≥ 1`:
+    `N² · Var(Tr P_N^k) → v_k` as `N → ∞`. -/
+theorem variance_general_limit [IsProbabilityMeasure μ] {d : ℕ}
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) {σ : ℝ} (hσ : 0 < σ) (n : ℕ) :
+    Tendsto (fun N : ℕ => (N : ℝ) ^ 2
+        * cv μ (fun ω => ((torusWalk d σ N (fun j => X j ω)) ^ (n + 1)).trace))
+      atTop (𝓝 (VarianceGeneral.vk d σ (n + 1))) :=
+  limit_of_rate (by norm_num) (variance_general_rate_eventually X h_indep hX hlaw hσ n)
+
+/-- **Limit, without self-loops.** Every `k = n + 1 ≥ 2`: `N² · Var(Tr P°_N^k) → v_k`. -/
+theorem variance_noloops_limit [IsProbabilityMeasure μ] {d : ℕ}
+    (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) {σ : ℝ} (hσ : 0 < σ) (n : ℕ) (hn : 1 ≤ n) :
+    Tendsto (fun N : ℕ => (N : ℝ) ^ 2
+        * cv μ (fun ω => ((noloopWalk d σ N (fun j => X j ω)) ^ (n + 1)).trace))
+      atTop (𝓝 (VarianceGeneral.vk d σ (n + 1))) :=
+  limit_of_rate le_rfl (variance_noloops_rate_eventually X h_indep hX hlaw hσ n hn)
+
+end VarianceLimit
+
+namespace DegenerateGeneral
+
+/-! # A111, stage 2: Lemma `lem:degenerate`(a) for a general number of indices
+
+Setting: an independent sample `X_0, X_1, …` with law `ν` (`VarianceOne.SP`), a bounded measurable
+kernel `F` of `n + 1` points, degenerate in the last argument, whose conditional mean given the
+last point vanishes (`hcond`; on the flat torus this follows from translation invariance,
+`degenerate_a_general_torus`).  The norms of the lemma enter as upper bounds in sample form:
+`V ≥ E F(X_ι)²` for injective index maps (`‖F‖₂²`), `ρ ≥ E|F(X_ι)|` for index maps whose image has
+exactly `n` elements, i.e. one pair of positions identified (`ϱ(F)`), `B ≥ sup |F|`.  Then
+`E |N^{-(n+1)} ∑_ι F(X_ι)| ≤ (n+1)² √V / N + (n+1)² ρ / N + (n+1)^{n+1} B / N²`.
+The proof is that of the paper: the products of two injective summands vanish in the mean unless
+the images have at least two common elements (`int_set`, `pair_zero`), there are at most
+`(n+1)⁴ N^{2n}` such pairs (`twoPairs_card`); the non-injective maps are counted
+(`noninj_count`, `image_card_count`). -/
+
+open PiBound VarianceOne VarianceGeneral2
+
+section Abstract
+
+variable {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω} {G : Type*}
+  [MeasurableSpace G] {ν : Measure G} {X : ℕ → Ω → G}
+
+/-- **Integrating out one private coordinate** of the first tuple in a product of two tuple
+    functions. -/
+theorem step_int [IsProbabilityMeasure μ] [IsProbabilityMeasure ν]
+    (H : SP μ ν X) {n n' : ℕ} (ι : Fin n → ℕ) (ι' : Fin n' → ℕ) (v : Fin n)
+    (hv : ∀ m, m ≠ v → ι m ≠ ι v) (hv' : ∀ m, ι' m ≠ ι v)
+    (F : (Fin n → G) → ℝ) (F' : (Fin n' → G) → ℝ) (hF : BM F) (hF' : BM F') :
+    ∫ ω, F (fun m => X (ι m) ω) * F' (fun m => X (ι' m) ω) ∂μ
+      = ∫ ω, Av ν v F (fun m => X (ι m) ω) * F' (fun m => X (ι' m) ω) ∂μ := by
+  obtain ⟨Φ, hΦd⟩ : ∃ Φ : ((Fin n ⊕ Fin n') → G) → ℝ,
+      Φ = fun y => F (fun m => y (Sum.inl m)) * F' (fun m => y (Sum.inr m)) := ⟨_, rfl⟩
+  have hΦ : BM Φ := by
+    rw [hΦd]
+    exact BM.mul
+      ⟨hF.meas.comp (measurable_pi_lambda _ fun m => measurable_pi_apply _),
+        hF.bdd.imp fun _ h _ => h _⟩
+      ⟨hF'.meas.comp (measurable_pi_lambda _ fun m => measurable_pi_apply _),
+        hF'.bdd.imp fun _ h _ => h _⟩
+  have hside : ∀ m : Fin n ⊕ Fin n', m ≠ Sum.inl v →
+      Sum.elim ι ι' m ≠ Sum.elim ι ι' (Sum.inl v) := by
+    rintro (m | m) hm
+    · exact hv m fun h => hm (by rw [h])
+    · exact hv' m
+  have h := H.integrate_iso (Sum.elim ι ι') (Sum.inl v) hside Φ hΦ
+  have key : ∀ (ω : Ω) (z : G),
+      Φ (Function.update (fun m => X (Sum.elim ι ι' m) ω) (Sum.inl v) z)
+        = F (Function.update (fun m => X (ι m) ω) v z) * F' (fun m => X (ι' m) ω) := by
+    intro ω z
+    rw [hΦd]
+    have a1 : (fun m : Fin n => Function.update (fun m => X (Sum.elim ι ι' m) ω) (Sum.inl v) z
+        (Sum.inl m)) = Function.update (fun m => X (ι m) ω) v z := by
+      funext m
+      by_cases hm : m = v
+      · subst hm; simp
+      · rw [Function.update_of_ne (Sum.inl_injective.ne hm), Function.update_of_ne hm]; rfl
+    have a2 : (fun m : Fin n' => Function.update (fun m => X (Sum.elim ι ι' m) ω) (Sum.inl v) z
+        (Sum.inr m)) = fun m => X (ι' m) ω := by
+      funext m
+      rw [Function.update_of_ne Sum.inr_ne_inl]; rfl
+    show F _ * F' _ = _
+    rw [a1, a2]
+  have hL : ∫ ω, Φ (fun m => X (Sum.elim ι ι' m) ω) ∂μ
+      = ∫ ω, F (fun m => X (ι m) ω) * F' (fun m => X (ι' m) ω) ∂μ := by
+    simp only [hΦd, Sum.elim_inl, Sum.elim_inr]
+  rw [← hL, h]
+  refine integral_congr_ae (Filter.Eventually.of_forall fun ω => ?_)
+  simp_rw [key]
+  rw [integral_mul_const]
+  rfl
+
+/-- **Integrating out a set `W` of private coordinates** of the first tuple. -/
+theorem int_set [IsProbabilityMeasure μ] [IsProbabilityMeasure ν]
+    (H : SP μ ν X) {n n' : ℕ} (ι : Fin n → ℕ) (ι' : Fin n' → ℕ)
+    (F : (Fin n → G) → ℝ) (F' : (Fin n' → G) → ℝ) (hF : BM F) (hF' : BM F')
+    (W : Finset (Fin n)) (hW : ∀ v ∈ W, (∀ m, m ≠ v → ι m ≠ ι v) ∧ ∀ m, ι' m ≠ ι v) :
+    ∫ ω, F (fun m => X (ι m) ω) * F' (fun m => X (ι' m) ω) ∂μ
+      = ∫ ω, AW ν W F (fun m => X (ι m) ω) * F' (fun m => X (ι' m) ω) ∂μ := by
+  induction W using Finset.induction_on with
+  | empty => rw [AW_empty]
+  | insert v W hv ih =>
+    rw [ih (fun w hw => hW w (Finset.mem_insert_of_mem hw)), AW_insert hv hF]
+    exact step_int H ι ι' v (hW v (Finset.mem_insert_self v W)).1
+      (hW v (Finset.mem_insert_self v W)).2 _ F' (AW_bm W hF) hF'
+
+/-- **Second moment with a mean bound on the non-vanishing products.** -/
+theorem sm_le_V [IsProbabilityMeasure μ]
+    (H : SP μ ν X) {n N : ℕ} (I : Finset (Fin n → Fin N)) (F : (Fin n → G) → ℝ) (hF : BM F)
+    {V : ℝ} (hV0 : 0 ≤ V) (P : Finset ((Fin n → Fin N) × (Fin n → Fin N)))
+    (hzero : ∀ ι ∈ I, ∀ ι' ∈ I, (ι, ι') ∉ P →
+      ∫ ω, F (fun m => X (ι m) ω) * F (fun m => X (ι' m) ω) ∂μ = 0)
+    (hpair : ∀ ι ∈ I, ∀ ι' ∈ I,
+      ∫ ω, F (fun m => X (ι m) ω) * F (fun m => X (ι' m) ω) ∂μ ≤ V) :
+    ∫ ω, (∑ ι ∈ I, F (fun m => X (ι m) ω)) ^ 2 ∂μ ≤ P.card * V := by
+  classical
+  have bm : ∀ ι : Fin n → Fin N, BM (fun ω => F (fun m => X (ι m) ω)) := fun ι =>
+    H.bm (fun m => (ι m : ℕ)) hF
+  have e : ∀ ω, (∑ ι ∈ I, F (fun m => X (ι m) ω)) ^ 2
+      = ∑ q ∈ I ×ˢ I, F (fun m => X (q.1 m) ω) * F (fun m => X (q.2 m) ω) := by
+    intro ω; rw [pow_two, Finset.sum_mul_sum, Finset.sum_product]
+  simp_rw [e]
+  rw [integral_finset_sum _ fun q _ => ((bm q.1).mul (bm q.2)).integrable]
+  have hterm : ∀ q ∈ I ×ˢ I, ∫ ω, F (fun m => X (q.1 m) ω) * F (fun m => X (q.2 m) ω) ∂μ
+      ≤ if q ∈ P then V else 0 := by
+    intro q hq
+    obtain ⟨h1, h2⟩ := Finset.mem_product.mp hq
+    split_ifs with hP
+    · exact hpair q.1 h1 q.2 h2
+    · exact (hzero q.1 h1 q.2 h2 hP).le
+  calc ∑ q ∈ I ×ˢ I, ∫ ω, F (fun m => X (q.1 m) ω) * F (fun m => X (q.2 m) ω) ∂μ
+      ≤ ∑ q ∈ I ×ˢ I, (if q ∈ P then V else 0) := Finset.sum_le_sum hterm
+    _ = (((I ×ˢ I).filter (· ∈ P)).card : ℝ) * V := by
+        rw [← Finset.sum_filter, Finset.sum_const, nsmul_eq_mul]
+    _ ≤ P.card * V := by
+        apply mul_le_mul_of_nonneg_right _ hV0
+        exact_mod_cast Finset.card_le_card (fun q hq => (Finset.mem_filter.mp hq).2)
+
+end Abstract
+
+section Count
+
+/-- The pairs of index maps whose first map is injective and whose images have at least two
+    common elements. -/
+def twoPairs (n N : ℕ) : Finset ((Fin n → Fin N) × (Fin n → Fin N)) :=
+  Finset.univ.filter fun q => Function.Injective q.1 ∧
+    ∃ a b a' b', a ≠ b ∧ q.2 a' = q.1 a ∧ q.2 b' = q.1 b
+
+/-- `N² · #twoPairs ≤ n⁴ N^{2n}`. -/
+theorem twoPairs_card (n N : ℕ) :
+    (N : ℝ) ^ 2 * ((twoPairs n N).card : ℝ) ≤ (n : ℝ) ^ 4 * ((N : ℝ) ^ n) ^ 2 := by
+  classical
+  have hfib : ∀ (a b a' b' : Fin n) (x : Fin n → Fin N), a' ≠ b' →
+      N ^ 2 * (Fintype.piFinset (fun i : Fin n => if i = a' then ({x a} : Finset (Fin N))
+        else if i = b' then {x b} else Finset.univ)).card = N ^ n := by
+    intro a b a' b' x hab
+    rw [Fintype.card_piFinset]
+    have e : ∀ i : Fin n, (if i = a' then ({x a} : Finset (Fin N))
+        else if i = b' then {x b} else Finset.univ).card
+        = if i ∈ ({a', b'} : Finset (Fin n)) then 1 else N := by
+      intro i
+      by_cases h1 : i = a'
+      · subst h1; simp
+      · by_cases h2 : i = b'
+        · subst h2; simp [h1]
+        · simp [h1, h2]
+    simp_rw [e]
+    rw [prod_ite_mem n {a', b'} 1 N, Finset.card_pair hab, one_pow, one_mul, ← pow_add]
+    have hn2 : 2 ≤ n := by
+      have := Finset.card_le_univ ({a', b'} : Finset (Fin n))
+      rw [Finset.card_pair hab, Fintype.card_fin] at this; exact this
+    congr 1; omega
+  obtain ⟨Cov, hCov⟩ : ∃ Cov : Finset ((Fin n → Fin N) × (Fin n → Fin N)), Cov =
+      (Finset.univ : Finset (Fin n × Fin n × Fin n × Fin n)).biUnion fun t =>
+        if t.2.2.1 = t.2.2.2 then ∅ else
+          (Finset.univ : Finset (Fin n → Fin N)).biUnion fun x =>
+            ({x} : Finset (Fin n → Fin N)) ×ˢ Fintype.piFinset (fun i : Fin n =>
+              if i = t.2.2.1 then ({x t.1} : Finset (Fin N))
+              else if i = t.2.2.2 then {x t.2.1} else Finset.univ) := ⟨_, rfl⟩
+  have hsub : twoPairs n N ⊆ Cov := by
+    intro q hq
+    obtain ⟨hinj, a, b, a', b', hab, h1, h2⟩ := (Finset.mem_filter.mp hq).2
+    have ha'b' : a' ≠ b' := by
+      intro h; apply hab; apply hinj; rw [← h1, ← h2, h]
+    rw [hCov]
+    refine Finset.mem_biUnion.mpr ⟨(a, b, a', b'), Finset.mem_univ _, ?_⟩
+    simp only
+    rw [if_neg ha'b']
+    refine Finset.mem_biUnion.mpr ⟨q.1, Finset.mem_univ _, ?_⟩
+    refine Finset.mem_product.mpr ⟨Finset.mem_singleton_self _, ?_⟩
+    rw [Fintype.mem_piFinset]
+    intro i
+    by_cases e1 : i = a'
+    · subst e1; simp [h1]
+    · by_cases e2 : i = b'
+      · subst e2; simp [e1, h2]
+      · simp [e1, e2]
+  have hcard : N ^ 2 * Cov.card ≤ n ^ 4 * (N ^ n * N ^ n) := by
+    rw [hCov]
+    calc N ^ 2 * ((Finset.univ : Finset (Fin n × Fin n × Fin n × Fin n)).biUnion fun t =>
+          if t.2.2.1 = t.2.2.2 then ∅ else
+            (Finset.univ : Finset (Fin n → Fin N)).biUnion fun x =>
+              ({x} : Finset (Fin n → Fin N)) ×ˢ Fintype.piFinset (fun i : Fin n =>
+                if i = t.2.2.1 then ({x t.1} : Finset (Fin N))
+                else if i = t.2.2.2 then {x t.2.1} else Finset.univ)).card
+        ≤ N ^ 2 * ∑ t : Fin n × Fin n × Fin n × Fin n, (if t.2.2.1 = t.2.2.2 then ∅ else
+            (Finset.univ : Finset (Fin n → Fin N)).biUnion fun x =>
+              ({x} : Finset (Fin n → Fin N)) ×ˢ Fintype.piFinset (fun i : Fin n =>
+                if i = t.2.2.1 then ({x t.1} : Finset (Fin N))
+                else if i = t.2.2.2 then {x t.2.1} else Finset.univ)).card :=
+          Nat.mul_le_mul_left _ Finset.card_biUnion_le
+      _ = ∑ t : Fin n × Fin n × Fin n × Fin n, N ^ 2 * (if t.2.2.1 = t.2.2.2 then ∅ else
+            (Finset.univ : Finset (Fin n → Fin N)).biUnion fun x =>
+              ({x} : Finset (Fin n → Fin N)) ×ˢ Fintype.piFinset (fun i : Fin n =>
+                if i = t.2.2.1 then ({x t.1} : Finset (Fin N))
+                else if i = t.2.2.2 then {x t.2.1} else Finset.univ)).card := Finset.mul_sum _ _ _
+      _ ≤ ∑ _t : Fin n × Fin n × Fin n × Fin n, N ^ n * N ^ n := by
+          refine Finset.sum_le_sum fun t _ => ?_
+          split_ifs with h
+          · simp
+          · calc N ^ 2 * ((Finset.univ : Finset (Fin n → Fin N)).biUnion fun x =>
+                  ({x} : Finset (Fin n → Fin N)) ×ˢ Fintype.piFinset (fun i : Fin n =>
+                    if i = t.2.2.1 then ({x t.1} : Finset (Fin N))
+                    else if i = t.2.2.2 then {x t.2.1} else Finset.univ)).card
+                ≤ N ^ 2 * ∑ x : Fin n → Fin N, (({x} : Finset (Fin n → Fin N)) ×ˢ
+                    Fintype.piFinset (fun i : Fin n =>
+                    if i = t.2.2.1 then ({x t.1} : Finset (Fin N))
+                    else if i = t.2.2.2 then {x t.2.1} else Finset.univ)).card :=
+                  Nat.mul_le_mul_left _ Finset.card_biUnion_le
+              _ = ∑ _x : Fin n → Fin N, N ^ n := by
+                  rw [Finset.mul_sum]
+                  refine Finset.sum_congr rfl fun x _ => ?_
+                  rw [Finset.card_product, Finset.card_singleton, one_mul]
+                  exact hfib t.1 t.2.1 t.2.2.1 t.2.2.2 x h
+              _ = N ^ n * N ^ n := by simp [Finset.sum_const, Finset.card_univ]
+      _ = n ^ 4 * (N ^ n * N ^ n) := by
+          rw [Finset.sum_const, smul_eq_mul, Finset.card_univ]
+          simp only [Fintype.card_prod, Fintype.card_fin]; ring
+  have h1 : N ^ 2 * (twoPairs n N).card ≤ n ^ 4 * (N ^ n * N ^ n) :=
+    (Nat.mul_le_mul_left _ (Finset.card_le_card hsub)).trans hcard
+  have h2 : ((N ^ 2 * (twoPairs n N).card : ℕ) : ℝ) ≤ ((n ^ 4 * (N ^ n * N ^ n) : ℕ) : ℝ) := by
+    exact_mod_cast h1
+  push_cast at h2
+  linarith only [h2, show ((N : ℝ) ^ n) ^ 2 = (N : ℝ) ^ n * (N : ℝ) ^ n by ring]
+
+/-- **Maps with a small image**: `#{x : Fin m → Fin N | #image x ≤ k} ≤ m^m N^k`. -/
+theorem image_card_count (m N k : ℕ) (hN : 0 < N) :
+    ((Finset.univ.filter fun x : Fin m → Fin N => (Finset.univ.image x).card ≤ k).card : ℝ)
+      ≤ (m : ℝ) ^ m * (N : ℝ) ^ k := by
+  classical
+  obtain ⟨rep, hrep⟩ : ∃ rep : (Fin m → Fin N) → Fin m → Fin m, rep = fun (x : Fin m → Fin N) (i : Fin m) =>
+      (Finset.univ.filter fun j => x j = x i).min' ⟨i, by simp⟩ := ⟨_, rfl⟩
+  have rep_spec : ∀ (x : Fin m → Fin N) (i : Fin m), x (rep x i) = x i := by
+    intro x i
+    have h := Finset.min'_mem (Finset.univ.filter fun j => x j = x i) ⟨i, by simp⟩
+    rw [hrep]; exact (Finset.mem_filter.mp h).2
+  have rep_le : ∀ (x : Fin m → Fin N) (i j : Fin m), x j = x i → rep x i ≤ j := by
+    intro x i j h; rw [hrep]; exact Finset.min'_le _ _ (by simp [h])
+  have rep_eq : ∀ (x : Fin m → Fin N) (i j : Fin m), x i = x j → rep x i = rep x j := by
+    intro x i j h
+    apply le_antisymm
+    · exact rep_le x i _ (by rw [rep_spec x j]; exact h.symm)
+    · exact rep_le x j _ (by rw [rep_spec x i]; exact h)
+  have rep_rep : ∀ (x : Fin m → Fin N) (i : Fin m), rep x (rep x i) = rep x i := fun x i => rep_eq x _ _ (rep_spec x i)
+  obtain ⟨z0⟩ : Nonempty (Fin N) := ⟨⟨0, hN⟩⟩
+  obtain ⟨enc, henc⟩ : ∃ enc : (Fin m → Fin N) → (Fin m → Fin m) × (Fin m → Fin N),
+      enc = fun x => (rep x, fun i => if rep x i = i then x i else z0) := ⟨_, rfl⟩
+  have enc_inj : Function.Injective enc := by
+    intro x y hxy
+    rw [henc] at hxy
+    have h1 : rep x = rep y := congrArg Prod.fst hxy
+    have h2 := congrArg Prod.snd hxy
+    funext i
+    have h3 := congrFun h2 (rep x i)
+    simp only at h3
+    rw [← h1, if_pos (rep_rep x i), if_pos (rep_rep x i)] at h3
+    rw [← rep_spec x i, h3, h1, rep_spec y i]
+  obtain ⟨T, hT⟩ : ∃ T : Finset ((Fin m → Fin m) × (Fin m → Fin N)), T =
+      (Finset.univ.filter fun g : Fin m → Fin m =>
+        (Finset.univ.filter fun i => g i = i).card ≤ k).biUnion
+        fun g => ({g} : Finset (Fin m → Fin m)) ×ˢ Fintype.piFinset (fun i =>
+          if g i = i then (Finset.univ : Finset (Fin N)) else {z0}) := ⟨_, rfl⟩
+  have hmaps : ∀ x ∈ (Finset.univ.filter fun x : Fin m → Fin N =>
+      (Finset.univ.image x).card ≤ k), enc x ∈ T := by
+    intro x hx
+    have hk := (Finset.mem_filter.mp hx).2
+    rw [hT, henc]
+    refine Finset.mem_biUnion.mpr ⟨rep x, ?_, ?_⟩
+    · rw [Finset.mem_filter]
+      refine ⟨Finset.mem_univ _, le_trans ?_ hk⟩
+      refine Finset.card_le_card_of_injOn x
+        (fun i _ => Finset.mem_image_of_mem x (Finset.mem_univ i)) ?_
+      intro i hi j hj hij
+      have hi' : rep x i = i := (Finset.mem_filter.mp hi).2
+      have hj' : rep x j = j := (Finset.mem_filter.mp hj).2
+      rw [← hi', ← hj']; exact rep_eq x i j hij
+    · refine Finset.mem_product.mpr ⟨Finset.mem_singleton_self _, ?_⟩
+      rw [Fintype.mem_piFinset]; intro i
+      by_cases h : rep x i = i
+      · simp [h]
+      · simp [h]
+  have hle := Finset.card_le_card_of_injOn enc hmaps enc_inj.injOn
+  have h2 : ∀ g ∈ (Finset.univ.filter fun g : Fin m → Fin m =>
+      (Finset.univ.filter fun i => g i = i).card ≤ k),
+      (({g} : Finset (Fin m → Fin m)) ×ˢ Fintype.piFinset (fun i =>
+          if g i = i then (Finset.univ : Finset (Fin N)) else {z0})).card ≤ N ^ k := by
+    intro g hg
+    rw [Finset.card_product, Finset.card_singleton, one_mul, Fintype.card_piFinset]
+    have e : ∀ i, (if g i = i then (Finset.univ : Finset (Fin N)) else {z0}).card
+        = if g i = i then N else 1 := by
+      intro i; split_ifs <;> simp
+    simp_rw [e]
+    rw [Finset.prod_ite, Finset.prod_const, Finset.prod_const, one_pow, mul_one]
+    exact Nat.pow_le_pow_right hN (Finset.mem_filter.mp hg).2
+  have hTn : T.card ≤ m ^ m * N ^ k := by
+    rw [hT]
+    refine Finset.card_biUnion_le.trans ?_
+    refine (Finset.sum_le_sum fun g hg => h2 g hg).trans ?_
+    rw [Finset.sum_const, smul_eq_mul]
+    refine Nat.mul_le_mul_right _ ?_
+    refine (Finset.card_filter_le _ _).trans ?_
+    simp
+  have h3 : ((Finset.univ.filter fun x : Fin m → Fin N =>
+      (Finset.univ.image x).card ≤ k).card : ℝ) ≤ ((m ^ m * N ^ k : ℕ) : ℝ) := by
+    exact_mod_cast hle.trans hTn
+  push_cast at h3
+  exact h3
+
+/-- The maps of `n + 1` points with at most `n - 1` image points: `N² · # ≤ (n+1)^{n+1} N^{n+1}`. -/
+theorem low_image_count (n N : ℕ) (hN : 0 < N) :
+    (N : ℝ) ^ 2 * ((Finset.univ.filter fun x : Fin (n + 1) → Fin N =>
+        (Finset.univ.image x).card ≤ n - 1).card : ℝ)
+      ≤ ((n : ℝ) + 1) ^ (n + 1) * (N : ℝ) ^ (n + 1) := by
+  rcases n with _ | n
+  · have e : (Finset.univ.filter fun x : Fin (0 + 1) → Fin N =>
+        (Finset.univ.image x).card ≤ 0 - 1) = ∅ := by
+      apply Finset.filter_false_of_mem
+      intro x _
+      have : (Finset.univ.image x).Nonempty := Finset.univ_nonempty.image x
+      exact Nat.not_le.mpr (Finset.card_pos.mpr this)
+    rw [e, Finset.card_empty]
+    simp
+  · have h := image_card_count (n + 1 + 1) N n hN
+    have e : n + 1 - 1 = n := by omega
+    rw [e]
+    have hN2 : (0 : ℝ) ≤ (N : ℝ) ^ 2 := by positivity
+    have h4 := mul_le_mul_of_nonneg_left h hN2
+    have e2 : (N : ℝ) ^ 2 * (((n + 1 + 1 : ℕ) : ℝ) ^ (n + 1 + 1) * (N : ℝ) ^ n)
+        = (((n + 1 : ℕ) : ℝ) + 1) ^ (n + 1 + 1) * (N : ℝ) ^ (n + 1 + 1) := by
+      push_cast; ring
+    linarith only [h4, e2]
+
+end Count
+
+section MainA
+
+variable {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω} {G : Type*}
+  [MeasurableSpace G] {ν : Measure G} {X : ℕ → Ω → G}
+
+theorem image_val_card {n N : ℕ} (ι : Fin n → Fin N) :
+    (Finset.univ.image fun m => (ι m : ℕ)).card = (Finset.univ.image ι).card := by
+  have e : (Finset.univ.image fun m => (ι m : ℕ)) = (Finset.univ.image ι).image Fin.val := by
+    rw [Finset.image_image]; rfl
+  rw [e, Finset.card_image_of_injective _ Fin.val_injective]
+
+/-- **Lemma `lem:degenerate`(a) for `n + 1` indices, abstract form.** HYPOTHESES as in the
+    section header: independent sample with law `ν`; `F` bounded (`|F| ≤ B`) and measurable;
+    degenerate in the last argument (`hdeg`); conditional mean given the last point zero
+    (`hcond`); `V`, `ρ` upper bounds for `‖F‖₂²`, `ϱ(F)` in sample form.  For `N ≥ 1`:
+    `E |N^{-(n+1)} ∑_{ι : Fin (n+1) → Fin N} F(X_ι)|
+       ≤ (n+1)² √V / N + (n+1)² ρ / N + (n+1)^{n+1} B / N²`. -/
+theorem degenerate_a_general [IsProbabilityMeasure μ] [IsProbabilityMeasure ν]
+    (H : SP μ ν X) {n : ℕ} (F : (Fin (n + 1) → G) → ℝ) (hF : BM F) {B V ρ : ℝ}
+    (hB : ∀ x, |F x| ≤ B) (hρ0 : 0 ≤ ρ)
+    (hdeg : ∀ x, ∫ z, F (Function.update x (Fin.last n) z) ∂ν = 0)
+    (hcond : ∀ x, AW ν (Finset.univ.erase (Fin.last n)) F x = 0)
+    (hV : ∀ ι : Fin (n + 1) → ℕ, Function.Injective ι →
+      ∫ ω, F (fun m => X (ι m) ω) ^ 2 ∂μ ≤ V)
+    (hρ : ∀ ι : Fin (n + 1) → ℕ, (Finset.univ.image ι).card = n →
+      ∫ ω, |F (fun m => X (ι m) ω)| ∂μ ≤ ρ)
+    (N : ℕ) (hN : 0 < N) :
+    ∫ ω, |1 / (N : ℝ) ^ (n + 1) * sAll X N F ω| ∂μ
+      ≤ ((n : ℝ) + 1) ^ 2 * Real.sqrt V / N + ((n : ℝ) + 1) ^ 2 * ρ / N
+        + ((n : ℝ) + 1) ^ (n + 1) * B / (N : ℝ) ^ 2 := by
+  classical
+  have hNpos : (0 : ℝ) < N := by exact_mod_cast hN
+  obtain ⟨ω0⟩ := nonempty_of_isProbabilityMeasure μ
+  have hB0 : 0 ≤ B := (abs_nonneg _).trans (hB (fun _ => X 0 ω0))
+  have hV0 : 0 ≤ V := (integral_nonneg fun ω => _root_.sq_nonneg _).trans
+    (hV (fun m => (m : ℕ)) (fun a b h => Fin.ext h))
+  have bm : ∀ ι : Fin (n + 1) → Fin N, BM (fun ω => F (fun m => X (ι m) ω)) := fun ι =>
+    H.bmι hF ι
+  -- the injective part
+  obtain ⟨I, hI⟩ : ∃ I : Finset (Fin (n + 1) → Fin N),
+      I = Finset.univ.filter fun ι : Fin (n + 1) → Fin N => Function.Injective ι := ⟨_, rfl⟩
+  have hzero : ∀ ι ∈ I, ∀ ι' ∈ I, (ι, ι') ∉ twoPairs (n + 1) N →
+      ∫ ω, F (fun m => X (ι m) ω) * F (fun m => X (ι' m) ω) ∂μ = 0 := by
+    intro ι hι ι' _ hP
+    rw [hI] at hι
+    have hinj : Function.Injective ι := (Finset.mem_filter.mp hι).2
+    have hinjN : Function.Injective fun m => (ι m : ℕ) := fun a b h => hinj (Fin.ext h)
+    by_cases hlast : ∃ a', ι' a' = ι (Fin.last n)
+    · -- the last point is common; then it is the only common point
+      have hcom : ∀ v m, v ≠ Fin.last n → (ι' m : ℕ) ≠ (ι v : ℕ) := by
+        intro v m hv h
+        obtain ⟨a', ha'⟩ := hlast
+        apply hP
+        refine Finset.mem_filter.mpr ⟨Finset.mem_univ _, hinj, Fin.last n, v, a', m,
+          fun h' => hv h'.symm, ha', Fin.ext h⟩
+      rw [int_set H (fun m => (ι m : ℕ)) (fun m => (ι' m : ℕ)) F F hF hF
+        (Finset.univ.erase (Fin.last n))
+        (fun v hv => ⟨fun m hm h => hm (hinjN h), fun m => hcom v m (Finset.ne_of_mem_erase hv)⟩)]
+      simp [hcond]
+    · push Not at hlast
+      exact H.pair_vanish (fun m => (ι m : ℕ)) (fun m => (ι' m : ℕ)) (Fin.last n)
+        (fun m hm h => hm (hinjN h)) (fun m h => hlast m (Fin.ext h)) F F hF hF hdeg
+  have hpair : ∀ ι ∈ I, ∀ ι' ∈ I,
+      ∫ ω, F (fun m => X (ι m) ω) * F (fun m => X (ι' m) ω) ∂μ ≤ V := by
+    intro ι hι ι' hι'
+    rw [hI] at hι hι'
+    have v1 := hV (fun m => (ι m : ℕ)) (fun a b h => (Finset.mem_filter.mp hι).2 (Fin.ext h))
+    have v2 := hV (fun m => (ι' m : ℕ)) (fun a b h => (Finset.mem_filter.mp hι').2 (Fin.ext h))
+    have i1 : Integrable (fun ω => F (fun m => X (ι m) ω) ^ 2) μ := (bm ι).sqr.integrable
+    have i2 : Integrable (fun ω => F (fun m => X (ι' m) ω) ^ 2) μ := (bm ι').sqr.integrable
+    have i3 := ((bm ι).mul (bm ι')).integrable (μ := μ)
+    calc ∫ ω, F (fun m => X (ι m) ω) * F (fun m => X (ι' m) ω) ∂μ
+        ≤ ∫ ω, (1 / 2 * F (fun m => X (ι m) ω) ^ 2 + 1 / 2 * F (fun m => X (ι' m) ω) ^ 2) ∂μ :=
+          integral_mono i3 ((i1.const_mul _).add (i2.const_mul _)) (fun ω => by
+            nlinarith [_root_.sq_nonneg (F (fun m => X (ι m) ω) - F (fun m => X (ι' m) ω))])
+      _ = 1 / 2 * ∫ ω, F (fun m => X (ι m) ω) ^ 2 ∂μ
+            + 1 / 2 * ∫ ω, F (fun m => X (ι' m) ω) ^ 2 ∂μ := by
+          rw [integral_add (i1.const_mul _) (i2.const_mul _), integral_const_mul,
+            integral_const_mul]
+      _ ≤ V := by linarith
+  have hsq := sm_le_V H I F hF hV0 (twoPairs (n + 1) N) hzero hpair
+  have hcard := twoPairs_card (n + 1) N
+  have hc2 : ((twoPairs (n + 1) N).card : ℝ) ≤ ((n : ℝ) + 1) ^ 4 * ((N : ℝ) ^ n) ^ 2 := by
+    have e : ((N : ℝ) ^ (n + 1)) ^ 2 = (N : ℝ) ^ 2 * ((N : ℝ) ^ n) ^ 2 := by ring
+    push_cast at hcard
+    rw [e] at hcard
+    have hN2 : (0 : ℝ) < (N : ℝ) ^ 2 := by positivity
+    nlinarith
+  have hInjSq : ∫ ω, sInj X N F ω ^ 2 ∂μ ≤ ((n : ℝ) + 1) ^ 4 * ((N : ℝ) ^ n) ^ 2 * V := by
+    have e : (fun ω => sInj X N F ω ^ 2)
+        = fun ω => (∑ ι ∈ I, F (fun m => X (ι m) ω)) ^ 2 := by
+      funext ω; unfold sInj; rw [hI]
+    rw [e]
+    exact hsq.trans (mul_le_mul_of_nonneg_right hc2 hV0)
+  have hInj : ∫ ω, |sInj X N F ω| ∂μ ≤ ((n : ℝ) + 1) ^ 2 * (N : ℝ) ^ n * Real.sqrt V := by
+    refine ((H.sInj_bm N hF).abs_le_sqrt hInjSq).trans (le_of_eq ?_)
+    have e : ((n : ℝ) + 1) ^ 4 * ((N : ℝ) ^ n) ^ 2 * V
+        = (((n : ℝ) + 1) ^ 2 * (N : ℝ) ^ n) ^ 2 * V := by ring
+    rw [e, Real.sqrt_mul (by positivity), Real.sqrt_sq (by positivity)]
+  -- the non-injective part
+  obtain ⟨J, hJ⟩ : ∃ J : Finset (Fin (n + 1) → Fin N),
+      J = Finset.univ.filter fun ι : Fin (n + 1) → Fin N => ¬ Function.Injective ι := ⟨_, rfl⟩
+  have hterm : ∀ ι ∈ J, ∫ ω, |F (fun m => X (ι m) ω)| ∂μ
+      ≤ ρ * (if Function.Injective ι then (0 : ℝ) else 1)
+        + B * (if (Finset.univ.image ι).card ≤ n - 1 then (1 : ℝ) else 0) := by
+    intro ι hι
+    rw [hJ] at hι
+    have hni : ¬ Function.Injective ι := (Finset.mem_filter.mp hι).2
+    rw [if_neg hni, mul_one]
+    have hlt : (Finset.univ.image ι).card ≤ n := by
+      have h1 : (Finset.univ.image ι).card ≤ n + 1 := by
+        have := Finset.card_image_le (s := (Finset.univ : Finset (Fin (n + 1)))) (f := ι)
+        simpa using this
+      have h2 : (Finset.univ.image ι).card ≠ n + 1 := by
+        intro h
+        apply hni
+        have h3 : (Finset.univ.image ι).card = (Finset.univ : Finset (Fin (n + 1))).card := by
+          simpa using h
+        have := Finset.card_image_iff.mp h3
+        intro a b hab
+        exact this (Finset.mem_coe.mpr (Finset.mem_univ a))
+          (Finset.mem_coe.mpr (Finset.mem_univ b)) hab
+      omega
+    by_cases hc : (Finset.univ.image ι).card = n
+    · have h := hρ (fun m => (ι m : ℕ)) (by rw [image_val_card]; exact hc)
+      have : 0 ≤ B * (if (Finset.univ.image ι).card ≤ n - 1 then (1 : ℝ) else 0) := by
+        split_ifs <;> simp [hB0]
+      linarith
+    · have hc' : (Finset.univ.image ι).card ≤ n - 1 := by omega
+      rw [if_pos hc', mul_one]
+      have hle : ∫ ω, |F (fun m => X (ι m) ω)| ∂μ ≤ B := by
+        calc ∫ ω, |F (fun m => X (ι m) ω)| ∂μ ≤ ∫ _ω, B ∂μ :=
+              integral_mono (bm ι).absv.integrable (integrable_const _) (fun ω => hB _)
+          _ = B := by simp
+      linarith
+  have hNon : ∫ ω, ∑ ι ∈ J, |F (fun m => X (ι m) ω)| ∂μ
+      ≤ ρ * ∑ ι : Fin (n + 1) → Fin N, (if Function.Injective ι then (0 : ℝ) else 1)
+        + B * ((Finset.univ.filter fun x : Fin (n + 1) → Fin N =>
+            (Finset.univ.image x).card ≤ n - 1).card : ℝ) := by
+    rw [integral_finset_sum _ fun ι _ => (bm ι).absv.integrable]
+    refine (Finset.sum_le_sum hterm).trans ?_
+    rw [Finset.sum_add_distrib, ← Finset.mul_sum, ← Finset.mul_sum]
+    have hs1 : ∑ ι ∈ J, (if Function.Injective ι then (0 : ℝ) else 1)
+        ≤ ∑ ι : Fin (n + 1) → Fin N, (if Function.Injective ι then (0 : ℝ) else 1) :=
+      Finset.sum_le_sum_of_subset_of_nonneg (Finset.subset_univ _)
+        (fun _ _ _ => by split_ifs <;> norm_num)
+    have hs2 : ∑ ι ∈ J, (if (Finset.univ.image ι).card ≤ n - 1 then (1 : ℝ) else 0)
+        ≤ ((Finset.univ.filter fun x : Fin (n + 1) → Fin N =>
+            (Finset.univ.image x).card ≤ n - 1).card : ℝ) := by
+      rw [Finset.card_filter]; push_cast
+      exact Finset.sum_le_sum_of_subset_of_nonneg (Finset.subset_univ _)
+        (fun _ _ _ => by split_ifs <;> norm_num)
+    have := mul_le_mul_of_nonneg_left hs1 hρ0
+    have := mul_le_mul_of_nonneg_left hs2 hB0
+    linarith
+  -- assembling
+  have bJ : BM (fun ω => ∑ ι ∈ J, |F (fun m => X (ι m) ω)|) :=
+    BM.sum _ _ fun ι _ => (bm ι).absv
+  have hpt : ∀ ω, |sAll X N F ω| ≤ |sInj X N F ω| + ∑ ι ∈ J, |F (fun m => X (ι m) ω)| := by
+    intro ω
+    rw [sAll_split]
+    refine (abs_add_le _ _).trans (add_le_add le_rfl ?_)
+    unfold sNon; rw [hJ]
+    exact Finset.abs_sum_le_sum_abs _ _
+  have hAll : ∫ ω, |sAll X N F ω| ∂μ
+      ≤ ((n : ℝ) + 1) ^ 2 * (N : ℝ) ^ n * Real.sqrt V
+        + (ρ * ∑ ι : Fin (n + 1) → Fin N, (if Function.Injective ι then (0 : ℝ) else 1)
+        + B * ((Finset.univ.filter fun x : Fin (n + 1) → Fin N =>
+            (Finset.univ.image x).card ≤ n - 1).card : ℝ)) := by
+    have hmono := integral_mono_of_nonneg (μ := μ)
+      (Filter.Eventually.of_forall fun ω => abs_nonneg _)
+      ((H.sInj_bm N hF).absv.add bJ).integrable (Filter.Eventually.of_forall hpt)
+    refine hmono.trans ?_
+    rw [integral_add (H.sInj_bm N hF).absv.integrable bJ.integrable]
+    linarith
+  -- counts
+  have hc1 := BiasVariance3.noninj_count (n + 1) N
+  have hc3 := low_image_count n N hN
+  obtain ⟨s1, hs1⟩ : ∃ s1 : ℝ, s1 = ∑ ι : Fin (n + 1) → Fin N,
+      (if Function.Injective ι then (0 : ℝ) else 1) := ⟨_, rfl⟩
+  obtain ⟨s2, hs2⟩ : ∃ s2 : ℝ, s2 = ((Finset.univ.filter fun x : Fin (n + 1) → Fin N =>
+      (Finset.univ.image x).card ≤ n - 1).card : ℝ) := ⟨_, rfl⟩
+  rw [← hs1, ← hs2] at hAll
+  rw [← hs1] at hc1
+  rw [← hs2] at hc3
+  push_cast at hc1
+  -- normalise
+  have e : ∀ ω, |1 / (N : ℝ) ^ (n + 1) * sAll X N F ω|
+      = 1 / (N : ℝ) ^ (n + 1) * |sAll X N F ω| := fun ω => by
+    rw [abs_mul, abs_of_nonneg (by positivity : (0 : ℝ) ≤ 1 / (N : ℝ) ^ (n + 1))]
+  simp_rw [e]
+  rw [integral_const_mul]
+  have hq : 0 < (N : ℝ) ^ (n + 1) := by positivity
+  have h1 : 1 / (N : ℝ) ^ (n + 1) * (((n : ℝ) + 1) ^ 2 * (N : ℝ) ^ n * Real.sqrt V)
+      = ((n : ℝ) + 1) ^ 2 * Real.sqrt V / N := by
+    field_simp; ring
+  have h2 : 1 / (N : ℝ) ^ (n + 1) * (ρ * s1) ≤ ((n : ℝ) + 1) ^ 2 * ρ / N := by
+    rw [div_mul_eq_mul_div, one_mul, div_le_div_iff₀ hq hNpos]
+    have := mul_le_mul_of_nonneg_left hc1 hρ0
+    nlinarith
+  have h3 : 1 / (N : ℝ) ^ (n + 1) * (B * s2) ≤ ((n : ℝ) + 1) ^ (n + 1) * B / (N : ℝ) ^ 2 := by
+    rw [div_mul_eq_mul_div, one_mul, div_le_div_iff₀ hq (by positivity)]
+    have := mul_le_mul_of_nonneg_left hc3 hB0
+    nlinarith
+  have h4 := mul_le_mul_of_nonneg_left hAll (by positivity : (0 : ℝ) ≤ 1 / (N : ℝ) ^ (n + 1))
+  have e2 : 1 / (N : ℝ) ^ (n + 1) * (((n : ℝ) + 1) ^ 2 * (N : ℝ) ^ n * Real.sqrt V
+        + (ρ * s1 + B * s2))
+      = 1 / (N : ℝ) ^ (n + 1) * (((n : ℝ) + 1) ^ 2 * (N : ℝ) ^ n * Real.sqrt V)
+        + 1 / (N : ℝ) ^ (n + 1) * (ρ * s1) + 1 / (N : ℝ) ^ (n + 1) * (B * s2) := by ring
+  rw [e2] at h4
+  linarith
+
+end MainA
+
+section TorusA
+
+variable {G : Type*} [MeasurableSpace G] {ν : Measure G}
+
+theorem Alist_zero {n : ℕ} (l : List (Fin n)) :
+    Alist ν l (fun _ => (0 : ℝ)) = fun _ => 0 := by
+  induction l with
+  | nil => rfl
+  | cons v l ih => rw [Alist_cons, ih]; funext x; simp [Av]
+
+theorem AW_zero {n : ℕ} (W : Finset (Fin n)) : AW ν W (fun _ => (0 : ℝ)) = fun _ => 0 :=
+  Alist_zero _
+
+/-- Integrating out `v` commutes with integrating out a set `W ∌ v`. -/
+theorem Av_AW_comm [IsProbabilityMeasure ν] {n : ℕ} (v : Fin n) (W : Finset (Fin n))
+    (hv : v ∉ W) {F : (Fin n → G) → ℝ} (hF : BM F) :
+    Av ν v (AW ν W F) = AW ν W (Av ν v F) := by
+  induction W using Finset.induction_on with
+  | empty => rw [AW_empty, AW_empty]
+  | insert w W hw ih =>
+    have hvw : v ≠ w := fun h => hv (h ▸ Finset.mem_insert_self w W)
+    have hvW : v ∉ W := fun h => hv (Finset.mem_insert_of_mem h)
+    rw [AW_insert hw hF, AW_insert hw (Av_bm v hF), Av_comm v w (AW_bm W hF), ih hvW]
+
+/-- **The conditional mean given the last point vanishes** for a translation-invariant kernel that
+    is degenerate in its last argument (`ν` translation invariant). -/
+theorem cond_of_TI {G : Type*} [AddCommGroup G] [MeasurableSpace G] {ν : Measure G}
+    [IsProbabilityMeasure ν]
+    (hinv : ∀ f : G → ℝ, Measurable f → ∀ c, ∫ z, f (z + c) ∂ν = ∫ z, f z ∂ν)
+    {n : ℕ} {F : (Fin (n + 1) → G) → ℝ} (hF : BM F) (hT : TI F)
+    (hdeg : ∀ x, ∫ z, F (Function.update x (Fin.last n) z) ∂ν = 0) (x : Fin (n + 1) → G) :
+    AW ν (Finset.univ.erase (Fin.last n)) F x = 0 := by
+  have h1 := AW_le1_const hinv hF hT (S := {Fin.last n}) (by simp) x
+  rw [Finset.compl_singleton] at h1
+  rw [h1]
+  have hu : (Finset.univ : Finset (Fin (n + 1))) = insert (Fin.last n) (Finset.univ.erase (Fin.last n)) :=
+    (Finset.insert_erase (Finset.mem_univ _)).symm
+  have hA : Av ν (Fin.last n) F = fun _ => 0 := funext fun y => hdeg y
+  rw [hu, AW_insert (Finset.notMem_erase _ _) hF,
+    Av_AW_comm (Fin.last n) _ (Finset.notMem_erase _ _) hF, hA, AW_zero]
+
+end TorusA
+
+/-- **Lemma `lem:degenerate`(a) for `n + 1` indices on the flat torus.** Independent uniform points
+    `X_j` on `FlatTorus d`; `F` measurable, `|F| ≤ B`, invariant under simultaneous translations,
+    with `∫ F(y₁,…,y_n, z) dz = 0`; `V ≥ ‖F‖₂²` (injective index maps) and `ρ ≥ ϱ(F)` (index maps
+    identifying exactly one pair of positions) in sample form, `ρ ≥ 0`.  For `N ≥ 1`:
+    `E |N^{-(n+1)} ∑_ι F(X_ι)| ≤ (n+1)² √V / N + (n+1)² ρ / N + (n+1)^{n+1} B / N²`,
+    i.e. part (a) of the lemma with `C_{n+1} = (n+1)^{n+1}` (`(n+1)²` for the first two terms). -/
+theorem degenerate_a_general_torus {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {d : ℕ} (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ)
+    (hX : ∀ j, Measurable (X j)) (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d)
+    {n : ℕ} (F : (Fin (n + 1) → FlatTorus d) → ℝ) (hFm : Measurable F) {B V ρ : ℝ}
+    (hB : ∀ x, |F x| ≤ B) (hT : TI F) (hρ0 : 0 ≤ ρ)
+    (hdeg : ∀ x, ∫ z, F (Function.update x (Fin.last n) z) ∂flatTorusMeasure d = 0)
+    (hV : ∀ ι : Fin (n + 1) → ℕ, Function.Injective ι →
+      ∫ ω, F (fun m => X (ι m) ω) ^ 2 ∂μ ≤ V)
+    (hρ : ∀ ι : Fin (n + 1) → ℕ, (Finset.univ.image ι).card = n →
+      ∫ ω, |F (fun m => X (ι m) ω)| ∂μ ≤ ρ)
+    (N : ℕ) (hN : 0 < N) :
+    ∫ ω, |1 / (N : ℝ) ^ (n + 1) * sAll X N F ω| ∂μ
+      ≤ ((n : ℝ) + 1) ^ 2 * Real.sqrt V / N + ((n : ℝ) + 1) ^ 2 * ρ / N
+        + ((n : ℝ) + 1) ^ (n + 1) * B / (N : ℝ) ^ 2 := by
+  have hF : BM F := ⟨hFm, B, hB⟩
+  have H : SP μ (flatTorusMeasure d) X := ⟨h_indep, hX, hlaw⟩
+  exact degenerate_a_general H F hF hB hρ0 hdeg
+    (cond_of_TI (torus_hinv d) hF hT hdeg) hV hρ N hN
+
+
+
+open PiBound VarianceOne VarianceGeneral2
+
+/-! ## Part (b) of `lem:degenerate` for `n + 1` indices
+
+`Z¹ = N^{-(n+2)} ∑_{ι, v} F(x_ι) c(x_{ι(a)} - x_v)` is the statistic of the kernel
+`F̃(y) = F(y₀,…,y_n) c(y_a - y_{n+1})` of `n + 2` points (`Ft`), which is degenerate in its last
+argument.  The products of two injective summands vanish unless the images have two common
+elements (`pair_zero`); with exactly two common elements they are at most `M² L²`
+(`Ft_pair_two`), with three or more at most `M V` (`Ft_sq_le`); the non-injective summands are
+bounded one by one (`Ft_noninj_le`). -/
+
+section Count3
+
+/-- The pairs of index maps whose first map is injective and whose images have at least three
+    common elements. -/
+def threePairs (n N : ℕ) : Finset ((Fin n → Fin N) × (Fin n → Fin N)) :=
+  Finset.univ.filter fun q => Function.Injective q.1 ∧
+    ∃ a b c a' b' c', a ≠ b ∧ a ≠ c ∧ b ≠ c ∧ q.2 a' = q.1 a ∧ q.2 b' = q.1 b ∧ q.2 c' = q.1 c
+
+/-- `N³ · #threePairs ≤ n⁶ N^{2n}`. -/
+theorem threePairs_card (n N : ℕ) :
+    (N : ℝ) ^ 3 * ((threePairs n N).card : ℝ) ≤ (n : ℝ) ^ 6 * ((N : ℝ) ^ n) ^ 2 := by
+  classical
+  have hfib : ∀ (a b c a' b' c' : Fin n) (x : Fin n → Fin N), a' ≠ b' → a' ≠ c' → b' ≠ c' →
+      N ^ 3 * (Fintype.piFinset (fun i : Fin n => if i = a' then ({x a} : Finset (Fin N))
+        else if i = b' then {x b} else if i = c' then {x c} else Finset.univ)).card = N ^ n := by
+    intro a b c a' b' c' x hab hac hbc
+    rw [Fintype.card_piFinset]
+    have e : ∀ i : Fin n, (if i = a' then ({x a} : Finset (Fin N))
+        else if i = b' then {x b} else if i = c' then {x c} else Finset.univ).card
+        = if i ∈ ({a', b', c'} : Finset (Fin n)) then 1 else N := by
+      intro i
+      by_cases h1 : i = a'
+      · subst h1; simp
+      · by_cases h2 : i = b'
+        · subst h2; simp [h1]
+        · by_cases h3 : i = c'
+          · subst h3; simp [h1, h2]
+          · simp [h1, h2, h3]
+    simp_rw [e]
+    have hcard : ({a', b', c'} : Finset (Fin n)).card = 3 := by
+      rw [Finset.card_insert_of_notMem (by simp [hab, hac]), Finset.card_pair hbc]
+    rw [prod_ite_mem n {a', b', c'} 1 N, hcard, one_pow, one_mul, ← pow_add]
+    have hn3 : 3 ≤ n := by
+      have := Finset.card_le_univ ({a', b', c'} : Finset (Fin n))
+      rw [hcard, Fintype.card_fin] at this; exact this
+    congr 1; omega
+  obtain ⟨Cov, hCov⟩ : ∃ Cov : Finset ((Fin n → Fin N) × (Fin n → Fin N)), Cov =
+      (Finset.univ : Finset (Fin n × Fin n × Fin n × Fin n × Fin n × Fin n)).biUnion fun t =>
+        if t.2.2.2.1 = t.2.2.2.2.1 ∨ t.2.2.2.1 = t.2.2.2.2.2 ∨ t.2.2.2.2.1 = t.2.2.2.2.2 then ∅
+        else (Finset.univ : Finset (Fin n → Fin N)).biUnion fun x =>
+            ({x} : Finset (Fin n → Fin N)) ×ˢ Fintype.piFinset (fun i : Fin n =>
+              if i = t.2.2.2.1 then ({x t.1} : Finset (Fin N))
+              else if i = t.2.2.2.2.1 then {x t.2.1}
+              else if i = t.2.2.2.2.2 then {x t.2.2.1} else Finset.univ) := ⟨_, rfl⟩
+  have hsub : threePairs n N ⊆ Cov := by
+    intro q hq
+    obtain ⟨hinj, a, b, c, a', b', c', hab, hac, hbc, h1, h2, h3⟩ := (Finset.mem_filter.mp hq).2
+    have hab' : a' ≠ b' := by intro h; apply hab; apply hinj; rw [← h1, ← h2, h]
+    have hac' : a' ≠ c' := by intro h; apply hac; apply hinj; rw [← h1, ← h3, h]
+    have hbc' : b' ≠ c' := by intro h; apply hbc; apply hinj; rw [← h2, ← h3, h]
+    rw [hCov]
+    refine Finset.mem_biUnion.mpr ⟨(a, b, c, a', b', c'), Finset.mem_univ _, ?_⟩
+    simp only
+    rw [if_neg (by tauto)]
+    refine Finset.mem_biUnion.mpr ⟨q.1, Finset.mem_univ _, ?_⟩
+    refine Finset.mem_product.mpr ⟨Finset.mem_singleton_self _, ?_⟩
+    rw [Fintype.mem_piFinset]
+    intro i
+    by_cases e1 : i = a'
+    · subst e1; simp [h1]
+    · by_cases e2 : i = b'
+      · subst e2; simp [e1, h2]
+      · by_cases e3 : i = c'
+        · subst e3; simp [e1, e2, h3]
+        · simp [e1, e2, e3]
+  have hcard : N ^ 3 * Cov.card ≤ n ^ 6 * (N ^ n * N ^ n) := by
+    rw [hCov]
+    refine (Nat.mul_le_mul_left _ Finset.card_biUnion_le).trans ?_
+    rw [Finset.mul_sum]
+    calc ∑ t : Fin n × Fin n × Fin n × Fin n × Fin n × Fin n, N ^ 3 * (if t.2.2.2.1 = t.2.2.2.2.1
+          ∨ t.2.2.2.1 = t.2.2.2.2.2 ∨ t.2.2.2.2.1 = t.2.2.2.2.2 then ∅
+          else (Finset.univ : Finset (Fin n → Fin N)).biUnion fun x =>
+            ({x} : Finset (Fin n → Fin N)) ×ˢ Fintype.piFinset (fun i : Fin n =>
+              if i = t.2.2.2.1 then ({x t.1} : Finset (Fin N))
+              else if i = t.2.2.2.2.1 then {x t.2.1}
+              else if i = t.2.2.2.2.2 then {x t.2.2.1} else Finset.univ)).card
+        ≤ ∑ _t : Fin n × Fin n × Fin n × Fin n × Fin n × Fin n, N ^ n * N ^ n := by
+          refine Finset.sum_le_sum fun t _ => ?_
+          split_ifs with h
+          · simp
+          · push Not at h
+            refine (Nat.mul_le_mul_left _ Finset.card_biUnion_le).trans ?_
+            rw [Finset.mul_sum]
+            calc ∑ x : Fin n → Fin N, N ^ 3 * (({x} : Finset (Fin n → Fin N)) ×ˢ
+                  Fintype.piFinset (fun i : Fin n =>
+                  if i = t.2.2.2.1 then ({x t.1} : Finset (Fin N))
+                  else if i = t.2.2.2.2.1 then {x t.2.1}
+                  else if i = t.2.2.2.2.2 then {x t.2.2.1} else Finset.univ)).card
+                = ∑ _x : Fin n → Fin N, N ^ n := by
+                  refine Finset.sum_congr rfl fun x _ => ?_
+                  rw [Finset.card_product, Finset.card_singleton, one_mul]
+                  exact hfib _ _ _ _ _ _ x h.1 h.2.1 h.2.2
+              _ = N ^ n * N ^ n := by simp [Finset.sum_const, Finset.card_univ]
+              _ ≤ N ^ n * N ^ n := le_rfl
+      _ = n ^ 6 * (N ^ n * N ^ n) := by
+          rw [Finset.sum_const, smul_eq_mul, Finset.card_univ]
+          simp only [Fintype.card_prod, Fintype.card_fin]; ring
+  have h1 : N ^ 3 * (threePairs n N).card ≤ n ^ 6 * (N ^ n * N ^ n) :=
+    (Nat.mul_le_mul_left _ (Finset.card_le_card hsub)).trans hcard
+  have h2 : ((N ^ 3 * (threePairs n N).card : ℕ) : ℝ) ≤ ((n ^ 6 * (N ^ n * N ^ n) : ℕ) : ℝ) := by
+    exact_mod_cast h1
+  push_cast at h2
+  linarith only [h2, show ((N : ℝ) ^ n) ^ 2 = (N : ℝ) ^ n * (N : ℝ) ^ n by ring]
+
+end Count3
+
+section PartB
+
+variable {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω} {G : Type*}
+  [MeasurableSpace G] {ν : Measure G} {X : ℕ → Ω → G}
+
+/-- `pair_zero`: products of two injective summands whose images have at most one common element
+    vanish (for a kernel degenerate in the last argument with vanishing conditional mean given the
+    last point). -/
+theorem pair_zero [IsProbabilityMeasure μ] [IsProbabilityMeasure ν]
+    (H : SP μ ν X) {n N : ℕ} (F : (Fin (n + 1) → G) → ℝ) (hF : BM F)
+    (hdeg : ∀ x, ∫ z, F (Function.update x (Fin.last n) z) ∂ν = 0)
+    (hcond : ∀ x, AW ν (Finset.univ.erase (Fin.last n)) F x = 0)
+    (ι ι' : Fin (n + 1) → Fin N) (hinj : Function.Injective ι)
+    (hP : (ι, ι') ∉ twoPairs (n + 1) N) :
+    ∫ ω, F (fun m => X (ι m) ω) * F (fun m => X (ι' m) ω) ∂μ = 0 := by
+  have hinjN : Function.Injective fun m => (ι m : ℕ) := fun a b h => hinj (Fin.ext h)
+  by_cases hlast : ∃ a', ι' a' = ι (Fin.last n)
+  · have hcom : ∀ v m, v ≠ Fin.last n → (ι' m : ℕ) ≠ (ι v : ℕ) := by
+      intro v m hv h
+      obtain ⟨a', ha'⟩ := hlast
+      apply hP
+      refine Finset.mem_filter.mpr ⟨Finset.mem_univ _, hinj, Fin.last n, v, a', m,
+        fun h' => hv h'.symm, ha', Fin.ext h⟩
+    rw [int_set H (fun m => (ι m : ℕ)) (fun m => (ι' m : ℕ)) F F hF hF
+      (Finset.univ.erase (Fin.last n))
+      (fun v hv => ⟨fun m hm h => hm (hinjN h), fun m => hcom v m (Finset.ne_of_mem_erase hv)⟩)]
+    simp [hcond]
+  · push Not at hlast
+    exact H.pair_vanish (fun m => (ι m : ℕ)) (fun m => (ι' m : ℕ)) (Fin.last n)
+      (fun m hm h => hm (hinjN h)) (fun m h => hlast m (Fin.ext h)) F F hF hF hdeg
+
+/-- `E |F(X_ι)| ≤ L` for an injective index map, if the conditional mean of `|F|` given one point
+    is at most `L`. -/
+theorem abs_le_L [IsProbabilityMeasure μ] [IsProbabilityMeasure ν]
+    (H : SP μ ν X) {n : ℕ} (F : (Fin (n + 1) → G) → ℝ) (hF : BM F) {L : ℝ}
+    (hcabs : ∀ w x, AW ν (Finset.univ.erase w) (fun y => |F y|) x ≤ L)
+    (ι : Fin (n + 1) → ℕ) (hι : Function.Injective ι) :
+    ∫ ω, |F (fun m => X (ι m) ω)| ∂μ ≤ L := by
+  have h := int_set H ι (Fin.elim0 : Fin 0 → ℕ) (fun y => |F y|) (fun _ => (1 : ℝ)) hF.absv
+    (BM.const 1) (Finset.univ.erase 0) (fun v _ => ⟨fun m hm h => hm (hι h), fun m => m.elim0⟩)
+  simp only [mul_one] at h
+  rw [h]
+  have hb : BM (fun ω => AW ν (Finset.univ.erase 0) (fun y => |F y|) (fun m => X (ι m) ω)) :=
+    H.bm ι (AW_bm _ hF.absv)
+  calc ∫ ω, AW ν (Finset.univ.erase 0) (fun y => |F y|) (fun m => X (ι m) ω) ∂μ
+      ≤ ∫ _ω, L ∂μ := integral_mono hb.integrable (integrable_const _) (fun ω => hcabs _ _)
+    _ = L := by simp
+
+/-- `E |F(X_ι)| |F(X_ι')| ≤ L²` if the images of the injective maps `ι`, `ι'` have at most one
+    common element. -/
+theorem abs_pair_le [IsProbabilityMeasure μ] [IsProbabilityMeasure ν]
+    (H : SP μ ν X) {n : ℕ} (F : (Fin (n + 1) → G) → ℝ) (hF : BM F) {L : ℝ} (hL0 : 0 ≤ L)
+    (hcabs : ∀ w x, AW ν (Finset.univ.erase w) (fun y => |F y|) x ≤ L)
+    (ι ι' : Fin (n + 1) → ℕ) (hι : Function.Injective ι) (hι' : Function.Injective ι')
+    (hone : ∀ b b' m m', ι b = ι' m → ι b' = ι' m' → b = b') :
+    ∫ ω, |F (fun m => X (ι m) ω)| * |F (fun m => X (ι' m) ω)| ∂μ ≤ L * L := by
+  classical
+  obtain ⟨b, hb⟩ : ∃ b : Fin (n + 1), ∀ v, v ≠ b → ∀ m, ι' m ≠ ι v := by
+    by_cases hex : ∃ b m, ι b = ι' m
+    · obtain ⟨b, m0, hb⟩ := hex
+      exact ⟨b, fun v hv m h => hv (hone v b m m0 h.symm hb)⟩
+    · push Not at hex
+      exact ⟨0, fun v _ m h => hex v m h.symm⟩
+  have h := int_set H ι ι' (fun y => |F y|) (fun y => |F y|) hF.absv hF.absv
+    (Finset.univ.erase b) (fun v hv => ⟨fun m hm h => hm (hι h),
+      fun m => hb v (Finset.ne_of_mem_erase hv) m⟩)
+  rw [h]
+  have hb1 : BM (fun ω => AW ν (Finset.univ.erase b) (fun y => |F y|) (fun m => X (ι m) ω)) :=
+    H.bm ι (AW_bm _ hF.absv)
+  have hb2 : BM (fun ω => |F (fun m => X (ι' m) ω)|) := (H.bm ι' hF).absv
+  calc ∫ ω, AW ν (Finset.univ.erase b) (fun y => |F y|) (fun m => X (ι m) ω)
+        * |F (fun m => X (ι' m) ω)| ∂μ
+      ≤ ∫ ω, L * |F (fun m => X (ι' m) ω)| ∂μ :=
+        integral_mono (hb1.mul hb2).integrable (hb2.const_mul L).integrable
+          (fun ω => mul_le_mul_of_nonneg_right (hcabs _ _) (abs_nonneg _))
+    _ = L * ∫ ω, |F (fun m => X (ι' m) ω)| ∂μ := integral_const_mul _ _
+    _ ≤ L * L := mul_le_mul_of_nonneg_left (abs_le_L H F hF hcabs ι' hι') hL0
+
+/-- **Second moment with two classes of non-vanishing products.** -/
+theorem sm_le_two [IsProbabilityMeasure μ]
+    (H : SP μ ν X) {n N : ℕ} (I : Finset (Fin n → Fin N)) (F : (Fin n → G) → ℝ) (hF : BM F)
+    {A C : ℝ} (hA0 : 0 ≤ A) (hC0 : 0 ≤ C) (P Q : Finset ((Fin n → Fin N) × (Fin n → Fin N)))
+    (hb : ∀ ι ∈ I, ∀ ι' ∈ I, ∫ ω, F (fun m => X (ι m) ω) * F (fun m => X (ι' m) ω) ∂μ
+      ≤ (if (ι, ι') ∈ P then A else 0) + (if (ι, ι') ∈ Q then C else 0)) :
+    ∫ ω, (∑ ι ∈ I, F (fun m => X (ι m) ω)) ^ 2 ∂μ ≤ P.card * A + Q.card * C := by
+  classical
+  have bm : ∀ ι : Fin n → Fin N, BM (fun ω => F (fun m => X (ι m) ω)) := fun ι =>
+    H.bm (fun m => (ι m : ℕ)) hF
+  have e : ∀ ω, (∑ ι ∈ I, F (fun m => X (ι m) ω)) ^ 2
+      = ∑ q ∈ I ×ˢ I, F (fun m => X (q.1 m) ω) * F (fun m => X (q.2 m) ω) := by
+    intro ω; rw [pow_two, Finset.sum_mul_sum, Finset.sum_product]
+  simp_rw [e]
+  rw [integral_finset_sum _ fun q _ => ((bm q.1).mul (bm q.2)).integrable]
+  have hterm : ∀ q ∈ I ×ˢ I, ∫ ω, F (fun m => X (q.1 m) ω) * F (fun m => X (q.2 m) ω) ∂μ
+      ≤ (if q ∈ P then A else 0) + (if q ∈ Q then C else 0) := by
+    intro q hq
+    obtain ⟨h1, h2⟩ := Finset.mem_product.mp hq
+    exact hb q.1 h1 q.2 h2
+  refine (Finset.sum_le_sum hterm).trans ?_
+  rw [Finset.sum_add_distrib, ← Finset.sum_filter, ← Finset.sum_filter, Finset.sum_const,
+    Finset.sum_const, nsmul_eq_mul, nsmul_eq_mul]
+  have c1 : (((I ×ˢ I).filter (· ∈ P)).card : ℝ) ≤ P.card := by
+    exact_mod_cast Finset.card_le_card (fun q hq => (Finset.mem_filter.mp hq).2)
+  have c2 : (((I ×ˢ I).filter (· ∈ Q)).card : ℝ) ≤ Q.card := by
+    exact_mod_cast Finset.card_le_card (fun q hq => (Finset.mem_filter.mp hq).2)
+  have := mul_le_mul_of_nonneg_right c1 hA0
+  have := mul_le_mul_of_nonneg_right c2 hC0
+  linarith
+
+variable [AddCommGroup G] [MeasurableSub₂ G]
+
+/-- The kernel `F̃(y) = F(y₀,…,y_n) c(y_a - y_{n+1})` of the statistic `Z¹`. -/
+def Ft {n : ℕ} (F : (Fin (n + 1) → G) → ℝ) (c : G → ℝ) (a : Fin (n + 1))
+    (y : Fin (n + 2) → G) : ℝ :=
+  F (Fin.init y) * c (y (Fin.castSucc a) - y (Fin.last (n + 1)))
+
+omit [MeasurableSpace G] [MeasurableSub₂ G] in
+theorem Ft_update {n : ℕ} (F : (Fin (n + 1) → G) → ℝ) (c : G → ℝ) (a : Fin (n + 1))
+    (y : Fin (n + 2) → G) (z : G) :
+    Ft F c a (Function.update y (Fin.last (n + 1)) z) = F (Fin.init y) * c (y (Fin.castSucc a) - z) := by
+  unfold Ft
+  rw [Fin.init_update_last, Function.update_self,
+    Function.update_of_ne (Fin.castSucc_ne_last a)]
+
+omit [MeasurableSpace G] [MeasurableSub₂ G] in
+theorem Ft_abs_le {n : ℕ} (F : (Fin (n + 1) → G) → ℝ) {c : G → ℝ} {M : ℝ}
+    (hcM : ∀ u, |c u| ≤ M) (a : Fin (n + 1)) (y : Fin (n + 2) → G) :
+    |Ft F c a y| ≤ M * |F (Fin.init y)| := by
+  unfold Ft; rw [abs_mul, mul_comm]
+  exact mul_le_mul_of_nonneg_right (hcM _) (abs_nonneg _)
+
+theorem Ft_bm {n : ℕ} {F : (Fin (n + 1) → G) → ℝ} (hF : BM F) {c : G → ℝ} (hc : Measurable c)
+    {M : ℝ} (hcM : ∀ u, |c u| ≤ M) (a : Fin (n + 1)) : BM (Ft F c a) := by
+  obtain ⟨B, hB⟩ := hF.bdd
+  refine ⟨(hF.meas.comp (measurable_pi_lambda _ fun i => measurable_pi_apply _)).mul
+    (hc.comp ((measurable_pi_apply _).sub (measurable_pi_apply _))), M * B, fun y => ?_⟩
+  refine (Ft_abs_le F hcM a y).trans ?_
+  have hM : 0 ≤ M := (abs_nonneg _).trans (hcM 0)
+  exact mul_le_mul_of_nonneg_left (hB _) hM
+
+omit [MeasurableSub₂ G] in
+theorem Ft_deg {n : ℕ} (F : (Fin (n + 1) → G) → ℝ) {c : G → ℝ}
+    (hc_mean : ∀ x, ∫ z, c (x - z) ∂ν = 0) (a : Fin (n + 1)) (y : Fin (n + 2) → G) :
+    ∫ z, Ft F c a (Function.update y (Fin.last (n + 1)) z) ∂ν = 0 := by
+  simp_rw [Ft_update]
+  rw [integral_const_mul, hc_mean, mul_zero]
+
+/-- `E F̃(X_κ)² ≤ M V` for an injective index map `κ`. -/
+theorem Ft_sq_le [IsProbabilityMeasure μ] [IsProbabilityMeasure ν]
+    (H : SP μ ν X) {n : ℕ} {F : (Fin (n + 1) → G) → ℝ} (hF : BM F) {c : G → ℝ}
+    (hc : Measurable c) {M V : ℝ} (hcM : ∀ u, |c u| ≤ M)
+    (hc_sq : ∀ x, ∫ z, c (x - z) ^ 2 ∂ν ≤ M) (a : Fin (n + 1))
+    (hV : ∀ ι : Fin (n + 1) → ℕ, Function.Injective ι →
+      ∫ ω, F (fun m => X (ι m) ω) ^ 2 ∂μ ≤ V)
+    (κ : Fin (n + 2) → ℕ) (hκ : Function.Injective κ) :
+    ∫ ω, Ft F c a (fun m => X (κ m) ω) ^ 2 ∂μ ≤ M * V := by
+  have hM : 0 ≤ M := (abs_nonneg _).trans (hcM 0)
+  have h := H.integrate_iso κ (Fin.last (n + 1)) (fun m hm h => hm (hκ h))
+    (fun y => Ft F c a y ^ 2) (Ft_bm hF hc hcM a).sqr
+  simp only at h
+  rw [h]
+  have hin : ∀ ω, (fun z => Ft F c a (Function.update (fun m => X (κ m) ω) (Fin.last (n + 1)) z) ^ 2)
+      = fun z => F (fun m => X (κ (Fin.castSucc m)) ω) ^ 2
+          * c (X (κ (Fin.castSucc a)) ω - z) ^ 2 := fun ω => funext fun z => by
+    rw [Ft_update, mul_pow]; rfl
+  have hle : ∀ ω, ∫ z, Ft F c a (Function.update (fun m => X (κ m) ω) (Fin.last (n + 1)) z) ^ 2 ∂ν
+      ≤ M * F (fun m => X (κ (Fin.castSucc m)) ω) ^ 2 := by
+    intro ω
+    rw [hin ω, integral_const_mul, mul_comm]
+    exact mul_le_mul_of_nonneg_right (hc_sq _) (_root_.sq_nonneg _)
+  have hg : BM (fun ω => M * F (fun m => X (κ (Fin.castSucc m)) ω) ^ 2) :=
+    BM.const_mul M (H.bm (fun m => κ (Fin.castSucc m)) hF).sqr
+  refine (integral_mono_of_nonneg (Filter.Eventually.of_forall fun ω =>
+    integral_nonneg fun z => _root_.sq_nonneg _) hg.integrable
+    (Filter.Eventually.of_forall hle)).trans ?_
+  rw [integral_const_mul]
+  exact mul_le_mul_of_nonneg_left (hV _ fun x y h => Fin.castSucc_injective _ (hκ h)) hM
+
+/-- **Products with exactly two common elements**: at most `M² L²`. -/
+theorem Ft_pair_two [IsProbabilityMeasure μ] [IsProbabilityMeasure ν]
+    (H : SP μ ν X) {n N : ℕ} {F : (Fin (n + 1) → G) → ℝ} (hF : BM F) {c : G → ℝ}
+    (hc : Measurable c) {M L : ℝ} (hcM : ∀ u, |c u| ≤ M) (hL0 : 0 ≤ L) (a : Fin (n + 1))
+    (hdegt : ∀ x, ∫ z, Ft F c a (Function.update x (Fin.last (n + 1)) z) ∂ν = 0)
+    (hcabs : ∀ w x, AW ν (Finset.univ.erase w) (fun y => |F y|) x ≤ L)
+    (κ κ' : Fin (n + 2) → Fin N) (hκ : Function.Injective κ) (hκ' : Function.Injective κ')
+    (h3 : (κ, κ') ∉ threePairs (n + 2) N) :
+    ∫ ω, Ft F c a (fun m => X (κ m) ω) * Ft F c a (fun m => X (κ' m) ω) ∂μ ≤ M ^ 2 * (L * L) := by
+  have hM : 0 ≤ M := (abs_nonneg _).trans (hcM 0)
+  have hR : 0 ≤ M ^ 2 * (L * L) := by positivity
+  have hbt := Ft_bm hF hc hcM a
+  have hinjN : Function.Injective fun m => (κ m : ℕ) := fun x y h => hκ (Fin.ext h)
+  have hinjN' : Function.Injective fun m => (κ' m : ℕ) := fun x y h => hκ' (Fin.ext h)
+  by_cases hA : ∃ m, κ' m = κ (Fin.last (n + 1))
+  · by_cases hB : ∃ m, κ m = κ' (Fin.last (n + 1))
+    · obtain ⟨m0, hm0⟩ := hA
+      have hone : ∀ b b' m m', ((κ (Fin.castSucc b) : ℕ)) = κ' (Fin.castSucc m) →
+          ((κ (Fin.castSucc b') : ℕ)) = κ' (Fin.castSucc m') → b = b' := by
+        intro b b' m m' h1 h2
+        by_contra hbb
+        apply h3
+        refine Finset.mem_filter.mpr ⟨Finset.mem_univ _, hκ, Fin.castSucc b, Fin.castSucc b',
+          Fin.last (n + 1), Fin.castSucc m, Fin.castSucc m', m0,
+          fun h => hbb (Fin.castSucc_injective _ h), Fin.castSucc_ne_last b,
+          Fin.castSucc_ne_last b', (Fin.ext h1).symm, (Fin.ext h2).symm, hm0⟩
+      have b1 : BM (fun ω => |F (fun m => X (κ (Fin.castSucc m)) ω)|) :=
+        (H.bm (fun m => (κ (Fin.castSucc m) : ℕ)) hF).absv
+      have b2 : BM (fun ω => |F (fun m => X (κ' (Fin.castSucc m)) ω)|) :=
+        (H.bm (fun m => (κ' (Fin.castSucc m) : ℕ)) hF).absv
+      have hpt : ∀ ω, Ft F c a (fun m => X (κ m) ω) * Ft F c a (fun m => X (κ' m) ω)
+          ≤ M ^ 2 * (|F (fun m => X (κ (Fin.castSucc m)) ω)|
+            * |F (fun m => X (κ' (Fin.castSucc m)) ω)|) := by
+        intro ω
+        refine (le_abs_self _).trans ?_
+        rw [abs_mul]
+        have e1 := Ft_abs_le F hcM a (fun m => X (κ m) ω)
+        have e2 := Ft_abs_le F hcM a (fun m => X (κ' m) ω)
+        calc |Ft F c a (fun m => X (κ m) ω)| * |Ft F c a (fun m => X (κ' m) ω)|
+            ≤ (M * |F (fun m => X (κ (Fin.castSucc m)) ω)|)
+              * (M * |F (fun m => X (κ' (Fin.castSucc m)) ω)|) :=
+              mul_le_mul e1 e2 (abs_nonneg _) (by positivity)
+          _ = _ := by ring
+      calc ∫ ω, Ft F c a (fun m => X (κ m) ω) * Ft F c a (fun m => X (κ' m) ω) ∂μ
+          ≤ ∫ ω, M ^ 2 * (|F (fun m => X (κ (Fin.castSucc m)) ω)|
+            * |F (fun m => X (κ' (Fin.castSucc m)) ω)|) ∂μ :=
+            integral_mono ((H.bm _ hbt).mul (H.bm _ hbt)).integrable
+              ((b1.mul b2).const_mul _).integrable hpt
+        _ = M ^ 2 * ∫ ω, |F (fun m => X (κ (Fin.castSucc m)) ω)|
+            * |F (fun m => X (κ' (Fin.castSucc m)) ω)| ∂μ := integral_const_mul _ _
+        _ ≤ M ^ 2 * (L * L) := mul_le_mul_of_nonneg_left
+            (abs_pair_le H F hF hL0 hcabs (fun m => (κ (Fin.castSucc m) : ℕ))
+              (fun m => (κ' (Fin.castSucc m) : ℕ))
+              (fun x y h => Fin.castSucc_injective _ (hκ (Fin.ext h)))
+              (fun x y h => Fin.castSucc_injective _ (hκ' (Fin.ext h))) hone) (by positivity)
+    · push Not at hB
+      have h0 := H.pair_vanish (fun m => (κ' m : ℕ)) (fun m => (κ m : ℕ)) (Fin.last (n + 1))
+        (fun m hm h => hm (hinjN' h)) (fun m h => hB m (Fin.ext h)) _ _ hbt hbt hdegt
+      have e : ∫ ω, Ft F c a (fun m => X (κ m) ω) * Ft F c a (fun m => X (κ' m) ω) ∂μ
+          = ∫ ω, Ft F c a (fun m => X (κ' m) ω) * Ft F c a (fun m => X (κ m) ω) ∂μ := by
+        congr 1; funext ω; ring
+      rw [e, h0]; exact hR
+  · push Not at hA
+    rw [H.pair_vanish (fun m => (κ m : ℕ)) (fun m => (κ' m : ℕ)) (Fin.last (n + 1))
+      (fun m hm h => hm (hinjN h)) (fun m h => hA m (Fin.ext h)) _ _ hbt hbt hdegt]
+    exact hR
+
+omit [MeasurableSpace G] [AddCommGroup G] [MeasurableSub₂ G] in
+theorem inj_of_init {n N : ℕ} (κ : Fin (n + 1) → Fin N) (h1 : Function.Injective (Fin.init κ))
+    (h2 : ∀ m, κ (Fin.castSucc m) ≠ κ (Fin.last n)) : Function.Injective κ := by
+  intro x y hxy
+  induction x using Fin.lastCases with
+  | last =>
+    induction y using Fin.lastCases with
+    | last => rfl
+    | cast j => exact absurd hxy.symm (h2 j)
+  | cast i =>
+    induction y using Fin.lastCases with
+    | last => exact absurd hxy (h2 i)
+    | cast j => exact congrArg _ (h1 hxy)
+
+end PartB
+
+
+
+open PiBound VarianceOne VarianceGeneral2
+
+section PartB2
+
+variable {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω} {G : Type*}
+  [MeasurableSpace G] {ν : Measure G} {X : ℕ → Ω → G}
+
+/-- The bound for `E|F(X_ι)|` used for the non-injective summands. -/
+theorem eF_le [IsProbabilityMeasure μ] [IsProbabilityMeasure ν]
+    (H : SP μ ν X) {n N : ℕ} (F : (Fin (n + 1) → G) → ℝ) (hF : BM F) {B L ρ : ℝ}
+    (hB : ∀ x, |F x| ≤ B) (hρ0 : 0 ≤ ρ)
+    (hcabs : ∀ w x, AW ν (Finset.univ.erase w) (fun y => |F y|) x ≤ L)
+    (hρ : ∀ ι : Fin (n + 1) → ℕ, (Finset.univ.image ι).card = n →
+      ∫ ω, |F (fun m => X (ι m) ω)| ∂μ ≤ ρ)
+    (ι : Fin (n + 1) → Fin N) :
+    ∫ ω, |F (fun m => X (ι m) ω)| ∂μ
+      ≤ if Function.Injective ι then L
+        else ρ + B * (if (Finset.univ.image ι).card ≤ n - 1 then 1 else 0) := by
+  classical
+  obtain ⟨ω0⟩ := nonempty_of_isProbabilityMeasure μ
+  have hB0 : 0 ≤ B := (abs_nonneg _).trans (hB (fun _ => X 0 ω0))
+  by_cases hinj : Function.Injective ι
+  · rw [if_pos hinj]
+    exact abs_le_L H F hF hcabs (fun m => (ι m : ℕ)) (fun x y h => hinj (Fin.ext h))
+  · rw [if_neg hinj]
+    have hlt : (Finset.univ.image ι).card ≤ n := by
+      have h1 : (Finset.univ.image ι).card ≤ n + 1 := by
+        have := Finset.card_image_le (s := (Finset.univ : Finset (Fin (n + 1)))) (f := ι)
+        simpa using this
+      have h2 : (Finset.univ.image ι).card ≠ n + 1 := by
+        intro h
+        apply hinj
+        have h3 : (Finset.univ.image ι).card = (Finset.univ : Finset (Fin (n + 1))).card := by
+          simpa using h
+        have := Finset.card_image_iff.mp h3
+        intro x y hxy
+        exact this (Finset.mem_coe.mpr (Finset.mem_univ x))
+          (Finset.mem_coe.mpr (Finset.mem_univ y)) hxy
+      omega
+    by_cases hc : (Finset.univ.image ι).card = n
+    · have h := hρ (fun m => (ι m : ℕ)) (by rw [image_val_card]; exact hc)
+      have : 0 ≤ B * (if (Finset.univ.image ι).card ≤ n - 1 then (1 : ℝ) else 0) := by
+        split_ifs <;> simp [hB0]
+      linarith
+    · have hc' : (Finset.univ.image ι).card ≤ n - 1 := by omega
+      rw [if_pos hc', mul_one]
+      have hle : ∫ ω, |F (fun m => X (ι m) ω)| ∂μ ≤ B := by
+        calc ∫ ω, |F (fun m => X (ι m) ω)| ∂μ ≤ ∫ _ω, B ∂μ :=
+              integral_mono (H.bmι hF ι).absv.integrable (integrable_const _) (fun ω => hB _)
+          _ = B := by simp
+      linarith
+
+/-- The bound for one non-injective summand of `Z¹`, as a function of `ι = init κ` and
+    `v = κ (n+1)`. -/
+noncomputable def hNI (M L B ρ : ℝ) (n : ℕ) {N : ℕ} (ι : Fin (n + 1) → Fin N) (v : Fin N) : ℝ :=
+  if Function.Injective ι then (if v ∈ Finset.univ.image ι then (2 + M) * L else 0)
+  else (2 + M * (if v ∈ Finset.univ.image ι then 1 else 0))
+    * (ρ + B * (if (Finset.univ.image ι).card ≤ n - 1 then 1 else 0))
+
+theorem hNI_nonneg {M L B ρ : ℝ} (hM : 0 ≤ M) (hL : 0 ≤ L) (hB : 0 ≤ B) (hρ : 0 ≤ ρ) (n : ℕ)
+    {N : ℕ} (ι : Fin (n + 1) → Fin N) (v : Fin N) : 0 ≤ hNI M L B ρ n ι v := by
+  unfold hNI
+  split_ifs <;> positivity
+
+theorem sum_snoc_split {n N : ℕ} (f : (Fin n → Fin N) → Fin N → ℝ) :
+    ∑ κ : Fin (n + 1) → Fin N, f (Fin.init κ) (κ (Fin.last n))
+      = ∑ ι : Fin n → Fin N, ∑ v : Fin N, f ι v := by
+  rw [← (Fin.snocEquiv fun _ => Fin N).sum_comp, Fintype.sum_prod_type, Finset.sum_comm]
+  simp [Fin.snocEquiv, Fin.init_snoc, Fin.snoc_last]
+
+variable [AddCommGroup G] [MeasurableSub₂ G]
+
+omit [MeasurableSpace G] [MeasurableSub₂ G] in
+/-- The paper's form of `Z¹` (times `N^{n+2}`) is the statistic of `F̃`. -/
+theorem sAll_Ft (X : ℕ → Ω → G) (N : ℕ) {n : ℕ} (F : (Fin (n + 1) → G) → ℝ) (c : G → ℝ)
+    (a : Fin (n + 1)) (ω : Ω) :
+    sAll X N (Ft F c a) ω = ∑ ι : Fin (n + 1) → Fin N, ∑ v : Fin N,
+      F (fun m => X (ι m) ω) * c (X (ι a) ω - X v ω) := by
+  unfold sAll
+  exact sum_snoc_split (fun ι v => F (fun m => X (ι m) ω) * c (X (ι a) ω - X v ω))
+
+/-- **One non-injective summand of `Z¹`.** -/
+theorem Ft_noninj_le [IsProbabilityMeasure μ] [IsProbabilityMeasure ν]
+    (H : SP μ ν X) {n N : ℕ} {F : (Fin (n + 1) → G) → ℝ} (hF : BM F) {c : G → ℝ}
+    (hc : Measurable c) {M L B ρ : ℝ} (hcM : ∀ u, |c u| ≤ M)
+    (hc_abs : ∀ x, ∫ z, |c (x - z)| ∂ν ≤ 2) (hB : ∀ x, |F x| ≤ B) (hρ0 : 0 ≤ ρ)
+    (hL0 : 0 ≤ L) (a : Fin (n + 1))
+    (hcabs : ∀ w x, AW ν (Finset.univ.erase w) (fun y => |F y|) x ≤ L)
+    (hρ : ∀ ι : Fin (n + 1) → ℕ, (Finset.univ.image ι).card = n →
+      ∫ ω, |F (fun m => X (ι m) ω)| ∂μ ≤ ρ)
+    (κ : Fin (n + 2) → Fin N) (hκ : ¬ Function.Injective κ) :
+    ∫ ω, |Ft F c a (fun m => X (κ m) ω)| ∂μ
+      ≤ hNI M L B ρ n (Fin.init κ) (κ (Fin.last (n + 1))) := by
+  classical
+  have hM : 0 ≤ M := (abs_nonneg _).trans (hcM 0)
+  obtain ⟨ω0⟩ := nonempty_of_isProbabilityMeasure μ
+  have hB0 : 0 ≤ B := (abs_nonneg _).trans (hB (fun _ => X 0 ω0))
+  have he := eF_le H F hF hB hρ0 hcabs hρ (Fin.init κ)
+  have hbF : BM (fun ω => |F (fun m => X (Fin.init κ m) ω)|) := (H.bmι hF _).absv
+  have hbt : BM (fun ω => |Ft F c a (fun m => X (κ m) ω)|) :=
+    (H.bm (fun m => (κ m : ℕ)) (Ft_bm hF hc hcM a)).absv
+  by_cases hv : κ (Fin.last (n + 1)) ∈ Finset.univ.image (Fin.init κ)
+  · have h1 : ∫ ω, |Ft F c a (fun m => X (κ m) ω)| ∂μ
+        ≤ M * ∫ ω, |F (fun m => X (Fin.init κ m) ω)| ∂μ := by
+      rw [← integral_const_mul]
+      exact integral_mono hbt.integrable (hbF.const_mul M).integrable
+        (fun ω => Ft_abs_le F hcM a (fun m => X (κ m) ω))
+    refine h1.trans ?_
+    unfold hNI
+    by_cases hi : Function.Injective (Fin.init κ)
+    · rw [if_pos hi, if_pos hv]
+      rw [if_pos hi] at he
+      have h2 := mul_le_mul_of_nonneg_left he hM
+      have e : (2 + M) * L = 2 * L + M * L := by ring
+      linarith
+    · rw [if_neg hi, if_pos hv, mul_one]
+      rw [if_neg hi] at he
+      have hK : 0 ≤ ρ + B * (if (Finset.univ.image (Fin.init κ)).card ≤ n - 1 then (1 : ℝ) else 0) := by
+        split_ifs <;> positivity
+      have h2 := mul_le_mul_of_nonneg_left he hM
+      have e : (2 + M) * (ρ + B * (if (Finset.univ.image (Fin.init κ)).card ≤ n - 1 then (1 : ℝ) else 0))
+          = 2 * (ρ + B * (if (Finset.univ.image (Fin.init κ)).card ≤ n - 1 then (1 : ℝ) else 0))
+            + M * (ρ + B * (if (Finset.univ.image (Fin.init κ)).card ≤ n - 1 then (1 : ℝ) else 0)) := by
+        ring
+      linarith
+  · have hni : ¬ Function.Injective (Fin.init κ) := by
+      intro hi
+      apply hκ
+      refine inj_of_init κ hi fun m h => hv ?_
+      exact Finset.mem_image.mpr ⟨m, Finset.mem_univ _, h⟩
+    have hpriv : ∀ m, m ≠ Fin.last (n + 1) → (κ m : ℕ) ≠ (κ (Fin.last (n + 1)) : ℕ) := by
+      intro m hm h
+      obtain ⟨j, rfl⟩ := Fin.exists_castSucc_eq.mpr hm
+      exact hv (Finset.mem_image.mpr ⟨j, Finset.mem_univ _, Fin.ext h⟩)
+    have hI := H.integrate_iso (fun m => (κ m : ℕ)) (Fin.last (n + 1)) hpriv
+      (fun y => |Ft F c a y|) (Ft_bm hF hc hcM a).absv
+    simp only at hI
+    rw [hI]
+    have hin : ∀ ω, ∫ z, |Ft F c a (Function.update (fun m => X (κ m) ω) (Fin.last (n + 1)) z)| ∂ν
+        ≤ 2 * |F (fun m => X (Fin.init κ m) ω)| := by
+      intro ω
+      have e : (fun z => |Ft F c a (Function.update (fun m => X (κ m) ω) (Fin.last (n + 1)) z)|)
+          = fun z => |F (fun m => X (Fin.init κ m) ω)| * |c (X (κ (Fin.castSucc a)) ω - z)| :=
+        funext fun z => by rw [Ft_update, abs_mul]; rfl
+      rw [e, integral_const_mul, mul_comm]
+      exact mul_le_mul_of_nonneg_right (hc_abs _) (abs_nonneg _)
+    have h1 : ∫ ω, ∫ z, |Ft F c a (Function.update (fun m => X (κ m) ω) (Fin.last (n + 1)) z)| ∂ν ∂μ
+        ≤ 2 * ∫ ω, |F (fun m => X (Fin.init κ m) ω)| ∂μ := by
+      rw [← integral_const_mul]
+      exact integral_mono_of_nonneg (Filter.Eventually.of_forall fun ω =>
+        integral_nonneg fun z => abs_nonneg _) (hbF.const_mul 2).integrable
+        (Filter.Eventually.of_forall hin)
+    refine h1.trans ?_
+    unfold hNI
+    rw [if_neg hni] at he
+    rw [if_neg hni, if_neg hv, mul_zero, add_zero]
+    exact mul_le_mul_of_nonneg_left he (by norm_num)
+
+/-- `√(x + y) ≤ √x + √y`. -/
+theorem sqrt_add_le' {x y : ℝ} (hx : 0 ≤ x) (hy : 0 ≤ y) :
+    Real.sqrt (x + y) ≤ Real.sqrt x + Real.sqrt y := by
+  have h : x + y ≤ (Real.sqrt x + Real.sqrt y) ^ 2 := by
+    have := Real.sq_sqrt hx; have := Real.sq_sqrt hy
+    have := mul_nonneg (Real.sqrt_nonneg x) (Real.sqrt_nonneg y)
+    nlinarith
+  calc Real.sqrt (x + y) ≤ Real.sqrt ((Real.sqrt x + Real.sqrt y) ^ 2) := Real.sqrt_le_sqrt h
+    _ = Real.sqrt x + Real.sqrt y := Real.sqrt_sq (by positivity)
+
+set_option maxHeartbeats 1600000 in
+/-- **Lemma `lem:degenerate`(b) for `n + 1` indices, abstract form.** HYPOTHESES: independent sample
+    with law `ν`; `F` bounded (`|F| ≤ B`) and measurable; `c` measurable with `|c| ≤ M`,
+    `∫ c(x - z) dz = 0`, `∫ |c(x - z)| dz ≤ 2`, `∫ c(x - z)² dz ≤ M`; the kernel
+    `F̃ = F(y_{≤n}) c(y_a - y_{n+1})` has vanishing conditional mean given its last point
+    (`hcondt`); the conditional mean of `|F|` given one point is `≤ L` (`hcabs`; `L ≥ ‖F‖₁`);
+    `V ≥ ‖F‖₂²`, `ρ ≥ ϱ(F)` in sample form.  For `N ≥ 1`:
+    `E |N^{-(n+2)} ∑_{ι, v} F(X_ι) c(X_{ι(a)} - X_v)|
+       ≤ (n+2)² M L / N + (n+2)³ √(M V / N) / N + (n+1)(2 + M) L / N
+         + (2 + (n+1) M / N) ((n+1)² ρ / N + (n+1)^{n+1} B / N²)`. -/
+theorem degenerate_b_general [IsProbabilityMeasure μ] [IsProbabilityMeasure ν]
+    (H : SP μ ν X) {n : ℕ} (F : (Fin (n + 1) → G) → ℝ) (hF : BM F) {B M L V ρ : ℝ}
+    (hB : ∀ x, |F x| ≤ B) (c : G → ℝ) (hc : Measurable c) (hcM : ∀ u, |c u| ≤ M)
+    (hc_mean : ∀ x, ∫ z, c (x - z) ∂ν = 0) (hc_abs : ∀ x, ∫ z, |c (x - z)| ∂ν ≤ 2)
+    (hc_sq : ∀ x, ∫ z, c (x - z) ^ 2 ∂ν ≤ M) (a : Fin (n + 1)) (hL0 : 0 ≤ L) (hρ0 : 0 ≤ ρ)
+    (hcondt : ∀ x, AW ν (Finset.univ.erase (Fin.last (n + 1))) (Ft F c a) x = 0)
+    (hcabs : ∀ w x, AW ν (Finset.univ.erase w) (fun y => |F y|) x ≤ L)
+    (hV : ∀ ι : Fin (n + 1) → ℕ, Function.Injective ι →
+      ∫ ω, F (fun m => X (ι m) ω) ^ 2 ∂μ ≤ V)
+    (hρ : ∀ ι : Fin (n + 1) → ℕ, (Finset.univ.image ι).card = n →
+      ∫ ω, |F (fun m => X (ι m) ω)| ∂μ ≤ ρ)
+    (N : ℕ) (hN : 0 < N) :
+    ∫ ω, |1 / (N : ℝ) ^ (n + 2) * ∑ ι : Fin (n + 1) → Fin N, ∑ v : Fin N,
+        F (fun m => X (ι m) ω) * c (X (ι a) ω - X v ω)| ∂μ
+      ≤ ((n : ℝ) + 2) ^ 2 * M * L / N + ((n : ℝ) + 2) ^ 3 * Real.sqrt (M * V / N) / N
+        + ((n : ℝ) + 1) * (2 + M) * L / N
+        + (2 + ((n : ℝ) + 1) * M / N) * (((n : ℝ) + 1) ^ 2 * ρ / N
+          + ((n : ℝ) + 1) ^ (n + 1) * B / (N : ℝ) ^ 2) := by
+  classical
+  have hNpos : (0 : ℝ) < N := by exact_mod_cast hN
+  have hM : 0 ≤ M := (abs_nonneg _).trans (hcM 0)
+  obtain ⟨ω0⟩ := nonempty_of_isProbabilityMeasure μ
+  have hB0 : 0 ≤ B := (abs_nonneg _).trans (hB (fun _ => X 0 ω0))
+  have hV0 : 0 ≤ V := (integral_nonneg fun ω => _root_.sq_nonneg _).trans
+    (hV (fun m => (m : ℕ)) (fun a b h => Fin.ext h))
+  simp_rw [← sAll_Ft X N F c a]
+  have hdegt := Ft_deg F hc_mean a (ν := ν)
+  have hbt := Ft_bm hF hc hcM a
+  have bm : ∀ κ : Fin (n + 2) → Fin N, BM (fun ω => Ft F c a (fun m => X (κ m) ω)) :=
+    fun κ => H.bmι hbt κ
+  -- the injective part
+  obtain ⟨I, hI⟩ : ∃ I : Finset (Fin (n + 2) → Fin N),
+      I = Finset.univ.filter fun κ : Fin (n + 2) → Fin N => Function.Injective κ := ⟨_, rfl⟩
+  have hsqκ : ∀ κ ∈ I, ∫ ω, Ft F c a (fun m => X (κ m) ω) ^ 2 ∂μ ≤ M * V := by
+    intro κ hκ
+    rw [hI] at hκ
+    exact Ft_sq_le H hF hc hcM hc_sq a hV (fun m => (κ m : ℕ))
+      (fun x y h => (Finset.mem_filter.mp hκ).2 (Fin.ext h))
+  have hb : ∀ κ ∈ I, ∀ κ' ∈ I,
+      ∫ ω, Ft F c a (fun m => X (κ m) ω) * Ft F c a (fun m => X (κ' m) ω) ∂μ
+        ≤ (if (κ, κ') ∈ twoPairs (n + 2) N then M ^ 2 * (L * L) else 0)
+          + (if (κ, κ') ∈ threePairs (n + 2) N then M * V else 0) := by
+    intro κ hκ κ' hκ'
+    have hinj : Function.Injective κ := by rw [hI] at hκ; exact (Finset.mem_filter.mp hκ).2
+    have hinj' : Function.Injective κ' := by rw [hI] at hκ'; exact (Finset.mem_filter.mp hκ').2
+    have hA0 : (0 : ℝ) ≤ (if (κ, κ') ∈ twoPairs (n + 2) N then M ^ 2 * (L * L) else 0) := by
+      split_ifs <;> positivity
+    have hC0 : (0 : ℝ) ≤ (if (κ, κ') ∈ threePairs (n + 2) N then M * V else 0) := by
+      split_ifs <;> positivity
+    by_cases h3 : (κ, κ') ∈ threePairs (n + 2) N
+    · rw [if_pos h3]
+      have v1 := hsqκ κ hκ
+      have v2 := hsqκ κ' hκ'
+      have i1 := (bm κ).sqr.integrable (μ := μ)
+      have i2 := (bm κ').sqr.integrable (μ := μ)
+      have i3 := ((bm κ).mul (bm κ')).integrable (μ := μ)
+      have hcs : ∫ ω, Ft F c a (fun m => X (κ m) ω) * Ft F c a (fun m => X (κ' m) ω) ∂μ
+          ≤ M * V := by
+        calc ∫ ω, Ft F c a (fun m => X (κ m) ω) * Ft F c a (fun m => X (κ' m) ω) ∂μ
+            ≤ ∫ ω, (1 / 2 * Ft F c a (fun m => X (κ m) ω) ^ 2
+                + 1 / 2 * Ft F c a (fun m => X (κ' m) ω) ^ 2) ∂μ :=
+              integral_mono i3 ((i1.const_mul _).add (i2.const_mul _)) (fun ω => by
+                nlinarith [_root_.sq_nonneg (Ft F c a (fun m => X (κ m) ω)
+                  - Ft F c a (fun m => X (κ' m) ω))])
+          _ = 1 / 2 * ∫ ω, Ft F c a (fun m => X (κ m) ω) ^ 2 ∂μ
+                + 1 / 2 * ∫ ω, Ft F c a (fun m => X (κ' m) ω) ^ 2 ∂μ := by
+              rw [integral_add (i1.const_mul _) (i2.const_mul _), integral_const_mul,
+                integral_const_mul]
+          _ ≤ M * V := by linarith
+      linarith
+    · rw [if_neg h3, add_zero]
+      by_cases h2 : (κ, κ') ∈ twoPairs (n + 2) N
+      · rw [if_pos h2]
+        exact Ft_pair_two H hF hc hcM hL0 a hdegt hcabs κ κ' hinj hinj' h3
+      · rw [if_neg h2]
+        exact (pair_zero H (Ft F c a) hbt hdegt hcondt κ κ' hinj h2).le
+  have hsq := sm_le_two H I (Ft F c a) hbt (by positivity) (mul_nonneg hM hV0)
+    (twoPairs (n + 2) N) (threePairs (n + 2) N) hb
+  have c2 := twoPairs_card (n + 2) N
+  have c3 := threePairs_card (n + 2) N
+  push_cast at c2 c3
+  obtain ⟨Q, hQ⟩ : ∃ Q : ℝ, Q = ((N : ℝ) ^ (n + 1)) ^ 2 := ⟨_, rfl⟩
+  have hQ0 : 0 ≤ Q := by rw [hQ]; positivity
+  have eQ : ((N : ℝ) ^ (n + 2)) ^ 2 = (N : ℝ) ^ 2 * Q := by rw [hQ]; ring
+  rw [eQ] at c2 c3
+  have hN2 : (0 : ℝ) < (N : ℝ) ^ 2 := by positivity
+  have c2' : ((twoPairs (n + 2) N).card : ℝ) ≤ ((n : ℝ) + 2) ^ 4 * Q := by
+    have : (N : ℝ) ^ 2 * ((twoPairs (n + 2) N).card : ℝ) ≤ (N : ℝ) ^ 2 * (((n : ℝ) + 2) ^ 4 * Q) := by
+      linarith
+    exact le_of_mul_le_mul_left this hN2
+  have c3' : (N : ℝ) * ((threePairs (n + 2) N).card : ℝ) ≤ ((n : ℝ) + 2) ^ 6 * Q := by
+    have : (N : ℝ) ^ 2 * ((N : ℝ) * ((threePairs (n + 2) N).card : ℝ))
+        ≤ (N : ℝ) ^ 2 * (((n : ℝ) + 2) ^ 6 * Q) := by
+      nlinarith
+    exact le_of_mul_le_mul_left this hN2
+  have c3'' : ((threePairs (n + 2) N).card : ℝ) ≤ ((n : ℝ) + 2) ^ 6 * Q / N := by
+    rw [le_div_iff₀ hNpos]; linarith
+  have hInjSq : ∫ ω, sInj X N (Ft F c a) ω ^ 2 ∂μ
+      ≤ ((n : ℝ) + 2) ^ 4 * Q * (M ^ 2 * (L * L)) + ((n : ℝ) + 2) ^ 6 * Q / N * (M * V) := by
+    have e : (fun ω => sInj X N (Ft F c a) ω ^ 2)
+        = fun ω => (∑ κ ∈ I, Ft F c a (fun m => X (κ m) ω)) ^ 2 := by
+      funext ω; unfold sInj; rw [hI]
+    rw [e]
+    refine hsq.trans ?_
+    have := mul_le_mul_of_nonneg_right c2' (by positivity : (0 : ℝ) ≤ M ^ 2 * (L * L))
+    have := mul_le_mul_of_nonneg_right c3'' (mul_nonneg hM hV0)
+    linarith
+  have hInj : ∫ ω, |sInj X N (Ft F c a) ω| ∂μ
+      ≤ ((n : ℝ) + 2) ^ 2 * (N : ℝ) ^ (n + 1) * M * L
+        + ((n : ℝ) + 2) ^ 3 * (N : ℝ) ^ (n + 1) * Real.sqrt (M * V / N) := by
+    refine ((H.sInj_bm N hbt).abs_le_sqrt hInjSq).trans ?_
+    refine (sqrt_add_le' (by positivity) (by positivity)).trans (le_of_eq ?_)
+    have e1 : ((n : ℝ) + 2) ^ 4 * Q * (M ^ 2 * (L * L))
+        = (((n : ℝ) + 2) ^ 2 * (N : ℝ) ^ (n + 1) * M * L) ^ 2 := by rw [hQ]; ring
+    have e2 : ((n : ℝ) + 2) ^ 6 * Q / N * (M * V)
+        = (((n : ℝ) + 2) ^ 3 * (N : ℝ) ^ (n + 1)) ^ 2 * (M * V / N) := by rw [hQ]; ring
+    rw [e1, e2, Real.sqrt_sq (by positivity), Real.sqrt_mul (by positivity),
+      Real.sqrt_sq (by positivity)]
+  -- the non-injective part
+  obtain ⟨J, hJ⟩ : ∃ J : Finset (Fin (n + 2) → Fin N),
+      J = Finset.univ.filter fun κ : Fin (n + 2) → Fin N => ¬ Function.Injective κ := ⟨_, rfl⟩
+  have hNon1 : ∫ ω, ∑ κ ∈ J, |Ft F c a (fun m => X (κ m) ω)| ∂μ
+      ≤ ∑ κ : Fin (n + 2) → Fin N, hNI M L B ρ n (Fin.init κ) (κ (Fin.last (n + 1))) := by
+    rw [integral_finset_sum _ fun κ _ => (bm κ).absv.integrable]
+    calc ∑ κ ∈ J, ∫ ω, |Ft F c a (fun m => X (κ m) ω)| ∂μ
+        ≤ ∑ κ ∈ J, hNI M L B ρ n (Fin.init κ) (κ (Fin.last (n + 1))) :=
+          Finset.sum_le_sum fun κ hκ => by
+            rw [hJ] at hκ
+            exact Ft_noninj_le H hF hc hcM hc_abs hB hρ0 hL0 a hcabs hρ κ
+              (Finset.mem_filter.mp hκ).2
+      _ ≤ ∑ κ : Fin (n + 2) → Fin N, hNI M L B ρ n (Fin.init κ) (κ (Fin.last (n + 1))) :=
+          Finset.sum_le_sum_of_subset_of_nonneg (Finset.subset_univ _)
+            (fun κ _ _ => hNI_nonneg hM hL0 hB0 hρ0 n _ _)
+  rw [sum_snoc_split (fun ι v => hNI M L B ρ n ι v)] at hNon1
+  have hrow : ∀ ι : Fin (n + 1) → Fin N, ∑ v : Fin N, hNI M L B ρ n ι v
+      ≤ ((n : ℝ) + 1) * ((2 + M) * L)
+        + (2 * N + ((n : ℝ) + 1) * M) * (ρ * (if Function.Injective ι then (0 : ℝ) else 1)
+          + B * (if (Finset.univ.image ι).card ≤ n - 1 then (1 : ℝ) else 0)) := by
+    intro ι
+    have hS : ((Finset.univ.image ι).card : ℝ) ≤ (n : ℝ) + 1 := by
+      have := Finset.card_image_le (s := (Finset.univ : Finset (Fin (n + 1)))) (f := ι)
+      simp only [Finset.card_univ, Fintype.card_fin] at this
+      exact_mod_cast this
+    have hind : ∑ v : Fin N, (if v ∈ Finset.univ.image ι then (1 : ℝ) else 0)
+        = (Finset.univ.image ι).card := by
+      rw [Finset.sum_ite_mem_eq, Finset.sum_const, nsmul_eq_mul, mul_one]
+    have hK0 : 0 ≤ ρ * (if Function.Injective ι then (0 : ℝ) else 1)
+        + B * (if (Finset.univ.image ι).card ≤ n - 1 then (1 : ℝ) else 0) := by
+      split_ifs <;> positivity
+    have hT0 : 0 ≤ (2 * N + ((n : ℝ) + 1) * M) := by positivity
+    unfold hNI
+    by_cases hi : Function.Injective ι
+    · simp only [if_pos hi]
+      have e : ∑ v : Fin N, (if v ∈ Finset.univ.image ι then (2 + M) * L else 0)
+          = (Finset.univ.image ι).card * ((2 + M) * L) := by
+        rw [Finset.sum_ite_mem_eq, Finset.sum_const, nsmul_eq_mul]
+      rw [e]
+      have := mul_le_mul_of_nonneg_right hS (by positivity : (0 : ℝ) ≤ (2 + M) * L)
+      have hK1 : 0 ≤ (2 * N + ((n : ℝ) + 1) * M)
+          * (ρ * 0 + B * (if (Finset.univ.image ι).card ≤ n - 1 then (1 : ℝ) else 0)) :=
+        mul_nonneg hT0 (by split_ifs <;> simp [hB0])
+      linarith
+    · simp only [if_neg hi, mul_one]
+      have e : ∑ v : Fin N, (2 + M * (if v ∈ Finset.univ.image ι then (1 : ℝ) else 0))
+            * (ρ + B * (if (Finset.univ.image ι).card ≤ n - 1 then (1 : ℝ) else 0))
+          = (2 * N + M * (Finset.univ.image ι).card)
+            * (ρ + B * (if (Finset.univ.image ι).card ≤ n - 1 then (1 : ℝ) else 0)) := by
+        rw [← Finset.sum_mul, Finset.sum_add_distrib, ← Finset.mul_sum, hind, Finset.sum_const,
+          Finset.card_univ, Fintype.card_fin, nsmul_eq_mul]
+        ring
+      rw [e]
+      have hK0' : 0 ≤ ρ + B * (if (Finset.univ.image ι).card ≤ n - 1 then (1 : ℝ) else 0) := by
+        split_ifs <;> positivity
+      have h1 : 2 * (N : ℝ) + M * (Finset.univ.image ι).card ≤ 2 * N + ((n : ℝ) + 1) * M := by
+        nlinarith
+      have := mul_le_mul_of_nonneg_right h1 hK0'
+      have : 0 ≤ ((n : ℝ) + 1) * ((2 + M) * L) := by positivity
+      linarith
+  obtain ⟨s1, hs1⟩ : ∃ s1 : ℝ, s1 = ∑ ι : Fin (n + 1) → Fin N,
+      (if Function.Injective ι then (0 : ℝ) else 1) := ⟨_, rfl⟩
+  obtain ⟨s2, hs2⟩ : ∃ s2 : ℝ, s2 = ((Finset.univ.filter fun x : Fin (n + 1) → Fin N =>
+      (Finset.univ.image x).card ≤ n - 1).card : ℝ) := ⟨_, rfl⟩
+  have hNon : ∫ ω, ∑ κ ∈ J, |Ft F c a (fun m => X (κ m) ω)| ∂μ
+      ≤ (N : ℝ) ^ (n + 1) * (((n : ℝ) + 1) * ((2 + M) * L))
+        + (2 * N + ((n : ℝ) + 1) * M) * (ρ * s1 + B * s2) := by
+    refine hNon1.trans ((Finset.sum_le_sum fun ι _ => hrow ι).trans (le_of_eq ?_))
+    rw [Finset.sum_add_distrib, Finset.sum_const, Finset.card_univ, ← Finset.mul_sum,
+      Finset.sum_add_distrib, ← Finset.mul_sum, ← Finset.mul_sum, hs1, hs2, Finset.card_filter]
+    simp only [nsmul_eq_mul, Fintype.card_pi, Fintype.card_fin, Finset.prod_const,
+      Finset.card_univ]
+    push_cast
+    ring
+  -- assembling
+  have bJ : BM (fun ω => ∑ κ ∈ J, |Ft F c a (fun m => X (κ m) ω)|) :=
+    BM.sum _ _ fun κ _ => (bm κ).absv
+  have hpt : ∀ ω, |sAll X N (Ft F c a) ω|
+      ≤ |sInj X N (Ft F c a) ω| + ∑ κ ∈ J, |Ft F c a (fun m => X (κ m) ω)| := by
+    intro ω
+    rw [sAll_split]
+    refine (abs_add_le _ _).trans (add_le_add le_rfl ?_)
+    unfold sNon; rw [hJ]
+    exact Finset.abs_sum_le_sum_abs _ _
+  have hAll : ∫ ω, |sAll X N (Ft F c a) ω| ∂μ
+      ≤ (((n : ℝ) + 2) ^ 2 * (N : ℝ) ^ (n + 1) * M * L
+        + ((n : ℝ) + 2) ^ 3 * (N : ℝ) ^ (n + 1) * Real.sqrt (M * V / N))
+        + ((N : ℝ) ^ (n + 1) * (((n : ℝ) + 1) * ((2 + M) * L))
+        + (2 * N + ((n : ℝ) + 1) * M) * (ρ * s1 + B * s2)) := by
+    have hmono := integral_mono_of_nonneg (μ := μ)
+      (Filter.Eventually.of_forall fun ω => abs_nonneg _)
+      ((H.sInj_bm N hbt).absv.add bJ).integrable (Filter.Eventually.of_forall hpt)
+    refine hmono.trans ?_
+    rw [integral_add (H.sInj_bm N hbt).absv.integrable bJ.integrable]
+    linarith
+  -- counts
+  have hc1 := BiasVariance3.noninj_count (n + 1) N
+  have hc3 := low_image_count n N hN
+  rw [← hs1] at hc1
+  rw [← hs2] at hc3
+  push_cast at hc1
+  have hs1' : 0 ≤ s1 := by rw [hs1]; exact Finset.sum_nonneg fun _ _ => by split_ifs <;> norm_num
+  have hs2' : 0 ≤ s2 := by rw [hs2]; positivity
+  -- normalise
+  have e : ∀ ω, |1 / (N : ℝ) ^ (n + 2) * sAll X N (Ft F c a) ω|
+      = 1 / (N : ℝ) ^ (n + 2) * |sAll X N (Ft F c a) ω| := fun ω => by
+    rw [abs_mul, abs_of_nonneg (by positivity : (0 : ℝ) ≤ 1 / (N : ℝ) ^ (n + 2))]
+  simp_rw [e]
+  rw [integral_const_mul]
+  have hq : 0 < (N : ℝ) ^ (n + 1) := by positivity
+  have h4 := mul_le_mul_of_nonneg_left hAll (by positivity : (0 : ℝ) ≤ 1 / (N : ℝ) ^ (n + 2))
+  have hρs : ρ * s1 / (N : ℝ) ^ (n + 1) ≤ ((n : ℝ) + 1) ^ 2 * ρ / N := by
+    rw [div_le_div_iff₀ hq hNpos]
+    have := mul_le_mul_of_nonneg_left hc1 hρ0
+    linarith [show ρ * s1 * N = ρ * (N * s1) by ring,
+      show ((n : ℝ) + 1) ^ 2 * ρ * (N : ℝ) ^ (n + 1) = ρ * (((n : ℝ) + 1) ^ 2 * (N : ℝ) ^ (n + 1))
+        by ring]
+  have hBs : B * s2 / (N : ℝ) ^ (n + 1) ≤ ((n : ℝ) + 1) ^ (n + 1) * B / (N : ℝ) ^ 2 := by
+    rw [div_le_div_iff₀ hq (by positivity)]
+    have := mul_le_mul_of_nonneg_left hc3 hB0
+    linarith [show B * s2 * (N : ℝ) ^ 2 = B * ((N : ℝ) ^ 2 * s2) by ring,
+      show ((n : ℝ) + 1) ^ (n + 1) * B * (N : ℝ) ^ (n + 1)
+        = B * (((n : ℝ) + 1) ^ (n + 1) * (N : ℝ) ^ (n + 1)) by ring]
+  have hfac : 0 ≤ 2 + ((n : ℝ) + 1) * M / N := by positivity
+  have e2 : 1 / (N : ℝ) ^ (n + 2) * ((((n : ℝ) + 2) ^ 2 * (N : ℝ) ^ (n + 1) * M * L
+        + ((n : ℝ) + 2) ^ 3 * (N : ℝ) ^ (n + 1) * Real.sqrt (M * V / N))
+        + ((N : ℝ) ^ (n + 1) * (((n : ℝ) + 1) * ((2 + M) * L))
+        + (2 * N + ((n : ℝ) + 1) * M) * (ρ * s1 + B * s2)))
+      = ((n : ℝ) + 2) ^ 2 * M * L / N + ((n : ℝ) + 2) ^ 3 * Real.sqrt (M * V / N) / N
+        + ((n : ℝ) + 1) * (2 + M) * L / N
+        + (2 + ((n : ℝ) + 1) * M / N) * (ρ * s1 / (N : ℝ) ^ (n + 1)
+          + B * s2 / (N : ℝ) ^ (n + 1)) := by
+    field_simp
+    ring
+  rw [e2] at h4
+  have := mul_le_mul_of_nonneg_left (add_le_add hρs hBs) hfac
+  linarith
+
+end PartB2
+
+
+
+open PiBound VarianceOne VarianceGeneral2 CTG.Reals.TorusReduction
+
+section TorusB
+
+theorem Ft_TI {G : Type*} [AddCommGroup G] {n : ℕ} {F : (Fin (n + 1) → G) → ℝ} (hT : TI F)
+    (c : G → ℝ) (a : Fin (n + 1)) : TI (Ft F c a) := by
+  intro x t
+  unfold Ft
+  exact congrArg₂ (· * ·) (hT (Fin.init x) t) (by rw [add_sub_add_right_eq_sub])
+
+/-- `AW univ G y` does not depend on `y`. -/
+theorem AW_univ_const {G : Type*} [AddCommGroup G] [MeasurableSpace G] {ν : Measure G} [IsProbabilityMeasure ν]
+    {n : ℕ} {F : (Fin n → G) → ℝ} (hF : BM F) (x y : Fin n → G) :
+    AW ν Finset.univ F x = AW ν Finset.univ F y :=
+  AW_off _ hF _ _ fun i hi => absurd (Finset.mem_univ i) hi
+
+/-- **Lemma `lem:degenerate`(b) for `n + 1` indices on the flat torus.** Independent uniform points
+    on `FlatTorus d`, `c_{jv} = p(x_j - x_v) - 1` with the periodised Gaussian `p` of variance
+    `σ > 0` and `M = sup p = p(0)`; `F` measurable, `|F| ≤ B`, invariant under simultaneous
+    translations; `L ≥ ‖F‖₁`, `V ≥ ‖F‖₂²` (injective index maps) and `ρ ≥ ϱ(F)` in sample form,
+    `ρ ≥ 0`; `a` any position.  For `N ≥ 1`:
+    `E |N^{-(n+2)} ∑_{ι, v} F(X_ι) c(X_{ι(a)} - X_v)|
+       ≤ (n+2)² M L / N + (n+2)³ √(M V / N) / N + (n+1)(2 + M) L / N
+         + (2 + (n+1) M / N) ((n+1)² ρ / N + (n+1)^{n+1} B / N²)`. -/
+theorem degenerate_b_general_torus {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+    [IsProbabilityMeasure μ] {d : ℕ} (X : ℕ → Ω → FlatTorus d) (h_indep : iIndepFun X μ)
+    (hX : ∀ j, Measurable (X j)) (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d)
+    {σ : ℝ} (hσ : 0 < σ)
+    {n : ℕ} (F : (Fin (n + 1) → FlatTorus d) → ℝ) (hFm : Measurable F) {B L V ρ : ℝ}
+    (hB : ∀ x, |F x| ≤ B) (hT : TI F) (a : Fin (n + 1)) (hρ0 : 0 ≤ ρ)
+    (hl1 : ∀ ι : Fin (n + 1) → ℕ, Function.Injective ι →
+      ∫ ω, |F (fun m => X (ι m) ω)| ∂μ ≤ L)
+    (hV : ∀ ι : Fin (n + 1) → ℕ, Function.Injective ι →
+      ∫ ω, F (fun m => X (ι m) ω) ^ 2 ∂μ ≤ V)
+    (hρ : ∀ ι : Fin (n + 1) → ℕ, (Finset.univ.image ι).card = n →
+      ∫ ω, |F (fun m => X (ι m) ω)| ∂μ ≤ ρ)
+    (N : ℕ) (hN : 0 < N) :
+    ∫ ω, |1 / (N : ℝ) ^ (n + 2) * ∑ ι : Fin (n + 1) → Fin N, ∑ v : Fin N,
+        F (fun m => X (ι m) ω) * (pker d σ (X (ι a) ω - X v ω) - 1)| ∂μ
+      ≤ ((n : ℝ) + 2) ^ 2 * torusM d σ 1 * L / N
+        + ((n : ℝ) + 2) ^ 3 * Real.sqrt (torusM d σ 1 * V / N) / N
+        + ((n : ℝ) + 1) * (2 + torusM d σ 1) * L / N
+        + (2 + ((n : ℝ) + 1) * torusM d σ 1 / N) * (((n : ℝ) + 1) ^ 2 * ρ / N
+          + ((n : ℝ) + 1) ^ (n + 1) * B / (N : ℝ) ^ 2) := by
+  have hF : BM F := ⟨hFm, B, hB⟩
+  have H : SP μ (flatTorusMeasure d) X := ⟨h_indep, hX, hlaw⟩
+  -- the facts about `c = p - 1`, read off from the `n = 3` structure with `F = 0`
+  have HC := DegenerateB.torus_degB3 X h_indep hX hlaw hσ (F := fun _ _ _ => (0 : ℝ))
+    (B := 0) (L := 0) (V := 0) (ρ := 0) measurable_const (fun _ _ _ => by simp)
+    (fun _ _ _ _ => rfl) (fun _ _ _ _ _ _ => by simp) (fun _ _ _ _ _ _ => by simp)
+    (fun _ _ _ => by simp) (fun _ _ _ => by simp) (fun _ _ _ => by simp)
+  have hL0 : 0 ≤ L := (integral_nonneg fun ω => abs_nonneg _).trans
+    (hl1 (fun m => (m : ℕ)) (fun x y h => Fin.ext h))
+  have hinv := torus_hinv d
+  have hFa : BM (fun y => |F y|) := hF.absv
+  have hTa : TI (fun y : Fin (n + 1) → FlatTorus d => |F y|) := fun x t => by
+    show |F (fun i => x i + t)| = |F x|
+    rw [hT x t]
+  have hcabs : ∀ w x, AW (flatTorusMeasure d) (Finset.univ.erase w) (fun y => |F y|) x ≤ L := by
+    intro w x
+    have h1 := AW_le1_const hinv hFa hTa (S := {w}) (by simp) x
+    rw [Finset.compl_singleton] at h1
+    rw [h1]
+    have h2 := int_set H (fun m => (m : ℕ)) (Fin.elim0 : Fin 0 → ℕ) (fun y => |F y|)
+      (fun _ => (1 : ℝ)) hFa (BM.const 1) Finset.univ
+      (fun v _ => ⟨fun m hm h => hm (Fin.ext h), fun m => m.elim0⟩)
+    simp only [mul_one] at h2
+    have h3 : ∫ ω, AW (flatTorusMeasure d) Finset.univ (fun y => |F y|)
+        (fun m => X (m : ℕ) ω) ∂μ = AW (flatTorusMeasure d) Finset.univ (fun y => |F y|) 0 := by
+      simp_rw [AW_univ_const hFa _ (0 : Fin (n + 1) → FlatTorus d)]
+      simp
+    rw [← h3, ← h2]
+    exact hl1 (fun m => (m : ℕ)) (fun x y h => Fin.ext h)
+  have hcond := cond_of_TI hinv (Ft_bm hF HC.c_meas HC.c_bound a) (Ft_TI hT _ a)
+    (Ft_deg F HC.c_mean1 a)
+  exact degenerate_b_general H F hF hB (fun u => pker d σ u - 1) HC.c_meas HC.c_bound
+    HC.c_mean1 HC.c_abs HC.c_sq a hL0 hρ0 hcond hcabs hV hρ N hN
+
+end TorusB
+
+
+end DegenerateGeneral
+
 end CTG.Reals2
