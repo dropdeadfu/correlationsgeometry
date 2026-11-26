@@ -2190,4 +2190,507 @@ theorem TimeMetric.kernel_increment_sq_integral {M' : Type*} [PseudoEMetricSpace
       ξ hAm hr₀ hξ hgrowth _ _ 2 (sq_nonneg _) (by positivity)
 
 end IntegralBounds
+/-! ### Riemannian length of a `C¹` path equals its metric length (block A123)
+
+Converse of `eVariationOn_le_pathELength`: on a manifold whose tangent bundle is a continuous
+Riemannian bundle, with finite-dimensional model space and Mathlib's `IsRiemannianManifold`, the
+Riemannian length of a `C¹` path is at most its metric variation, hence equal to it.
+
+Route: (i) `local_bilin_ratio`, `chartNorm_comparison`: the bundle metric at `y` read in the chart at
+`x` is within a factor `1 ± θ` of the metric at `x`, for `y` near `x`; (ii) `chartNorm_le_edist`:
+`d(x,z) ≥ c ‖z − x‖_{g_x}` (chart difference measured with the metric at `x`, `c < 1` arbitrary) for
+`z` near `x`, by testing every short path against the linear functional `g_x(w₀, ·)` (a short path
+cannot leave a metric ball, which lies in the region of (i)); (iii) `edist_ge_of_lt_norm`:
+`d(γ t, γ s) ≥ c' (s − t)` for `s ↓ t` whenever `c' < ‖γ'(t)‖`; (iv) `pathELength_le_eVariationOn`,
+`pathELength_eq_eVariationOn`: the variation function `W(s) = var(γ|[a, min s b])` is monotone, its
+derivative (which exists almost everywhere) dominates `‖γ'‖`, and the change of variables formula for
+monotone functions bounds `∫ W'` by `W b − W a`.  No `sorry`, no `axiom`. -/
+
+section ConverseLength
+
+open Filter ContinuousLinearMap
+
+section GenericRatio
+
+attribute [-instance]
+  Bundle.instNormedAddCommGroupOfRiemannianBundleOfIsTopologicalAddGroupOfContinuousConstSMulReal
+
+variable {B : Type*} [TopologicalSpace B]
+  {F : Type*} [NormedAddCommGroup F] [NormedSpace ℝ F]
+  {V : B → Type*} [TopologicalSpace (TotalSpace F V)] [∀ x, NormedAddCommGroup (V x)]
+  [∀ x, InnerProductSpace ℝ (V x)] [FiberBundle F V] [VectorBundle ℝ F V]
+
+/-- STAGE (i), coordinate form: a positive definite continuous family of bilinear forms, read in the
+trivialisation at `x`, is within a factor `1 ± θ` of its value at `x`, for `y` near `x`
+(finite-dimensional model fibre; `θ > 0` arbitrary). -/
+theorem local_bilin_ratio [FiniteDimensional ℝ F] (g : ∀ x, V x →L[ℝ] V x →L[ℝ] ℝ)
+    (hg : Continuous (fun x ↦ TotalSpace.mk' (F →L[ℝ] F →L[ℝ] ℝ) x (g x)))
+    (hpos : ∀ y (v : V y), v ≠ 0 → 0 < g y v v) (x : B) {θ : ℝ} (hθ : 0 < θ) :
+    ∀ᶠ y in 𝓝 x, ∀ w : F,
+      (1 - θ) * inCoordinates F V (F →L[ℝ] ℝ) (fun x ↦ V x →L[ℝ] ℝ) x x x x (g x) w w
+        ≤ inCoordinates F V (F →L[ℝ] ℝ) (fun x ↦ V x →L[ℝ] ℝ) x y x y (g y) w w ∧
+      inCoordinates F V (F →L[ℝ] ℝ) (fun x ↦ V x →L[ℝ] ℝ) x y x y (g y) w w
+        ≤ (1 + θ) * inCoordinates F V (F →L[ℝ] ℝ) (fun x ↦ V x →L[ℝ] ℝ) x x x x (g x) w w := by
+  have h'x : x ∈ (trivializationAt F V x).baseSet := FiberBundle.mem_baseSet_trivializationAt' x
+  let g' : B → F →L[ℝ] F →L[ℝ] ℝ := fun y ↦
+    inCoordinates F V (F →L[ℝ] ℝ) (fun x ↦ V x →L[ℝ] ℝ) x y x y (g y)
+  have hg' : ContinuousAt g' x := by
+    have W := hg.continuousAt (x := x)
+    simp only [continuousAt_hom_bundle] at W
+    exact W.2
+  have hbpos : ∀ w : F, w ≠ 0 → 0 < g' x w w := by
+    intro w hw
+    have e := bilin_inCoordinates g x x (by exact h'x) ((trivializationAt F V x).symmL ℝ x w)
+      ((trivializationAt F V x).symmL ℝ x w)
+    rw [triv_apply_symm x x h'x] at e
+    have hne : (trivializationAt F V x).symmL ℝ x w ≠ 0 := by
+      intro h0; apply hw
+      have := triv_apply_symm (V := V) x x h'x w
+      rw [h0, map_zero] at this; exact this.symm
+    have := hpos x _ hne
+    rw [e] at this; exact this
+  obtain ⟨μ, hμ, hμb⟩ := quad_lower (g' x) hbpos
+  have hev : ∀ᶠ y in 𝓝 x, dist (g' y) (g' x) < θ * μ :=
+    hg' (Metric.ball_mem_nhds (g' x) (by positivity))
+  filter_upwards [hev] with y hy w
+  show (1 - θ) * g' x w w ≤ g' y w w ∧ g' y w w ≤ (1 + θ) * g' x w w
+  have hd : ‖g' y - g' x‖ ≤ θ * μ := by
+    have h := hy.le
+    rw [dist_eq_norm (E := F →L[ℝ] F →L[ℝ] ℝ)] at h
+    exact h
+  have e1 : g' y w w = (g' y - g' x) w w + g' x w w := by simp
+  have e2 : |(g' y - g' x) w w| ≤ ‖g' y - g' x‖ * ‖w‖ * ‖w‖ := by
+    rw [← Real.norm_eq_abs]; exact le_opNorm₂ _ _ _
+  have e3 : ‖g' y - g' x‖ * ‖w‖ * ‖w‖ ≤ θ * μ * ‖w‖ ^ 2 := by
+    rw [pow_two, ← mul_assoc]
+    exact mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_right hd (norm_nonneg _))
+      (norm_nonneg _)
+  have e4 : θ * μ * ‖w‖ ^ 2 ≤ θ * g' x w w := by
+    rw [mul_assoc]; exact mul_le_mul_of_nonneg_left (hμb w) hθ.le
+  have e5 := neg_abs_le ((g' y - g' x) w w)
+  have e6 := le_abs_self ((g' y - g' x) w w)
+  constructor <;> nlinarith
+
+end GenericRatio
+
+variable {M' : Type*} [PseudoEMetricSpace M'] [ChartedSpace H M'] [IsManifold I 1 M']
+  [RiemannianBundle (fun (x : M') ↦ TangentSpace I x)]
+  [IsContinuousRiemannianBundle E (fun (x : M') ↦ TangentSpace I x)]
+
+/-- The norm, in the Riemannian metric AT `x`, of a vector `w` of the model space read in the chart
+at `x` (through the inverse of the trivialisation of the tangent bundle at `x`, i.e. the derivative
+of the inverse chart at `x`). -/
+def chartNorm (x : M') (w : E) : ℝ :=
+  ‖((trivializationAt E (TangentSpace I : M' → Type _) x).symmL ℝ x w : TangentSpace I x)‖
+
+omit [IsContinuousRiemannianBundle E fun (x : M') ↦ TangentSpace I x] in
+theorem chartNorm_nonneg (x : M') (w : E) : 0 ≤ chartNorm (I := I) x w := norm_nonneg _
+
+omit [IsContinuousRiemannianBundle E fun (x : M') ↦ TangentSpace I x] in
+theorem chartNorm_smul (x : M') (r : ℝ) (w : E) :
+    chartNorm (I := I) x (r • w) = |r| * chartNorm (I := I) x w := by
+  simp only [chartNorm, map_smul, norm_smul, Real.norm_eq_abs]
+
+/-- Facts about the metric at `x` read in the chart at `x`: a continuous bilinear form `b` on the model
+space with `chartNorm x w ^ 2 = b w w`, Cauchy–Schwarz for `b`, and the local comparison (stage (i),
+intrinsic form) of the norm of `v ∈ T_yM` with the `chartNorm x` of its chart image. -/
+theorem chart_metric_facts [FiniteDimensional ℝ E] (x : M') :
+    ∃ b : E →L[ℝ] E →L[ℝ] ℝ,
+      (∀ w, chartNorm (I := I) x w ^ 2 = b w w) ∧
+      (∀ w₀ w, |b w₀ w| ≤ chartNorm (I := I) x w₀ * chartNorm (I := I) x w) ∧
+      (∀ θ : ℝ, 0 < θ → ∀ᶠ y in 𝓝 x, y ∈ (chartAt H x).source ∧ ∀ v : TangentSpace I y,
+        (1 - θ) * chartNorm (I := I) x (mfderiv I 𝓘(ℝ, E) (extChartAt I x) y v) ^ 2 ≤ ‖v‖ ^ 2 ∧
+        ‖v‖ ^ 2 ≤ (1 + θ) * chartNorm (I := I) x (mfderiv I 𝓘(ℝ, E) (extChartAt I x) y v) ^ 2) := by
+  obtain ⟨g, hg, hinner⟩ := (IsContinuousRiemannianBundle.exists_continuous :
+    ∃ g : (∀ x : M', TangentSpace I x →L[ℝ] TangentSpace I x →L[ℝ] ℝ),
+      Continuous (fun x ↦ TotalSpace.mk' (E →L[ℝ] E →L[ℝ] ℝ) x (g x)) ∧
+      ∀ (x : M') (v w : TangentSpace I x), inner ℝ v w = g x v w)
+  have hpos : ∀ (y : M') (v : TangentSpace I y), v ≠ 0 → 0 < g y v v := by
+    intro y v hv; rw [← hinner]; exact real_inner_self_pos.2 hv
+  have h'x : x ∈ (trivializationAt E (TangentSpace I : M' → Type _) x).baseSet :=
+    FiberBundle.mem_baseSet_trivializationAt' x
+  refine ⟨inCoordinates E (TangentSpace I : M' → Type _) (E →L[ℝ] ℝ)
+    (fun y ↦ TangentSpace I y →L[ℝ] ℝ) x x x x (g x), ?_, ?_, ?_⟩
+  · intro w
+    rw [chartNorm, ← real_inner_self_eq_norm_sq, hinner,
+      bilin_inCoordinates (V := (TangentSpace I : M' → Type _)) g x x (by exact h'x), triv_apply_symm (V := (TangentSpace I : M' → Type _)) x x (by exact h'x)]
+  · intro w₀ w
+    have e := bilin_inCoordinates (V := (TangentSpace I : M' → Type _)) g x x (by exact h'x)
+      ((trivializationAt E (TangentSpace I : M' → Type _) x).symmL ℝ x w₀)
+      ((trivializationAt E (TangentSpace I : M' → Type _) x).symmL ℝ x w)
+    rw [triv_apply_symm (V := (TangentSpace I : M' → Type _)) x x (by exact h'x), triv_apply_symm (V := (TangentSpace I : M' → Type _)) x x (by exact h'x), ← hinner] at e
+    rw [← e]
+    exact abs_real_inner_le_norm _ _
+  · intro θ hθ
+    filter_upwards [local_bilin_ratio (V := (TangentSpace I : M' → Type _)) g hg hpos x hθ,
+      chart_source_mem_nhds H x,
+      (trivializationAt E (TangentSpace I : M' → Type _) x).open_baseSet.mem_nhds h'x]
+      with y hy hys hyb
+    refine ⟨hys, fun v => ?_⟩
+    rw [← TangentBundle.continuousLinearMapAt_trivializationAt hys]
+    have hN : chartNorm (I := I) x
+        ((trivializationAt E (TangentSpace I : M' → Type _) x).continuousLinearMapAt ℝ y v) ^ 2
+        = inCoordinates E (TangentSpace I : M' → Type _) (E →L[ℝ] ℝ)
+          (fun y ↦ TangentSpace I y →L[ℝ] ℝ) x x x x (g x)
+          ((trivializationAt E (TangentSpace I : M' → Type _) x).continuousLinearMapAt ℝ y v)
+          ((trivializationAt E (TangentSpace I : M' → Type _) x).continuousLinearMapAt ℝ y v) := by
+      rw [chartNorm, ← real_inner_self_eq_norm_sq, hinner,
+        bilin_inCoordinates (V := (TangentSpace I : M' → Type _)) g x x (by exact h'x), triv_apply_symm (V := (TangentSpace I : M' → Type _)) x x (by exact h'x)]
+    have hv : ‖v‖ ^ 2 = inCoordinates E (TangentSpace I : M' → Type _) (E →L[ℝ] ℝ)
+          (fun y ↦ TangentSpace I y →L[ℝ] ℝ) x y x y (g y)
+          ((trivializationAt E (TangentSpace I : M' → Type _) x).continuousLinearMapAt ℝ y v)
+          ((trivializationAt E (TangentSpace I : M' → Type _) x).continuousLinearMapAt ℝ y v) := by
+      rw [← real_inner_self_eq_norm_sq, hinner,
+        bilin_inCoordinates (V := (TangentSpace I : M' → Type _)) g x y (by exact hyb)]
+    erw [hN, hv]
+    exact hy _
+
+/-- `chartNorm x` is the square root of the bilinear form of `chart_metric_facts`; in particular it
+is continuous. -/
+theorem chartNorm_continuous [FiniteDimensional ℝ E] (x : M') :
+    Continuous (chartNorm (I := I) x) := by
+  obtain ⟨b, hb1, -, -⟩ := chart_metric_facts (I := I) x
+  have : chartNorm (I := I) x = fun w => Real.sqrt (b w w) := by
+    funext w; rw [← hb1, Real.sqrt_sq (chartNorm_nonneg _ _)]
+  rw [this]; fun_prop
+
+/-- At the base point the chart image of a tangent vector has `chartNorm` equal to its norm. -/
+theorem chartNorm_mfderiv_self [FiniteDimensional ℝ E] (x : M') (v : TangentSpace I x) :
+    chartNorm (I := I) x (mfderiv I 𝓘(ℝ, E) (extChartAt I x) x v) = ‖v‖ := by
+  obtain ⟨b, -, -, hb3⟩ := chart_metric_facts (I := I) x
+  set N := chartNorm (I := I) x (mfderiv I 𝓘(ℝ, E) (extChartAt I x) x v)
+  have key : ∀ θ : ℝ, 0 < θ → (1 - θ) * N ^ 2 ≤ ‖v‖ ^ 2 ∧ ‖v‖ ^ 2 ≤ (1 + θ) * N ^ 2 :=
+    fun θ hθ => ((hb3 θ hθ).self_of_nhds).2 v
+  have hle : N ^ 2 ≤ ‖v‖ ^ 2 := by
+    refine le_of_forall_pos_lt_add fun ε hε => ?_
+    have h := (key (ε / (N ^ 2 + 1)) (by positivity)).1
+    have h2 : ε / (N ^ 2 + 1) * N ^ 2 < ε := by
+      rw [div_mul_eq_mul_div, div_lt_iff₀ (by positivity)]; nlinarith [sq_nonneg N]
+    nlinarith
+  have hge : ‖v‖ ^ 2 ≤ N ^ 2 := by
+    refine le_of_forall_pos_lt_add fun ε hε => ?_
+    have h := (key (ε / (N ^ 2 + 1)) (by positivity)).2
+    have h2 : ε / (N ^ 2 + 1) * N ^ 2 < ε := by
+      rw [div_mul_eq_mul_div, div_lt_iff₀ (by positivity)]; nlinarith [sq_nonneg N]
+    nlinarith
+  exact le_antisymm (le_of_pow_le_pow_left₀ two_ne_zero (norm_nonneg _) hle)
+    (le_of_pow_le_pow_left₀ two_ne_zero (chartNorm_nonneg _ _) hge)
+
+/-- STAGE (ii): lower bound for the Riemannian distance near `x`.  For every `0 < c < 1`, all `z`
+near `x` satisfy `c ‖φ z − φ x‖_{g_x} ≤ d(x, z)`, where `φ` is the extended chart at `x` and the
+chart difference is measured with `chartNorm x` (the metric at `x`). -/
+theorem chartNorm_le_edist [FiniteDimensional ℝ E] [IsRiemannianManifold I M'] (x : M') {c : ℝ}
+    (hc0 : 0 < c) (hc1 : c < 1) :
+    ∀ᶠ z in 𝓝 x, ENNReal.ofReal (c * chartNorm (I := I) x (extChartAt I x z - extChartAt I x x))
+      ≤ edist x z := by
+  obtain ⟨b, hb1, hb2, hb3⟩ := chart_metric_facts (I := I) x
+  have hθ : 0 < 1 - c ^ 2 := by nlinarith
+  obtain ⟨ρ, hρ, hball⟩ := EMetric.mem_nhds_iff.1 (hb3 _ hθ)
+  have hne0 : min ρ 1 ≠ 0 := (lt_min hρ one_pos).ne'
+  have hnetop : min ρ 1 ≠ ⊤ := ne_top_of_le_ne_top ENNReal.one_ne_top (min_le_right _ _)
+  set r : ℝ := (min ρ 1).toReal with hr
+  have hr0 : 0 < r := ENNReal.toReal_pos hne0 hnetop
+  have hrρ : ENNReal.ofReal r ≤ ρ := by
+    rw [hr, ENNReal.ofReal_toReal hnetop]; exact min_le_left _ _
+  have hcont : ContinuousAt
+      (fun z => c * chartNorm (I := I) x (extChartAt I x z - extChartAt I x x)) x :=
+    continuousAt_const.mul ((chartNorm_continuous x).continuousAt.comp
+      ((continuousAt_extChartAt x).sub continuousAt_const))
+  have h0 : (fun z => c * chartNorm (I := I) x (extChartAt I x z - extChartAt I x x)) x = 0 := by
+    show c * chartNorm (I := I) x (extChartAt I x x - extChartAt I x x) = 0
+    rw [sub_self, chartNorm, map_zero, norm_zero, mul_zero]
+  have hev : ∀ᶠ z in 𝓝 x, c * chartNorm (I := I) x (extChartAt I x z - extChartAt I x x) < r :=
+    Filter.Tendsto.eventually_lt_const (u := r) (by rw [h0]; exact hr0) hcont
+  filter_upwards [hev] with z hz
+  by_contra hlt
+  push_neg at hlt
+  rw [IsRiemannianManifold.out (I := I)] at hlt
+  obtain ⟨γ, hγ0, hγ1, hγ, hL⟩ := exists_lt_of_riemannianEDist_lt hlt
+  set w₀ := extChartAt I x z - extChartAt I x x with hw₀
+  set N₀ := chartNorm (I := I) x w₀ with hN₀
+  have hA : ENNReal.ofReal (c * N₀) ≤ ρ := (ENNReal.ofReal_le_ofReal hz.le).trans hrρ
+  have hstay : ∀ t ∈ Icc (0 : ℝ) 1, γ t ∈ (chartAt H x).source ∧ ∀ v : TangentSpace I (γ t),
+      (1 - (1 - c ^ 2)) * chartNorm (I := I) x (mfderiv I 𝓘(ℝ, E) (extChartAt I x) (γ t) v) ^ 2
+        ≤ ‖v‖ ^ 2 ∧
+      ‖v‖ ^ 2 ≤ (1 + (1 - c ^ 2)) *
+        chartNorm (I := I) x (mfderiv I 𝓘(ℝ, E) (extChartAt I x) (γ t) v) ^ 2 := by
+    intro t ht
+    apply hball
+    rw [Metric.mem_eball, edist_comm, ← hγ0]
+    calc edist (γ 0) (γ t) ≤ pathELength I γ 0 t := edist_le_pathELength hγ le_rfl ht.1 ht.2
+      _ ≤ pathELength I γ 0 1 := pathELength_mono le_rfl ht.2
+      _ < ENNReal.ofReal (c * N₀) := hL
+      _ ≤ ρ := hA
+  have hCγ : ContMDiffOn 𝓘(ℝ) 𝓘(ℝ, E) 1 (extChartAt I x ∘ γ) (Icc 0 1) :=
+    contMDiffOn_extChartAt.comp (I' := I) (t := (chartAt H x).source) hγ
+      (fun t ht => (hstay t ht).1)
+  have hC : ContDiffOn ℝ 1 (extChartAt I x ∘ γ) (Icc 0 1) := by
+    rwa [← contMDiffOn_iff_contDiffOn]
+  set ℓ : E →L[ℝ] ℝ := b w₀ with hℓ
+  set f : ℝ → ℝ := fun t => ℓ (extChartAt I x (γ t)) with hf_def
+  have hf : ContDiffOn ℝ 1 f (Icc 0 1) := ℓ.contDiff.comp_contDiffOn hC
+  have hFTC := enorm_sub_le_lintegral_derivWithin_Icc_of_contDiffOn_Icc hf zero_le_one
+  have hf10 : f 1 - f 0 = N₀ ^ 2 := by
+    simp only [hf_def, hγ0, hγ1, ← map_sub, hℓ]
+    rw [hb1]
+  have hderiv : ∀ t ∈ Icc (0 : ℝ) 1, ENNReal.ofReal c * ‖derivWithin f (Icc 0 1) t‖ₑ
+      ≤ ENNReal.ofReal N₀ * ‖mfderivWithin 𝓘(ℝ) I γ (Icc 0 1) t 1‖ₑ := by
+    intro t ht
+    have hU0 : UniqueDiffWithinAt ℝ (Icc (0 : ℝ) 1) t := uniqueDiffOn_Icc zero_lt_one t ht
+    have hdiff : DifferentiableWithinAt ℝ (extChartAt I x ∘ γ) (Icc 0 1) t :=
+      (hC.differentiableOn one_ne_zero) t ht
+    have hd1 : derivWithin f (Icc 0 1) t
+        = ℓ (derivWithin (extChartAt I x ∘ γ) (Icc 0 1) t) :=
+      (ℓ.hasFDerivAt.comp_hasDerivWithinAt t hdiff.hasDerivWithinAt).derivWithin hU0
+    have hcomp : mfderivWithin 𝓘(ℝ) 𝓘(ℝ, E) (extChartAt I x ∘ γ) (Icc 0 1) t =
+        (mfderiv I 𝓘(ℝ, E) (extChartAt I x) (γ t)) ∘L (mfderivWithin 𝓘(ℝ) I γ (Icc 0 1) t) :=
+      mfderiv_comp_mfderivWithin t (mdifferentiableAt_extChartAt (hstay t ht).1)
+        ((hγ.mdifferentiableOn one_ne_zero) t ht)
+        (uniqueMDiffWithinAt_iff_uniqueDiffWithinAt.2 hU0)
+    have hd2 : derivWithin (extChartAt I x ∘ γ) (Icc 0 1) t
+        = mfderiv I 𝓘(ℝ, E) (extChartAt I x) (γ t) (mfderivWithin 𝓘(ℝ) I γ (Icc 0 1) t 1) := by
+      rw [← fderivWithin_derivWithin, ← mfderivWithin_eq_fderivWithin, hcomp]
+      rfl
+    set v := mfderivWithin 𝓘(ℝ) I γ (Icc 0 1) t 1
+    have hcmp := ((hstay t ht).2 v).1
+    have hcN : c * chartNorm (I := I) x (mfderiv I 𝓘(ℝ, E) (extChartAt I x) (γ t) v) ≤ ‖v‖ := by
+      have hsq : (c * chartNorm (I := I) x (mfderiv I 𝓘(ℝ, E) (extChartAt I x) (γ t) v)) ^ 2
+          ≤ ‖v‖ ^ 2 := by rw [mul_pow]; linarith
+      exact le_of_pow_le_pow_left₀ two_ne_zero (norm_nonneg _) hsq
+    have hbd : c * |derivWithin f (Icc 0 1) t| ≤ N₀ * ‖v‖ := by
+      rw [hd1, hd2]
+      have h1 := hb2 w₀ (mfderiv I 𝓘(ℝ, E) (extChartAt I x) (γ t) v)
+      have hN0 : 0 ≤ N₀ := chartNorm_nonneg _ _
+      calc c * |ℓ (mfderiv I 𝓘(ℝ, E) (extChartAt I x) (γ t) v)|
+          ≤ c * (N₀ * chartNorm (I := I) x (mfderiv I 𝓘(ℝ, E) (extChartAt I x) (γ t) v)) :=
+            mul_le_mul_of_nonneg_left h1 hc0.le
+        _ = N₀ * (c * chartNorm (I := I) x (mfderiv I 𝓘(ℝ, E) (extChartAt I x) (γ t) v)) := by
+            ring
+        _ ≤ N₀ * ‖v‖ := mul_le_mul_of_nonneg_left hcN hN0
+    rw [Real.enorm_eq_ofReal_abs, ← ofReal_norm_eq_enorm, ← ENNReal.ofReal_mul hc0.le,
+      ← ENNReal.ofReal_mul (chartNorm_nonneg _ _)]
+    exact ENNReal.ofReal_le_ofReal hbd
+  have hmain : ENNReal.ofReal c * ENNReal.ofReal (N₀ ^ 2)
+      ≤ ENNReal.ofReal N₀ * pathELength I γ 0 1 := by
+    calc ENNReal.ofReal c * ENNReal.ofReal (N₀ ^ 2)
+        = ENNReal.ofReal c * ‖f 1 - f 0‖ₑ := by
+          rw [hf10, Real.enorm_eq_ofReal_abs, abs_of_nonneg (sq_nonneg _)]
+      _ ≤ ENNReal.ofReal c * ∫⁻ t in Icc (0 : ℝ) 1, ‖derivWithin f (Icc 0 1) t‖ₑ := by gcongr
+      _ = ∫⁻ t in Icc (0 : ℝ) 1, ENNReal.ofReal c * ‖derivWithin f (Icc 0 1) t‖ₑ :=
+          (lintegral_const_mul' _ _ ENNReal.ofReal_ne_top).symm
+      _ ≤ ∫⁻ t in Icc (0 : ℝ) 1, ENNReal.ofReal N₀ * ‖mfderivWithin 𝓘(ℝ) I γ (Icc 0 1) t 1‖ₑ :=
+          setLIntegral_mono' measurableSet_Icc hderiv
+      _ = ENNReal.ofReal N₀ * pathELength I γ 0 1 := by
+          rw [lintegral_const_mul' _ _ ENNReal.ofReal_ne_top,
+            pathELength_eq_lintegral_mfderivWithin_Icc]
+  rcases eq_or_lt_of_le (chartNorm_nonneg (I := I) x w₀) with h | h
+  · rw [← hN₀] at h
+    rw [← h, mul_zero, ENNReal.ofReal_zero] at hL
+    exact absurd hL (not_lt.2 (zero_le _))
+  · rw [← hN₀] at h
+    have e : ENNReal.ofReal c * ENNReal.ofReal (N₀ ^ 2)
+        = ENNReal.ofReal N₀ * ENNReal.ofReal (c * N₀) := by
+      rw [← ENNReal.ofReal_mul hc0.le, ← ENNReal.ofReal_mul h.le]; congr 1; ring
+    rw [e] at hmain
+    have := (ENNReal.mul_le_mul_iff_right (by simpa using h) ENNReal.ofReal_ne_top).1 hmain
+    exact absurd hL (not_lt.2 this)
+
+/-- STAGE (iii): along a `C¹` path, the distance grows at least like the norm of the velocity from the
+right: if `c' < ‖γ'(t)‖` (velocity within `[a,b]`, bundle norm at `γ t`), then
+`c' (s − t) ≤ d(γ t, γ s)` for all `s > t` close to `t`. -/
+theorem edist_ge_of_lt_norm [FiniteDimensional ℝ E] [IsRiemannianManifold I M'] {γ : ℝ → M'}
+    {a b t : ℝ} (hγ : ContMDiffOn 𝓘(ℝ) I 1 γ (Icc a b)) (ht : t ∈ Ico a b) {c' : ℝ}
+    (hc' : c' < ‖mfderivWithin 𝓘(ℝ) I γ (Icc a b) t 1‖) :
+    ∀ᶠ s in 𝓝[>] t, ENNReal.ofReal (c' * (s - t)) ≤ edist (γ t) (γ s) := by
+  have hab : a < b := ht.1.trans_lt ht.2
+  have htI : t ∈ Icc a b := Ico_subset_Icc_self ht
+  set x := γ t with hx
+  rcases le_or_gt c' 0 with hc0 | hc0
+  · filter_upwards [self_mem_nhdsWithin] with s hs
+    rw [ENNReal.ofReal_of_nonpos (mul_nonpos_of_nonpos_of_nonneg hc0
+      (sub_nonneg.2 (le_of_lt (mem_Ioi.1 hs))))]
+    exact zero_le _
+  set D := mfderivWithin 𝓘(ℝ) I γ (Icc a b) t 1 with hD
+  set nD := ‖D‖ with hnD_def
+  have hnD : 0 < nD := hc0.trans hc'
+  set c := (c' / nD + 1) / 2 with hc_def
+  have hq : c' / nD < 1 := (div_lt_one hnD).2 hc'
+  have hc1 : c < 1 := by rw [hc_def]; linarith
+  have hcpos : 0 < c := by rw [hc_def]; positivity
+  have hcc : c' < c * nD := by
+    have e : c * nD = (c' + nD) / 2 := by rw [hc_def]; field_simp
+    rw [e]; linarith
+  have hself : chartNorm (I := I) x (mfderiv I 𝓘(ℝ, E) (extChartAt I x) x D) = nD := by
+    rw [hnD_def]; exact chartNorm_mfderiv_self x D
+  have hU0 : UniqueDiffWithinAt ℝ (Icc a b) t := uniqueDiffOn_Icc hab t htI
+  have hxs : x ∈ (chartAt H x).source := mem_chart_source H x
+  have hmd : MDifferentiableWithinAt 𝓘(ℝ) I γ (Icc a b) t :=
+    (hγ.mdifferentiableOn one_ne_zero) t htI
+  have hcomp : HasMFDerivWithinAt 𝓘(ℝ) 𝓘(ℝ, E) (extChartAt I x ∘ γ) (Icc a b) t
+      ((mfderiv I 𝓘(ℝ, E) (extChartAt I x) x).comp (mfderivWithin 𝓘(ℝ) I γ (Icc a b) t)) :=
+    (mdifferentiableAt_extChartAt hxs).hasMFDerivAt.comp_hasMFDerivWithinAt t
+      hmd.hasMFDerivWithinAt
+  have hder : HasDerivWithinAt (extChartAt I x ∘ γ)
+      (mfderiv I 𝓘(ℝ, E) (extChartAt I x) x D) (Icc a b) t := by
+    convert (hasMFDerivWithinAt_iff_hasFDerivWithinAt.1 hcomp).hasDerivWithinAt using 1
+  have hle : 𝓝[>] t ≤ 𝓝[Icc a b \ {t}] t := by
+    apply nhdsWithin_le_of_mem
+    refine mem_of_superset (Ioo_mem_nhdsGT ht.2) fun s hs => ⟨⟨ht.1.trans hs.1.le, hs.2.le⟩, ?_⟩
+    exact ne_of_gt hs.1
+  have hslope : Tendsto (slope (extChartAt I x ∘ γ) t) (𝓝[>] t)
+      (𝓝 (mfderiv I 𝓘(ℝ, E) (extChartAt I x) x D)) :=
+    (hasDerivWithinAt_iff_tendsto_slope.1 hder).mono_left hle
+  have hN : Tendsto (fun s => chartNorm (I := I) x (slope (extChartAt I x ∘ γ) t s)) (𝓝[>] t)
+      (𝓝 nD) := by
+    rw [← hself]; exact ((chartNorm_continuous x).tendsto _).comp hslope
+  have hcd : c' / c < nD := by rw [div_lt_iff₀ hcpos]; linarith
+  have hev1 : ∀ᶠ s in 𝓝[>] t, c' / c < chartNorm (I := I) x (slope (extChartAt I x ∘ γ) t s) :=
+    hN.eventually (lt_mem_nhds hcd)
+  have hγt : Tendsto γ (𝓝[>] t) (𝓝 x) :=
+    (hγ.continuousOn t htI).mono_left (nhdsWithin_le_of_mem
+      (mem_of_superset (Ioo_mem_nhdsGT ht.2) fun s hs => ⟨ht.1.trans hs.1.le, hs.2.le⟩))
+  have hev2 := hγt.eventually (chartNorm_le_edist (I := I) x hcpos hc1)
+  filter_upwards [hev1, hev2, self_mem_nhdsWithin] with s h1 h2 hs
+  have hst : 0 < s - t := sub_pos.2 (mem_Ioi.1 hs)
+  rw [slope_def_module, chartNorm_smul, abs_inv, abs_of_pos hst] at h1
+  simp only [Function.comp_apply] at h1
+  rw [← hx] at h1
+  refine le_trans (ENNReal.ofReal_le_ofReal ?_) h2
+  set Nz := chartNorm (I := I) x (extChartAt I x (γ s) - extChartAt I x x)
+  have h3 : c' / c * (s - t) < Nz := by
+    have := mul_lt_mul_of_pos_left h1 hst
+    rwa [← mul_assoc, mul_inv_cancel₀ hst.ne', one_mul, mul_comm] at this
+  have e : c' * (s - t) = c * (c' / c * (s - t)) := by field_simp
+  rw [e]
+  exact mul_le_mul_of_nonneg_left h3.le hcpos.le
+
+/-- STAGE (iv), main inequality: on a manifold with a continuous Riemannian tangent bundle,
+finite-dimensional model space and Mathlib's `IsRiemannianManifold`, the Riemannian length of a `C¹`
+path is at most its metric variation. -/
+theorem pathELength_le_eVariationOn [FiniteDimensional ℝ E] [IsRiemannianManifold I M']
+    {γ : ℝ → M'} {a b : ℝ} (hγ : ContMDiffOn 𝓘(ℝ) I 1 γ (Icc a b)) :
+    pathELength I γ a b ≤ eVariationOn γ (Icc a b) := by
+  rcases le_or_gt b a with hba | hab
+  · have h0 : volume (Icc a b) = 0 := by rw [Real.volume_Icc, ENNReal.ofReal_of_nonpos]; linarith
+    rw [pathELength_eq_lintegral_mfderivWithin_Icc, setLIntegral_measure_zero _ _ h0]
+    exact zero_le _
+  have hfin : eVariationOn γ (Icc a b) ≠ ⊤ :=
+    ne_top_of_le_ne_top (pathELength_ne_top_of_contMDiffOn hab hγ)
+      (eVariationOn_le_pathELength hγ)
+  have hfin' : ∀ s, eVariationOn γ (Icc a (min s b)) ≠ ⊤ := fun s =>
+    ne_top_of_le_ne_top hfin (eVariationOn.mono _ (Icc_subset_Icc le_rfl (min_le_right _ _)))
+  set W : ℝ → ℝ := fun s => (eVariationOn γ (Icc a (min s b))).toReal with hW_def
+  have hWmono : Monotone W := by
+    intro s s' hss'
+    exact ENNReal.toReal_mono (hfin' s')
+      (eVariationOn.mono _ (Icc_subset_Icc le_rfl (min_le_min_right _ hss')))
+  -- increments of `W` dominate distances
+  have hinc : ∀ t s, a ≤ t → t ≤ s → s ≤ b → (edist (γ t) (γ s)).toReal ≤ W s - W t := by
+    intro t s hat hts hsb
+    have hadd := eVariationOn.Icc_add_Icc γ (s := univ) hat hts (mem_univ t)
+    simp only [univ_inter] at hadd
+    have hWs : W s = (eVariationOn γ (Icc a s)).toReal := by simp [hW_def, min_eq_left hsb]
+    have hWt : W t = (eVariationOn γ (Icc a t)).toReal := by
+      simp [hW_def, min_eq_left (hts.trans hsb)]
+    have hfs : eVariationOn γ (Icc a s) ≠ ⊤ :=
+      ne_top_of_le_ne_top hfin (eVariationOn.mono _ (Icc_subset_Icc le_rfl hsb))
+    have hft : eVariationOn γ (Icc a t) ≠ ⊤ :=
+      ne_top_of_le_ne_top hfs (eVariationOn.mono _ (Icc_subset_Icc le_rfl hts))
+    have hfts : eVariationOn γ (Icc t s) ≠ ⊤ := by
+      rw [← hadd] at hfs; exact (ENNReal.add_ne_top.1 hfs).2
+    rw [hWs, hWt, ← hadd, ENNReal.toReal_add hft hfts, add_sub_cancel_left]
+    exact ENNReal.toReal_mono hfts (eVariationOn.edist_le γ (left_mem_Icc.2 hts)
+      (right_mem_Icc.2 hts))
+  -- at points of differentiability, the derivative of `W` dominates the speed
+  have hderiv : ∀ t ∈ Ioo a b, DifferentiableAt ℝ W t →
+      ‖mfderivWithin 𝓘(ℝ) I γ (Icc a b) t 1‖ ≤ deriv W t := by
+    intro t ht hdt
+    by_contra hcon
+    push_neg at hcon
+    set c' := (deriv W t + ‖mfderivWithin 𝓘(ℝ) I γ (Icc a b) t 1‖) / 2 with hc'_def
+    have hc' : c' < ‖mfderivWithin 𝓘(ℝ) I γ (Icc a b) t 1‖ := by rw [hc'_def]; linarith
+    have hc'' : deriv W t < c' := by rw [hc'_def]; linarith
+    refine absurd ?_ (not_le.2 hc'')
+    have hsl : Tendsto (slope W t) (𝓝[>] t) (𝓝 (deriv W t)) := by
+      have := hasDerivWithinAt_iff_tendsto_slope.1 (hdt.hasDerivAt.hasDerivWithinAt (s := Ioi t))
+      simpa using this
+    have hev := edist_ge_of_lt_norm hγ (Ioo_subset_Ico_self ht) hc'
+    refine ge_of_tendsto hsl ?_
+    filter_upwards [hev, Ioo_mem_nhdsGT ht.2] with s h1 h2
+    have hst : 0 < s - t := sub_pos.2 h2.1
+    have hfe : edist (γ t) (γ s) ≠ ⊤ :=
+      ne_top_of_le_ne_top (pathELength_ne_top_of_contMDiffOn hab hγ)
+        ((edist_le_pathELength hγ ht.1.le h2.1.le h2.2.le).trans
+          (pathELength_mono ht.1.le h2.2.le))
+    have h3 : c' * (s - t) ≤ (edist (γ t) (γ s)).toReal :=
+      (ENNReal.ofReal_le_iff_le_toReal hfe).1 h1
+    have h4 := hinc t s ht.1.le h2.1.le h2.2.le
+    rw [slope_def_field, le_div_iff₀ hst]
+    linarith
+  -- the set of good points
+  set S : Set ℝ := Ioo a b ∩ {t | DifferentiableAt ℝ W t} with hS
+  have hSm : MeasurableSet S := measurableSet_Ioo.inter (measurableSet_of_differentiableAt ℝ W)
+  have hSae : Icc a b =ᵐ[volume] S := by
+    have h1 : ∀ᵐ t, DifferentiableAt ℝ W t := hWmono.ae_differentiableAt
+    have h2 := (Ioo_ae_eq_Icc (a := a) (b := b) (μ := volume)).mem_iff
+    filter_upwards [h1, h2] with t ht1 ht2
+    refine propext ?_
+    change t ∈ Icc a b ↔ t ∈ Ioo a b ∩ {t | DifferentiableAt ℝ W t}
+    rw [← ht2]
+    exact ⟨fun h => ⟨h, ht1⟩, fun h => h.1⟩
+  have hWS : ∀ t ∈ S, HasDerivWithinAt W (deriv W t) S t :=
+    fun t ht => ht.2.hasDerivAt.hasDerivWithinAt
+  have himg : W '' S ⊆ Icc (W a) (W b) := by
+    rintro _ ⟨t, ht, rfl⟩
+    exact ⟨hWmono ht.1.1.le, hWmono ht.1.2.le⟩
+  have hWa : W a = 0 := by
+    simp only [hW_def, min_eq_left hab.le, Icc_self]
+    rw [eVariationOn.subsingleton γ subsingleton_singleton, ENNReal.toReal_zero]
+  have hWb : W b = (eVariationOn γ (Icc a b)).toReal := by simp [hW_def]
+  calc pathELength I γ a b
+      = ∫⁻ t in Icc a b, ‖mfderivWithin 𝓘(ℝ) I γ (Icc a b) t 1‖ₑ :=
+        pathELength_eq_lintegral_mfderivWithin_Icc
+    _ = ∫⁻ t in S, ‖mfderivWithin 𝓘(ℝ) I γ (Icc a b) t 1‖ₑ := setLIntegral_congr hSae
+    _ ≤ ∫⁻ t in S, ENNReal.ofReal (deriv W t) := by
+        refine setLIntegral_mono' hSm fun t ht => ?_
+        rw [← ofReal_norm_eq_enorm]
+        exact ENNReal.ofReal_le_ofReal (hderiv t ht.1 ht.2)
+    _ = volume (W '' S) :=
+        lintegral_deriv_eq_volume_image_of_monotoneOn hSm hWS (hWmono.monotoneOn _)
+    _ ≤ volume (Icc (W a) (W b)) := measure_mono himg
+    _ = eVariationOn γ (Icc a b) := by
+        rw [Real.volume_Icc, hWa, hWb, sub_zero, ENNReal.ofReal_toReal hfin]
+
+/-- STAGE (iv): the Riemannian length of a `C¹` path equals its metric variation (supremum over
+partitions of the sums of Riemannian distances). -/
+theorem pathELength_eq_eVariationOn [FiniteDimensional ℝ E] [IsRiemannianManifold I M']
+    {γ : ℝ → M'} {a b : ℝ} (hγ : ContMDiffOn 𝓘(ℝ) I 1 γ (Icc a b)) :
+    pathELength I γ a b = eVariationOn γ (Icc a b) :=
+  le_antisymm (pathELength_le_eVariationOn hγ) (eVariationOn_le_pathELength hγ)
+
+/-- STAGE (v): a `C¹` path has Riemannian length equal to the distance of its endpoints if and only
+if its metric variation is (i.e. it is a metric geodesic in the sense of
+`minimising_path_metric_geodesic`); in particular a curve with the properties of
+`exists_minimising_curve` that is `C¹` on `[0,1]` has Riemannian length `d(x,y)`, i.e. it minimises
+the Riemannian length among `C¹` paths from `x` to `y`. -/
+theorem pathELength_eq_edist_iff [FiniteDimensional ℝ E] [IsRiemannianManifold I M']
+    {γ : ℝ → M'} {a b : ℝ} (hγ : ContMDiffOn 𝓘(ℝ) I 1 γ (Icc a b)) :
+    pathELength I γ a b = edist (γ a) (γ b) ↔ eVariationOn γ (Icc a b) = edist (γ a) (γ b) := by
+  rw [pathELength_eq_eVariationOn hγ]
+
+/-- STAGE (v), consequence for the metric minimiser: if the curve `c` of `exists_minimising_curve`
+(`var(c|[0,1]) = d(x,y)`) is `C¹` on `[0,1]` (a HYPOTHESIS, not proven), its Riemannian length is
+`d(x,y)`, and every `C¹` path from `x` to `y` is at least as long. -/
+theorem minimising_curve_pathELength [FiniteDimensional ℝ E] [IsRiemannianManifold I M']
+    {c : ℝ → M'} {x y : M'} (h0 : c 0 = x) (h1 : c 1 = y)
+    (hvar : eVariationOn c (Icc 0 1) = edist x y) (hc : ContMDiffOn 𝓘(ℝ) I 1 c (Icc 0 1)) :
+    pathELength I c 0 1 = edist x y ∧
+    ∀ γ : ℝ → M', γ 0 = x → γ 1 = y → ContMDiffOn 𝓘(ℝ) I 1 γ (Icc 0 1) →
+      pathELength I c 0 1 ≤ pathELength I γ 0 1 := by
+  have hL : pathELength I c 0 1 = edist x y := by rw [pathELength_eq_eVariationOn hc, hvar]
+  refine ⟨hL, fun γ hγ0 hγ1 hγ => ?_⟩
+  rw [hL, ← hγ0, ← hγ1]
+  exact edist_le_pathELength hγ le_rfl zero_le_one le_rfl
+
+end ConverseLength
 end CTG.ManifoldDistance
