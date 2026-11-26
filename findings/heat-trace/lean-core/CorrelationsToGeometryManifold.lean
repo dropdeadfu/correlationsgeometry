@@ -967,4 +967,420 @@ theorem exists_almost_minimising_path (x y : M') (hxy : edist x y ≠ ⊤) {ε :
   · rw [h0, h1]; exact ENNReal.add_ne_top.2 ⟨hxy, hε'⟩
 
 end Variation
+
+/-! ### Finite length, almost minimising paths, and a metric minimiser (block A114)
+
+(i) A `C¹` path on a compact interval has finite length: with a bound on the derivative as a
+hypothesis (`pathELength_ne_top_of_bound`), and without hypothesis for a continuous Riemannian
+tangent bundle (`pathELength_ne_top_of_contMDiffOn`).
+(ii) Almost minimising paths exist between any two points of a connected Riemannian manifold
+(`exists_almost_minimising_path_of_connected`).
+(iii) On a COMPACT connected Riemannian manifold (Mathlib's `IsRiemannianManifold`, an `EMetricSpace`)
+any two points are joined by a curve `c : ℝ → M` with `c 0 = x`, `c 1 = y` and constant speed:
+`d(c s, c t) = (t − s) d(x, y)` and `var(c|[s,t]) = d(c s, c t)` for `0 ≤ s ≤ t ≤ 1`
+(`exists_minimising_curve`).  Route (midpoints, no arc-length reparametrisation): approximate
+midpoints from almost minimising paths and the intermediate value theorem; exact midpoints by
+compactness; a curve from iterated midpoints on dyadic points, extended by Cauchy limits.  The curve
+is a metric minimiser; it is NOT shown to be `C¹`, nor a Riemannian geodesic, nor unique. -/
+
+section FiniteLength
+
+/-- (i), minimal form: if `‖γ'(t)‖ₑ ≤ C < ∞` on `[a,b]` (derivative within `[a,b]`), the length is
+finite.  HYPOTHESIS: the bound `h`. -/
+theorem pathELength_ne_top_of_bound [∀ x : M, ENorm (TangentSpace I x)] {γ : ℝ → M} {a b : ℝ}
+    (C : ℝ≥0∞) (hC : C ≠ ⊤)
+    (h : ∀ t ∈ Icc a b, ‖mfderivWithin 𝓘(ℝ) I γ (Icc a b) t 1‖ₑ ≤ C) :
+    pathELength I γ a b ≠ ⊤ := by
+  rw [pathELength_eq_lintegral_mfderivWithin_Icc]
+  have hv : volume (Icc a b) ≠ ⊤ := by rw [Real.volume_Icc]; exact ENNReal.ofReal_ne_top
+  refine ne_top_of_le_ne_top (ENNReal.mul_ne_top hC hv) ?_
+  calc ∫⁻ t in Icc a b, ‖mfderivWithin 𝓘(ℝ) I γ (Icc a b) t 1‖ₑ
+      ≤ ∫⁻ _ in Icc a b, C := setLIntegral_mono' measurableSet_Icc h
+    _ = C * volume (Icc a b) := setLIntegral_const _ _
+
+variable {M' : Type*} [PseudoEMetricSpace M'] [ChartedSpace H M'] [IsManifold I 1 M']
+  [RiemannianBundle (fun (x : M') ↦ TangentSpace I x)]
+  [IsContinuousRiemannianBundle E (fun (x : M') ↦ TangentSpace I x)]
+
+/-- (i), without hypothesis: on a manifold with a continuous Riemannian tangent bundle, a `C¹` path on
+`[a, b]` (`a < b`) has finite length (the norm of its derivative is continuous on the compact
+interval). -/
+theorem pathELength_ne_top_of_contMDiffOn {γ : ℝ → M'} {a b : ℝ} (hab : a < b)
+    (hγ : ContMDiffOn 𝓘(ℝ) I 1 γ (Icc a b)) : pathELength I γ a b ≠ ⊤ := by
+  have hU : UniqueMDiffOn 𝓘(ℝ) (Icc a b) :=
+    uniqueMDiffOn_iff_uniqueDiffOn.2 (uniqueDiffOn_Icc hab)
+  have hmk : Continuous (fun t : ℝ => (⟨t, 1⟩ : TangentBundle 𝓘(ℝ) ℝ)) :=
+    (tangentBundleModelSpaceHomeomorph 𝓘(ℝ)).symm.continuous.comp
+      (continuous_id.prodMk continuous_const)
+  have hcont : ContinuousOn (fun t => (TotalSpace.mk' E (E := fun x : M' ↦ TangentSpace I x) (γ t)
+      (mfderivWithin 𝓘(ℝ) I γ (Icc a b) t 1))) (Icc a b) :=
+    (hγ.continuousOn_tangentMapWithin le_rfl hU).comp hmk.continuousOn (fun t ht => ht)
+  have hinner := ContinuousOn.inner_bundle hcont hcont
+  obtain ⟨C, hC⟩ := isCompact_Icc.exists_bound_of_continuousOn hinner
+  refine pathELength_ne_top_of_bound (ENNReal.ofReal (Real.sqrt C)) ENNReal.ofReal_ne_top
+    (fun t ht => ?_)
+  rw [← ofReal_norm_eq_enorm]
+  apply ENNReal.ofReal_le_ofReal
+  have h1 := hC t ht
+  rw [real_inner_self_eq_norm_sq, Real.norm_eq_abs, abs_of_nonneg (sq_nonneg _)] at h1
+  calc ‖mfderivWithin 𝓘(ℝ) I γ (Icc a b) t 1‖
+      = Real.sqrt (‖mfderivWithin 𝓘(ℝ) I γ (Icc a b) t 1‖ ^ 2) :=
+        (Real.sqrt_sq (norm_nonneg _)).symm
+    _ ≤ Real.sqrt C := Real.sqrt_le_sqrt h1
+
+end FiniteLength
+
+section Minimiser
+
+/-- (ii): on a connected Riemannian manifold every pair of points is joined, for every
+`0 < ε < ∞`, by an `ε`-almost minimising `C¹` path on `[0,1]`. -/
+theorem exists_almost_minimising_path_of_connected {M' : Type*} [PseudoEMetricSpace M']
+    [ChartedSpace H M'] [RiemannianBundle (fun (x : M') ↦ TangentSpace I x)]
+    [IsRiemannianManifold I M'] [PreconnectedSpace M'] (x y : M') {ε : ℝ≥0∞}
+    (hε : 0 < ε) (hε' : ε ≠ ⊤) :
+    ∃ γ : ℝ → M', γ 0 = x ∧ γ 1 = y ∧ ContMDiffOn 𝓘(ℝ) I 1 γ (Icc 0 1) ∧
+      pathELength I γ 0 1 < edist x y + ε ∧
+      ∀ s t, 0 ≤ s → s ≤ t → t ≤ 1 →
+        edist (γ s) (γ t) ≤ eVariationOn γ (Icc s t) ∧
+        eVariationOn γ (Icc s t) ≤ pathELength I γ s t ∧
+        pathELength I γ s t ≤ edist (γ s) (γ t) + ε :=
+  exists_almost_minimising_path x y (edist_ne_top_of_preconnected x y) hε hε'
+
+/-- Approximate midpoints on a Riemannian manifold: for points at finite distance and `0 < ε < ∞`
+there is `z` with `d(x,z) ≤ d(x,y)/2 + ε` and `d(z,y) ≤ d(x,y)/2 + ε`. -/
+theorem riemannian_approx_midpoint {M' : Type*} [PseudoEMetricSpace M']
+    [ChartedSpace H M'] [RiemannianBundle (fun (x : M') ↦ TangentSpace I x)]
+    [IsRiemannianManifold I M'] (x y : M') (hxy : edist x y ≠ ⊤) {ε : ℝ≥0∞}
+    (hε : 0 < ε) (hε' : ε ≠ ⊤) :
+    ∃ z, edist x z ≤ edist x y / 2 + ε ∧ edist z y ≤ edist x y / 2 + ε := by
+  obtain ⟨γ, h0, h1, hγ, hL, -⟩ := exists_almost_minimising_path (I := I) x y hxy hε hε'
+  set D := edist x y with hD
+  have hcont : ContinuousOn (fun t => edist x (γ t)) (Icc 0 1) :=
+    (continuous_const.edist continuous_id).comp_continuousOn hγ.continuousOn
+  have hmem : D / 2 ∈ Icc (edist x (γ 0)) (edist x (γ 1)) := by
+    rw [h0, h1, edist_self]; exact ⟨zero_le _, ENNReal.half_le_self⟩
+  obtain ⟨t, ht, hft⟩ := intermediate_value_Icc zero_le_one hcont hmem
+  have hft' : edist x (γ t) = D / 2 := hft
+  refine ⟨γ t, by rw [hft']; exact le_self_add, ?_⟩
+  have hA : edist (γ 0) (γ t) ≤ pathELength I γ 0 t := edist_le_pathELength hγ le_rfl ht.1 ht.2
+  have hB : edist (γ t) (γ 1) ≤ pathELength I γ t 1 := edist_le_pathELength hγ ht.1 ht.2 le_rfl
+  rw [h0] at hA
+  rw [h1] at hB
+  have hD2 : D / 2 ≠ ⊤ := ne_top_of_le_ne_top hxy ENNReal.half_le_self
+  have key : D / 2 + pathELength I γ t 1 ≤ D / 2 + (D / 2 + ε) := by
+    calc D / 2 + pathELength I γ t 1 ≤ pathELength I γ 0 t + pathELength I γ t 1 := by
+          gcongr; rw [← hft']; exact hA
+      _ = pathELength I γ 0 1 := pathELength_add ht.1 ht.2
+      _ ≤ D + ε := hL.le
+      _ = D / 2 + (D / 2 + ε) := by rw [← add_assoc, ENNReal.add_halves]
+  exact hB.trans ((ENNReal.add_le_add_iff_left hD2).1 key)
+
+variable {X : Type*} [EMetricSpace X]
+
+/-- Exact midpoints from approximate ones in a compact space. -/
+theorem exists_midpoint_of_approx [CompactSpace X]
+    (happrox : ∀ a b : X, edist a b ≠ ⊤ → ∀ ε : ℝ≥0∞, 0 < ε → ε ≠ ⊤ →
+      ∃ z, edist a z ≤ edist a b / 2 + ε ∧ edist z b ≤ edist a b / 2 + ε)
+    (a b : X) (hab : edist a b ≠ ⊤) :
+    ∃ m, edist a m ≤ edist a b / 2 ∧ edist m b ≤ edist a b / 2 := by
+  set D := edist a b
+  let S : ℕ → Set X := fun n =>
+    {z | edist a z ≤ D / 2 + 2⁻¹ ^ n} ∩ {z | edist z b ≤ D / 2 + 2⁻¹ ^ n}
+  have hcl : ∀ n, IsClosed (S n) := fun n =>
+    (isClosed_le (continuous_const.edist continuous_id) continuous_const).inter
+      (isClosed_le (continuous_id.edist continuous_const) continuous_const)
+  have hpow : ∀ n : ℕ, (2⁻¹ : ℝ≥0∞) ^ (n + 1) ≤ 2⁻¹ ^ n := fun n => by
+    rw [pow_succ]
+    exact mul_le_of_le_one_right (zero_le _) (ENNReal.inv_le_one.2 one_le_two)
+  have hdec : ∀ n, S (n + 1) ⊆ S n := fun n z hz =>
+    ⟨hz.1.trans (add_le_add le_rfl (hpow n)), hz.2.trans (add_le_add le_rfl (hpow n))⟩
+  have hne : ∀ n, (S n).Nonempty := fun n => by
+    obtain ⟨z, hz⟩ := happrox a b hab (2⁻¹ ^ n)
+      (ENNReal.pow_pos (ENNReal.inv_pos.2 ENNReal.ofNat_ne_top) n)
+      (ENNReal.pow_ne_top (ENNReal.inv_ne_top.2 two_ne_zero))
+    exact ⟨z, hz⟩
+  obtain ⟨m, hm⟩ := IsCompact.nonempty_iInter_of_sequence_nonempty_isCompact_isClosed S hdec hne
+    (hcl 0).isCompact hcl
+  rw [Set.mem_iInter] at hm
+  have hlim : ∀ c : ℝ≥0∞, (∀ n : ℕ, c ≤ D / 2 + 2⁻¹ ^ n) → c ≤ D / 2 := fun c hc => by
+    refine ENNReal.le_of_forall_pos_le_add fun ε hε _ => ?_
+    obtain ⟨n, hn⟩ := ENNReal.exists_inv_two_pow_lt (ENNReal.coe_ne_zero.2 hε.ne')
+    exact (hc n).trans (add_le_add le_rfl hn.le)
+  exact ⟨m, hlim _ fun n => (hm n).1, hlim _ fun n => (hm n).2⟩
+
+/-- Iterated midpoints on the dyadic points `k / 2^n`. -/
+def dyad (mid : X → X → X) (x y : X) : ℕ → ℕ → X
+  | 0, k => if k = 0 then x else y
+  | n + 1, k => if k % 2 = 0 then dyad mid x y n (k / 2)
+      else mid (dyad mid x y n (k / 2)) (dyad mid x y n (k / 2 + 1))
+
+theorem dyad_even (mid : X → X → X) (x y : X) (n j : ℕ) :
+    dyad mid x y (n + 1) (2 * j) = dyad mid x y n j := by
+  have h1 : 2 * j % 2 = 0 := by omega
+  have h2 : 2 * j / 2 = j := by omega
+  simp only [dyad, h1, h2, if_true]
+
+theorem dyad_odd (mid : X → X → X) (x y : X) (n j : ℕ) :
+    dyad mid x y (n + 1) (2 * j + 1) = mid (dyad mid x y n j) (dyad mid x y n (j + 1)) := by
+  have h1 : (2 * j + 1) % 2 = 1 := by omega
+  have h2 : (2 * j + 1) / 2 = j := by omega
+  simp only [dyad, h1, h2, one_ne_zero, if_false]
+
+theorem dyad_zero (mid : X → X → X) (x y : X) (n : ℕ) : dyad mid x y n 0 = x := by
+  induction n with
+  | zero => simp [dyad]
+  | succ n ih => rw [show (0 : ℕ) = 2 * 0 from rfl, dyad_even, ih]
+
+theorem dyad_top (mid : X → X → X) (x y : X) (n : ℕ) : dyad mid x y n (2 ^ n) = y := by
+  induction n with
+  | zero => simp [dyad]
+  | succ n ih => rw [pow_succ, mul_comm, dyad_even, ih]
+
+variable {mid : X → X → X}
+  (hmid : ∀ a b : X, edist a (mid a b) ≤ edist a b / 2 ∧ edist (mid a b) b ≤ edist a b / 2)
+include hmid
+
+theorem dyad_step (x y : X) (D : ℝ≥0∞) (hD : edist x y ≤ D) (n k : ℕ) :
+    edist (dyad mid x y n k) (dyad mid x y n (k + 1)) ≤ D * 2⁻¹ ^ n := by
+  induction n generalizing k with
+  | zero =>
+    rcases Nat.eq_zero_or_pos k with rfl | hk
+    · simpa [dyad] using hD
+    · simp [dyad, hk.ne', edist_self]
+  | succ n ih =>
+    have e : D * 2⁻¹ ^ (n + 1) = D * 2⁻¹ ^ n / 2 := by
+      rw [pow_succ, ← mul_assoc, div_eq_mul_inv]
+    rw [e]
+    obtain ⟨j, rfl | rfl⟩ := Nat.even_or_odd' k
+    · rw [dyad_even, dyad_odd]
+      exact (hmid _ _).1.trans (ENNReal.div_le_div_right (ih j) 2)
+    · rw [dyad_odd, show 2 * j + 1 + 1 = 2 * (j + 1) by ring, dyad_even]
+      exact (hmid _ _).2.trans (ENNReal.div_le_div_right (ih j) 2)
+
+theorem dyad_far (x y : X) (D : ℝ≥0∞) (hD : edist x y ≤ D) (n j k : ℕ) (hjk : j ≤ k) :
+    edist (dyad mid x y n j) (dyad mid x y n k) ≤ ((k - j : ℕ) : ℝ≥0∞) * (D * 2⁻¹ ^ n) := by
+  induction k, hjk using Nat.le_induction with
+  | base => simp
+  | succ k hjk ih =>
+    calc edist (dyad mid x y n j) (dyad mid x y n (k + 1))
+        ≤ edist (dyad mid x y n j) (dyad mid x y n k)
+          + edist (dyad mid x y n k) (dyad mid x y n (k + 1)) := edist_triangle _ _ _
+      _ ≤ ((k - j : ℕ) : ℝ≥0∞) * (D * 2⁻¹ ^ n) + D * 2⁻¹ ^ n :=
+          add_le_add ih (dyad_step hmid x y D hD n k)
+      _ = ((k + 1 - j : ℕ) : ℝ≥0∞) * (D * 2⁻¹ ^ n) := by
+          rw [Nat.succ_sub hjk]; push_cast; ring
+
+omit hmid in
+theorem floor_two_mul (t : ℝ) (ht : 0 ≤ t) (n : ℕ) :
+    ⌊t * 2 ^ (n + 1)⌋₊ = 2 * ⌊t * 2 ^ n⌋₊ ∨ ⌊t * 2 ^ (n + 1)⌋₊ = 2 * ⌊t * 2 ^ n⌋₊ + 1 := by
+  set a := ⌊t * 2 ^ n⌋₊
+  have h0 : 0 ≤ t * 2 ^ n := by positivity
+  have ha1 : (a : ℝ) ≤ t * 2 ^ n := Nat.floor_le h0
+  have ha2 : t * 2 ^ n < a + 1 := Nat.lt_floor_add_one _
+  have e : t * 2 ^ (n + 1) = 2 * (t * 2 ^ n) := by ring
+  have hb1 : 2 * a ≤ ⌊t * 2 ^ (n + 1)⌋₊ := by
+    apply Nat.le_floor; rw [e]; push_cast; linarith
+  have hb2 : ⌊t * 2 ^ (n + 1)⌋₊ < 2 * a + 2 := by
+    rw [Nat.floor_lt (by positivity), e]; push_cast; linarith
+  omega
+
+theorem dyad_seq_step (x y : X) (D : ℝ≥0∞) (hD : edist x y ≤ D) (t : ℝ) (ht : 0 ≤ t) (n : ℕ) :
+    edist (dyad mid x y n ⌊t * 2 ^ n⌋₊) (dyad mid x y (n + 1) ⌊t * 2 ^ (n + 1)⌋₊)
+      ≤ D / 2 ^ n := by
+  have hle : D * 2⁻¹ ^ (n + 1) ≤ D / 2 ^ n := by
+    have hp : (2⁻¹ : ℝ≥0∞) ^ (n + 1) ≤ 2⁻¹ ^ n := by
+      rw [pow_succ]; exact mul_le_of_le_one_right (zero_le _) (ENNReal.inv_le_one.2 one_le_two)
+    calc D * 2⁻¹ ^ (n + 1) ≤ D * 2⁻¹ ^ n := mul_le_mul_left' hp D
+      _ = D / 2 ^ n := by rw [div_eq_mul_inv, ENNReal.inv_pow]
+  rcases floor_two_mul t ht n with h | h
+  · rw [h, dyad_even, edist_self]; exact zero_le _
+  · rw [h, ← dyad_even mid x y n ⌊t * 2 ^ n⌋₊]
+    exact (dyad_step hmid x y D hD (n + 1) _).trans hle
+
+omit hmid in
+theorem div_two_pow_tendsto (D : ℝ≥0∞) (hD : D ≠ ⊤) :
+    Filter.Tendsto (fun n : ℕ => D / 2 ^ n) Filter.atTop (𝓝 0) := by
+  have h : Filter.Tendsto (fun n : ℕ => (2⁻¹ : ℝ≥0∞) ^ n) Filter.atTop (𝓝 0) :=
+    ENNReal.tendsto_pow_atTop_nhds_zero_of_lt_one (ENNReal.inv_lt_one.2 ENNReal.one_lt_two)
+  have h2 := ENNReal.Tendsto.const_mul h (Or.inr hD)
+  rw [mul_zero] at h2
+  refine h2.congr fun n => ?_
+  rw [div_eq_mul_inv, ENNReal.inv_pow]
+
+omit hmid in
+/-- A curve with `d(c s, c t) ≤ (t − s) D` on `[a,b]` has variation at most `(b − a) D` there. -/
+theorem eVariationOn_le_of_lipschitz (c : ℝ → X) (D : ℝ≥0∞) {a b : ℝ}
+    (hc : ∀ s t, a ≤ s → s ≤ t → t ≤ b → edist (c s) (c t) ≤ ENNReal.ofReal (t - s) * D) :
+    eVariationOn c (Icc a b) ≤ ENNReal.ofReal (b - a) * D := by
+  refine iSup_le fun p => ?_
+  obtain ⟨n, u, hu, us⟩ := p
+  have key : ∀ n, ∑ i ∈ Finset.range n, edist (c (u (i + 1))) (c (u i))
+      ≤ ENNReal.ofReal (u n - u 0) * D := by
+    intro n
+    induction n with
+    | zero => simp
+    | succ n ih =>
+      rw [Finset.sum_range_succ]
+      have h1 : u 0 ≤ u n := hu (Nat.zero_le n)
+      have h2 : u n ≤ u (n + 1) := hu (Nat.le_succ n)
+      calc ∑ i ∈ Finset.range n, edist (c (u (i + 1))) (c (u i)) + edist (c (u (n + 1))) (c (u n))
+          ≤ ENNReal.ofReal (u n - u 0) * D + ENNReal.ofReal (u (n + 1) - u n) * D := by
+            refine add_le_add ih ?_
+            rw [edist_comm]; exact hc _ _ (us n).1 h2 (us (n + 1)).2
+        _ = ENNReal.ofReal (u (n + 1) - u 0) * D := by
+            rw [← add_mul, ← ENNReal.ofReal_add (by linarith) (by linarith)]
+            congr 2; ring
+  refine (key n).trans (mul_le_mul_right' (ENNReal.ofReal_le_ofReal ?_) _)
+  linarith [(us n).2, (us 0).1]
+
+/-- The midpoint curve: limits of iterated midpoints at `⌊t 2^n⌋ / 2^n`. -/
+theorem exists_midpoint_curve [CompleteSpace X] (x y : X) (hxy : edist x y ≠ ⊤) :
+    ∃ c : ℝ → X, c 0 = x ∧ c 1 = y ∧
+      ∀ s t, 0 ≤ s → s ≤ t → edist (c s) (c t) ≤ ENNReal.ofReal (t - s) * edist x y := by
+  set D := edist x y with hDdef
+  let g : ℝ → ℕ → X := fun t n => dyad mid x y n ⌊t * 2 ^ n⌋₊
+  have hcauchy : ∀ t, 0 ≤ t → CauchySeq (g t) := fun t ht =>
+    cauchySeq_of_edist_le_geometric_two D hxy (dyad_seq_step hmid x y D le_rfl t ht)
+  haveI : Nonempty X := ⟨x⟩
+  let c : ℝ → X := fun t => Filter.limUnder Filter.atTop (g t)
+  have hlim : ∀ t, 0 ≤ t → Filter.Tendsto (g t) Filter.atTop (𝓝 (c t)) := fun t ht =>
+    (hcauchy t ht).tendsto_limUnder
+  have htail : ∀ t, 0 ≤ t → ∀ n, edist (g t n) (c t) ≤ 2 * D / 2 ^ n := fun t ht n =>
+    edist_le_of_edist_le_geometric_two_of_tendsto D (dyad_seq_step hmid x y D le_rfl t ht)
+      (hlim t ht) n
+  refine ⟨c, ?_, ?_, ?_⟩
+  · have hg : g 0 = fun _ => x := funext fun n => by simp [g, dyad_zero]
+    have := hlim 0 le_rfl
+    rw [hg] at this
+    exact tendsto_nhds_unique this tendsto_const_nhds
+  · have hg : g 1 = fun _ => y := funext fun n => by
+      have : ⌊(1 : ℝ) * 2 ^ n⌋₊ = 2 ^ n := by
+        rw [one_mul, show ((2 : ℝ) ^ n) = ((2 ^ n : ℕ) : ℝ) by push_cast; rfl, Nat.floor_natCast]
+      simp only [g, this, dyad_top]
+    have := hlim 1 zero_le_one
+    rw [hg] at this
+    exact tendsto_nhds_unique this tendsto_const_nhds
+  · intro s t hs hst
+    have ht : 0 ≤ t := hs.trans hst
+    have hbound : ∀ n : ℕ, edist (c s) (c t)
+        ≤ ENNReal.ofReal (t - s) * D + 5 * (D / 2 ^ n) := by
+      intro n
+      set j := ⌊s * 2 ^ n⌋₊
+      set k := ⌊t * 2 ^ n⌋₊
+      have hjk : j ≤ k := Nat.floor_le_floor (by gcongr)
+      have h2n : (0 : ℝ) < 2 ^ n := by positivity
+      -- the dyadic estimate in real numbers
+      have hreal : ((k - j : ℕ) : ℝ) / 2 ^ n ≤ (t - s) + 1 / 2 ^ n := by
+        have hk : (k : ℝ) ≤ t * 2 ^ n := Nat.floor_le (by positivity)
+        have hj : s * 2 ^ n < j + 1 := Nat.lt_floor_add_one _
+        rw [Nat.cast_sub hjk, div_le_iff₀ h2n, add_mul, one_div, inv_mul_cancel₀ h2n.ne']
+        nlinarith
+      have hconv : ∀ r : ℝ, 0 ≤ r → ENNReal.ofReal (r / 2 ^ n) = ENNReal.ofReal r / 2 ^ n :=
+        fun r hr => by
+          rw [ENNReal.ofReal_div_of_pos h2n, ENNReal.ofReal_pow zero_le_two, ENNReal.ofReal_ofNat]
+      have hmid' : ((k - j : ℕ) : ℝ≥0∞) * (D * 2⁻¹ ^ n)
+          ≤ ENNReal.ofReal (t - s) * D + D / 2 ^ n := by
+        have e1 : ((k - j : ℕ) : ℝ≥0∞) * (D * 2⁻¹ ^ n)
+            = ENNReal.ofReal (((k - j : ℕ) : ℝ) / 2 ^ n) * D := by
+          rw [hconv _ (Nat.cast_nonneg _), ENNReal.ofReal_natCast, div_eq_mul_inv,
+            ← ENNReal.inv_pow]; ring
+        rw [e1]
+        calc ENNReal.ofReal (((k - j : ℕ) : ℝ) / 2 ^ n) * D
+            ≤ ENNReal.ofReal ((t - s) + 1 / 2 ^ n) * D :=
+              mul_le_mul_right' (ENNReal.ofReal_le_ofReal hreal) _
+          _ = ENNReal.ofReal (t - s) * D + D / 2 ^ n := by
+              rw [ENNReal.ofReal_add (by linarith) (by positivity), add_mul, hconv 1 zero_le_one,
+                ENNReal.ofReal_one]
+              congr 1
+              rw [div_eq_mul_inv, div_eq_mul_inv, one_mul, mul_comm]
+      have h2D : 2 * D / 2 ^ n = 2 * (D / 2 ^ n) := by
+        rw [div_eq_mul_inv, div_eq_mul_inv, mul_assoc]
+      calc edist (c s) (c t) ≤ edist (c s) (g s n) + edist (g s n) (g t n) + edist (g t n) (c t) :=
+            edist_triangle4 _ _ _ _
+        _ ≤ 2 * (D / 2 ^ n) + (ENNReal.ofReal (t - s) * D + D / 2 ^ n) + 2 * (D / 2 ^ n) := by
+            gcongr
+            · rw [edist_comm, ← h2D]; exact htail s hs n
+            · exact (dyad_far hmid x y D le_rfl n j k hjk).trans hmid'
+            · rw [← h2D]; exact htail t ht n
+        _ = ENNReal.ofReal (t - s) * D + 5 * (D / 2 ^ n) := by ring
+    have hT : Filter.Tendsto (fun n : ℕ => ENNReal.ofReal (t - s) * D + 5 * (D / 2 ^ n))
+        Filter.atTop (𝓝 (ENNReal.ofReal (t - s) * D + 5 * 0)) :=
+      tendsto_const_nhds.add (ENNReal.Tendsto.const_mul (div_two_pow_tendsto D hxy)
+        (Or.inr ENNReal.ofNat_ne_top))
+    rw [mul_zero, add_zero] at hT
+    exact ge_of_tendsto' hT hbound
+
+omit hmid in
+/-- Constant speed and minimality of a curve with the Lipschitz bound `(t − s) d(x,y)`. -/
+theorem curve_minimising (c : ℝ → X) (x y : X) (hxy : edist x y ≠ ⊤) (h0 : c 0 = x) (h1 : c 1 = y)
+    (hc : ∀ s t, 0 ≤ s → s ≤ t → edist (c s) (c t) ≤ ENNReal.ofReal (t - s) * edist x y)
+    (s t : ℝ) (hs : 0 ≤ s) (hst : s ≤ t) (ht : t ≤ 1) :
+    edist (c s) (c t) = ENNReal.ofReal (t - s) * edist x y ∧
+    eVariationOn c (Icc s t) = edist (c s) (c t) := by
+  set D := edist x y
+  have hlow : ENNReal.ofReal (t - s) * D ≤ edist (c s) (c t) := by
+    have hA := hc 0 s le_rfl hs
+    have hB := hc t 1 (hs.trans hst) ht
+    rw [h0, sub_zero] at hA
+    rw [h1] at hB
+    have hAfin : ENNReal.ofReal s * D ≠ ⊤ := ENNReal.mul_ne_top ENNReal.ofReal_ne_top hxy
+    have hBfin : ENNReal.ofReal (1 - t) * D ≠ ⊤ := ENNReal.mul_ne_top ENNReal.ofReal_ne_top hxy
+    have hsum : ENNReal.ofReal s * D + ENNReal.ofReal (1 - t) * D + ENNReal.ofReal (t - s) * D
+        = D := by
+      rw [← add_mul, ← add_mul, ← ENNReal.ofReal_add hs (by linarith),
+        ← ENNReal.ofReal_add (by linarith) (by linarith)]
+      rw [show s + (1 - t) + (t - s) = 1 by ring, ENNReal.ofReal_one, one_mul]
+    have htri : D ≤ edist x (c s) + edist (c s) (c t) + edist (c t) y :=
+      edist_triangle4 _ _ _ _
+    have key : ENNReal.ofReal s * D + ENNReal.ofReal (1 - t) * D + ENNReal.ofReal (t - s) * D
+        ≤ ENNReal.ofReal s * D + ENNReal.ofReal (1 - t) * D + edist (c s) (c t) := by
+      rw [hsum]
+      calc D ≤ edist x (c s) + edist (c s) (c t) + edist (c t) y := htri
+        _ ≤ ENNReal.ofReal s * D + edist (c s) (c t) + ENNReal.ofReal (1 - t) * D := by gcongr
+        _ = _ := by ring
+    exact (ENNReal.add_le_add_iff_left (ENNReal.add_ne_top.2 ⟨hAfin, hBfin⟩)).1 key
+  have hup : edist (c s) (c t) ≤ ENNReal.ofReal (t - s) * D := hc s t hs hst
+  have hvar : eVariationOn c (Icc s t) ≤ ENNReal.ofReal (t - s) * D :=
+    eVariationOn_le_of_lipschitz c D fun u v hu huv hv => hc u v (hs.trans hu) huv
+  have hge : edist (c s) (c t) ≤ eVariationOn c (Icc s t) :=
+    eVariationOn.edist_le c (left_mem_Icc.2 hst) (right_mem_Icc.2 hst)
+  exact ⟨le_antisymm hup hlow, le_antisymm (hvar.trans hlow) hge⟩
+
+omit hmid in
+/-- (iii), abstract metric form: in a compact emetric space with approximate midpoints at finite
+distance, any two points at finite distance are joined by a constant-speed minimising curve. -/
+theorem exists_minimising_curve_of_approx [CompactSpace X]
+    (happrox : ∀ a b : X, edist a b ≠ ⊤ → ∀ ε : ℝ≥0∞, 0 < ε → ε ≠ ⊤ →
+      ∃ z, edist a z ≤ edist a b / 2 + ε ∧ edist z b ≤ edist a b / 2 + ε)
+    (hfin : ∀ a b : X, edist a b ≠ ⊤) (x y : X) :
+    ∃ c : ℝ → X, c 0 = x ∧ c 1 = y ∧
+      (∀ s t, 0 ≤ s → s ≤ t → t ≤ 1 →
+        edist (c s) (c t) = ENNReal.ofReal (t - s) * edist x y ∧
+        eVariationOn c (Icc s t) = edist (c s) (c t)) ∧
+      eVariationOn c (Icc 0 1) = edist x y := by
+  choose mid hmid using fun a b => exists_midpoint_of_approx happrox a b (hfin a b)
+  obtain ⟨c, h0, h1, hc⟩ := exists_midpoint_curve (mid := mid) hmid x y (hfin x y)
+  have hall := fun s t hs hst ht => curve_minimising c x y (hfin x y) h0 h1 hc s t hs hst ht
+  refine ⟨c, h0, h1, hall, ?_⟩
+  rw [(hall 0 1 le_rfl zero_le_one le_rfl).2, h0, h1]
+
+omit hmid in
+/-- (iii): on a COMPACT connected Riemannian manifold (Mathlib's `IsRiemannianManifold`, an
+`EMetricSpace`), any two points are joined by a curve `c : ℝ → M` with `c 0 = x`, `c 1 = y`,
+`d(c s, c t) = (t − s) d(x,y)` and `var(c|[s,t]) = d(c s, c t)` for `0 ≤ s ≤ t ≤ 1`; in particular
+`var(c|[0,1]) = d(x,y)` and `c` is `d(x,y)`-Lipschitz on `[0,1]`.  The curve is a metric minimiser;
+it is NOT shown to be `C¹` or a Riemannian geodesic, and NOT shown to be unique. -/
+theorem exists_minimising_curve {M' : Type*} [EMetricSpace M'] [ChartedSpace H M']
+    [RiemannianBundle (fun (x : M') ↦ TangentSpace I x)] [IsRiemannianManifold I M']
+    [CompactSpace M'] [PreconnectedSpace M'] (x y : M') :
+    ∃ c : ℝ → M', c 0 = x ∧ c 1 = y ∧
+      (∀ s t, 0 ≤ s → s ≤ t → t ≤ 1 →
+        edist (c s) (c t) = ENNReal.ofReal (t - s) * edist x y ∧
+        eVariationOn c (Icc s t) = edist (c s) (c t)) ∧
+      eVariationOn c (Icc 0 1) = edist x y :=
+  exists_minimising_curve_of_approx
+    (fun a b hab _ hε hε' => riemannian_approx_midpoint (I := I) a b hab hε hε')
+    (fun a b => edist_ne_top_of_preconnected a b) x y
+
+end Minimiser
 end CTG.ManifoldDistance
