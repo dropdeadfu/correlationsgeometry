@@ -1934,4 +1934,260 @@ theorem TimeMetric.dist_fubini [MeasurableSpace (M' × M')] [OpensMeasurableSpac
   · exact Filter.Eventually.of_forall fun pr h => absurd h hint
 
 end TimeDistanceMetric
+
+/-! ### Integral bounds of Step 1 of `prop:dotLN-diff` in metric-measure form (block A118)
+
+No volume measure of the manifold is used.  The sampling law is a measure `m`; the geometry enters
+only through the upper volume-growth HYPOTHESIS `m {y | ρ y < r} ≤ A_m r^d` for `0 < r ≤ r₀`, where
+`ρ y = d(x, y)` (in the application: the Riemannian distance of a `TimeMetric` at time `a`).
+(1) `annulus_bound`: a layer-cake bound over unit annuli `{⌊ρ/ξ⌋ = n}` for any profile `φ` with a
+majorant sequence `ψ`; `exp_profile_integral`: the case `φ(s) = c s^j e^{-b s}`, which covers
+`h`, `h²` (`j = 0`), `k_*`, `k_*²` (`j = 1, 2`) and the weights `d^a` of the paper:
+`∫ c (ρ/ξ)^j e^{-bρ/ξ} dm ≤ c A_m S ξ^d + c j! (2/b)^j e^{-b r₀/(2ξ)} m(M)`,
+`S = Σ_n (n+1)^{j+d} e^{-bn}`.
+(2) `kernel_increment_integral`, `kernel_increment_sq_integral`: for a `TimeMetric` on a compact
+connected manifold and `κ|b−a| ≤ 1`, the first and second moments of `|h(d_b/ξ) − h(d_a/ξ)|`
+against `m`. -/
+
+section IntegralBounds
+
+/-- (1) Layer cake over unit annuli.  `ρ ≥ 0` measurable, upper growth `m {ρ < r} ≤ A r^d` for
+`0 < r ≤ r₀` (HYPOTHESIS), `0 ≤ φ`, `φ s ≤ ψ ⌊s⌋₊` for `s ≥ 0`, `φ s ≤ F` for `s ≥ r₀/ξ`, and
+`Σ ψ n (n+1)^d` summable.  Then
+`∫ φ(ρ/ξ) dm ≤ A (Σ ψ n (n+1)^d) ξ^d + F · m(univ)`. -/
+theorem annulus_bound {X : Type*} [MeasurableSpace X] (m : Measure X) (ρ : X → ℝ)
+    (hρm : Measurable ρ) (hρ0 : ∀ y, 0 ≤ ρ y) (d : ℕ) (A r₀ ξ : ℝ) (hA : 0 ≤ A)
+    (hr₀ : 0 < r₀) (hξ : 0 < ξ)
+    (hgrowth : ∀ r, 0 < r → r ≤ r₀ → m {y | ρ y < r} ≤ ENNReal.ofReal (A * r ^ d))
+    (φ : ℝ → ℝ) (hφ0 : ∀ s, 0 ≤ s → 0 ≤ φ s) (ψ : ℕ → ℝ) (hψ : ∀ s, 0 ≤ s → φ s ≤ ψ ⌊s⌋₊)
+    (F : ℝ) (hfar : ∀ s, r₀ / ξ ≤ s → φ s ≤ F)
+    (hsum : Summable fun n : ℕ => ψ n * ((n : ℝ) + 1) ^ d) :
+    ∫⁻ y, ENNReal.ofReal (φ (ρ y / ξ)) ∂m
+      ≤ ENNReal.ofReal (A * (∑' n : ℕ, ψ n * ((n : ℝ) + 1) ^ d) * ξ ^ d)
+        + ENNReal.ofReal F * m univ := by
+  set f : X → ℝ≥0∞ := fun y => ENNReal.ofReal (φ (ρ y / ξ))
+  have hψ0 : ∀ n : ℕ, 0 ≤ ψ n := fun n => by
+    have := hψ n (Nat.cast_nonneg n); rw [Nat.floor_natCast] at this
+    exact (hφ0 _ (Nat.cast_nonneg n)).trans this
+  set U : Set X := {y | ρ y < r₀}
+  have hU : MeasurableSet U := measurableSet_lt hρm measurable_const
+  set S : ℕ → Set X := fun n => U ∩ {y | ⌊ρ y / ξ⌋₊ = n}
+  have hS : ∀ n, MeasurableSet (S n) := fun n =>
+    hU.inter ((hρm.div_const ξ).nat_floor (measurableSet_singleton n))
+  have hUS : U = ⋃ n, S n := by
+    ext y; simp [S]
+  -- near part
+  have hnear : ∫⁻ y in U, f y ∂m
+      ≤ ENNReal.ofReal (A * (∑' n : ℕ, ψ n * ((n : ℝ) + 1) ^ d) * ξ ^ d) := by
+    have hterm : ∀ n : ℕ, ∫⁻ y in S n, f y ∂m
+        ≤ ENNReal.ofReal (A * ξ ^ d * (ψ n * ((n : ℝ) + 1) ^ d)) := by
+      intro n
+      have h1 : ∫⁻ y in S n, f y ∂m ≤ ∫⁻ _ in S n, ENNReal.ofReal (ψ n) ∂m := by
+        refine setLIntegral_mono' (hS n) fun y hy => ENNReal.ofReal_le_ofReal ?_
+        have := hψ (ρ y / ξ) (div_nonneg (hρ0 y) hξ.le)
+        rwa [hy.2] at this
+      rw [setLIntegral_const] at h1
+      set r' := min (((n : ℝ) + 1) * ξ) r₀
+      have hr'0 : 0 < r' := lt_min (by positivity) hr₀
+      have hsub : S n ⊆ {y | ρ y < r'} := by
+        intro y hy
+        have h2 : ρ y / ξ < (⌊ρ y / ξ⌋₊ : ℝ) + 1 := Nat.lt_floor_add_one _
+        rw [hy.2] at h2
+        have h3 : ρ y < ((n : ℝ) + 1) * ξ := by rwa [div_lt_iff₀ hξ] at h2
+        exact lt_min h3 hy.1
+      have hm : m (S n) ≤ ENNReal.ofReal (A * (((n : ℝ) + 1) * ξ) ^ d) := by
+        refine (measure_mono hsub).trans ((hgrowth r' hr'0 (min_le_right _ _)).trans ?_)
+        apply ENNReal.ofReal_le_ofReal
+        apply mul_le_mul_of_nonneg_left _ hA
+        exact pow_le_pow_left₀ hr'0.le (min_le_left _ _) d
+      calc ∫⁻ y in S n, f y ∂m ≤ ENNReal.ofReal (ψ n) * m (S n) := h1
+        _ ≤ ENNReal.ofReal (ψ n) * ENNReal.ofReal (A * (((n : ℝ) + 1) * ξ) ^ d) := by gcongr
+        _ = ENNReal.ofReal (A * ξ ^ d * (ψ n * ((n : ℝ) + 1) ^ d)) := by
+            rw [← ENNReal.ofReal_mul (hψ0 n)]; congr 1; rw [mul_pow]; ring
+    have hsum' : Summable fun n : ℕ => A * ξ ^ d * (ψ n * ((n : ℝ) + 1) ^ d) := hsum.mul_left _
+    calc ∫⁻ y in U, f y ∂m = ∫⁻ y in ⋃ n, S n, f y ∂m := by rw [← hUS]
+      _ ≤ ∑' n, ∫⁻ y in S n, f y ∂m := lintegral_iUnion_le _ _
+      _ ≤ ∑' n : ℕ, ENNReal.ofReal (A * ξ ^ d * (ψ n * ((n : ℝ) + 1) ^ d)) :=
+          ENNReal.tsum_le_tsum hterm
+      _ = ENNReal.ofReal (∑' n : ℕ, A * ξ ^ d * (ψ n * ((n : ℝ) + 1) ^ d)) :=
+          (ENNReal.ofReal_tsum_of_nonneg (fun n => by have := hψ0 n; positivity) hsum').symm
+      _ = ENNReal.ofReal (A * (∑' n : ℕ, ψ n * ((n : ℝ) + 1) ^ d) * ξ ^ d) := by
+          rw [tsum_mul_left]; congr 1; ring
+  -- far part
+  have hfarI : ∫⁻ y in Uᶜ, f y ∂m ≤ ENNReal.ofReal F * m univ := by
+    calc ∫⁻ y in Uᶜ, f y ∂m ≤ ∫⁻ _ in Uᶜ, ENNReal.ofReal F ∂m := by
+          refine setLIntegral_mono' hU.compl fun y hy => ENNReal.ofReal_le_ofReal (hfar _ ?_)
+          have : r₀ ≤ ρ y := not_lt.1 hy
+          exact div_le_div_of_nonneg_right this hξ.le
+      _ = ENNReal.ofReal F * m Uᶜ := setLIntegral_const _ _
+      _ ≤ ENNReal.ofReal F * m univ := by gcongr; exact subset_univ _
+  rw [← lintegral_add_compl f hU]
+  exact add_le_add hnear hfarI
+
+/-- `s^j e^{-bs} ≤ (⌊s⌋+1)^j e^{-b⌊s⌋}` for `s ≥ 0`, `b ≥ 0`. -/
+theorem exp_profile_majorant (j : ℕ) (b s : ℝ) (hb : 0 ≤ b) (hs : 0 ≤ s) :
+    s ^ j * Real.exp (-b * s) ≤ ((⌊s⌋₊ : ℝ) + 1) ^ j * Real.exp (-b * ⌊s⌋₊) := by
+  have h1 : s ≤ (⌊s⌋₊ : ℝ) + 1 := (Nat.lt_floor_add_one s).le
+  have h2 : (⌊s⌋₊ : ℝ) ≤ s := Nat.floor_le hs
+  apply mul_le_mul (pow_le_pow_left₀ hs h1 j) (Real.exp_le_exp.2 (by nlinarith))
+    (Real.exp_pos _).le (by positivity)
+
+/-- Far bound: `s^j e^{-bs} ≤ j! (2/b)^j e^{-bt/2}` for `s ≥ t ≥ 0`, `b > 0`. -/
+theorem exp_profile_far (j : ℕ) (b s t : ℝ) (hb : 0 < b) (ht : 0 ≤ t) (hts : t ≤ s) :
+    s ^ j * Real.exp (-b * s) ≤ (j.factorial : ℝ) * (2 / b) ^ j * Real.exp (-b * t / 2) := by
+  have hs : 0 ≤ s := ht.trans hts
+  have hx : 0 ≤ b * s / 2 := by positivity
+  have h1 := Real.pow_div_factorial_le_exp (b * s / 2) hx j
+  have hf : (0 : ℝ) < j.factorial := by exact_mod_cast Nat.factorial_pos j
+  rw [div_le_iff₀ hf] at h1
+  have e1 : s ^ j = (2 / b) ^ j * (b * s / 2) ^ j := by
+    rw [← mul_pow]; congr 1; field_simp
+  have h2b : 0 ≤ (2 / b) ^ j := by positivity
+  have hsj : s ^ j ≤ (2 / b) ^ j * ((j.factorial : ℝ) * Real.exp (b * s / 2)) := by
+    rw [e1]; exact mul_le_mul_of_nonneg_left (by linarith [h1]) h2b
+  have e3 : Real.exp (b * s / 2) * Real.exp (-b * s) = Real.exp (-b * s / 2) := by
+    rw [← Real.exp_add]; congr 1; ring
+  have h3 : Real.exp (-b * s / 2) ≤ Real.exp (-b * t / 2) := Real.exp_le_exp.2 (by nlinarith)
+  calc s ^ j * Real.exp (-b * s)
+      ≤ (2 / b) ^ j * ((j.factorial : ℝ) * Real.exp (b * s / 2)) * Real.exp (-b * s) :=
+        mul_le_mul_of_nonneg_right hsj (Real.exp_pos _).le
+    _ = (j.factorial : ℝ) * (2 / b) ^ j * Real.exp (-b * s / 2) := by rw [← e3]; ring
+    _ ≤ (j.factorial : ℝ) * (2 / b) ^ j * Real.exp (-b * t / 2) :=
+        mul_le_mul_of_nonneg_left h3 (by positivity)
+
+theorem summable_exp_profile (k : ℕ) (b : ℝ) (hb : 0 < b) :
+    Summable fun n : ℕ => ((n : ℝ) + 1) ^ k * Real.exp (-b * n) := by
+  have h := (summable_nat_add_iff 1).2 (Real.summable_pow_mul_exp_neg_nat_mul k hb)
+  have hne : Real.exp b ≠ 0 := (Real.exp_pos b).ne'
+  refine (h.mul_left (Real.exp b)).congr fun n => ?_
+  push_cast
+  rw [show -b * ((n : ℝ) + 1) = -b * n + -b by ring, Real.exp_add, Real.exp_neg]
+  calc Real.exp b * (((n : ℝ) + 1) ^ k * (Real.exp (-b * n) * (Real.exp b)⁻¹))
+      = ((n : ℝ) + 1) ^ k * Real.exp (-b * n) * (Real.exp b * (Real.exp b)⁻¹) := by ring
+    _ = ((n : ℝ) + 1) ^ k * Real.exp (-b * n) := by rw [mul_inv_cancel₀ hne, mul_one]
+
+/-- (1) Exponential-type profiles `c s^j e^{-bs}` (covering `h`, `h²`, `k_*`, `k_*²` and the
+weights `d^a`): under the upper growth HYPOTHESIS,
+`∫ c (ρ/ξ)^j e^{-bρ/ξ} dm ≤ A (Σ_n c (n+1)^j e^{-bn} (n+1)^d) ξ^d + c j! (2/b)^j e^{-b(r₀/ξ)/2} m(univ)`.
+The series is finite (`summable_exp_profile`). -/
+theorem exp_profile_integral {X : Type*} [MeasurableSpace X] (m : Measure X) (ρ : X → ℝ)
+    (hρm : Measurable ρ) (hρ0 : ∀ y, 0 ≤ ρ y) (d : ℕ) (A r₀ ξ : ℝ) (hA : 0 ≤ A)
+    (hr₀ : 0 < r₀) (hξ : 0 < ξ)
+    (hgrowth : ∀ r, 0 < r → r ≤ r₀ → m {y | ρ y < r} ≤ ENNReal.ofReal (A * r ^ d))
+    (c b : ℝ) (j : ℕ) (hc : 0 ≤ c) (hb : 0 < b) :
+    ∫⁻ y, ENNReal.ofReal (c * ((ρ y / ξ) ^ j * Real.exp (-b * (ρ y / ξ)))) ∂m
+      ≤ ENNReal.ofReal (A * (∑' n : ℕ, c * (((n : ℝ) + 1) ^ j * Real.exp (-b * n))
+            * ((n : ℝ) + 1) ^ d) * ξ ^ d)
+        + ENNReal.ofReal (c * ((j.factorial : ℝ) * (2 / b) ^ j * Real.exp (-b * (r₀ / ξ) / 2)))
+          * m univ := by
+  refine annulus_bound m ρ hρm hρ0 d A r₀ ξ hA hr₀ hξ hgrowth
+    (fun s => c * (s ^ j * Real.exp (-b * s)))
+    (fun s hs => by positivity)
+    (fun n => c * (((n : ℝ) + 1) ^ j * Real.exp (-b * n)))
+    (fun s hs => mul_le_mul_of_nonneg_left (exp_profile_majorant j b s hb.le hs) hc)
+    _ (fun s hs => mul_le_mul_of_nonneg_left
+      (exp_profile_far j b s (r₀ / ξ) hb (by positivity) hs) hc) ?_
+  refine ((summable_exp_profile (j + d) b hb).mul_left c).congr fun n => ?_
+  rw [pow_add]; ring
+
+/-- Pointwise kernel increment in profile form: for a `TimeMetric`, `κ|b−a| ≤ 1`, finite distance at
+time `a`, `|h(d_b/ξ) − h(d_a/ξ)| ≤ c (d_a/ξ) e^{-e^{-1} d_a/ξ}` with `c = 2κ|b−a| A`
+(both for `d_a > 0`, by `TimeMetric.kernel`, and for `d_a = 0`). -/
+theorem TimeMetric.kernel_increment_le {s : Set ℝ} (G : TimeMetric I M s) {a b : ℝ} (ha : a ∈ s)
+    (hb : b ∈ s) (hab : G.κ * |b - a| ≤ 1) (x y : M)
+    (hfin : (letI := G.norms a; Manifold.riemannianEDist I x y) ≠ ⊤)
+    (h h' : ℝ → ℝ) (A ξ : ℝ) (hA : 0 ≤ A) (hξ : 0 < ξ)
+    (hder : ∀ t, HasDerivAt h (h' t) t) (hbd : ∀ t, 0 ≤ t → |h' t| ≤ A * Real.exp (-t)) :
+    |h (G.dist x y b / ξ) - h (G.dist x y a / ξ)|
+      ≤ (2 * (G.κ * |b - a|) * A) * ((G.dist x y a / ξ) ^ 1
+          * Real.exp (-Real.exp (-1) * (G.dist x y a / ξ))) := by
+  have hc : 0 ≤ 2 * (G.κ * |b - a|) * A := by
+    have := G.κ_nonneg; positivity
+  have hD := G.dist_nonneg x y a
+  rcases hD.lt_or_eq with hp | hz
+  · have hk := G.kernel ha hb hab x y hfin hp h h' A ξ hA hξ hder hbd
+    have e : Real.exp (-(G.dist x y a / ξ * Real.exp (-1)))
+        = Real.exp (-Real.exp (-1) * (G.dist x y a / ξ)) := by congr 1; ring
+    calc |h (G.dist x y b / ξ) - h (G.dist x y a / ξ)|
+        ≤ 2 * (G.κ * |b - a|) * A * (G.dist x y a / ξ)
+            * Real.exp (-(G.dist x y a / ξ * Real.exp (-1))) := hk
+      _ = _ := by rw [e]; ring
+  · have h0 := kernel_two_times_zero s G.convex G.norms (fun τ x v => G.g τ x v v) G.g' G.κ
+      (fun _ _ _ _ => rfl) G.hcase G.deriv G.bound ha hb x y hfin hz.symm h ξ
+    have h0' : h (G.dist x y b / ξ) = h (G.dist x y a / ξ) := h0
+    rw [h0', sub_self, abs_zero]
+    positivity
+
+/-- (2) First moment of the kernel increment against the sampling law `m`, on a compact connected
+Riemannian manifold, under the upper growth HYPOTHESIS for the balls of `d_a` around `x`:
+`∫ |h(d_b/ξ) − h(d_a/ξ)| dm ≤ A_m (Σ_n c (n+1) e^{-n/e} (n+1)^d) ξ^d
+  + c · 2e · e^{-(r₀/ξ)/(2e)} · m(M)`, with `c = 2κ|b−a| A`. -/
+theorem TimeMetric.kernel_increment_integral {M' : Type*} [PseudoEMetricSpace M']
+    [ChartedSpace H M'] [IsManifold I 1 M'] [RiemannianBundle (fun (x : M') ↦ TangentSpace I x)]
+    [IsContinuousRiemannianBundle E (fun (x : M') ↦ TangentSpace I x)]
+    [IsRiemannianManifold I M'] [CompactSpace M'] [PreconnectedSpace M']
+    [MeasurableSpace M'] [OpensMeasurableSpace M']
+    {s : Set ℝ} (G : TimeMetric I M' s) {a₀ a b : ℝ} (ha₀ : a₀ ∈ s)
+    (hcont : Continuous (fun x ↦ TotalSpace.mk' (E →L[ℝ] E →L[ℝ] ℝ) x (G.g a₀ x)))
+    (ha : a ∈ s) (hb : b ∈ s) (hab : G.κ * |b - a| ≤ 1)
+    (m : Measure M') (x : M') (d : ℕ) (Am r₀ ξ : ℝ) (hAm : 0 ≤ Am) (hr₀ : 0 < r₀) (hξ : 0 < ξ)
+    (hgrowth : ∀ r, 0 < r → r ≤ r₀ → m {y | G.dist x y a < r} ≤ ENNReal.ofReal (Am * r ^ d))
+    (h h' : ℝ → ℝ) (A : ℝ) (hA : 0 ≤ A)
+    (hder : ∀ t, HasDerivAt h (h' t) t) (hbd : ∀ t, 0 ≤ t → |h' t| ≤ A * Real.exp (-t)) :
+    ∫⁻ y, ENNReal.ofReal |h (G.dist x y b / ξ) - h (G.dist x y a / ξ)| ∂m
+      ≤ ENNReal.ofReal (Am * (∑' n : ℕ, (2 * (G.κ * |b - a|) * A)
+            * (((n : ℝ) + 1) ^ 1 * Real.exp (-Real.exp (-1) * n)) * ((n : ℝ) + 1) ^ d) * ξ ^ d)
+        + ENNReal.ofReal ((2 * (G.κ * |b - a|) * A) * (((1 : ℕ).factorial : ℝ)
+            * (2 / Real.exp (-1)) ^ 1 * Real.exp (-Real.exp (-1) * (r₀ / ξ) / 2))) * m univ := by
+  have hc : 0 ≤ 2 * (G.κ * |b - a|) * A := by
+    have := G.κ_nonneg; positivity
+  have hρm : Measurable (fun y => G.dist x y a) :=
+    ((G.dist_continuous_pair ha₀ ha hcont).comp (continuous_const.prodMk continuous_id)).measurable
+  refine le_trans (lintegral_mono fun y => ENNReal.ofReal_le_ofReal
+    (G.kernel_increment_le ha hb hab x y (G.riemannianEDist_ne_top ha₀ ha hcont x y)
+      h h' A ξ hA hξ hder hbd)) ?_
+  exact exp_profile_integral m (fun y => G.dist x y a) hρm (fun y => G.dist_nonneg x y a) d Am r₀ ξ
+    hAm hr₀ hξ hgrowth _ _ 1 hc (Real.exp_pos _)
+
+/-- (2) Second moment of the kernel increment, same hypotheses:
+`∫ |h(d_b/ξ) − h(d_a/ξ)|² dm ≤ A_m (Σ_n c² (n+1)² e^{-2n/e} (n+1)^d) ξ^d
+  + c² · 2 · e² · e^{-(r₀/ξ)/e} · m(M)`. -/
+theorem TimeMetric.kernel_increment_sq_integral {M' : Type*} [PseudoEMetricSpace M']
+    [ChartedSpace H M'] [IsManifold I 1 M'] [RiemannianBundle (fun (x : M') ↦ TangentSpace I x)]
+    [IsContinuousRiemannianBundle E (fun (x : M') ↦ TangentSpace I x)]
+    [IsRiemannianManifold I M'] [CompactSpace M'] [PreconnectedSpace M']
+    [MeasurableSpace M'] [OpensMeasurableSpace M']
+    {s : Set ℝ} (G : TimeMetric I M' s) {a₀ a b : ℝ} (ha₀ : a₀ ∈ s)
+    (hcont : Continuous (fun x ↦ TotalSpace.mk' (E →L[ℝ] E →L[ℝ] ℝ) x (G.g a₀ x)))
+    (ha : a ∈ s) (hb : b ∈ s) (hab : G.κ * |b - a| ≤ 1)
+    (m : Measure M') (x : M') (d : ℕ) (Am r₀ ξ : ℝ) (hAm : 0 ≤ Am) (hr₀ : 0 < r₀) (hξ : 0 < ξ)
+    (hgrowth : ∀ r, 0 < r → r ≤ r₀ → m {y | G.dist x y a < r} ≤ ENNReal.ofReal (Am * r ^ d))
+    (h h' : ℝ → ℝ) (A : ℝ) (hA : 0 ≤ A)
+    (hder : ∀ t, HasDerivAt h (h' t) t) (hbd : ∀ t, 0 ≤ t → |h' t| ≤ A * Real.exp (-t)) :
+    ∫⁻ y, ENNReal.ofReal (|h (G.dist x y b / ξ) - h (G.dist x y a / ξ)| ^ 2) ∂m
+      ≤ ENNReal.ofReal (Am * (∑' n : ℕ, (2 * (G.κ * |b - a|) * A) ^ 2
+            * (((n : ℝ) + 1) ^ 2 * Real.exp (-(2 * Real.exp (-1)) * n)) * ((n : ℝ) + 1) ^ d)
+            * ξ ^ d)
+        + ENNReal.ofReal ((2 * (G.κ * |b - a|) * A) ^ 2 * (((2 : ℕ).factorial : ℝ)
+            * (2 / (2 * Real.exp (-1))) ^ 2
+            * Real.exp (-(2 * Real.exp (-1)) * (r₀ / ξ) / 2))) * m univ := by
+  have hρm : Measurable (fun y => G.dist x y a) :=
+    ((G.dist_continuous_pair ha₀ ha hcont).comp (continuous_const.prodMk continuous_id)).measurable
+  have hpt : ∀ y, |h (G.dist x y b / ξ) - h (G.dist x y a / ξ)| ^ 2
+      ≤ (2 * (G.κ * |b - a|) * A) ^ 2 * ((G.dist x y a / ξ) ^ 2
+        * Real.exp (-(2 * Real.exp (-1)) * (G.dist x y a / ξ))) := by
+    intro y
+    have hk := G.kernel_increment_le ha hb hab x y (G.riemannianEDist_ne_top ha₀ ha hcont x y)
+      h h' A ξ hA hξ hder hbd
+    have hsq := pow_le_pow_left₀ (abs_nonneg _) hk 2
+    refine hsq.trans (le_of_eq ?_)
+    have e : Real.exp (-Real.exp (-1) * (G.dist x y a / ξ)) ^ 2
+        = Real.exp (-(2 * Real.exp (-1)) * (G.dist x y a / ξ)) := by
+      rw [← Real.exp_nat_mul]; congr 1; push_cast; ring
+    rw [← e]; ring
+  refine le_trans (lintegral_mono fun y => ENNReal.ofReal_le_ofReal (hpt y)) ?_
+  exact exp_profile_integral m (fun y => G.dist x y a) hρm (fun y => G.dist_nonneg x y a) d Am r₀
+      ξ hAm hr₀ hξ hgrowth _ _ 2 (sq_nonneg _) (by positivity)
+
+end IntegralBounds
 end CTG.ManifoldDistance
