@@ -832,4 +832,139 @@ theorem TimeMetric.riemannianEDist_ne_top {M' : Type*} [PseudoEMetricSpace M'] [
   exact ne_top_of_le_ne_top (ENNReal.mul_ne_top ENNReal.ofReal_ne_top hfa)
     (G.riemannianEDist_le ha hb p q)
 
+
+/-! ### Metric variation of a `C¹` path against its Riemannian length (block A112)
+
+On a manifold satisfying Mathlib's `IsRiemannianManifold` (the extended distance of the space is the
+infimum of the lengths of `C¹` paths), the metric variation `eVariationOn γ (Icc a b)` of a `C¹`
+path (supremum over partitions of the sums of distances) is at most its Riemannian length
+`pathELength I γ a b`.  Consequences: finite length gives bounded variation in the Riemannian
+distance, and a path whose length is within `ε` of the distance of its endpoints is `ε`-almost
+minimising on every subinterval, in length and in variation.  NOT proven here: the converse
+`pathELength ≤ eVariationOn` (needs a lower comparison of the Riemannian distance with the chart
+distance with constants tending to `1`, which Mathlib does not contain), and the existence of a
+minimising curve. -/
+
+section Variation
+
+variable {M' : Type*} [PseudoEMetricSpace M'] [ChartedSpace H M']
+  [RiemannianBundle (fun (x : M') ↦ TangentSpace I x)] [IsRiemannianManifold I M']
+
+/-- The distance of two points of a `C¹` path is at most the length of the path between them. -/
+theorem edist_le_pathELength {γ : ℝ → M'} {a b s t : ℝ}
+    (hγ : ContMDiffOn 𝓘(ℝ) I 1 γ (Icc a b)) (hs : a ≤ s) (hst : s ≤ t) (ht : t ≤ b) :
+    edist (γ s) (γ t) ≤ pathELength I γ s t := by
+  rw [IsRiemannianManifold.out (I := I)]
+  exact riemannianEDist_le_pathELength (hγ.mono (Icc_subset_Icc hs ht)) rfl rfl hst
+
+/-- The sum of the distances along a monotone sequence of times is at most the length between the
+first and the last time. -/
+theorem sum_edist_le_pathELength {γ : ℝ → M'} {a b : ℝ}
+    (hγ : ContMDiffOn 𝓘(ℝ) I 1 γ (Icc a b)) {u : ℕ → ℝ} (hu : Monotone u)
+    (us : ∀ i, u i ∈ Icc a b) (n : ℕ) :
+    ∑ i ∈ Finset.range n, edist (γ (u (i + 1))) (γ (u i)) ≤ pathELength I γ (u 0) (u n) := by
+  induction n with
+  | zero => simp
+  | succ n ih =>
+    rw [Finset.sum_range_succ, ← pathELength_add (hu (Nat.zero_le n)) (hu (Nat.le_succ n))]
+    refine add_le_add ih ?_
+    rw [edist_comm]
+    exact edist_le_pathELength hγ (us n).1 (hu (Nat.le_succ n)) (us (n + 1)).2
+
+/-- STAGE (1): the metric variation of a `C¹` path is at most its Riemannian length. -/
+theorem eVariationOn_le_pathELength {γ : ℝ → M'} {a b : ℝ}
+    (hγ : ContMDiffOn 𝓘(ℝ) I 1 γ (Icc a b)) :
+    eVariationOn γ (Icc a b) ≤ pathELength I γ a b := by
+  refine iSup_le fun p => ?_
+  obtain ⟨n, u, hu, us⟩ := p
+  exact (sum_edist_le_pathELength hγ hu us n).trans (pathELength_mono (us 0).1 (us n).2)
+
+/-- A `C¹` path of finite Riemannian length has bounded variation in the Riemannian distance. -/
+theorem boundedVariationOn_of_pathELength_ne_top {γ : ℝ → M'} {a b : ℝ}
+    (hγ : ContMDiffOn 𝓘(ℝ) I 1 γ (Icc a b)) (hL : pathELength I γ a b ≠ ⊤) :
+    BoundedVariationOn γ (Icc a b) :=
+  ne_top_of_le_ne_top hL (eVariationOn_le_pathELength hγ)
+
+/-- Almost minimising paths: if `L(γ|[a,b]) ≤ d(γ a, γ b) + ε` (finite), then on every
+subinterval `L(γ|[s,t]) ≤ d(γ s, γ t) + ε`. -/
+theorem pathELength_le_edist_add {γ : ℝ → M'} {a b s t : ℝ}
+    (hγ : ContMDiffOn 𝓘(ℝ) I 1 γ (Icc a b)) (hs : a ≤ s) (hst : s ≤ t) (ht : t ≤ b)
+    {ε : ℝ≥0∞} (hmin : pathELength I γ a b ≤ edist (γ a) (γ b) + ε)
+    (hfin : edist (γ a) (γ b) + ε ≠ ⊤) :
+    pathELength I γ s t ≤ edist (γ s) (γ t) + ε := by
+  have hsplit : pathELength I γ a s + pathELength I γ s t + pathELength I γ t b
+      = pathELength I γ a b := by
+    rw [pathELength_add hs hst, pathELength_add (hs.trans hst) ht]
+  have hA : edist (γ a) (γ s) ≤ pathELength I γ a s :=
+    edist_le_pathELength hγ le_rfl hs (hst.trans ht)
+  have hC : edist (γ t) (γ b) ≤ pathELength I γ t b :=
+    edist_le_pathELength hγ (hs.trans hst) ht le_rfl
+  have hLfin : pathELength I γ a b ≠ ⊤ := ne_top_of_le_ne_top hfin hmin
+  have hAfin : edist (γ a) (γ s) ≠ ⊤ :=
+    ne_top_of_le_ne_top hLfin (hA.trans (pathELength_mono le_rfl (hst.trans ht)))
+  have hCfin : edist (γ t) (γ b) ≠ ⊤ :=
+    ne_top_of_le_ne_top hLfin (hC.trans (pathELength_mono (hs.trans hst) le_rfl))
+  have htri : edist (γ a) (γ b)
+      ≤ edist (γ a) (γ s) + edist (γ s) (γ t) + edist (γ t) (γ b) :=
+    calc edist (γ a) (γ b) ≤ edist (γ a) (γ t) + edist (γ t) (γ b) := edist_triangle _ _ _
+      _ ≤ edist (γ a) (γ s) + edist (γ s) (γ t) + edist (γ t) (γ b) := by
+        gcongr; exact edist_triangle _ _ _
+  have key : edist (γ a) (γ s) + edist (γ t) (γ b) + pathELength I γ s t
+      ≤ edist (γ a) (γ s) + edist (γ t) (γ b) + (edist (γ s) (γ t) + ε) := by
+    calc edist (γ a) (γ s) + edist (γ t) (γ b) + pathELength I γ s t
+        ≤ pathELength I γ a s + pathELength I γ t b + pathELength I γ s t := by gcongr
+      _ = pathELength I γ a s + pathELength I γ s t + pathELength I γ t b := by ring
+      _ = pathELength I γ a b := hsplit
+      _ ≤ edist (γ a) (γ b) + ε := hmin
+      _ ≤ edist (γ a) (γ s) + edist (γ s) (γ t) + edist (γ t) (γ b) + ε := by gcongr
+      _ = edist (γ a) (γ s) + edist (γ t) (γ b) + (edist (γ s) (γ t) + ε) := by ring
+  exact (ENNReal.add_le_add_iff_left (ENNReal.add_ne_top.2 ⟨hAfin, hCfin⟩)).1 key
+
+/-- STAGE (2), metric form: under the hypotheses of `pathELength_le_edist_add`, on every
+subinterval `d(γ s, γ t) ≤ var(γ|[s,t]) ≤ L(γ|[s,t]) ≤ d(γ s, γ t) + ε`. -/
+theorem eVariationOn_almost_minimising {γ : ℝ → M'} {a b s t : ℝ}
+    (hγ : ContMDiffOn 𝓘(ℝ) I 1 γ (Icc a b)) (hs : a ≤ s) (hst : s ≤ t) (ht : t ≤ b)
+    {ε : ℝ≥0∞} (hmin : pathELength I γ a b ≤ edist (γ a) (γ b) + ε)
+    (hfin : edist (γ a) (γ b) + ε ≠ ⊤) :
+    edist (γ s) (γ t) ≤ eVariationOn γ (Icc s t) ∧
+    eVariationOn γ (Icc s t) ≤ pathELength I γ s t ∧
+    pathELength I γ s t ≤ edist (γ s) (γ t) + ε :=
+  ⟨eVariationOn.edist_le γ (left_mem_Icc.2 hst) (right_mem_Icc.2 hst),
+    eVariationOn_le_pathELength (hγ.mono (Icc_subset_Icc hs ht)),
+    pathELength_le_edist_add hγ hs hst ht hmin hfin⟩
+
+/-- Exact minimisers among `C¹` paths are geodesic segments in the metric sense: if
+`L(γ|[a,b]) = d(γ a, γ b) < ∞`, then on every subinterval
+`d(γ s, γ t) = var(γ|[s,t]) = L(γ|[s,t])`. -/
+theorem minimising_path_metric_geodesic {γ : ℝ → M'} {a b s t : ℝ}
+    (hγ : ContMDiffOn 𝓘(ℝ) I 1 γ (Icc a b)) (hs : a ≤ s) (hst : s ≤ t) (ht : t ≤ b)
+    (hmin : pathELength I γ a b = edist (γ a) (γ b)) (hfin : edist (γ a) (γ b) ≠ ⊤) :
+    edist (γ s) (γ t) = eVariationOn γ (Icc s t) ∧
+    eVariationOn γ (Icc s t) = pathELength I γ s t := by
+  obtain ⟨h1, h2, h3⟩ := eVariationOn_almost_minimising hγ hs hst ht (ε := 0)
+    (by rw [add_zero, hmin]) (by rwa [add_zero])
+  rw [add_zero] at h3
+  exact ⟨le_antisymm h1 (h2.trans h3), le_antisymm h2 (h3.trans h1)⟩
+
+/-- Existence of almost minimising paths: for two points at finite distance and every `ε > 0`
+there is a path on `[0,1]`, `C¹` there, from `x` to `y`, that is `ε`-almost minimising on every
+subinterval in the metric sense: `var(γ|[s,t]) ≤ d(γ s, γ t) + ε` for `0 ≤ s ≤ t ≤ 1`. -/
+theorem exists_almost_minimising_path (x y : M') (hxy : edist x y ≠ ⊤) {ε : ℝ≥0∞}
+    (hε : 0 < ε) (hε' : ε ≠ ⊤) :
+    ∃ γ : ℝ → M', γ 0 = x ∧ γ 1 = y ∧ ContMDiffOn 𝓘(ℝ) I 1 γ (Icc 0 1) ∧
+      pathELength I γ 0 1 < edist x y + ε ∧
+      ∀ s t, 0 ≤ s → s ≤ t → t ≤ 1 →
+        edist (γ s) (γ t) ≤ eVariationOn γ (Icc s t) ∧
+        eVariationOn γ (Icc s t) ≤ pathELength I γ s t ∧
+        pathELength I γ s t ≤ edist (γ s) (γ t) + ε := by
+  have hlt : riemannianEDist I x y < edist x y + ε := by
+    rw [← IsRiemannianManifold.out (I := I)]
+    exact ENNReal.lt_add_right hxy hε.ne'
+  obtain ⟨γ, h0, h1, hγ, hL⟩ := exists_lt_of_riemannianEDist_lt (I := I) hlt
+  refine ⟨γ, h0, h1, hγ, hL, fun s t hs hst ht => ?_⟩
+  refine eVariationOn_almost_minimising hγ hs hst ht ?_ ?_
+  · rw [h0, h1]; exact hL.le
+  · rw [h0, h1]; exact ENNReal.add_ne_top.2 ⟨hxy, hε'⟩
+
+end Variation
 end CTG.ManifoldDistance
