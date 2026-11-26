@@ -13,7 +13,10 @@ Main results, for `z > 0`: positivity, `K0 < K1`, `K0' = -K1`, the identity
 `1/2 - 1/(8z)`, the limit `1/2` and `sSup {z (K1 z / K0 z - 1) | z ≥ 1/4} = 1/2`: the constant `c₀` of
 Proposition "lapse-stab" (Appendix H of the paper) equals `1/2`.  Further `|log (K0 z'/K0 z)| ≤
 (1 + 1/(2 zmin)) |z' - z|` and `e^{-z}/√z ≤ K0 z ≤ √(π/(2z)) e^{-z}` (lower bound for `z ≥ 1`, not sharp).
-Not formalised: Theorem "vargap", Proposition "lapse-stab" itself, `K_ν` for general `ν`.
+Namespace `CTG.BesselK.LapseStab` (added 26 November 2026): Proposition "lapse-stab" as a complete
+deterministic statement (`lapse_stab`, `lapse_stab_additive`, `lapse_stab_general`), with the constants 16, 32,
+96, 12 of the paper; the correlators are arbitrary positive reals.
+Not formalised: Theorem "vargap", Theorem "lapse-est", `K_ν` for general `ν`.
 No `sorry`, no `axiom`, no `native_decide`.  Written by a sub-task of an AI session on 26 November 2026.
 -/
 
@@ -460,3 +463,382 @@ theorem K0_ge {z : ℝ} (hz : 1 ≤ z) : exp (-z) / sqrt z ≤ K0 z := by
   linarith
 
 end CTG.BesselK
+
+/-!
+# Proposition `prop:lapse-stab` as a complete deterministic statement (A122)
+
+Stability of the lapse estimator `K̂ = 3(ρ-1)/(g₁g₃)` under errors of the distances, with
+`K₀ = K0` of the block above and `c₀ = 1/2` (`c0_bound`, `c0_eq`).  Four nodes on a line with gaps
+`g₁, g₂, g₃`; true distances `r_ab = g₁`, `r_bc = g₂`, `r_cd = g₃`, `r_ac = g₁+g₂`, `r_bd = g₂+g₃`,
+`r_ad = g₁+g₂+g₃`; used distances `r̃` with `|r̃/r - 1| ≤ ε ≤ 1/4`; the cross-ratio
+`ρ = ((Z_ad Z_bc)/(Z_ac Z_bd))²` with `Z_xy = x_xy / K₀(m̄ r_xy)` from positive correlators `x_xy`.
+
+The arithmetic of the last step (`stab_rho`, `stab_term1`, `stab_term2`, `stab_final`,
+`stab_from_log`) is a verbatim re-proof of the lemmas `TimeAppendix.stab_*` of the seventh Lean
+file `lean/CorrelationsToGeometryReal3b.lean`, which cannot be imported here.
+-/
+
+namespace CTG.BesselK.LapseStab
+
+/-! ### The arithmetic of the last step (re-proved from the seventh file) -/
+
+theorem stab_rho (ρ x lam : ℝ) (hρ : 0 < ρ) (hx : |x| ≤ lam) (hl : lam ≤ 1) :
+    |ρ * Real.exp x - ρ| ≤ 2 * ρ * lam := by
+  have h1 : |Real.exp x - 1| ≤ 2 * |x| := Real.abs_exp_sub_one_le (le_trans hx hl)
+  have e : ρ * Real.exp x - ρ = ρ * (Real.exp x - 1) := by ring
+  rw [e, abs_mul, abs_of_pos hρ]
+  have h2 : ρ * |Real.exp x - 1| ≤ ρ * (2 * |x|) := mul_le_mul_of_nonneg_left h1 hρ.le
+  have h3 : ρ * (2 * |x|) ≤ ρ * (2 * lam) :=
+    mul_le_mul_of_nonneg_left (by linarith) hρ.le
+  linarith
+
+theorem stab_term1 (D g th ell A : ℝ) (hell : 0 < ell) (hg : ell ^ 2 / 4 ≤ g)
+    (hth : 1 / 4 ≤ 1 + th) (hA : 0 ≤ A) (hD : |D| ≤ A) :
+    |3 * D / (g * (1 + th))| ≤ 48 * A / ell ^ 2 := by
+  have hl2 : 0 < ell ^ 2 := by positivity
+  have hg0 : 0 < g := by linarith
+  have hth0 : 0 < 1 + th := by linarith
+  have hden : ell ^ 2 / 16 ≤ g * (1 + th) := by nlinarith
+  have hden0 : 0 < g * (1 + th) := mul_pos hg0 hth0
+  rw [abs_div, abs_of_pos hden0, abs_mul, abs_of_pos (by norm_num : (0:ℝ) < 3)]
+  rw [div_le_div_iff₀ hden0 hl2]
+  have h1 : 3 * |D| ≤ 3 * A := by linarith
+  have h2 : 3 * |D| * ell ^ 2 ≤ 3 * A * ell ^ 2 := mul_le_mul_of_nonneg_right h1 hl2.le
+  have h3 : 3 * A * ell ^ 2 ≤ 48 * A * (g * (1 + th)) := by nlinarith
+  linarith
+
+theorem stab_term2 (Kh th eps : ℝ) (heps : 0 ≤ eps) (hth : |th| ≤ 3 * eps)
+    (hth' : 1 / 4 ≤ 1 + th) :
+    |Kh * (1 / (1 + th) - 1)| ≤ 12 * eps * |Kh| := by
+  have hth0 : 0 < 1 + th := by linarith
+  have e : 1 / (1 + th) - 1 = -th / (1 + th) := by field_simp; ring
+  rw [e, abs_mul, abs_div, abs_neg, abs_of_pos hth0]
+  have h1 : |th| / (1 + th) ≤ 12 * eps := by
+    rw [div_le_iff₀ hth0]; nlinarith [abs_nonneg th]
+  have := mul_le_mul_of_nonneg_left h1 (abs_nonneg Kh)
+  linarith
+
+theorem stab_final (ρ ρt g th ell lam eps : ℝ) (hell : 0 < ell) (hρ : 0 < ρ) (hlam : 0 ≤ lam)
+    (hg : ell ^ 2 / 4 ≤ g) (heps : 0 ≤ eps) (heps' : eps ≤ 1 / 4) (hth : |th| ≤ 3 * eps)
+    (hρt : |ρt - ρ| ≤ 2 * ρ * lam) :
+    |3 * (ρt - 1) / (g * (1 + th)) - 3 * (ρ - 1) / g|
+      ≤ 96 * ρ * lam / ell ^ 2 + 12 * eps * |3 * (ρ - 1) / g| := by
+  have hth' : 1 / 4 ≤ 1 + th := by
+    have := abs_le.mp hth; linarith [this.1]
+  have hg0 : 0 < g := by nlinarith [sq_nonneg ell, pow_pos hell 2]
+  have hth0 : 0 < 1 + th := by linarith
+  have e : 3 * (ρt - 1) / (g * (1 + th)) - 3 * (ρ - 1) / g
+      = 3 * (ρt - ρ) / (g * (1 + th)) + (3 * (ρ - 1) / g) * (1 / (1 + th) - 1) := by
+    field_simp; ring
+  rw [e]
+  have hA : 0 ≤ 2 * ρ * lam := by positivity
+  have t1 := stab_term1 (ρt - ρ) g th ell (2 * ρ * lam) hell hg hth' hA hρt
+  have t2 := stab_term2 (3 * (ρ - 1) / g) th eps heps hth hth'
+  have e2 : 48 * (2 * ρ * lam) / ell ^ 2 = 96 * ρ * lam / ell ^ 2 := by ring
+  calc |3 * (ρt - ρ) / (g * (1 + th)) + (3 * (ρ - 1) / g) * (1 / (1 + th) - 1)|
+      ≤ |3 * (ρt - ρ) / (g * (1 + th))| + |(3 * (ρ - 1) / g) * (1 / (1 + th) - 1)| :=
+        abs_add_le _ _
+    _ ≤ 48 * (2 * ρ * lam) / ell ^ 2 + 12 * eps * |3 * (ρ - 1) / g| := add_le_add t1 t2
+    _ = 96 * ρ * lam / ell ^ 2 + 12 * eps * |3 * (ρ - 1) / g| := by rw [e2]
+
+theorem stab_from_log (ρ x g th ell lam eps : ℝ) (hell : 0 < ell) (hρ : 0 < ρ)
+    (hx : |x| ≤ lam) (hl : lam ≤ 1) (hg : ell ^ 2 / 4 ≤ g) (heps : 0 ≤ eps)
+    (heps' : eps ≤ 1 / 4) (hth : |th| ≤ 3 * eps) :
+    |3 * (ρ * Real.exp x - 1) / (g * (1 + th)) - 3 * (ρ - 1) / g|
+      ≤ 96 * ρ * lam / ell ^ 2 + 12 * eps * |3 * (ρ - 1) / g| :=
+  stab_final ρ (ρ * Real.exp x) g th ell lam eps hell hρ (le_trans (abs_nonneg x) hx) hg heps
+    heps' hth (stab_rho ρ x lam hρ hx hl)
+
+/-! ### The analytic step: `log K₀(z) + z` is `c₀`-Lipschitz in `log z` -/
+
+/-- With `G(z) = log K₀(z) + z`: `|G(z') - G(z)| ≤ c₀ |log z' - log z|`, `c₀ = 1/2`, for ALL
+`z, z' > 0` (no lower bound `z ≥ 1/4` needed, by `c0_bound`). -/
+theorem G_log_lipschitz {z z' : ℝ} (hz : 0 < z) (hz' : 0 < z') :
+    |(log (K0 z') + z') - (log (K0 z) + z)| ≤ (1 / 2) * |log z' - log z| := by
+  set H : ℝ → ℝ := fun u => log (K0 (exp u)) + exp u with hH
+  have hd : ∀ u, HasDerivAt H (-(exp u) * (K1 (exp u) / K0 (exp u) - 1)) u := by
+    intro u
+    have h0 := (K0_pos (exp_pos u)).ne'
+    have he := Real.hasDerivAt_exp u
+    have hK := (hasDerivAt_K0 (exp_pos u)).comp u he
+    have hl := hK.log h0
+    convert hl.add he using 1
+    simp only [Function.comp]
+    field_simp
+    ring
+  have hb : ∀ u, ‖-(exp u) * (K1 (exp u) / K0 (exp u) - 1)‖ ≤ 1 / 2 := by
+    intro u
+    rw [Real.norm_eq_abs, abs_mul, abs_neg, abs_of_pos (exp_pos u)]
+    have := c0_bound (exp_pos u)
+    have hq : 1 < K1 (exp u) / K0 (exp u) :=
+      (one_lt_div (K0_pos (exp_pos u))).mpr (K0_lt_K1 (exp_pos u))
+    rw [abs_of_pos (by linarith)]
+    exact this.2
+  have := convex_univ.norm_image_sub_le_of_norm_hasDerivWithin_le
+    (fun u _ => (hd u).hasDerivWithinAt) (fun u _ => hb u) (mem_univ (log z)) (mem_univ (log z'))
+  simp only [hH, Real.exp_log hz, Real.exp_log hz', Real.norm_eq_abs] at this
+  exact this
+
+theorem abs_log_le_of_ratio {t ε : ℝ} (ht : 0 < t) (h : |t - 1| ≤ ε) (hε : ε ≤ 1 / 4) :
+    |log t| ≤ 4 / 3 * ε := by
+  have h1 := abs_le.mp h
+  have hε0 : 0 ≤ ε := le_trans (abs_nonneg _) h
+  rw [abs_le]
+  constructor
+  · have hl := Real.log_le_sub_one_of_pos (inv_pos.mpr ht)
+    rw [Real.log_inv] at hl
+    have : t⁻¹ - 1 ≤ 4 / 3 * ε := by
+      rw [inv_eq_one_div, div_sub_one ht.ne', div_le_iff₀ ht]
+      nlinarith
+    linarith
+  · have := Real.log_le_sub_one_of_pos ht
+    linarith
+
+/-- One pair: `r̃ > 0` and `|G(m̄ r̃) - G(m̄ r)| ≤ c₀ · (4/3) ε = (2/3) ε`. -/
+theorem pair_bound {m r rt ε : ℝ} (hm : 0 < m) (hr : 0 < r) (h : |rt / r - 1| ≤ ε)
+    (hε : ε ≤ 1 / 4) :
+    0 < rt ∧ |(log (K0 (m * rt)) + m * rt) - (log (K0 (m * r)) + m * r)| ≤ 2 / 3 * ε := by
+  have h1 := abs_le.mp h
+  have hq : 0 < rt / r := by linarith
+  have hrt : 0 < rt := by
+    have : rt = r * (rt / r) := by field_simp
+    rw [this]; positivity
+  refine ⟨hrt, ?_⟩
+  have hz : 0 < m * r := mul_pos hm hr
+  have hz' : 0 < m * rt := mul_pos hm hrt
+  have hG := G_log_lipschitz hz hz'
+  have e : log (m * rt) - log (m * r) = log (rt / r) := by
+    rw [← Real.log_div hz'.ne' hz.ne']
+    congr 1; field_simp
+  rw [e] at hG
+  have hL := abs_log_le_of_ratio hq h hε
+  linarith
+
+/-! ### Definitions of the proposition -/
+
+/-- Normalised correlator `Z = x / K₀(m̄ r)`. -/
+noncomputable def normCorr (m x r : ℝ) : ℝ := x / K0 (m * r)
+
+/-- Cross-ratio `ρ = ((Z_ad Z_bc)/(Z_ac Z_bd))²` built from four correlators and four distances. -/
+noncomputable def crossRatio (m xad xbc xac xbd rad rbc rac rbd : ℝ) : ℝ :=
+  (normCorr m xad rad * normCorr m xbc rbc / (normCorr m xac rac * normCorr m xbd rbd)) ^ 2
+
+/-- `Δ̃ = r̃_ad + r̃_bc - r̃_ac - r̃_bd`. -/
+def deltaT (rad rbc rac rbd : ℝ) : ℝ := rad + rbc - rac - rbd
+
+theorem normCorr_eq {m x r : ℝ} (hm : 0 < m) (hx : 0 < x) (hr : 0 < r) :
+    normCorr m x r = exp (log x - log (K0 (m * r))) := by
+  rw [Real.exp_sub, Real.exp_log hx, Real.exp_log (K0_pos (mul_pos hm hr)), normCorr]
+
+theorem crossRatio_eq {m xad xbc xac xbd rad rbc rac rbd : ℝ} (hm : 0 < m)
+    (h1 : 0 < xad) (h2 : 0 < xbc) (h3 : 0 < xac) (h4 : 0 < xbd)
+    (r1 : 0 < rad) (r2 : 0 < rbc) (r3 : 0 < rac) (r4 : 0 < rbd) :
+    crossRatio m xad xbc xac xbd rad rbc rac rbd =
+      exp (2 * ((log xad - log (K0 (m * rad))) + (log xbc - log (K0 (m * rbc)))
+        - (log xac - log (K0 (m * rac))) - (log xbd - log (K0 (m * rbd))))) := by
+  unfold crossRatio
+  rw [normCorr_eq hm h1 r1, normCorr_eq hm h2 r2, normCorr_eq hm h3 r3, normCorr_eq hm h4 r4,
+    ← Real.exp_add, ← Real.exp_add, ← Real.exp_sub, sq, ← Real.exp_add]
+  congr 1; ring
+
+theorem crossRatio_pos {m xad xbc xac xbd rad rbc rac rbd : ℝ} (hm : 0 < m)
+    (h1 : 0 < xad) (h2 : 0 < xbc) (h3 : 0 < xac) (h4 : 0 < xbd)
+    (r1 : 0 < rad) (r2 : 0 < rbc) (r3 : 0 < rac) (r4 : 0 < rbd) :
+    0 < crossRatio m xad xbc xac xbd rad rbc rac rbd := by
+  rw [crossRatio_eq hm h1 h2 h3 h4 r1 r2 r3 r4]; exact exp_pos _
+
+/-! ### Step (2): the perturbation of the logarithm of the cross-ratio -/
+
+/-- **Perturbation bound, sharp form.** True distances with `r_ad + r_bc - r_ac - r_bd = 0` (points
+on a line), used distances with relative error `≤ ε ≤ 1/4`, the same positive correlators:
+`|log ρ̃ - log ρ| ≤ (32/3) c₀ ε + 2 m̄ |Δ̃|` with `c₀ = 1/2`, i.e. `(16/3) ε + 2 m̄ |Δ̃|`. -/
+theorem log_crossRatio_perturb_sharp {m ε xad xbc xac xbd rad rbc rac rbd
+    rtad rtbc rtac rtbd : ℝ} (hm : 0 < m) (hε : ε ≤ 1 / 4)
+    (h1 : 0 < xad) (h2 : 0 < xbc) (h3 : 0 < xac) (h4 : 0 < xbd)
+    (r1 : 0 < rad) (r2 : 0 < rbc) (r3 : 0 < rac) (r4 : 0 < rbd)
+    (hline : rad + rbc - rac - rbd = 0)
+    (e1 : |rtad / rad - 1| ≤ ε) (e2 : |rtbc / rbc - 1| ≤ ε) (e3 : |rtac / rac - 1| ≤ ε)
+    (e4 : |rtbd / rbd - 1| ≤ ε) :
+    |log (crossRatio m xad xbc xac xbd rtad rtbc rtac rtbd)
+        - log (crossRatio m xad xbc xac xbd rad rbc rac rbd)|
+      ≤ 32 / 3 * (1 / 2) * ε + 2 * m * |deltaT rtad rtbc rtac rtbd| := by
+  obtain ⟨t1, b1⟩ := pair_bound hm r1 e1 hε
+  obtain ⟨t2, b2⟩ := pair_bound hm r2 e2 hε
+  obtain ⟨t3, b3⟩ := pair_bound hm r3 e3 hε
+  obtain ⟨t4, b4⟩ := pair_bound hm r4 e4 hε
+  rw [crossRatio_eq hm h1 h2 h3 h4 t1 t2 t3 t4, crossRatio_eq hm h1 h2 h3 h4 r1 r2 r3 r4,
+    Real.log_exp, Real.log_exp]
+  set D := deltaT rtad rtbc rtac rtbd with hD
+  have e : 2 * ((log xad - log (K0 (m * rtad))) + (log xbc - log (K0 (m * rtbc)))
+        - (log xac - log (K0 (m * rtac))) - (log xbd - log (K0 (m * rtbd))))
+      - 2 * ((log xad - log (K0 (m * rad))) + (log xbc - log (K0 (m * rbc)))
+        - (log xac - log (K0 (m * rac))) - (log xbd - log (K0 (m * rbd))))
+      = 2 * (-((log (K0 (m * rtad)) + m * rtad) - (log (K0 (m * rad)) + m * rad))
+          - ((log (K0 (m * rtbc)) + m * rtbc) - (log (K0 (m * rbc)) + m * rbc))
+          + ((log (K0 (m * rtac)) + m * rtac) - (log (K0 (m * rac)) + m * rac))
+          + ((log (K0 (m * rtbd)) + m * rtbd) - (log (K0 (m * rbd)) + m * rbd)))
+        + 2 * m * D := by
+    rw [hD, deltaT]; linear_combination (-2 * m) * hline
+  rw [e]
+  have q1 := abs_le.mp b1
+  have q2 := abs_le.mp b2
+  have q3 := abs_le.mp b3
+  have q4 := abs_le.mp b4
+  have m1 : m * D ≤ m * |D| := mul_le_mul_of_nonneg_left (le_abs_self _) hm.le
+  have m2 : -(m * |D|) ≤ m * D := by
+    have := mul_le_mul_of_nonneg_left (neg_abs_le D) hm.le; linarith
+  rw [abs_le]; constructor <;> linarith
+
+/-- **Perturbation bound in the form of the paper**: `λ = 16 c₀ ε + 2 m̄ |Δ̃|`, `c₀ = 1/2`. -/
+theorem log_crossRatio_perturb {m ε xad xbc xac xbd rad rbc rac rbd
+    rtad rtbc rtac rtbd : ℝ} (hm : 0 < m) (hε0 : 0 ≤ ε) (hε : ε ≤ 1 / 4)
+    (h1 : 0 < xad) (h2 : 0 < xbc) (h3 : 0 < xac) (h4 : 0 < xbd)
+    (r1 : 0 < rad) (r2 : 0 < rbc) (r3 : 0 < rac) (r4 : 0 < rbd)
+    (hline : rad + rbc - rac - rbd = 0)
+    (e1 : |rtad / rad - 1| ≤ ε) (e2 : |rtbc / rbc - 1| ≤ ε) (e3 : |rtac / rac - 1| ≤ ε)
+    (e4 : |rtbd / rbd - 1| ≤ ε) :
+    |log (crossRatio m xad xbc xac xbd rtad rtbc rtac rtbd)
+        - log (crossRatio m xad xbc xac xbd rad rbc rac rbd)|
+      ≤ 16 * (1 / 2) * ε + 2 * m * |deltaT rtad rtbc rtac rtbd| := by
+  have := log_crossRatio_perturb_sharp hm hε h1 h2 h3 h4 r1 r2 r3 r4 hline e1 e2 e3 e4
+  linarith
+
+/-- `|Δ̃| ≤ 16 ℓ ε` for four nodes on a line with gaps `≤ 2ℓ`. -/
+theorem deltaT_le {ℓ ε g1 g2 g3 rtad rtbc rtac rtbd : ℝ}
+    (hg1 : 0 < g1) (hg2 : 0 < g2) (hg3 : 0 < g3)
+    (u1 : g1 ≤ 2 * ℓ) (u2 : g2 ≤ 2 * ℓ) (u3 : g3 ≤ 2 * ℓ)
+    (e1 : |rtad / (g1 + g2 + g3) - 1| ≤ ε) (e2 : |rtbc / g2 - 1| ≤ ε)
+    (e3 : |rtac / (g1 + g2) - 1| ≤ ε) (e4 : |rtbd / (g2 + g3) - 1| ≤ ε) :
+    |deltaT rtad rtbc rtac rtbd| ≤ 16 * ℓ * ε := by
+  have abs_err : ∀ r rt : ℝ, 0 < r → |rt / r - 1| ≤ ε → |rt - r| ≤ ε * r := by
+    intro r rt hr h
+    have : rt - r = r * (rt / r - 1) := by field_simp
+    rw [this, abs_mul, abs_of_pos hr]; nlinarith [abs_nonneg (rt / r - 1)]
+  have a1 := abs_le.mp (abs_err _ _ (by positivity) e1)
+  have a2 := abs_le.mp (abs_err _ _ hg2 e2)
+  have a3 := abs_le.mp (abs_err _ _ (by positivity) e3)
+  have a4 := abs_le.mp (abs_err _ _ (by positivity) e4)
+  have hε0 : 0 ≤ ε := le_trans (abs_nonneg _) e2
+  have hb : ε * (2 * g1 + 4 * g2 + 2 * g3) ≤ 16 * ℓ * ε := by nlinarith
+  rw [deltaT, abs_le]; constructor <;> nlinarith
+
+/-- `Δ̃ = 0` for additive used distances. -/
+theorem deltaT_additive {rtab rtbc rtcd : ℝ} :
+    deltaT (rtab + rtbc + rtcd) rtbc (rtab + rtbc) (rtbc + rtcd) = 0 := by
+  rw [deltaT]; ring
+
+/-- `Δ̃ = 0` for used distances `r̃_xy = r_xy + c_x + c_y` (true distances on a line). -/
+theorem deltaT_shift {g1 g2 g3 ca cb cc cd : ℝ} :
+    deltaT (g1 + g2 + g3 + ca + cd) (g2 + cb + cc) (g1 + g2 + ca + cc) (g2 + g3 + cb + cd) = 0 := by
+  rw [deltaT]; ring
+
+/-! ### Step (3): Proposition `prop:lapse-stab` -/
+
+/-- **Proposition `prop:lapse-stab`** (complete, deterministic; `K₀ = K0`, `c₀ = 1/2`).
+Nodes on a line with gaps `g₁, g₂, g₃ ∈ [ℓ/2, 2ℓ]`; positive correlators; used distances with
+relative errors `≤ ε ≤ 1/4`; `λ = 16 c₀ ε + 2 m̄ |Δ̃| ≤ 1`.  Then
+`|K̃ - K̂| ≤ 96 ρ λ / ℓ² + 12 ε |K̂|` with `K̂ = 3(ρ-1)/(g₁g₃)`, `K̃ = 3(ρ̃-1)/(r̃_ab r̃_cd)`.
+The hypothesis `m̄ ℓ ≥ 1` of the paper is not needed. -/
+theorem lapse_stab {m ℓ ε g1 g2 g3 xad xbc xac xbd rtab rtbc rtcd rtac rtbd rtad : ℝ}
+    (hm : 0 < m) (hℓ : 0 < ℓ)
+    (l1 : ℓ / 2 ≤ g1) (l2 : ℓ / 2 ≤ g2) (l3 : ℓ / 2 ≤ g3)
+    (hε0 : 0 ≤ ε) (hε : ε ≤ 1 / 4)
+    (h1 : 0 < xad) (h2 : 0 < xbc) (h3 : 0 < xac) (h4 : 0 < xbd)
+    (eab : |rtab / g1 - 1| ≤ ε) (ecd : |rtcd / g3 - 1| ≤ ε)
+    (ead : |rtad / (g1 + g2 + g3) - 1| ≤ ε) (ebc : |rtbc / g2 - 1| ≤ ε)
+    (eac : |rtac / (g1 + g2) - 1| ≤ ε) (ebd : |rtbd / (g2 + g3) - 1| ≤ ε)
+    (hlam : 16 * (1 / 2) * ε + 2 * m * |deltaT rtad rtbc rtac rtbd| ≤ 1) :
+    |3 * (crossRatio m xad xbc xac xbd rtad rtbc rtac rtbd - 1) / (rtab * rtcd)
+        - 3 * (crossRatio m xad xbc xac xbd (g1 + g2 + g3) g2 (g1 + g2) (g2 + g3) - 1) / (g1 * g3)|
+      ≤ 96 * crossRatio m xad xbc xac xbd (g1 + g2 + g3) g2 (g1 + g2) (g2 + g3)
+          * (16 * (1 / 2) * ε + 2 * m * |deltaT rtad rtbc rtac rtbd|) / ℓ ^ 2
+        + 12 * ε * |3 * (crossRatio m xad xbc xac xbd (g1 + g2 + g3) g2 (g1 + g2) (g2 + g3) - 1)
+            / (g1 * g3)| := by
+  have hg1 : 0 < g1 := by linarith
+  have hg2 : 0 < g2 := by linarith
+  have hg3 : 0 < g3 := by linarith
+  set ρ := crossRatio m xad xbc xac xbd (g1 + g2 + g3) g2 (g1 + g2) (g2 + g3) with hρdef
+  set ρt := crossRatio m xad xbc xac xbd rtad rtbc rtac rtbd with hρtdef
+  set lam := 16 * (1 / 2) * ε + 2 * m * |deltaT rtad rtbc rtac rtbd| with hlamdef
+  have hρ : 0 < ρ := crossRatio_pos hm h1 h2 h3 h4 (by positivity) hg2 (by positivity)
+    (by positivity)
+  have hlog := log_crossRatio_perturb (rad := g1 + g2 + g3) (rbc := g2) (rac := g1 + g2)
+    (rbd := g2 + g3) hm hε0 hε h1 h2 h3 h4 (by positivity) hg2 (by positivity) (by positivity)
+    (by ring) ead ebc eac ebd
+  obtain ⟨tad, -⟩ := pair_bound hm (by positivity : (0:ℝ) < g1 + g2 + g3) ead hε
+  obtain ⟨tbc, -⟩ := pair_bound hm hg2 ebc hε
+  obtain ⟨tac, -⟩ := pair_bound hm (by positivity : (0:ℝ) < g1 + g2) eac hε
+  obtain ⟨tbd, -⟩ := pair_bound hm (by positivity : (0:ℝ) < g2 + g3) ebd hε
+  have hρt : 0 < ρt := crossRatio_pos hm h1 h2 h3 h4 tad tbc tac tbd
+  set x := log ρt - log ρ with hx
+  have hρtx : ρt = ρ * exp x := by
+    rw [hx, Real.exp_sub, Real.exp_log hρt, Real.exp_log hρ]; field_simp
+  set th := (rtab / g1) * (rtcd / g3) - 1 with hth
+  have hprod : rtab * rtcd = g1 * g3 * (1 + th) := by rw [hth]; field_simp; ring
+  have hthb : |th| ≤ 3 * ε := by
+    have a := abs_le.mp eab
+    have b := abs_le.mp ecd
+    have e : th = (rtab / g1 - 1) * (rtcd / g3 - 1) + (rtab / g1 - 1) + (rtcd / g3 - 1) := by
+      rw [hth]; ring
+    rw [e, abs_le]; constructor <;> nlinarith
+  have hg : ℓ ^ 2 / 4 ≤ g1 * g3 := by nlinarith
+  rw [hprod, hρtx]
+  exact stab_from_log ρ x (g1 * g3) th ℓ lam ε hℓ hρ hlog hlam hg hε0 hε hthb
+
+/-- Corollary: additive used distances, `λ = 16 c₀ ε` (`= 8 ε`). -/
+theorem lapse_stab_additive {m ℓ ε g1 g2 g3 xad xbc xac xbd rtab rtbc rtcd : ℝ}
+    (hm : 0 < m) (hℓ : 0 < ℓ)
+    (l1 : ℓ / 2 ≤ g1) (l2 : ℓ / 2 ≤ g2) (l3 : ℓ / 2 ≤ g3)
+    (hε0 : 0 ≤ ε) (hε : ε ≤ 1 / 8)
+    (h1 : 0 < xad) (h2 : 0 < xbc) (h3 : 0 < xac) (h4 : 0 < xbd)
+    (eab : |rtab / g1 - 1| ≤ ε) (ecd : |rtcd / g3 - 1| ≤ ε)
+    (ead : |(rtab + rtbc + rtcd) / (g1 + g2 + g3) - 1| ≤ ε) (ebc : |rtbc / g2 - 1| ≤ ε)
+    (eac : |(rtab + rtbc) / (g1 + g2) - 1| ≤ ε) (ebd : |(rtbc + rtcd) / (g2 + g3) - 1| ≤ ε) :
+    |3 * (crossRatio m xad xbc xac xbd (rtab + rtbc + rtcd) rtbc (rtab + rtbc) (rtbc + rtcd) - 1)
+          / (rtab * rtcd)
+        - 3 * (crossRatio m xad xbc xac xbd (g1 + g2 + g3) g2 (g1 + g2) (g2 + g3) - 1) / (g1 * g3)|
+      ≤ 96 * crossRatio m xad xbc xac xbd (g1 + g2 + g3) g2 (g1 + g2) (g2 + g3)
+          * (16 * (1 / 2) * ε) / ℓ ^ 2
+        + 12 * ε * |3 * (crossRatio m xad xbc xac xbd (g1 + g2 + g3) g2 (g1 + g2) (g2 + g3) - 1)
+            / (g1 * g3)| := by
+  have h := lapse_stab hm hℓ l1 l2 l3 hε0 (by linarith) h1 h2 h3 h4 eab ecd ead ebc eac ebd
+    (by rw [deltaT_additive]; simp; linarith)
+  rw [deltaT_additive] at h
+  simpa using h
+
+/-- Corollary: general used distances, `λ ≤ 16 c₀ ε + 32 m̄ ℓ ε`. -/
+theorem lapse_stab_general {m ℓ ε g1 g2 g3 xad xbc xac xbd rtab rtbc rtcd rtac rtbd rtad : ℝ}
+    (hm : 0 < m) (hℓ : 0 < ℓ)
+    (l1 : ℓ / 2 ≤ g1) (l2 : ℓ / 2 ≤ g2) (l3 : ℓ / 2 ≤ g3)
+    (u1 : g1 ≤ 2 * ℓ) (u2 : g2 ≤ 2 * ℓ) (u3 : g3 ≤ 2 * ℓ)
+    (hε0 : 0 ≤ ε) (hε : ε ≤ 1 / 4)
+    (h1 : 0 < xad) (h2 : 0 < xbc) (h3 : 0 < xac) (h4 : 0 < xbd)
+    (eab : |rtab / g1 - 1| ≤ ε) (ecd : |rtcd / g3 - 1| ≤ ε)
+    (ead : |rtad / (g1 + g2 + g3) - 1| ≤ ε) (ebc : |rtbc / g2 - 1| ≤ ε)
+    (eac : |rtac / (g1 + g2) - 1| ≤ ε) (ebd : |rtbd / (g2 + g3) - 1| ≤ ε)
+    (hlam : 16 * (1 / 2) * ε + 32 * m * ℓ * ε ≤ 1) :
+    |3 * (crossRatio m xad xbc xac xbd rtad rtbc rtac rtbd - 1) / (rtab * rtcd)
+        - 3 * (crossRatio m xad xbc xac xbd (g1 + g2 + g3) g2 (g1 + g2) (g2 + g3) - 1) / (g1 * g3)|
+      ≤ 96 * crossRatio m xad xbc xac xbd (g1 + g2 + g3) g2 (g1 + g2) (g2 + g3)
+          * (16 * (1 / 2) * ε + 32 * m * ℓ * ε) / ℓ ^ 2
+        + 12 * ε * |3 * (crossRatio m xad xbc xac xbd (g1 + g2 + g3) g2 (g1 + g2) (g2 + g3) - 1)
+            / (g1 * g3)| := by
+  have hg1 : 0 < g1 := by linarith
+  have hg2 : 0 < g2 := by linarith
+  have hg3 : 0 < g3 := by linarith
+  have hD := deltaT_le hg1 hg2 hg3 u1 u2 u3 ead ebc eac ebd
+  have hmD : 2 * m * |deltaT rtad rtbc rtac rtbd| ≤ 32 * m * ℓ * ε := by
+    have := mul_le_mul_of_nonneg_left hD (by positivity : (0:ℝ) ≤ 2 * m); linarith
+  have h := lapse_stab hm hℓ l1 l2 l3 hε0 hε h1 h2 h3 h4 eab ecd ead ebc eac ebd (by linarith)
+  have hρ : 0 < crossRatio m xad xbc xac xbd (g1 + g2 + g3) g2 (g1 + g2) (g2 + g3) :=
+    crossRatio_pos hm h1 h2 h3 h4 (by positivity) hg2 (by positivity) (by positivity)
+  have hmono : 96 * crossRatio m xad xbc xac xbd (g1 + g2 + g3) g2 (g1 + g2) (g2 + g3)
+        * (16 * (1 / 2) * ε + 2 * m * |deltaT rtad rtbc rtac rtbd|) / ℓ ^ 2
+      ≤ 96 * crossRatio m xad xbc xac xbd (g1 + g2 + g3) g2 (g1 + g2) (g2 + g3)
+        * (16 * (1 / 2) * ε + 32 * m * ℓ * ε) / ℓ ^ 2 := by
+    apply div_le_div_of_nonneg_right _ (by positivity)
+    apply mul_le_mul_of_nonneg_left _ (by positivity)
+    linarith
+  linarith
+
+end CTG.BesselK.LapseStab
