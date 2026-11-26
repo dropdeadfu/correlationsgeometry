@@ -1383,4 +1383,303 @@ theorem exists_minimising_curve {M' : Type*} [EMetricSpace M'] [ChartedSpace H M
     (fun a b => edist_ne_top_of_preconnected a b) x y
 
 end Minimiser
+
+/-! ### Differentiability of the distance in time almost everywhere, and a one-sided envelope theorem
+(block A115)
+
+(1) For a `TimeMetric` and a pair of points with finite distances, `τ ↦ d_τ(x,y)` is Lipschitz on
+every compact subinterval of the time set, with explicit constant `κ e^{2κ(q−p)} d_p(x,y)`, hence
+(Rademacher in one variable, Mathlib's `LipschitzOnWith.ae_differentiableWithinAt_of_mem_real`)
+differentiable at almost every interior time; where it is differentiable,
+`|∂_τ d_τ(x,y)| ≤ κ d_τ(x,y)`.  This is "almost every τ for each pair", NOT "every τ for almost
+every pair"; the joint statement is not done (see the report of A115).
+(2) An abstract one-sided (Danskin-type) envelope theorem: for `F τ ≤ g τ k` with equality at
+`(τ₀, k₀)` and `g(·,k₀)` differentiable at `τ₀`, `F τ − F τ₀ ≤ ∂g (τ − τ₀) + o(|τ − τ₀|)`;
+minimisers converge under lower semicontinuity, uniform convergence in `τ` and compactness; and
+two-sided differentiability under a uniform one-sided first-order bound near `k₀`, which holds when
+`∂_τ g` is jointly continuous (recovering `envelope_min` with lower semicontinuity in place of
+continuity of `g`). -/
+
+section DistanceInTime
+
+/-- The real distance at time `τ` of a `TimeMetric`. -/
+def TimeMetric.dist {s : Set ℝ} (G : TimeMetric I M s) (x y : M) (τ : ℝ) : ℝ :=
+  (letI := G.norms τ; Manifold.riemannianEDist I x y).toReal
+
+theorem TimeMetric.dist_nonneg {s : Set ℝ} (G : TimeMetric I M s) (x y : M) (τ : ℝ) :
+    0 ≤ G.dist x y τ := ENNReal.toReal_nonneg
+
+/-- `|d_b − d_a| ≤ (e^{κ|b−a|} − 1) d_a`. -/
+theorem TimeMetric.dist_lip {s : Set ℝ} (G : TimeMetric I M s) (x y : M) {a b : ℝ}
+    (ha : a ∈ s) (hb : b ∈ s) (hfin : (letI := G.norms a; Manifold.riemannianEDist I x y) ≠ ⊤) :
+    |G.dist x y b - G.dist x y a| ≤ (Real.exp (G.κ * |b - a|) - 1) * G.dist x y a :=
+  G.lipschitz ha hb x y hfin
+
+theorem exp_sub_one_le_mul_exp (y : ℝ) (hy : 0 ≤ y) : Real.exp y - 1 ≤ y * Real.exp y := by
+  have h := Real.add_one_le_exp (-y)
+  have h2 : Real.exp (-y) * Real.exp y = 1 := by rw [← Real.exp_add]; simp
+  nlinarith [Real.exp_pos y]
+
+/-- Bound in a compact interval of times: `d_a ≤ e^{κ(q−p)} d_p` for `a ∈ [p, q] ⊆ s`. -/
+theorem TimeMetric.dist_le_of_mem {s : Set ℝ} (G : TimeMetric I M s) (x y : M) {p q a : ℝ}
+    (hsub : Icc p q ⊆ s) (ha : a ∈ Icc p q)
+    (hfin : (letI := G.norms p; Manifold.riemannianEDist I x y) ≠ ⊤) :
+    G.dist x y a ≤ Real.exp (G.κ * (q - p)) * G.dist x y p := by
+  have hp : p ∈ Icc p q := left_mem_Icc.2 (ha.1.trans ha.2)
+  have h := G.dist_lip x y (hsub hp) (hsub ha) hfin
+  have h1 : G.dist x y a ≤ Real.exp (G.κ * |a - p|) * G.dist x y p := by
+    have := le_abs_self (G.dist x y a - G.dist x y p); nlinarith
+  have h2 : Real.exp (G.κ * |a - p|) ≤ Real.exp (G.κ * (q - p)) := by
+    apply Real.exp_le_exp.2
+    rw [abs_of_nonneg (by linarith [ha.1])]
+    exact mul_le_mul_of_nonneg_left (by linarith [ha.2]) G.κ_nonneg
+  exact h1.trans (mul_le_mul_of_nonneg_right h2 (G.dist_nonneg x y p))
+
+/-- (1a) Lipschitz in time on a compact subinterval `[p, q] ⊆ s`, with the explicit constant
+`κ e^{2κ(q−p)} d_p(x,y)`.  HYPOTHESIS: finiteness of the distances at all times of `[p,q]`
+(automatic on a compact connected manifold, `TimeMetric.riemannianEDist_ne_top`). -/
+theorem TimeMetric.dist_lipschitzOn {s : Set ℝ} (G : TimeMetric I M s) (x y : M) {p q : ℝ}
+    (hsub : Icc p q ⊆ s)
+    (hfin : ∀ τ ∈ Icc p q, (letI := G.norms τ; Manifold.riemannianEDist I x y) ≠ ⊤) :
+    ∀ a ∈ Icc p q, ∀ b ∈ Icc p q, |G.dist x y b - G.dist x y a|
+      ≤ G.κ * Real.exp (2 * G.κ * (q - p)) * G.dist x y p * |b - a| := by
+  intro a ha b hb
+  have hpq : p ≤ q := ha.1.trans ha.2
+  have hfp := hfin p (left_mem_Icc.2 hpq)
+  have h := G.dist_lip x y (hsub ha) (hsub hb) (hfin a ha)
+  have hy : 0 ≤ G.κ * |b - a| := mul_nonneg G.κ_nonneg (abs_nonneg _)
+  have h1 := exp_sub_one_le_mul_exp _ hy
+  have hba : |b - a| ≤ q - p := by
+    rw [abs_le]; constructor <;> linarith [ha.1, ha.2, hb.1, hb.2]
+  have h2 : Real.exp (G.κ * |b - a|) ≤ Real.exp (G.κ * (q - p)) :=
+    Real.exp_le_exp.2 (mul_le_mul_of_nonneg_left hba G.κ_nonneg)
+  have h3 := G.dist_le_of_mem x y hsub ha hfp
+  have hD := G.dist_nonneg x y a
+  have hDp := G.dist_nonneg x y p
+  have e : Real.exp (2 * G.κ * (q - p)) = Real.exp (G.κ * (q - p)) * Real.exp (G.κ * (q - p)) := by
+    rw [← Real.exp_add]; ring_nf
+  rw [e]
+  calc |G.dist x y b - G.dist x y a| ≤ (Real.exp (G.κ * |b - a|) - 1) * G.dist x y a := h
+    _ ≤ (G.κ * |b - a| * Real.exp (G.κ * |b - a|)) * G.dist x y a :=
+        mul_le_mul_of_nonneg_right h1 hD
+    _ ≤ (G.κ * |b - a| * Real.exp (G.κ * (q - p))) * (Real.exp (G.κ * (q - p)) * G.dist x y p) := by
+        apply mul_le_mul _ h3 hD (by positivity)
+        exact mul_le_mul_of_nonneg_left h2 hy
+    _ = G.κ * (Real.exp (G.κ * (q - p)) * Real.exp (G.κ * (q - p))) * G.dist x y p * |b - a| := by
+        ring
+
+/-- (1b) Differentiability at almost every interior time: for every compact `[p, q] ⊆ s`,
+`τ ↦ d_τ(x,y)` is differentiable at almost every `τ ∈ (p, q)`. -/
+theorem TimeMetric.dist_ae_differentiableAt_Icc {s : Set ℝ} (G : TimeMetric I M s) (x y : M)
+    {p q : ℝ} (hsub : Icc p q ⊆ s)
+    (hfin : ∀ τ ∈ Icc p q, (letI := G.norms τ; Manifold.riemannianEDist I x y) ≠ ⊤) :
+    ∀ᵐ τ, τ ∈ Ioo p q → DifferentiableAt ℝ (G.dist x y) τ := by
+  set L := G.κ * Real.exp (2 * G.κ * (q - p)) * G.dist x y p
+  have hL : 0 ≤ L := by
+    have := G.dist_nonneg x y p; have := G.κ_nonneg; positivity
+  have hlip : LipschitzOnWith (Real.toNNReal L) (G.dist x y) (Icc p q) := by
+    rw [lipschitzOnWith_iff_dist_le_mul]
+    intro a ha b hb
+    rw [Real.coe_toNNReal _ hL, Real.dist_eq, Real.dist_eq]
+    exact G.dist_lipschitzOn x y hsub hfin b hb a ha
+  filter_upwards [hlip.ae_differentiableWithinAt_of_mem_real] with τ hτ hτ'
+  exact (hτ (Ioo_subset_Icc_self hτ')).differentiableAt (Icc_mem_nhds hτ'.1 hτ'.2)
+
+/-- (1b') Differentiability at almost every time of the interior of `s`. -/
+theorem TimeMetric.dist_ae_differentiableAt {s : Set ℝ} (G : TimeMetric I M s) (x y : M)
+    (hfin : ∀ τ ∈ s, (letI := G.norms τ; Manifold.riemannianEDist I x y) ≠ ⊤) :
+    ∀ᵐ τ, τ ∈ interior s → DifferentiableAt ℝ (G.dist x y) τ := by
+  have hall : ∀ pq : ℚ × ℚ, ∀ᵐ τ, Icc (pq.1 : ℝ) pq.2 ⊆ s → τ ∈ Ioo (pq.1 : ℝ) pq.2 →
+      DifferentiableAt ℝ (G.dist x y) τ := by
+    intro pq
+    by_cases h : Icc (pq.1 : ℝ) pq.2 ⊆ s
+    · filter_upwards [G.dist_ae_differentiableAt_Icc x y h (fun τ hτ => hfin τ (h hτ))]
+        with τ hτ _ using hτ
+    · exact Filter.Eventually.of_forall fun τ h' => absurd h' h
+  rw [← ae_all_iff] at hall
+  filter_upwards [hall] with τ hτ hint
+  obtain ⟨ε, hε, hball⟩ := Metric.mem_nhds_iff.1 (mem_interior_iff_mem_nhds.1 hint)
+  obtain ⟨p, hp1, hp2⟩ := exists_rat_btwn (show τ - ε < τ by linarith)
+  obtain ⟨q, hq1, hq2⟩ := exists_rat_btwn (show τ < τ + ε by linarith)
+  refine hτ (p, q) (fun u hu => ?_) ⟨hp2, hq1⟩
+  dsimp only at hu
+  apply hball
+  rw [Metric.mem_ball, Real.dist_eq, abs_lt]
+  constructor <;> linarith [hu.1, hu.2]
+
+/-- (1c) Bound for the derivative: at every interior time where `τ ↦ d_τ(x,y)` has derivative `d'`,
+`|d'| ≤ κ d_τ(x,y)`. -/
+theorem TimeMetric.abs_deriv_dist_le {s : Set ℝ} (G : TimeMetric I M s) (x y : M) {τ d' : ℝ}
+    (hint : τ ∈ interior s)
+    (hfin : (letI := G.norms τ; Manifold.riemannianEDist I x y) ≠ ⊤)
+    (hd : HasDerivAt (G.dist x y) d' τ) : |d'| ≤ G.κ * G.dist x y τ := by
+  have hs : s ∈ 𝓝 τ := mem_interior_iff_mem_nhds.1 hint
+  have hD := G.dist_nonneg x y τ
+  have hk := G.κ_nonneg
+  have hδ : ∀ n : ℕ, |d'| ≤ G.κ * Real.exp (G.κ * (1 / (n + 1 : ℝ))) * G.dist x y τ := by
+    intro n
+    have hn : (0 : ℝ) < 1 / (n + 1 : ℝ) := by positivity
+    have hev : ∀ᶠ b in 𝓝 τ, ‖G.dist x y b - G.dist x y τ‖
+        ≤ G.κ * Real.exp (G.κ * (1 / (n + 1 : ℝ))) * G.dist x y τ * ‖b - τ‖ := by
+      filter_upwards [hs, Metric.ball_mem_nhds τ hn] with b hb hb'
+      rw [Metric.mem_ball, Real.dist_eq] at hb'
+      rw [Real.norm_eq_abs, Real.norm_eq_abs]
+      have h := G.dist_lip x y (mem_of_mem_nhds hs) hb hfin
+      have hy : 0 ≤ G.κ * |b - τ| := mul_nonneg hk (abs_nonneg _)
+      have h1 := exp_sub_one_le_mul_exp _ hy
+      have h2 : Real.exp (G.κ * |b - τ|) ≤ Real.exp (G.κ * (1 / (n + 1 : ℝ))) :=
+        Real.exp_le_exp.2 (mul_le_mul_of_nonneg_left hb'.le hk)
+      calc |G.dist x y b - G.dist x y τ| ≤ (Real.exp (G.κ * |b - τ|) - 1) * G.dist x y τ := h
+        _ ≤ (G.κ * |b - τ| * Real.exp (G.κ * |b - τ|)) * G.dist x y τ :=
+            mul_le_mul_of_nonneg_right h1 hD
+        _ ≤ (G.κ * |b - τ| * Real.exp (G.κ * (1 / (n + 1 : ℝ)))) * G.dist x y τ :=
+            mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_left h2 hy) hD
+        _ = G.κ * Real.exp (G.κ * (1 / (n + 1 : ℝ))) * G.dist x y τ * |b - τ| := by ring
+    have := hd.le_of_lip' (by positivity) hev
+    rwa [Real.norm_eq_abs] at this
+  have hT : Filter.Tendsto (fun n : ℕ => G.κ * Real.exp (G.κ * (1 / (n + 1 : ℝ))) * G.dist x y τ)
+      Filter.atTop (𝓝 (G.κ * Real.exp (G.κ * 0) * G.dist x y τ)) := by
+    have h0 : Filter.Tendsto (fun n : ℕ => (1 / (n + 1 : ℝ))) Filter.atTop (𝓝 0) :=
+      tendsto_one_div_add_atTop_nhds_zero_nat
+    exact ((tendsto_const_nhds.mul ((Real.continuous_exp.tendsto _).comp
+      (tendsto_const_nhds.mul h0))).mul tendsto_const_nhds)
+  rw [mul_zero, Real.exp_zero, mul_one] at hT
+  exact ge_of_tendsto' hT hδ
+
+/-- (1) on a compact connected Riemannian manifold, for a `TimeMetric` whose metric is continuous
+in the base point at one time `a ∈ s` (hypotheses of `TimeMetric.riemannianEDist_ne_top`): for every
+pair `(x, y)`, `τ ↦ d_τ(x,y)` is differentiable at almost every time of the interior of `s`, and
+`|∂_τ d_τ(x,y)| ≤ κ d_τ(x,y)` wherever it is differentiable in the interior. -/
+theorem TimeMetric.dist_ae_differentiableAt_compact {M' : Type*} [PseudoEMetricSpace M']
+    [ChartedSpace H M'] [IsManifold I 1 M'] [RiemannianBundle (fun (x : M') ↦ TangentSpace I x)]
+    [IsContinuousRiemannianBundle E (fun (x : M') ↦ TangentSpace I x)]
+    [IsRiemannianManifold I M'] [CompactSpace M'] [PreconnectedSpace M']
+    {s : Set ℝ} (G : TimeMetric I M' s) {a : ℝ} (ha : a ∈ s)
+    (hcont : Continuous (fun x ↦ TotalSpace.mk' (E →L[ℝ] E →L[ℝ] ℝ) x (G.g a x))) (x y : M') :
+    (∀ᵐ τ, τ ∈ interior s → DifferentiableAt ℝ (G.dist x y) τ) ∧
+    (∀ τ ∈ interior s, ∀ d', HasDerivAt (G.dist x y) d' τ → |d'| ≤ G.κ * G.dist x y τ) :=
+  ⟨G.dist_ae_differentiableAt x y (fun τ hτ => G.riemannianEDist_ne_top ha hτ hcont x y),
+    fun τ hτ d' hd => G.abs_deriv_dist_le x y hτ
+      (G.riemannianEDist_ne_top ha (interior_subset hτ) hcont x y) hd⟩
+
+end DistanceInTime
+
+section Danskin
+
+/-- (2a) One-sided envelope bound (no hypothesis on `K`): if `F τ ≤ g τ k` for all `τ, k`, with
+equality at `(τ₀, k₀)`, and `g(·, k₀)` has derivative `d₀` at `τ₀`, then for every `ε > 0`, near `τ₀`,
+`F τ − F τ₀ ≤ d₀ (τ − τ₀) + ε |τ − τ₀|`.  Equivalently: the upper right Dini derivative of `F` at
+`τ₀` is `≤ d₀` and the lower left Dini derivative is `≥ d₀`, for EVERY minimiser `k₀`. -/
+theorem envelope_upper {K : Type*} (g : ℝ → K → ℝ) (F : ℝ → ℝ) (τ₀ : ℝ) (k₀ : K) (d₀ : ℝ)
+    (hF : ∀ τ k, F τ ≤ g τ k) (h0 : F τ₀ = g τ₀ k₀)
+    (hd : HasDerivAt (fun τ => g τ k₀) d₀ τ₀) (ε : ℝ) (hε : 0 < ε) :
+    ∀ᶠ τ in 𝓝 τ₀, F τ - F τ₀ ≤ d₀ * (τ - τ₀) + ε * |τ - τ₀| := by
+  rw [hasDerivAt_iff_isLittleO, Asymptotics.isLittleO_iff] at hd
+  filter_upwards [hd hε] with τ hτ
+  rw [Real.norm_eq_abs, Real.norm_eq_abs, smul_eq_mul] at hτ
+  have h1 := hF τ k₀
+  have h2 := le_abs_self (g τ k₀ - g τ₀ k₀ - (τ - τ₀) * d₀)
+  rw [h0]; linarith
+
+/-- (2b) Convergence of minimisers: `K` compact, `g τ₀ ·` lower semicontinuous, `g τ · → g τ₀ ·`
+uniformly as `τ → τ₀`, `kmin τ` a minimiser of `g τ ·` for every `τ`, and the minimiser at `τ₀`
+unique (`k₀`).  Then `kmin τ → k₀` as `τ → τ₀`. -/
+theorem minimiser_tendsto {K : Type*} [TopologicalSpace K] [CompactSpace K]
+    (g : ℝ → K → ℝ) (kmin : ℝ → K) (τ₀ : ℝ) (k₀ : K)
+    (hmin : ∀ τ k, g τ (kmin τ) ≤ g τ k)
+    (hlsc : LowerSemicontinuous (g τ₀))
+    (hunif : ∀ η > 0, ∀ᶠ τ in 𝓝 τ₀, ∀ k, |g τ k - g τ₀ k| ≤ η)
+    (huniq : ∀ k, (∀ k', g τ₀ k ≤ g τ₀ k') → k = k₀) :
+    Filter.Tendsto kmin (𝓝 τ₀) (𝓝 k₀) := by
+  apply tendsto_nhds_of_unique_mapClusterPt
+  intro kstar hcl
+  apply huniq
+  intro k'
+  -- `g τ₀ kstar ≤ g τ₀ k'`
+  by_contra hlt
+  push_neg at hlt
+  set c := (g τ₀ k' + g τ₀ kstar) / 2 with hcdef
+  have hc1 : c < g τ₀ kstar := by rw [hcdef]; linarith
+  have hc2 : g τ₀ k' < c := by rw [hcdef]; linarith
+  set η := (c - g τ₀ k') / 2 with hηdef
+  have hη : 0 < η := by rw [hηdef]; linarith
+  have hηe : 2 * η = c - g τ₀ k' := by rw [hηdef]; ring
+  have hU : {k | c < g τ₀ k} ∈ 𝓝 kstar := hlsc kstar c hc1
+  have hfreq := (mapClusterPt_iff_frequently.1 hcl) _ hU
+  obtain ⟨τ, hτ1, hτ2⟩ := (hfreq.and_eventually (hunif η hη)).exists
+  have h1 : c < g τ₀ (kmin τ) := hτ1
+  have h2 := hτ2 (kmin τ)
+  have h3 := hτ2 k'
+  have h4 := hmin τ k'
+  rw [abs_le] at h2 h3
+  linarith [h2.1, h3.2]
+
+/-- (2c) Two-sided envelope theorem with lower semicontinuity instead of continuity of `g`:
+`K` compact, `g τ₀ ·` lower semicontinuous, `g τ · → g τ₀ ·` uniformly, minimisers `kmin τ`,
+unique minimiser `k₀` at `τ₀`, `g(·, k₀)` with derivative `d₀` at `τ₀`, and the UNIFORM ONE-SIDED
+FIRST-ORDER BOUND (HYPOTHESIS `hfirst`): for every `ε > 0` there are a neighbourhood `U` of `k₀` and
+`δ > 0` with `g τ k − g τ₀ k ≥ d₀ (τ − τ₀) − ε |τ − τ₀|` for `k ∈ U`, `|τ − τ₀| < δ`.  Then `F` is
+differentiable at `τ₀` with derivative `d₀`. -/
+theorem envelope_lsc {K : Type*} [TopologicalSpace K] [CompactSpace K]
+    (g : ℝ → K → ℝ) (F : ℝ → ℝ) (kmin : ℝ → K) (τ₀ : ℝ) (k₀ : K) (d₀ : ℝ)
+    (hF : ∀ τ k, F τ ≤ g τ k) (hFmin : ∀ τ, F τ = g τ (kmin τ))
+    (hlsc : LowerSemicontinuous (g τ₀))
+    (hunif : ∀ η > 0, ∀ᶠ τ in 𝓝 τ₀, ∀ k, |g τ k - g τ₀ k| ≤ η)
+    (huniq : ∀ k, (∀ k', g τ₀ k ≤ g τ₀ k') → k = k₀)
+    (hd : HasDerivAt (fun τ => g τ k₀) d₀ τ₀)
+    (hfirst : ∀ ε > 0, ∃ U ∈ 𝓝 k₀, ∃ δ > 0, ∀ k ∈ U, ∀ τ, |τ - τ₀| < δ →
+      d₀ * (τ - τ₀) - ε * |τ - τ₀| ≤ g τ k - g τ₀ k) :
+    HasDerivAt F d₀ τ₀ := by
+  have hmin : ∀ τ k, g τ (kmin τ) ≤ g τ k := fun τ k => (hFmin τ).symm ▸ hF τ k
+  have hk0 : F τ₀ = g τ₀ k₀ := by
+    have := huniq (kmin τ₀) (hmin τ₀)
+    rw [hFmin, this]
+  have hT := minimiser_tendsto g kmin τ₀ k₀ hmin hlsc hunif huniq
+  rw [hasDerivAt_iff_isLittleO, Asymptotics.isLittleO_iff]
+  intro ε hε
+  obtain ⟨U, hU, δ, hδ, hb⟩ := hfirst ε hε
+  filter_upwards [envelope_upper g F τ₀ k₀ d₀ hF hk0 hd ε hε, hT hU,
+    Metric.ball_mem_nhds τ₀ hδ] with τ hup hkU hball
+  rw [Metric.mem_ball, Real.dist_eq] at hball
+  have hlow := hb (kmin τ) hkU τ hball
+  have h1 : g τ (kmin τ) - g τ₀ (kmin τ) ≤ F τ - F τ₀ := by
+    rw [hFmin τ]; linarith [hF τ₀ (kmin τ)]
+  rw [Real.norm_eq_abs, Real.norm_eq_abs, smul_eq_mul, abs_le]
+  constructor <;> linarith
+
+/-- (2d) The hypothesis `hfirst` of `envelope_lsc` holds (even two-sided) when `g(·, k)` has
+derivative `g' τ k` for all `τ, k` and `g'` is jointly continuous at `(τ₀, k₀)`, with `d₀ = g' τ₀ k₀`
+(mean value inequality). -/
+theorem first_order_of_continuous_deriv {K : Type*} [TopologicalSpace K]
+    (g g' : ℝ → K → ℝ) (τ₀ : ℝ) (k₀ : K)
+    (hd : ∀ τ k, HasDerivAt (fun σ => g σ k) (g' τ k) τ)
+    (hc : ContinuousAt (fun p : ℝ × K => g' p.1 p.2) (τ₀, k₀)) :
+    ∀ ε > 0, ∃ U ∈ 𝓝 k₀, ∃ δ > 0, ∀ k ∈ U, ∀ τ, |τ - τ₀| < δ →
+      |g τ k - g τ₀ k - g' τ₀ k₀ * (τ - τ₀)| ≤ ε * |τ - τ₀| := by
+  intro ε hε
+  have hN : {p : ℝ × K | |g' p.1 p.2 - g' τ₀ k₀| < ε} ∈ 𝓝 (τ₀, k₀) := by
+    have : ContinuousAt (fun p : ℝ × K => |g' p.1 p.2 - g' τ₀ k₀|) (τ₀, k₀) :=
+      ((hc.sub continuousAt_const).abs)
+    exact this.eventually (gt_mem_nhds (by simp [hε]))
+  rw [nhds_prod_eq, Filter.mem_prod_iff] at hN
+  obtain ⟨A, hA, B, hB, hAB⟩ := hN
+  obtain ⟨δ, hδ, hball⟩ := Metric.mem_nhds_iff.1 hA
+  refine ⟨B, hB, δ, hδ, fun k hk τ hτ => ?_⟩
+  -- mean value inequality for `σ ↦ g σ k − g' τ₀ k₀ σ` on the segment
+  let φ : ℝ → ℝ := fun σ => g σ k - g' τ₀ k₀ * σ
+  have hφ : ∀ σ ∈ Metric.ball τ₀ δ, HasDerivWithinAt φ (g' σ k - g' τ₀ k₀) (Metric.ball τ₀ δ) σ :=
+    fun σ _ => ((hd σ k).sub ((hasDerivAt_id σ).const_mul (g' τ₀ k₀))).hasDerivWithinAt.congr_deriv
+      (by ring)
+  have hb : ∀ σ ∈ Metric.ball τ₀ δ, ‖g' σ k - g' τ₀ k₀‖ ≤ ε := fun σ hσ => by
+    rw [Real.norm_eq_abs]
+    exact (hAB (Set.mk_mem_prod (hball hσ) hk)).le
+  have hτb : τ ∈ Metric.ball τ₀ δ := by rw [Metric.mem_ball, Real.dist_eq]; exact hτ
+  have h := (convex_ball τ₀ δ).norm_image_sub_le_of_norm_hasDerivWithin_le hφ hb
+    (Metric.mem_ball_self hδ) hτb
+  simp only [φ, Real.norm_eq_abs] at h
+  calc |g τ k - g τ₀ k - g' τ₀ k₀ * (τ - τ₀)|
+      = |g τ k - g' τ₀ k₀ * τ - (g τ₀ k - g' τ₀ k₀ * τ₀)| := by congr 1; ring
+    _ ≤ ε * |τ - τ₀| := h
+
+end Danskin
 end CTG.ManifoldDistance
