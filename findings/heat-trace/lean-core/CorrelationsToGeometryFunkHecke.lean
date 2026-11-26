@@ -13,9 +13,12 @@ linear isometries, Archimedes' theorem (a coordinate is uniformly distributed on
 constants and linear functions are eigenfunctions, with eigenvalues `½∫ g` and `½∫ g(t) t dt`.  For the kernel
 `gk ξ t = exp(-arccos(t)²/(2ξ²))` of the paper the normalised population walk `Pinf` has the eigenvalues
 `sphS ξ 0` and `sphS ξ 1`; here `legP`, `sphS` etc. are VERBATIM COPIES of the definitions of
-`CTG.Reals2.SphereOneDim` in the seventh file (no file imports both, so Lean does not check the identification).
-NOT formalised: the Funk–Hecke formula for degree `l ≥ 2`, spherical harmonics, multiplicities, the limit
-`N → ∞` on the sphere.  No `sorry`, no `axiom`, no `native_decide`.
+`CTG.Reals2.SphereOneDim` in the seventh file (the identification is checked in
+`CorrelationsToGeometryFunkHeckeLink.lean`).  Added later on the same day (blocks after the first `end`): the
+Funk–Hecke formula for EVERY degree `l` on the harmonic polynomials `(a·y)^l` with `a` isotropic (`funk_hecke`,
+`Pinf_harmonic`, `Pinf_eigen_exists`), by averaging over rotations about the pole and Laplace's integral.
+NOT formalised: that these polynomials span the spherical harmonics of degree `l`, multiplicities `2l+1`, the
+addition theorem, completeness, the Laplace eigenvalue `l(l+1)`, the limit `N → ∞` on the sphere.  No `sorry`, no `axiom`, no `native_decide`.
 Written by a sub-task of an AI session on 26 November 2026.
 -/
 
@@ -34,7 +37,7 @@ Written by a sub-task of an AI session on 26 November 2026.
 * `Pinf_const`, `Pinf_linear`: for the angular Gaussian kernel the normalised population walk
   has eigenvalues `sphS ξ 0` and `sphS ξ 1` (copies of the project's definitions, see below).
 
-NOT in this file: Funk–Hecke for degree `l ≥ 2`; spherical harmonics; the limit `N → ∞`.
+NOT in this first block: Funk–Hecke for degree `l ≥ 2` (see the later blocks); spherical harmonics; the limit `N → ∞`.
 No hypotheses beyond measurability/boundedness of the kernel `g`.
 -/
 
@@ -569,5 +572,469 @@ theorem Pinf_linear (ξ : ℝ) (z : E3) (x : S2) :
     zonalOp_const _ (gk_continuous ξ).measurable, h0, h1]
   unfold sphS sphE
   field_simp
+
+end CTG.FunkHecke
+
+namespace CTG.FunkHecke
+
+/-! ## Degree `l`, step 2–3: the circle average and Laplace's integral
+
+For complex `A, B, C` let `w(φ) = A + B cos φ + C sin φ`. Differentiating `w^{l+1} w'` and
+integrating over a period gives the three-term recursion `circ_rec`; when
+`A = a t`, `B² + C² = -a²(1-t²)` it is Bonnet's recursion, and `circ_legendre` follows:
+`∫_0^{2π} w^l = 2π a^l P_l(t)` (Laplace's integral in the form needed here). -/
+
+theorem legP_zero (x : ℝ) : legP 0 x = 1 := rfl
+
+theorem legP_one (x : ℝ) : legP 1 x = x := rfl
+
+theorem legP_succ_succ (n : ℕ) (x : ℝ) :
+    legP (n + 2) x = ((2 * (n : ℝ) + 3) * x * legP (n + 1) x - ((n : ℝ) + 1) * legP n x)
+      / ((n : ℝ) + 2) := by
+  rw [legP]
+
+theorem legP_continuous_aux : ∀ n : ℕ, Continuous (legP n) ∧ Continuous (legP (n + 1))
+  | 0 => ⟨by rw [show legP 0 = fun _ => (1:ℝ) from funext legP_zero]; exact continuous_const,
+          by rw [show legP 1 = fun x => x from funext legP_one]; exact continuous_id⟩
+  | n + 1 => by
+      have ih : Continuous (legP n) ∧ Continuous (legP (n + 1)) := legP_continuous_aux n
+      refine ⟨ih.2, ?_⟩
+      have e : legP (n + 2) = fun x => ((2 * (n : ℝ) + 3) * x * legP (n + 1) x
+          - ((n : ℝ) + 1) * legP n x) / ((n : ℝ) + 2) := funext (legP_succ_succ n)
+      rw [e]
+      exact (((continuous_const.mul continuous_id).mul ih.2).sub
+        (continuous_const.mul ih.1)).div_const _
+
+theorem legP_continuous (n : ℕ) : Continuous (legP n) := (legP_continuous_aux n).1
+
+/-- `w(φ) = A + B cos φ + C sin φ`. -/
+noncomputable def cw (A B C : ℂ) (φ : ℝ) : ℂ := A + B * (Real.cos φ : ℂ) + C * (Real.sin φ : ℂ)
+
+/-- `w'(φ)`. -/
+noncomputable def cwd (B C : ℂ) (φ : ℝ) : ℂ := -B * (Real.sin φ : ℂ) + C * (Real.cos φ : ℂ)
+
+/-- `J_l = ∫_0^{2π} w^l`. -/
+noncomputable def circJ (A B C : ℂ) (l : ℕ) : ℂ := ∫ φ in (0:ℝ)..2 * π, cw A B C φ ^ l
+
+theorem cw_continuous (A B C : ℂ) : Continuous (cw A B C) := by unfold cw; fun_prop
+
+theorem cwd_continuous (B C : ℂ) : Continuous (cwd B C) := by unfold cwd; fun_prop
+
+theorem cw_hasDerivAt (A B C : ℂ) (φ : ℝ) : HasDerivAt (cw A B C) (cwd B C φ) φ := by
+  have hc := (Real.hasDerivAt_cos φ).ofReal_comp
+  have hs := (Real.hasDerivAt_sin φ).ofReal_comp
+  have h := ((hc.const_mul B).const_add A).add (hs.const_mul C)
+  refine h.congr_deriv ?_
+  simp only [cwd]; push_cast; ring
+
+theorem cwd_hasDerivAt (B C : ℂ) (φ : ℝ) :
+    HasDerivAt (cwd B C) (-B * (Real.cos φ : ℂ) - C * (Real.sin φ : ℂ)) φ := by
+  have hc := (Real.hasDerivAt_cos φ).ofReal_comp
+  have hs := (Real.hasDerivAt_sin φ).ofReal_comp
+  have h := (hs.const_mul (-B)).add (hc.const_mul C)
+  refine h.congr_deriv ?_
+  push_cast; ring
+
+/-- The integrated derivative of `w^{n+1} w'` vanishes. -/
+theorem circ_ftc (A B C : ℂ) (n : ℕ) :
+    ∫ φ in (0:ℝ)..2 * π, (((n:ℂ) + 1) * cw A B C φ ^ n * cwd B C φ ^ 2
+      + cw A B C φ ^ (n + 1) * (A - cw A B C φ)) = 0 := by
+  have hderiv : ∀ φ ∈ uIcc (0:ℝ) (2 * π), HasDerivAt (fun φ => cw A B C φ ^ (n + 1) * cwd B C φ)
+      (((n:ℂ) + 1) * cw A B C φ ^ n * cwd B C φ ^ 2
+        + cw A B C φ ^ (n + 1) * (A - cw A B C φ)) φ := by
+    intro φ _
+    have h := ((cw_hasDerivAt A B C φ).pow (n + 1)).mul (cwd_hasDerivAt B C φ)
+    refine h.congr_deriv ?_
+    simp only [Nat.add_sub_cancel, Pi.pow_apply, cw]; push_cast; ring
+  rw [intervalIntegral.integral_eq_sub_of_hasDerivAt hderiv]
+  · simp [cw, cwd]
+  · exact (by
+      have := cw_continuous A B C; have := cwd_continuous B C; fun_prop :
+      Continuous fun φ => ((n:ℂ) + 1) * cw A B C φ ^ n * cwd B C φ ^ 2
+        + cw A B C φ ^ (n + 1) * (A - cw A B C φ)).intervalIntegrable _ _
+
+/-- Three-term recursion for `J_l`. -/
+theorem circ_rec (A B C : ℂ) (n : ℕ) :
+    ((n:ℂ) + 2) * circJ A B C (n + 2) = (2 * (n:ℂ) + 3) * A * circJ A B C (n + 1)
+      + ((n:ℂ) + 1) * (B ^ 2 + C ^ 2 - A ^ 2) * circJ A B C n := by
+  have hint : ∀ m : ℕ, IntervalIntegrable (fun φ => cw A B C φ ^ m) volume 0 (2 * π) :=
+    fun m => ((cw_continuous A B C).pow m).intervalIntegrable _ _
+  have h0 := circ_ftc A B C n
+  have hpt : ∀ φ : ℝ, ((n:ℂ) + 1) * cw A B C φ ^ n * cwd B C φ ^ 2
+      + cw A B C φ ^ (n + 1) * (A - cw A B C φ)
+      = ((n:ℂ) + 1) * (B ^ 2 + C ^ 2 - A ^ 2) * cw A B C φ ^ n
+        + (2 * (n:ℂ) + 3) * A * cw A B C φ ^ (n + 1) - ((n:ℂ) + 2) * cw A B C φ ^ (n + 2) := by
+    intro φ
+    have hcs : (Real.cos φ : ℂ) ^ 2 + (Real.sin φ : ℂ) ^ 2 = 1 := by
+      exact_mod_cast Real.cos_sq_add_sin_sq φ
+    have hrel : cwd B C φ ^ 2 + (cw A B C φ - A) ^ 2 = B ^ 2 + C ^ 2 := by
+      simp only [cw, cwd]; linear_combination (B ^ 2 + C ^ 2) * hcs
+    set w := cw A B C φ
+    set d := cwd B C φ
+    linear_combination ((n:ℂ) + 1) * w ^ n * hrel
+  rw [intervalIntegral.integral_congr (fun φ _ => hpt φ)] at h0
+  rw [intervalIntegral.integral_sub (((hint n).const_mul _).add ((hint (n + 1)).const_mul _))
+      ((hint (n + 2)).const_mul _),
+    intervalIntegral.integral_add ((hint n).const_mul _) ((hint (n + 1)).const_mul _),
+    ] at h0
+  have k1 : ∫ x in (0:ℝ)..2 * π, ((n:ℂ) + 1) * (B ^ 2 + C ^ 2 - A ^ 2) * cw A B C x ^ n
+      = ((n:ℂ) + 1) * (B ^ 2 + C ^ 2 - A ^ 2) * circJ A B C n :=
+    intervalIntegral.integral_const_mul _ _
+  have k2 : ∫ x in (0:ℝ)..2 * π, (2 * (n:ℂ) + 3) * A * cw A B C x ^ (n + 1)
+      = (2 * (n:ℂ) + 3) * A * circJ A B C (n + 1) := intervalIntegral.integral_const_mul _ _
+  have k3 : ∫ x in (0:ℝ)..2 * π, ((n:ℂ) + 2) * cw A B C x ^ (n + 2)
+      = ((n:ℂ) + 2) * circJ A B C (n + 2) := intervalIntegral.integral_const_mul _ _
+  rw [k1, k2, k3] at h0
+  linear_combination (-1 : ℂ) * h0
+
+theorem circJ_zero (A B C : ℂ) : circJ A B C 0 = 2 * π := by
+  simp [circJ]
+  exact Complex.real_smul.trans (by push_cast; ring)
+
+theorem circJ_one (A B C : ℂ) : circJ A B C 1 = 2 * π * A := by
+  have hc : ∫ φ in (0:ℝ)..2 * π, (Real.cos φ : ℂ) = 0 := by
+    rw [intervalIntegral.integral_ofReal, integral_cos]; simp
+  have hs : ∫ φ in (0:ℝ)..2 * π, (Real.sin φ : ℂ) = 0 := by
+    rw [intervalIntegral.integral_ofReal, integral_sin]; simp
+  have ic : IntervalIntegrable (fun φ : ℝ => (Real.cos φ : ℂ)) volume 0 (2 * π) :=
+    (by fun_prop : Continuous fun φ : ℝ => (Real.cos φ : ℂ)).intervalIntegrable _ _
+  have is : IntervalIntegrable (fun φ : ℝ => (Real.sin φ : ℂ)) volume 0 (2 * π) :=
+    (by fun_prop : Continuous fun φ : ℝ => (Real.sin φ : ℂ)).intervalIntegrable _ _
+  have ia : IntervalIntegrable (fun _ : ℝ => A) volume 0 (2 * π) :=
+    continuous_const.intervalIntegrable _ _
+  simp only [circJ, pow_one, cw]
+  rw [intervalIntegral.integral_add (ia.add (ic.const_mul B))
+      (is.const_mul C),
+    intervalIntegral.integral_add ia (ic.const_mul B),
+    show ∫ x in (0:ℝ)..2 * π, B * (Real.cos x : ℂ) = B * ∫ x in (0:ℝ)..2 * π, (Real.cos x : ℂ)
+      from intervalIntegral.integral_const_mul _ _,
+    show ∫ x in (0:ℝ)..2 * π, C * (Real.sin x : ℂ) = C * ∫ x in (0:ℝ)..2 * π, (Real.sin x : ℂ)
+      from intervalIntegral.integral_const_mul _ _, hc, hs, intervalIntegral.integral_const,
+    mul_zero, mul_zero, add_zero, add_zero, sub_zero]
+  exact Complex.real_smul.trans (by push_cast; ring)
+
+/-- **Laplace's integral** in the form used for Funk–Hecke: if `B² + C² = -a²(1-t²)` then
+`∫_0^{2π} (a t + B cos φ + C sin φ)^l dφ = 2π a^l P_l(t)` with `P_l` = Bonnet's `legP`. -/
+theorem circ_legendre (a B C : ℂ) (t : ℝ) (hD : B ^ 2 + C ^ 2 = -(a ^ 2) * (1 - (t:ℂ) ^ 2)) :
+    ∀ l : ℕ, circJ (a * t) B C l = 2 * π * a ^ l * (legP l t : ℂ) := by
+  have key : ∀ n : ℕ, circJ (a * t) B C n = 2 * π * a ^ n * (legP n t : ℂ) ∧
+      circJ (a * t) B C (n + 1) = 2 * π * a ^ (n + 1) * (legP (n + 1) t : ℂ) := by
+    intro n
+    induction n with
+    | zero =>
+      refine ⟨?_, ?_⟩
+      · rw [circJ_zero, legP_zero]; push_cast; ring
+      · rw [circJ_one, legP_one]; ring
+    | succ n ih =>
+      refine ⟨ih.2, ?_⟩
+      have hrec := circ_rec (a * t) B C n
+      have hn : ((n:ℂ) + 2) ≠ 0 := by exact_mod_cast (show (n:ℝ) + 2 ≠ 0 by positivity)
+      have hP : ((n:ℂ) + 2) * (legP (n + 2) t : ℂ)
+          = (2 * (n:ℂ) + 3) * t * legP (n + 1) t - ((n:ℂ) + 1) * legP n t := by
+        rw [legP_succ_succ]; push_cast
+        rw [mul_div_assoc']; exact mul_div_cancel_left₀ _ hn
+      apply mul_left_cancel₀ hn
+      rw [show n + 1 + 1 = n + 2 by ring, hrec, ih.1, ih.2]
+      linear_combination (-(2 * (π:ℂ) * a ^ (n + 2))) * hP
+        + (((n:ℂ) + 1) * 2 * π * a ^ n * (legP n t : ℂ)) * hD
+  exact fun l => (key l).1
+
+end CTG.FunkHecke
+
+namespace CTG.FunkHecke
+
+/-! ## Degree `l`, step 1 and 4: averaging over rotations about the pole
+
+We do not disintegrate `σ`; instead we average over the rotations `R_φ` about the axis `e₀`
+(which preserve `σ` and `y₀`) and use Fubini. -/
+
+/-- Coordinates of points of `S²`. -/
+noncomputable def cc (i : Fin 3) (u : S2) : ℝ := (u : E3) i
+
+@[fun_prop] theorem continuous_cc (i : Fin 3) : Continuous (cc i) :=
+  ((PiLp.continuous_apply 2 (fun _ : Fin 3 => ℝ) i).comp continuous_subtype_val)
+
+/-- The rotation by `φ` about the axis `e₀`, as a map of `ℝ³`. -/
+noncomputable def rotFun (φ : ℝ) (y : E3) : E3 :=
+  WithLp.toLp 2 ![y 0, Real.cos φ * y 1 - Real.sin φ * y 2, Real.sin φ * y 1 + Real.cos φ * y 2]
+
+@[simp] theorem rotFun_0 (φ : ℝ) (y : E3) : rotFun φ y 0 = y 0 := rfl
+@[simp] theorem rotFun_1 (φ : ℝ) (y : E3) :
+    rotFun φ y 1 = Real.cos φ * y 1 - Real.sin φ * y 2 := rfl
+@[simp] theorem rotFun_2 (φ : ℝ) (y : E3) :
+    rotFun φ y 2 = Real.sin φ * y 1 + Real.cos φ * y 2 := rfl
+
+theorem E3_ext {x y : E3} (h0 : x 0 = y 0) (h1 : x 1 = y 1) (h2 : x 2 = y 2) : x = y := by
+  ext i; fin_cases i <;> assumption
+
+/-- The rotation `R_φ` as a linear isometry equivalence. -/
+noncomputable def rotAx (φ : ℝ) : E3 ≃ₗᵢ[ℝ] E3 where
+  toFun := rotFun φ
+  invFun := rotFun (-φ)
+  map_add' x y := E3_ext (by simp) (by simp; ring) (by simp; ring)
+  map_smul' c x := E3_ext (by simp) (by simp; ring) (by simp; ring)
+  left_inv y := E3_ext (by simp)
+    (by simp only [rotFun_1, rotFun_2, Real.cos_neg, Real.sin_neg]
+        linear_combination (y 1) * Real.cos_sq_add_sin_sq φ)
+    (by simp only [rotFun_1, rotFun_2, Real.cos_neg, Real.sin_neg]
+        linear_combination (y 2) * Real.cos_sq_add_sin_sq φ)
+  right_inv y := E3_ext (by simp)
+    (by simp only [rotFun_1, rotFun_2, Real.cos_neg, Real.sin_neg]
+        linear_combination (y 1) * Real.cos_sq_add_sin_sq φ)
+    (by simp only [rotFun_1, rotFun_2, Real.cos_neg, Real.sin_neg]
+        linear_combination (y 2) * Real.cos_sq_add_sin_sq φ)
+  norm_map' y := by
+    show ‖rotFun φ y‖ = ‖y‖
+    rw [← sq_eq_sq₀ (norm_nonneg _) (norm_nonneg _), EuclideanSpace.real_norm_sq_eq,
+      EuclideanSpace.real_norm_sq_eq, Fin.sum_univ_three, Fin.sum_univ_three, rotFun_0, rotFun_1,
+      rotFun_2]
+    linear_combination (y 1 ^ 2 + y 2 ^ 2) * Real.cos_sq_add_sin_sq φ
+
+@[simp] theorem rotAx_apply (φ : ℝ) (y : E3) : rotAx φ y = rotFun φ y := rfl
+
+/-- `a·y` for the complex vector `a = p + i q`. -/
+noncomputable def cdot (p q y : E3) : ℂ := (⟪p, y⟫ : ℂ) + Complex.I * (⟪q, y⟫ : ℂ)
+
+/-- `a = p + i q` is isotropic: `a·a = 0`. -/
+def Isotropic (p q : E3) : Prop := ⟪p, p⟫ = ⟪q, q⟫ ∧ ⟪p, q⟫ = 0
+
+theorem inner3 (p y : E3) : ⟪p, y⟫ = p 0 * y 0 + p 1 * y 1 + p 2 * y 2 := by
+  have hr : ∀ a b : ℝ, ⟪a, b⟫ = a * b := fun a b => (RCLike.inner_apply' a b).trans (by simp)
+  simp [PiLp.inner_apply, Fin.sum_univ_three, hr]
+
+/-- Complex coordinates `a_j = p_j + i q_j`. -/
+noncomputable def ac (p q : E3) (j : Fin 3) : ℂ := (p j : ℂ) + Complex.I * (q j : ℂ)
+
+theorem cdot_coord (p q y : E3) :
+    cdot p q y = ac p q 0 * y 0 + ac p q 1 * y 1 + ac p q 2 * y 2 := by
+  simp only [cdot, inner3, ac]; push_cast; ring
+
+theorem ac_sq_sum (p q : E3) (h : Isotropic p q) :
+    ac p q 0 ^ 2 + ac p q 1 ^ 2 + ac p q 2 ^ 2 = 0 := by
+  obtain ⟨h1, h2⟩ := h
+  rw [inner3, inner3] at h1
+  rw [inner3] at h2
+  have h1' : ((p 0 * p 0 + p 1 * p 1 + p 2 * p 2 : ℝ) : ℂ) = ((q 0 * q 0 + q 1 * q 1 + q 2 * q 2 : ℝ) : ℂ) := by
+    rw [h1]
+  have h2' : ((p 0 * q 0 + p 1 * q 1 + p 2 * q 2 : ℝ) : ℂ) = 0 := by rw [h2]; simp
+  push_cast at h1' h2'
+  simp only [ac]
+  linear_combination h1' + 2 * Complex.I * h2'
+    + ((q 0 : ℂ) ^ 2 + (q 1 : ℂ) ^ 2 + (q 2 : ℂ) ^ 2) * Complex.I_sq
+
+theorem cdot_rot (p q : E3) (φ : ℝ) (y : E3) :
+    cdot p q (rotAx φ y) = cw (ac p q 0 * y 0) (ac p q 1 * y 1 + ac p q 2 * y 2)
+      (ac p q 2 * y 1 - ac p q 1 * y 2) φ := by
+  rw [cdot_coord, rotAx_apply, rotFun_0, rotFun_1, rotFun_2, cw]; push_cast; ring
+
+theorem unit_sq (y : S2) : ((y : E3) 0) ^ 2 + ((y : E3) 1) ^ 2 + ((y : E3) 2) ^ 2 = 1 := by
+  have h := EuclideanSpace.real_norm_sq_eq (y : E3)
+  rw [Fin.sum_univ_three, mem_sphere_zero_iff_norm.1 y.2] at h
+  linarith
+
+/-- The circle average at a point `y` of `S²`: `∫_0^{2π} (a·R_φ y)^l dφ = 2π a₀^l P_l(y₀)`. -/
+theorem pole_avg (p q : E3) (h : Isotropic p q) (y : S2) (l : ℕ) :
+    ∫ φ in (0:ℝ)..2 * π, cdot p q (rotAx φ y) ^ l
+      = 2 * π * ac p q 0 ^ l * (legP l ((y : E3) 0) : ℂ) := by
+  have hD : (ac p q 1 * ((y : E3) 1) + ac p q 2 * ((y : E3) 2)) ^ 2
+      + (ac p q 2 * ((y : E3) 1) - ac p q 1 * ((y : E3) 2)) ^ 2
+      = -(ac p q 0 ^ 2) * (1 - (((y : E3) 0 : ℝ) : ℂ) ^ 2) := by
+    have hs := ac_sq_sum p q h
+    have hu : (((y : E3) 0 : ℝ) : ℂ) ^ 2 + (((y : E3) 1 : ℝ) : ℂ) ^ 2
+        + (((y : E3) 2 : ℝ) : ℂ) ^ 2 = 1 := by
+      have hu' := congrArg (fun r : ℝ => (r : ℂ)) (unit_sq y)
+      push_cast at hu'; exact hu'
+    linear_combination ((((y : E3) 1 : ℝ) : ℂ) ^ 2 + (((y : E3) 2 : ℝ) : ℂ) ^ 2) * hs
+      - ac p q 0 ^ 2 * hu
+  have := circ_legendre (ac p q 0) _ _ ((y : E3) 0) hD l
+  rw [← this, circJ]
+  refine intervalIntegral.integral_congr (fun φ _ => ?_)
+  simp only [cdot_rot]
+
+end CTG.FunkHecke
+
+namespace CTG.FunkHecke
+
+theorem integral_rotS_C (A : E3 ≃ₗᵢ[ℝ] E3) (F : S2 → ℂ) :
+    ∫ u, F (rotS A u) ∂sigma = ∫ u, F u ∂sigma :=
+  (MeasurePreserving.mk (rotS A).measurable (sigma_map_rotS A)).integral_comp
+    (rotS A).measurableEmbedding F
+
+theorem continuous_cdot (p q : E3) : Continuous (cdot p q) :=
+  (Complex.continuous_ofReal.comp (continuous_const.inner continuous_id)).add
+    (continuous_const.mul (Complex.continuous_ofReal.comp (continuous_const.inner continuous_id)))
+
+theorem norm_cdot_le (p q z : E3) (hz : ‖z‖ = 1) : ‖cdot p q z‖ ≤ ‖p‖ + ‖q‖ := by
+  unfold cdot
+  have h1 := abs_real_inner_le_norm p z
+  have h2 := abs_real_inner_le_norm q z
+  rw [hz, mul_one] at h1 h2
+  calc ‖(⟪p, z⟫ : ℂ) + Complex.I * (⟪q, z⟫ : ℂ)‖
+      ≤ ‖(⟪p, z⟫ : ℂ)‖ + ‖Complex.I * (⟪q, z⟫ : ℂ)‖ := norm_add_le _ _
+    _ = |⟪p, z⟫| + |⟪q, z⟫| := by
+        rw [norm_mul, Complex.norm_I, one_mul, Complex.norm_real, Complex.norm_real,
+          Real.norm_eq_abs, Real.norm_eq_abs]
+    _ ≤ ‖p‖ + ‖q‖ := by linarith
+
+theorem cdot_isom (A : E3 ≃ₗᵢ[ℝ] E3) (p q y : E3) : cdot (A p) (A q) (A y) = cdot p q y := by
+  simp only [cdot, LinearIsometryEquiv.inner_map_map]
+
+theorem isotropic_isom (A : E3 ≃ₗᵢ[ℝ] E3) (p q : E3) (h : Isotropic p q) :
+    Isotropic (A p) (A q) := by
+  simp only [Isotropic, LinearIsometryEquiv.inner_map_map]; exact h
+
+/-- The integrand of the rotation average. -/
+noncomputable def poleF (g : ℝ → ℝ) (p q : E3) (l : ℕ) (y : S2) (φ : ℝ) : ℂ :=
+  (g (coord0 y) : ℂ) * cdot p q (rotAx φ y) ^ l
+
+/-- Funk–Hecke at the pole `e₀` for the harmonic polynomial `(a·y)^l`, `a = p + i q` isotropic:
+`∫ g(y₀)(a·y)^l dσ = a₀^l · ½∫_{-1}^1 g P_l`. -/
+theorem pole_funk (g : ℝ → ℝ) (hg : Measurable g) (C : ℝ) (hC : ∀ t, |g t| ≤ C)
+    (p q : E3) (h : Isotropic p q) (l : ℕ) :
+    ∫ y, (g (coord0 y) : ℂ) * cdot p q y ^ l ∂sigma
+      = ac p q 0 ^ l * (((1/2) * ∫ t in (-1:ℝ)..1, g t * legP l t : ℝ) : ℂ) := by
+  have hF1 : ∀ φ : ℝ, ∫ y, poleF g p q l y φ ∂sigma
+      = ∫ y, (g (coord0 y) : ℂ) * cdot p q y ^ l ∂sigma := by
+    intro φ
+    calc ∫ y, poleF g p q l y φ ∂sigma
+        = ∫ y, (fun z => (g (coord0 z) : ℂ) * cdot p q z ^ l) (rotS (rotAx φ) y) ∂sigma := by
+          congr 1
+      _ = _ := integral_rotS_C (rotAx φ) (fun z => (g (coord0 z) : ℂ) * cdot p q z ^ l)
+  have hmeas : Measurable (fun z : S2 × ℝ => cdot p q (rotAx z.2 z.1)) := by
+    have e : (fun z : S2 × ℝ => cdot p q (rotAx z.2 z.1)) = fun z =>
+        cw (ac p q 0 * cc 0 z.1) (ac p q 1 * cc 1 z.1 + ac p q 2 * cc 2 z.1)
+          (ac p q 2 * cc 1 z.1 - ac p q 1 * cc 2 z.1) z.2 := by
+      funext z; rw [cdot_rot]; rfl
+    rw [e]; unfold cw; apply Continuous.measurable; fun_prop
+  have hint : Integrable (Function.uncurry (poleF g p q l))
+      (sigma.prod (volume.restrict (Ioc (0:ℝ) (2 * π)))) := by
+    refine Integrable.of_bound ?_ (C * (‖p‖ + ‖q‖) ^ l) (Filter.Eventually.of_forall fun z => ?_)
+    · exact ((Complex.measurable_ofReal.comp
+        (hg.comp (continuous_coord0.measurable.comp measurable_fst))).mul
+        (hmeas.pow_const l)).aestronglyMeasurable
+    · show ‖(g (coord0 z.1) : ℂ) * cdot p q (rotAx z.2 z.1) ^ l‖ ≤ _
+      rw [norm_mul, norm_pow, Complex.norm_real, Real.norm_eq_abs]
+      have h1 := hC (coord0 z.1)
+      have h2 : ‖cdot p q (rotAx z.2 z.1)‖ ≤ ‖p‖ + ‖q‖ :=
+        norm_cdot_le p q _ (by rw [LinearIsometryEquiv.norm_map]; exact mem_sphere_zero_iff_norm.1 z.1.2)
+      exact mul_le_mul h1 (pow_le_pow_left₀ (norm_nonneg _) h2 l) (by positivity)
+        (le_trans (abs_nonneg _) h1)
+  have hswap := integral_integral_swap hint
+  have hν : (volume.restrict (Ioc (0:ℝ) (2 * π))).real univ = 2 * π := by
+    rw [measureReal_def, Measure.restrict_apply_univ, Real.volume_Ioc,
+      ENNReal.toReal_ofReal (by linarith [Real.pi_pos])]; ring
+  have hR : ∫ φ, ∫ y, poleF g p q l y φ ∂sigma ∂(volume.restrict (Ioc (0:ℝ) (2 * π)))
+      = (2 * π : ℂ) * ∫ y, (g (coord0 y) : ℂ) * cdot p q y ^ l ∂sigma := by
+    simp_rw [hF1]
+    rw [integral_const, hν]
+    exact Complex.real_smul.trans (by push_cast; ring)
+  have hL : ∀ y : S2, ∫ φ, poleF g p q l y φ ∂(volume.restrict (Ioc (0:ℝ) (2 * π)))
+      = (g (coord0 y) : ℂ) * (2 * π * ac p q 0 ^ l * (legP l ((y : E3) 0) : ℂ)) := by
+    intro y
+    simp only [poleF]
+    rw [show ∫ φ in Ioc (0:ℝ) (2 * π), (g (coord0 y) : ℂ) * cdot p q (rotAx φ (y : E3)) ^ l
+        = (g (coord0 y) : ℂ) * ∫ φ in Ioc (0:ℝ) (2 * π), cdot p q (rotAx φ (y : E3)) ^ l
+        from integral_const_mul _ _, ← pole_avg p q h y l,
+      intervalIntegral.integral_of_le (by linarith [Real.pi_pos])]
+  have hA : ∫ y, (g (coord0 y) : ℂ) * (2 * π * ac p q 0 ^ l * (legP l ((y : E3) 0) : ℂ)) ∂sigma
+      = 2 * π * ac p q 0 ^ l * (((1/2) * ∫ t in (-1:ℝ)..1, g t * legP l t : ℝ) : ℂ) := by
+    have e : ∀ y : S2, (g (coord0 y) : ℂ) * (2 * π * ac p q 0 ^ l * (legP l ((y : E3) 0) : ℂ))
+        = (2 * π * ac p q 0 ^ l) * ((g (coord0 y) * legP l (coord0 y) : ℝ) : ℂ) := by
+      intro y; simp only [coord0]; push_cast; ring
+    simp_rw [e]
+    rw [show ∫ y, (2 * π * ac p q 0 ^ l) * ((g (coord0 y) * legP l (coord0 y) : ℝ) : ℂ) ∂sigma
+        = (2 * π * ac p q 0 ^ l) * ∫ y, ((g (coord0 y) * legP l (coord0 y) : ℝ) : ℂ) ∂sigma
+        from integral_const_mul _ _,
+      show ∫ y, ((g (coord0 y) * legP l (coord0 y) : ℝ) : ℂ) ∂sigma
+        = ((∫ y, g (coord0 y) * legP l (coord0 y) ∂sigma : ℝ) : ℂ) from integral_ofReal,
+      archimedes (fun t => g t * legP l t) (hg.mul (legP_continuous l).measurable)]
+  have hl : ∫ y, ∫ φ, poleF g p q l y φ ∂(volume.restrict (Ioc (0:ℝ) (2 * π))) ∂sigma
+      = 2 * π * ac p q 0 ^ l * (((1/2) * ∫ t in (-1:ℝ)..1, g t * legP l t : ℝ) : ℂ) := by
+    rw [integral_congr_ae (Filter.Eventually.of_forall hL)]; exact hA
+  have h2π : (2 * π : ℂ) ≠ 0 := by exact_mod_cast (show (2 * π : ℝ) ≠ 0 by positivity)
+  apply mul_left_cancel₀ h2π
+  rw [← hR, ← hswap, hl]; ring
+
+/-- **Funk–Hecke formula for the harmonic polynomials `(a·y)^l`, `a = p + i q` isotropic**
+(every degree `l`, every unit `x`, bounded measurable `g`):
+`∫ g(⟨x,y⟩) (a·y)^l dσ(y) = (½∫_{-1}^1 g(t) P_l(t) dt) · (a·x)^l`. -/
+theorem funk_hecke (g : ℝ → ℝ) (hg : Measurable g) (C : ℝ) (hC : ∀ t, |g t| ≤ C)
+    (p q : E3) (h : Isotropic p q) (l : ℕ) (x : S2) :
+    ∫ y, (g ⟪(x : E3), (y : E3)⟫ : ℂ) * cdot p q y ^ l ∂sigma
+      = cdot p q x ^ l * (((1/2) * ∫ t in (-1:ℝ)..1, g t * legP l t : ℝ) : ℂ) := by
+  set e0 : E3 := EuclideanSpace.single 0 1 with he0def
+  have he0 : ‖e0‖ = 1 := by simp [e0]
+  have hx : ‖(x : E3)‖ = 1 := mem_sphere_zero_iff_norm.1 x.2
+  set R := (ℝ ∙ ((x : E3) - e0))ᗮ.reflection
+  have hR : R (x : E3) = e0 := Submodule.reflection_sub (hx.trans he0.symm)
+  have hcoord : ∀ v : E3, (R v) 0 = ⟪(x : E3), v⟫ := by
+    intro v
+    have := EuclideanSpace.inner_single_left (0 : Fin 3) (1 : ℝ) (R v)
+    rw [← he0def, ← hR] at this
+    simp only [map_one, one_mul] at this
+    rw [← this]; exact R.inner_map_map _ _
+  have hac : ac (R p) (R q) 0 = cdot p q x := by
+    simp only [ac, hcoord, cdot]
+    rw [real_inner_comm p (x : E3), real_inner_comm q (x : E3)]
+  calc ∫ y, (g ⟪(x : E3), (y : E3)⟫ : ℂ) * cdot p q y ^ l ∂sigma
+      = ∫ y, (fun z => (g (coord0 z) : ℂ) * cdot (R p) (R q) z ^ l) (rotS R y) ∂sigma := by
+        congr 1; ext y; simp only [coord0, rotS_coe, hcoord, cdot_isom]
+    _ = ∫ y, (g (coord0 y) : ℂ) * cdot (R p) (R q) y ^ l ∂sigma :=
+        integral_rotS_C R (fun z => (g (coord0 z) : ℂ) * cdot (R p) (R q) z ^ l)
+    _ = _ := by rw [pole_funk g hg C hC (R p) (R q) (isotropic_isom R p q h) l, hac]
+
+/-- Real form: `y ↦ Re (a·y)^l` is an eigenfunction of the zonal operator `T_g`, eigenvalue
+`½∫_{-1}^1 g P_l`. -/
+theorem zonalOp_harmonic (g : ℝ → ℝ) (hg : Measurable g) (C : ℝ) (hC : ∀ t, |g t| ≤ C)
+    (p q : E3) (h : Isotropic p q) (l : ℕ) (x : S2) :
+    zonalOp g (fun y => (cdot p q y ^ l).re) x
+      = ((1/2) * ∫ t in (-1:ℝ)..1, g t * legP l t) * (cdot p q x ^ l).re := by
+  unfold zonalOp
+  have hint : Integrable (fun y : S2 => (g ⟪(x : E3), (y : E3)⟫ : ℂ) * cdot p q y ^ l) sigma := by
+    refine Integrable.of_bound ?_ (C * (‖p‖ + ‖q‖) ^ l) (Filter.Eventually.of_forall fun y => ?_)
+    · exact ((Complex.measurable_ofReal.comp (hg.comp
+        (continuous_const.inner continuous_subtype_val).measurable)).mul
+        (((continuous_cdot p q).comp continuous_subtype_val).measurable.pow_const l)).aestronglyMeasurable
+    · rw [norm_mul, norm_pow, Complex.norm_real, Real.norm_eq_abs]
+      have h1 := hC ⟪(x : E3), (y : E3)⟫
+      have h2 : ‖cdot p q y‖ ≤ ‖p‖ + ‖q‖ := norm_cdot_le p q _ (mem_sphere_zero_iff_norm.1 y.2)
+      exact mul_le_mul h1 (pow_le_pow_left₀ (norm_nonneg _) h2 l) (by positivity)
+        (le_trans (abs_nonneg _) h1)
+  have e : ∀ y : S2, g ⟪(x : E3), (y : E3)⟫ * (cdot p q y ^ l).re
+      = RCLike.re ((g ⟪(x : E3), (y : E3)⟫ : ℂ) * cdot p q y ^ l) := by
+    intro y; rw [RCLike.re_to_complex, Complex.re_ofReal_mul]
+  calc ∫ y, g ⟪(x : E3), (y : E3)⟫ * (cdot p q y ^ l).re ∂sigma
+      = (∫ y, (g ⟪(x : E3), (y : E3)⟫ : ℂ) * cdot p q y ^ l ∂sigma).re := by
+        simp_rw [e]; exact integral_re hint
+    _ = _ := by rw [funk_hecke g hg C hC p q h l x, Complex.re_mul_ofReal]; ring
+
+/-- **Every `s_l` is an eigenvalue of the population walk on `S²`**: for the angular Gaussian
+kernel, `y ↦ Re (a·y)^l` (`a` isotropic) is an eigenfunction of `P_∞` with eigenvalue
+`sphS ξ l`. -/
+theorem Pinf_harmonic (ξ : ℝ) (p q : E3) (h : Isotropic p q) (l : ℕ) (x : S2) :
+    Pinf (gk ξ) (fun y => (cdot p q y ^ l).re) x = sphS ξ l * (cdot p q x ^ l).re := by
+  have h0 : ∫ t in (-1:ℝ)..1, gk ξ t = sphZ ξ := by
+    have := zonal_weight ξ (fun _ => 1) continuous_const
+    simpa only [mul_one] using this
+  have hl : ∫ t in (-1:ℝ)..1, gk ξ t * legP l t = sphI ξ (fun θ => legP l (Real.cos θ)) :=
+    zonal_weight ξ (legP l) (legP_continuous l)
+  have hZ := sphZ_pos ξ
+  unfold Pinf
+  rw [zonalOp_harmonic _ (gk_continuous ξ).measurable 1 (abs_gk_le ξ) p q h l x,
+    zonalOp_const _ (gk_continuous ξ).measurable, h0, hl]
+  unfold sphS sphE
+  field_simp
+
+/-- The vectors `e₁, e₂` give the isotropic vector `a = e₁ + i e₂`, `a·y = y₁ + i y₂`. -/
+theorem isotropic_e12 : Isotropic (EuclideanSpace.single 1 1) (EuclideanSpace.single 2 1) := by
+  refine ⟨?_, ?_⟩ <;> simp [inner3]
+
+/-- For every `l` the population walk has a nonzero eigenfunction with eigenvalue `sphS ξ l`. -/
+theorem Pinf_eigen_exists (ξ : ℝ) (l : ℕ) :
+    ∃ f : S2 → ℝ, (∃ y, f y ≠ 0) ∧ ∀ x, Pinf (gk ξ) f x = sphS ξ l * f x := by
+  refine ⟨fun y => (cdot (EuclideanSpace.single 1 1) (EuclideanSpace.single 2 1) y ^ l).re,
+    ⟨⟨EuclideanSpace.single 1 1, by rw [mem_sphere_zero_iff_norm]; simp⟩, ?_⟩,
+    fun x => Pinf_harmonic ξ _ _ isotropic_e12 l x⟩
+  simp [cdot, inner3]
 
 end CTG.FunkHecke
