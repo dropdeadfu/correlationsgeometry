@@ -1682,4 +1682,256 @@ theorem first_order_of_continuous_deriv {K : Type*} [TopologicalSpace K]
     _ ≤ ε * |τ - τ₀| := h
 
 end Danskin
+
+/-! ### Symmetry and triangle inequality of the time-dependent distance, joint continuity, and
+Fubini for the almost-everywhere differentiability in time (block A116)
+
+(1) `quadENorm g` is homogeneous (`ENormSMulClass`), with no positivity hypothesis; hence Mathlib's
+`riemannianEDist_comm` and `riemannianEDist_triangle` hold for `G.norms τ`.  On a compact connected
+Riemannian manifold, `d_τ ≤ C · edist`, and `(x, y) ↦ d_τ(x, y)` is Lipschitz, hence continuous.
+(2) `(τ, x, y) ↦ d_τ(x, y)` is continuous on `s × M × M`.
+(3) Fubini: for every s-finite measure `ν` on `M × M` (with a Borel-type σ-algebra), for
+Lebesgue-almost every `τ`, for `ν`-almost every pair, `τ ↦ d_τ(x,y)` is differentiable at `τ` if
+`τ ∈ interior s`.  (The other order, for EVERY pair at almost every `τ`, is
+`TimeMetric.dist_ae_differentiableAt` of block A115.) -/
+
+section TimeDistanceMetric
+
+/-- `quadENorm g` is homogeneous: `‖r • v‖ = |r| ‖v‖` (no positivity of `g` needed: the square root
+of a negative number is `0` on both sides). -/
+theorem quadENorm_smulClass (g : ∀ x : M, TangentSpace I x →L[ℝ] TangentSpace I x →L[ℝ] ℝ) (x : M) :
+    @ENormSMulClass ℝ (TangentSpace I x) _ (quadENorm g x) _ := by
+  letI := quadENorm g x
+  refine ⟨fun r v => ?_⟩
+  show ENNReal.ofReal (Real.sqrt (g x (r • v) (r • v))) = ‖r‖ₑ * ENNReal.ofReal (Real.sqrt (g x v v))
+  have e : g x (r • v) (r • v) = r ^ 2 * g x v v := by
+    simp only [map_smul, ContinuousLinearMap.smul_apply, smul_eq_mul]; ring
+  rw [e, Real.sqrt_mul (sq_nonneg r), Real.sqrt_sq_eq_abs, ENNReal.ofReal_mul (abs_nonneg r),
+    Real.enorm_eq_ofReal_abs]
+
+theorem TimeMetric.redist_comm {s : Set ℝ} (G : TimeMetric I M s) (τ : ℝ) (x y : M) :
+    (letI := G.norms τ; Manifold.riemannianEDist I x y)
+      = (letI := G.norms τ; Manifold.riemannianEDist I y x) := by
+  letI := G.norms τ
+  haveI : ∀ z : M, ENormSMulClass ℝ (TangentSpace I z) := fun z => quadENorm_smulClass (G.g τ) z
+  exact Manifold.riemannianEDist_comm
+
+theorem TimeMetric.redist_triangle {s : Set ℝ} (G : TimeMetric I M s) (τ : ℝ) (x y z : M) :
+    (letI := G.norms τ; Manifold.riemannianEDist I x z)
+      ≤ (letI := G.norms τ; Manifold.riemannianEDist I x y)
+        + (letI := G.norms τ; Manifold.riemannianEDist I y z) := by
+  letI := G.norms τ
+  haveI : ∀ z : M, ENormSMulClass ℝ (TangentSpace I z) := fun z => quadENorm_smulClass (G.g τ) z
+  exact Manifold.riemannianEDist_triangle
+
+theorem TimeMetric.dist_comm {s : Set ℝ} (G : TimeMetric I M s) (x y : M) (τ : ℝ) :
+    G.dist x y τ = G.dist y x τ := by
+  unfold TimeMetric.dist; rw [G.redist_comm τ x y]
+
+/-- Real triangle inequality (finite distances). -/
+theorem TimeMetric.dist_triangle {s : Set ℝ} (G : TimeMetric I M s) (x y z : M) (τ : ℝ)
+    (h1 : (letI := G.norms τ; Manifold.riemannianEDist I x y) ≠ ⊤)
+    (h2 : (letI := G.norms τ; Manifold.riemannianEDist I y z) ≠ ⊤) :
+    G.dist x z τ ≤ G.dist x y τ + G.dist y z τ := by
+  unfold TimeMetric.dist
+  rw [← ENNReal.toReal_add h1 h2]
+  exact ENNReal.toReal_mono (ENNReal.add_ne_top.2 ⟨h1, h2⟩) (G.redist_triangle τ x y z)
+
+/-- `|d(x,y) − d(x',y')| ≤ d(x,x') + d(y,y')` for finite distances. -/
+theorem TimeMetric.dist_sub_le {s : Set ℝ} (G : TimeMetric I M s) (τ : ℝ)
+    (hfin : ∀ x y : M, (letI := G.norms τ; Manifold.riemannianEDist I x y) ≠ ⊤) (x y x' y' : M) :
+    |G.dist x y τ - G.dist x' y' τ| ≤ G.dist x x' τ + G.dist y y' τ := by
+  have a1 := G.dist_triangle x x' y τ (hfin _ _) (hfin _ _)
+  have a2 := G.dist_triangle x' y' y τ (hfin _ _) (hfin _ _)
+  have b1 := G.dist_triangle x' x y' τ (hfin _ _) (hfin _ _)
+  have b2 := G.dist_triangle x y y' τ (hfin _ _) (hfin _ _)
+  have c1 := G.dist_comm y' y τ
+  have c2 := G.dist_comm x' x τ
+  rw [abs_le]; constructor <;> linarith
+
+variable {M' : Type*} [PseudoEMetricSpace M'] [ChartedSpace H M'] [IsManifold I 1 M']
+  [RiemannianBundle (fun (x : M') ↦ TangentSpace I x)]
+  [IsContinuousRiemannianBundle E (fun (x : M') ↦ TangentSpace I x)]
+  [IsRiemannianManifold I M'] [CompactSpace M'] [PreconnectedSpace M']
+
+/-- On a compact connected Riemannian manifold, for a `TimeMetric` whose metric is continuous in the
+base point at one time `a ∈ s`: at every time `τ ∈ s`, `d_τ ≤ C · edist` with `C < ∞`. -/
+theorem TimeMetric.redist_le_edist {s : Set ℝ} (G : TimeMetric I M' s) {a τ : ℝ} (ha : a ∈ s)
+    (hτ : τ ∈ s) (hcont : Continuous (fun x ↦ TotalSpace.mk' (E →L[ℝ] E →L[ℝ] ℝ) x (G.g a x))) :
+    ∃ C : ℝ≥0∞, C ≠ ⊤ ∧ ∀ x y : M',
+      (letI := G.norms τ; Manifold.riemannianEDist I x y) ≤ C * edist x y := by
+  obtain ⟨c, hc0, hct, h⟩ := quadENorm_le_bundle (G.g a) hcont
+  refine ⟨ENNReal.ofReal (Real.exp (G.κ * |τ - a|)) * c,
+    ENNReal.mul_ne_top ENNReal.ofReal_ne_top hct, fun x y => ?_⟩
+  have h1 := riemannianEDist_le_mul (I := I) (M := M')
+      (fun x => SeminormedAddGroup.toContinuousENorm.toENorm) (quadENorm (G.g a)) c hc0 hct h x y
+  have h2 := G.riemannianEDist_le ha hτ x y
+  calc (letI := G.norms τ; Manifold.riemannianEDist I x y)
+      ≤ ENNReal.ofReal (Real.exp (G.κ * |τ - a|)) * (letI := G.norms a; Manifold.riemannianEDist I x y) :=
+        h2
+    _ ≤ ENNReal.ofReal (Real.exp (G.κ * |τ - a|)) * (c * Manifold.riemannianEDist I x y) := by
+        gcongr; exact h1
+    _ = ENNReal.ofReal (Real.exp (G.κ * |τ - a|)) * c * edist x y := by
+        rw [IsRiemannianManifold.out (I := I) x y, mul_assoc]
+
+/-- (1) Continuity in the pair: `(x, y) ↦ d_τ(x, y)` is Lipschitz (product `edist`), hence
+continuous, on a compact connected Riemannian manifold. -/
+theorem TimeMetric.dist_lipschitz_pair {s : Set ℝ} (G : TimeMetric I M' s) {a τ : ℝ} (ha : a ∈ s)
+    (hτ : τ ∈ s) (hcont : Continuous (fun x ↦ TotalSpace.mk' (E →L[ℝ] E →L[ℝ] ℝ) x (G.g a x))) :
+    ∃ K : NNReal, LipschitzWith K (fun p : M' × M' => G.dist p.1 p.2 τ) := by
+  obtain ⟨C, hC, hle⟩ := G.redist_le_edist ha hτ hcont
+  have hfin : ∀ x y : M', (letI := G.norms τ; Manifold.riemannianEDist I x y) ≠ ⊤ :=
+    fun x y => G.riemannianEDist_ne_top ha hτ hcont x y
+  refine ⟨(2 * C).toNNReal, fun p q => ?_⟩
+  rw [ENNReal.coe_toNNReal (ENNReal.mul_ne_top ENNReal.ofNat_ne_top hC), edist_dist, Real.dist_eq]
+  have h := G.dist_sub_le τ hfin p.1 p.2 q.1 q.2
+  have e1 : ENNReal.ofReal (G.dist p.1 q.1 τ) = (letI := G.norms τ; Manifold.riemannianEDist I p.1 q.1) :=
+    ENNReal.ofReal_toReal (hfin _ _)
+  have e2 : ENNReal.ofReal (G.dist p.2 q.2 τ) = (letI := G.norms τ; Manifold.riemannianEDist I p.2 q.2) :=
+    ENNReal.ofReal_toReal (hfin _ _)
+  calc ENNReal.ofReal |G.dist p.1 p.2 τ - G.dist q.1 q.2 τ|
+      ≤ ENNReal.ofReal (G.dist p.1 q.1 τ + G.dist p.2 q.2 τ) := ENNReal.ofReal_le_ofReal h
+    _ = ENNReal.ofReal (G.dist p.1 q.1 τ) + ENNReal.ofReal (G.dist p.2 q.2 τ) :=
+        ENNReal.ofReal_add (G.dist_nonneg _ _ _) (G.dist_nonneg _ _ _)
+    _ ≤ C * edist p.1 q.1 + C * edist p.2 q.2 := by rw [e1, e2]; gcongr <;> exact hle _ _
+    _ ≤ C * edist p q + C * edist p q := by
+        rw [Prod.edist_eq]; gcongr
+        · exact le_max_left _ _
+        · exact le_max_right _ _
+    _ = 2 * C * edist p q := by ring
+
+theorem TimeMetric.dist_continuous_pair {s : Set ℝ} (G : TimeMetric I M' s) {a τ : ℝ} (ha : a ∈ s)
+    (hτ : τ ∈ s) (hcont : Continuous (fun x ↦ TotalSpace.mk' (E →L[ℝ] E →L[ℝ] ℝ) x (G.g a x))) :
+    Continuous (fun p : M' × M' => G.dist p.1 p.2 τ) := by
+  obtain ⟨K, hK⟩ := G.dist_lipschitz_pair ha hτ hcont
+  exact hK.continuous
+
+/-- (2) Joint continuity of `(τ, x, y) ↦ d_τ(x, y)` on `s × (M × M)`. -/
+theorem TimeMetric.dist_continuousOn {s : Set ℝ} (G : TimeMetric I M' s) {a : ℝ} (ha : a ∈ s)
+    (hcont : Continuous (fun x ↦ TotalSpace.mk' (E →L[ℝ] E →L[ℝ] ℝ) x (G.g a x))) :
+    ContinuousOn (fun q : ℝ × (M' × M') => G.dist q.2.1 q.2.2 q.1) (s ×ˢ univ) := by
+  rintro ⟨τ₀, p₀⟩ ⟨hτ₀, -⟩
+  have hc0 := G.dist_continuous_pair ha hτ₀ hcont
+  obtain ⟨B, hB⟩ := isCompact_univ.exists_bound_of_continuousOn hc0.continuousOn
+  set f0 : M' × M' → ℝ := fun p => G.dist p.1 p.2 τ₀
+  let A : ℝ × (M' × M') → ℝ := fun q =>
+    (Real.exp (G.κ * |q.1 - τ₀|) - 1) * B + Dist.dist (f0 q.2) (f0 p₀)
+  have hAc : Continuous A := by
+    have h1 : Continuous (fun q : ℝ × (M' × M') => f0 q.2) := hc0.comp continuous_snd
+    exact (((Real.continuous_exp.comp (continuous_const.mul
+      ((continuous_fst.sub continuous_const).abs))).sub continuous_const).mul
+      continuous_const).add (h1.dist continuous_const)
+  have hA0 : A (τ₀, p₀) = 0 := by simp [A]
+  rw [ContinuousWithinAt, tendsto_iff_dist_tendsto_zero]
+  refine squeeze_zero' (Filter.Eventually.of_forall fun _ => _root_.dist_nonneg) ?_
+    (by rw [← hA0]; exact (hAc.tendsto _).mono_left nhdsWithin_le_nhds)
+  filter_upwards [self_mem_nhdsWithin] with q hq
+  obtain ⟨hq1, -⟩ := hq
+  have hfin : (letI := G.norms τ₀; Manifold.riemannianEDist I q.2.1 q.2.2) ≠ ⊤ :=
+    G.riemannianEDist_ne_top ha hτ₀ hcont _ _
+  have hl := G.dist_lip q.2.1 q.2.2 hτ₀ hq1 hfin
+  have hb : f0 q.2 ≤ B := by
+    have := hB q.2 (mem_univ _); rw [Real.norm_eq_abs] at this; exact (le_abs_self _).trans this
+  have hexp : 0 ≤ Real.exp (G.κ * |q.1 - τ₀|) - 1 := by
+    have := Real.one_le_exp (mul_nonneg G.κ_nonneg (abs_nonneg (q.1 - τ₀))); linarith
+  have hfq : f0 q.2 = G.dist q.2.1 q.2.2 τ₀ := rfl
+  have hp0 : G.dist p₀.1 p₀.2 τ₀ = f0 p₀ := rfl
+  show Dist.dist (G.dist q.2.1 q.2.2 q.1) (G.dist p₀.1 p₀.2 τ₀)
+    ≤ (Real.exp (G.κ * |q.1 - τ₀|) - 1) * B + Dist.dist (f0 q.2) (f0 p₀)
+  calc Dist.dist (G.dist q.2.1 q.2.2 q.1) (G.dist p₀.1 p₀.2 τ₀)
+      ≤ Dist.dist (G.dist q.2.1 q.2.2 q.1) (f0 q.2) + Dist.dist (f0 q.2) (f0 p₀) := by
+        rw [hp0]; exact _root_.dist_triangle _ _ _
+    _ ≤ (Real.exp (G.κ * |q.1 - τ₀|) - 1) * B + Dist.dist (f0 q.2) (f0 p₀) := by
+        refine add_le_add ?_ le_rfl
+        rw [Real.dist_eq, hfq]
+        exact hl.trans (mul_le_mul_of_nonneg_left hb hexp)
+
+/-- (3), one interval: for `[p, q] ⊆ s`, for almost every `τ`, for `ν`-almost every pair,
+`τ ∈ (p, q)` implies differentiability of `τ ↦ d_τ(x, y)` at `τ`. -/
+theorem TimeMetric.dist_fubini_Icc [MeasurableSpace (M' × M')] [OpensMeasurableSpace (M' × M')]
+    {s : Set ℝ} (G : TimeMetric I M' s) {a : ℝ} (ha : a ∈ s)
+    (hcont : Continuous (fun x ↦ TotalSpace.mk' (E →L[ℝ] E →L[ℝ] ℝ) x (G.g a x)))
+    (ν : Measure (M' × M')) [SFinite ν] {p q : ℝ} (hpq : p ≤ q) (hsub : Icc p q ⊆ s) :
+    ∀ᵐ τ, ∀ᵐ pr ∂ν, τ ∈ Ioo p q → DifferentiableAt ℝ (G.dist pr.1 pr.2) τ := by
+  set ft : M' × M' → ℝ → ℝ := fun pr τ => G.dist pr.1 pr.2 (projIcc p q hpq τ)
+  have hjoint := G.dist_continuousOn ha hcont
+  have hft : Continuous (Function.uncurry ft) := by
+    have hφ : Continuous (fun z : (M' × M') × ℝ => (((projIcc p q hpq z.2) : ℝ), z.1)) :=
+      (continuous_subtype_val.comp (continuous_projIcc.comp continuous_snd)).prodMk continuous_fst
+    exact hjoint.comp_continuous hφ (fun z => ⟨hsub (projIcc p q hpq z.2).2, mem_univ _⟩)
+  have heq : ∀ pr τ, τ ∈ Ioo p q →
+      (DifferentiableAt ℝ (ft pr) τ ↔ DifferentiableAt ℝ (G.dist pr.1 pr.2) τ) := by
+    intro pr τ hτ
+    apply Filter.EventuallyEq.differentiableAt_iff
+    filter_upwards [Icc_mem_nhds hτ.1 hτ.2] with u hu
+    simp only [ft, projIcc_of_mem hpq hu]
+  have hM : MeasurableSet {z : (M' × M') × ℝ | DifferentiableAt ℝ (ft z.1) z.2} :=
+    measurableSet_of_differentiableAt_with_param ℝ hft
+  set Bad : Set ((M' × M') × ℝ) :=
+    {z | z.2 ∈ Ioo p q} ∩ {z : (M' × M') × ℝ | DifferentiableAt ℝ (ft z.1) z.2}ᶜ with hBad
+  have hBm : MeasurableSet Bad := (measurableSet_Ioo.preimage measurable_snd).inter hM.compl
+  have hslice : ∀ pr : M' × M', volume (Prod.mk pr ⁻¹' Bad) = 0 := by
+    intro pr
+    have hae := G.dist_ae_differentiableAt_Icc pr.1 pr.2 hsub
+      (fun τ hτ => G.riemannianEDist_ne_top ha (hsub hτ) hcont _ _)
+    rw [ae_iff] at hae
+    refine measure_mono_null (fun τ hτ => ?_) hae
+    simp only [hBad, mem_preimage, mem_inter_iff, mem_setOf_eq, mem_compl_iff] at hτ
+    simp only [mem_setOf_eq, Classical.not_imp]
+    exact ⟨hτ.1, fun hd => hτ.2 ((heq pr τ hτ.1).2 hd)⟩
+  have h1 : (ν.prod volume) Bad = 0 :=
+    Measure.measure_prod_null_of_ae_null hBm (Filter.Eventually.of_forall hslice)
+  have h2 : (volume.prod ν) (Prod.swap ⁻¹' Bad) = 0 := by
+    rw [← Measure.prod_swap (μ := ν) (ν := volume),
+      Measure.map_apply measurable_swap (hBm.preimage measurable_swap)]
+    have : Prod.swap ⁻¹' (Prod.swap ⁻¹' Bad) = Bad := by
+      ext z; simp
+    rw [this, h1]
+  filter_upwards [Measure.measure_ae_null_of_prod_null h2] with τ hτ
+  rw [ae_iff]
+  refine measure_mono_null (fun pr hpr => ?_) hτ
+  simp only [mem_setOf_eq, Classical.not_imp] at hpr
+  simp only [hBad, mem_preimage, Prod.swap_prod_mk, mem_inter_iff, mem_setOf_eq, mem_compl_iff]
+  exact ⟨hpr.1, fun hd => hpr.2 ((heq pr τ hpr.1).1 hd)⟩
+
+/-- (3) Fubini, both orders: on a compact connected Riemannian manifold, for a `TimeMetric` whose
+metric is continuous in the base point at one time `a ∈ s`, and for every s-finite measure `ν` on
+`M × M` (σ-algebra containing the open sets):
+* for EVERY pair `(x, y)`, for Lebesgue-almost every `τ ∈ interior s`, `τ ↦ d_τ(x,y)` is
+  differentiable at `τ`;
+* for Lebesgue-almost every `τ`, for `ν`-almost every pair, if `τ ∈ interior s`, then
+  `τ ↦ d_τ(x,y)` is differentiable at `τ`. -/
+theorem TimeMetric.dist_fubini [MeasurableSpace (M' × M')] [OpensMeasurableSpace (M' × M')]
+    {s : Set ℝ} (G : TimeMetric I M' s) {a : ℝ} (ha : a ∈ s)
+    (hcont : Continuous (fun x ↦ TotalSpace.mk' (E →L[ℝ] E →L[ℝ] ℝ) x (G.g a x)))
+    (ν : Measure (M' × M')) [SFinite ν] :
+    (∀ x y : M', ∀ᵐ τ, τ ∈ interior s → DifferentiableAt ℝ (G.dist x y) τ) ∧
+    (∀ᵐ τ, ∀ᵐ pr ∂ν, τ ∈ interior s → DifferentiableAt ℝ (G.dist pr.1 pr.2) τ) := by
+  refine ⟨fun x y => G.dist_ae_differentiableAt x y
+    (fun τ hτ => G.riemannianEDist_ne_top ha hτ hcont x y), ?_⟩
+  have hall : ∀ pq : ℚ × ℚ, ∀ᵐ τ, Icc (pq.1 : ℝ) pq.2 ⊆ s →
+      ∀ᵐ pr ∂ν, τ ∈ Ioo (pq.1 : ℝ) pq.2 → DifferentiableAt ℝ (G.dist pr.1 pr.2) τ := by
+    intro pq
+    by_cases h : Icc (pq.1 : ℝ) pq.2 ⊆ s
+    · by_cases hpq : (pq.1 : ℝ) ≤ pq.2
+      · filter_upwards [G.dist_fubini_Icc ha hcont ν hpq h] with τ hτ _ using hτ
+      · refine Filter.Eventually.of_forall fun τ _ => Filter.Eventually.of_forall fun pr hτ => ?_
+        exact absurd (hτ.1.le.trans hτ.2.le) hpq
+    · exact Filter.Eventually.of_forall fun τ h' => absurd h' h
+  rw [← ae_all_iff] at hall
+  filter_upwards [hall] with τ hτ
+  by_cases hint : τ ∈ interior s
+  · obtain ⟨ε, hε, hball⟩ := Metric.mem_nhds_iff.1 (mem_interior_iff_mem_nhds.1 hint)
+    obtain ⟨p, hp1, hp2⟩ := exists_rat_btwn (show τ - ε < τ by linarith)
+    obtain ⟨q, hq1, hq2⟩ := exists_rat_btwn (show τ < τ + ε by linarith)
+    have hsub : Icc ((p, q).1 : ℝ) (p, q).2 ⊆ s := by
+      intro u hu
+      dsimp only at hu
+      apply hball
+      rw [Metric.mem_ball, Real.dist_eq, abs_lt]
+      constructor <;> linarith [hu.1, hu.2]
+    filter_upwards [hτ (p, q) hsub] with pr hpr _ using hpr ⟨hp2, hq1⟩
+  · exact Filter.Eventually.of_forall fun pr h => absurd h hint
+
+end TimeDistanceMetric
 end CTG.ManifoldDistance

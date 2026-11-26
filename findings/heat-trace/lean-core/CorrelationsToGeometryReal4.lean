@@ -9551,4 +9551,937 @@ end Closing
 
 end BiasSharp
 
+namespace VarianceSharp2
+
+open PiBound CTG.Reals.TorusReduction BiasVariance BiasGeneral
+
+/-! ## Part 1: sixth moments of the row sums (Task (1) of A117) -/
+
+section Sixth
+
+variable {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω} {G : Type*} [AddCommGroup G]
+  [MeasurableSpace G] [MeasurableSub₂ G] {ν : Measure G} {X : ℕ → Ω → G} {c κ₂ : G → ℝ}
+  {B c3 c4 : ℝ}
+
+/-- `(a + b)⁶ ≤ 32 (a⁶ + b⁶)`. -/
+theorem pow6_add_le (a b : ℝ) : (a + b) ^ 6 ≤ 32 * (a ^ 6 + b ^ 6) := by
+  have h2 : (a + b) ^ 2 ≤ 2 * (a ^ 2 + b ^ 2) := by
+    nlinarith only [_root_.sq_nonneg (a - b)]
+  have h3 : ((a + b) ^ 2) ^ 3 ≤ (2 * (a ^ 2 + b ^ 2)) ^ 3 :=
+    pow_le_pow_left₀ (_root_.sq_nonneg _) h2 3
+  have hx := _root_.sq_nonneg a
+  have hy := _root_.sq_nonneg b
+  have h4 : (a ^ 2 + b ^ 2) ^ 3 ≤ 4 * ((a ^ 2) ^ 3 + (b ^ 2) ^ 3) := by
+    nlinarith only [mul_nonneg (add_nonneg hx hy) (_root_.sq_nonneg (a ^ 2 - b ^ 2)), hx, hy]
+  have e1 : (a + b) ^ 6 = ((a + b) ^ 2) ^ 3 := by ring
+  have e2 : (2 * (a ^ 2 + b ^ 2)) ^ 3 = 8 * (a ^ 2 + b ^ 2) ^ 3 := by ring
+  have e3 : (a ^ 2) ^ 3 = a ^ 6 := by ring
+  have e4 : (b ^ 2) ^ 3 = b ^ 6 := by ring
+  rw [e1]; rw [e2] at h3; rw [e3, e4] at h4
+  linarith only [h3, h4]
+
+/-- **Sixth moment of a partial row sum** over indices `R ∌ a`: `E S⁶ ≤ 60 |R|³ B⁶`. -/
+theorem partial_moment6 [IsProbabilityMeasure μ] [IsProbabilityMeasure ν]
+    (H : BVK μ ν X c κ₂ B c3 c4) (a : ℕ) (R : Finset ℕ) (ha : a ∉ R) :
+    ∫ ω, (∑ v ∈ R, c (X a ω - X v ω)) ^ 6 ∂μ ≤ 60 * (R.card : ℝ) ^ 3 * B ^ 6 := by
+  classical
+  have hB0 : 0 ≤ B := H.B_nonneg
+  induction R using Finset.induction_on with
+  | empty => simp
+  | insert j R hjR ih =>
+    have haR : a ∉ R := fun h => ha (Finset.mem_insert_of_mem h)
+    have hja : j ≠ a := fun h => ha (h ▸ Finset.mem_insert_self j R)
+    have ih6 := ih haR
+    obtain ⟨ih2, ih4⟩ := BiasSharp.partial_moments H a R haR
+    obtain ⟨S, hS⟩ : ∃ S : Ω → ℝ, S = fun ω => ∑ v ∈ R, c (X a ω - X v ω) := ⟨_, rfl⟩
+    obtain ⟨Y, hY⟩ : ∃ Y : Ω → ℝ, Y = fun ω => c (X a ω - X j ω) := ⟨_, rfl⟩
+    have bS : BM S := by rw [hS]; exact BM.sum _ _ fun v _ => H.bmc a v
+    have bY : BM Y := by rw [hY]; exact H.bmc a j
+    have hYb : ∀ ω, Y ω ^ 2 ≤ B ^ 2 := fun ω => by
+      rw [hY, ← sq_abs]; exact pow_le_pow_left₀ (abs_nonneg _) (H.bound _) 2
+    have hsplit : ∀ ω, ∑ v ∈ insert j R, c (X a ω - X v ω) = S ω + Y ω := fun ω => by
+      rw [Finset.sum_insert hjR, hS, hY, add_comm]
+    simp_rw [hsplit]
+    have i2 : ∫ ω, S ω ^ 2 ∂μ ≤ R.card * B ^ 2 := by rw [hS]; exact ih2
+    have i4 : ∫ ω, S ω ^ 4 ∂μ ≤ 7 * (R.card : ℝ) ^ 2 * B ^ 4 := by rw [hS]; exact ih4
+    have i6 : ∫ ω, S ω ^ 6 ∂μ ≤ 60 * (R.card : ℝ) ^ 3 * B ^ 6 := by rw [hS]; exact ih6
+    have z5 : ∫ ω, S ω ^ 5 * Y ω ∂μ = 0 := by
+      have := BiasSharp.zero_moment H a j R haR hjR hja 5
+      rw [hS, hY]; exact this
+    have hcard : ((insert j R).card : ℝ) = R.card + 1 := by
+      rw [Finset.card_insert_of_notMem hjR]; push_cast; ring
+    rw [hcard]
+    have iS2 := (BiasSharp.bm_pow bS 2).integrable (μ := μ)
+    have iS4 := (BiasSharp.bm_pow bS 4).integrable (μ := μ)
+    have iS6 := (BiasSharp.bm_pow bS 6).integrable (μ := μ)
+    have iS5Y := ((BiasSharp.bm_pow bS 5).mul bY).integrable (μ := μ)
+    obtain ⟨Z, hZ⟩ : ∃ Z : Ω → ℝ, Z = fun ω => 15 * (S ω ^ 4 * Y ω ^ 2)
+        + 20 * (S ω ^ 3 * Y ω ^ 3) + 15 * (S ω ^ 2 * Y ω ^ 4) + 6 * (S ω * Y ω ^ 5)
+        + Y ω ^ 6 := ⟨_, rfl⟩
+    have bZ : BM Z := by
+      rw [hZ]
+      exact ((((BM.const_mul 15 ((BiasSharp.bm_pow bS 4).mul (BiasSharp.bm_pow bY 2))).add
+        (BM.const_mul 20 ((BiasSharp.bm_pow bS 3).mul (BiasSharp.bm_pow bY 3)))).add
+        (BM.const_mul 15 ((BiasSharp.bm_pow bS 2).mul (BiasSharp.bm_pow bY 4)))).add
+        (BM.const_mul 6 (bS.mul (BiasSharp.bm_pow bY 5)))).add (BiasSharp.bm_pow bY 6)
+    have e : ∀ ω, (S ω + Y ω) ^ 6 = S ω ^ 6 + 6 * (S ω ^ 5 * Y ω) + Z ω := fun ω => by
+      simp only [hZ]; ring
+    simp_rw [e]
+    rw [integral_add (show Integrable (fun ω => S ω ^ 6 + 6 * (S ω ^ 5 * Y ω)) μ from
+        iS6.add (iS5Y.const_mul 6)) bZ.integrable,
+      integral_add iS6 (iS5Y.const_mul 6), integral_const_mul, z5]
+    have hZb : ∀ ω, Z ω ≤ 25 * B ^ 2 * S ω ^ 4 + 28 * B ^ 4 * S ω ^ 2 + 4 * B ^ 6 := by
+      intro ω
+      have h1 := hYb ω
+      have hY4 : Y ω ^ 4 ≤ B ^ 4 := by
+        rw [show Y ω ^ 4 = (Y ω ^ 2) ^ 2 by ring, show B ^ 4 = (B ^ 2) ^ 2 by ring]
+        exact pow_le_pow_left₀ (_root_.sq_nonneg _) h1 2
+      have hY6 : Y ω ^ 6 ≤ B ^ 6 := by
+        rw [show Y ω ^ 6 = (Y ω ^ 2) ^ 3 by ring, show B ^ 6 = (B ^ 2) ^ 3 by ring]
+        exact pow_le_pow_left₀ (_root_.sq_nonneg _) h1 3
+      -- 2 S³Y³ ≤ S⁴Y² + S²Y⁴ and 2 S Y⁵ ≤ S² Y⁴ + Y⁶
+      have a1 : 2 * (S ω ^ 3 * Y ω ^ 3) ≤ S ω ^ 4 * Y ω ^ 2 + S ω ^ 2 * Y ω ^ 4 := by
+        nlinarith only [mul_nonneg (mul_nonneg (_root_.sq_nonneg (S ω)) (_root_.sq_nonneg (Y ω)))
+          (_root_.sq_nonneg (S ω - Y ω))]
+      have a2 : 2 * (S ω * Y ω ^ 5) ≤ S ω ^ 2 * Y ω ^ 4 + Y ω ^ 6 := by
+        nlinarith only [mul_nonneg (pow_nonneg (_root_.sq_nonneg (Y ω)) 2)
+          (_root_.sq_nonneg (S ω - Y ω))]
+      have b1 : S ω ^ 4 * Y ω ^ 2 ≤ S ω ^ 4 * B ^ 2 :=
+        mul_le_mul_of_nonneg_left h1 (by positivity)
+      have b2 : S ω ^ 2 * Y ω ^ 4 ≤ S ω ^ 2 * B ^ 4 :=
+        mul_le_mul_of_nonneg_left hY4 (_root_.sq_nonneg (S ω))
+      simp only [hZ]
+      nlinarith only [a1, a2, b1, b2, hY6]
+    have hZi : ∫ ω, Z ω ∂μ ≤ 25 * B ^ 2 * ∫ ω, S ω ^ 4 ∂μ + 28 * B ^ 4 * ∫ ω, S ω ^ 2 ∂μ
+        + 4 * B ^ 6 := by
+      calc ∫ ω, Z ω ∂μ ≤ ∫ ω, (25 * B ^ 2 * S ω ^ 4 + 28 * B ^ 4 * S ω ^ 2 + 4 * B ^ 6) ∂μ :=
+            integral_mono bZ.integrable
+              (((iS4.const_mul _).add (iS2.const_mul _)).add (integrable_const _)) hZb
+        _ = 25 * B ^ 2 * ∫ ω, S ω ^ 4 ∂μ + 28 * B ^ 4 * ∫ ω, S ω ^ 2 ∂μ + 4 * B ^ 6 := by
+            rw [integral_add (show Integrable (fun ω => 25 * B ^ 2 * S ω ^ 4
+              + 28 * B ^ 4 * S ω ^ 2) μ from (iS4.const_mul _).add (iS2.const_mul _))
+              (integrable_const _),
+              integral_add (show Integrable (fun ω => 25 * B ^ 2 * S ω ^ 4) μ from
+                iS4.const_mul _) (show Integrable (fun ω => 28 * B ^ 4 * S ω ^ 2) μ from
+                iS2.const_mul _), integral_const_mul, integral_const_mul]
+            simp
+    have hr : (0 : ℝ) ≤ R.card := Nat.cast_nonneg _
+    have hB2 : 0 ≤ B ^ 2 := by positivity
+    have hB6 : 0 ≤ B ^ 6 := by positivity
+    have h4 := mul_le_mul_of_nonneg_left i4 (by positivity : (0 : ℝ) ≤ 25 * B ^ 2)
+    have h2 := mul_le_mul_of_nonneg_left i2 (by positivity : (0 : ℝ) ≤ 28 * B ^ 4)
+    have e1 : 25 * B ^ 2 * (7 * (R.card : ℝ) ^ 2 * B ^ 4) = 175 * (R.card : ℝ) ^ 2 * B ^ 6 := by
+      ring
+    have e2 : 28 * B ^ 4 * ((R.card : ℝ) * B ^ 2) = 28 * (R.card : ℝ) * B ^ 6 := by ring
+    have e3 : 60 * ((R.card : ℝ) + 1) ^ 3 * B ^ 6 = 60 * (R.card : ℝ) ^ 3 * B ^ 6
+        + (180 * (R.card : ℝ) ^ 2 + 180 * R.card + 60) * B ^ 6 := by ring
+    have p1 : 0 ≤ (R.card : ℝ) ^ 2 * B ^ 6 := mul_nonneg (by positivity) hB6
+    have p2 : 0 ≤ (R.card : ℝ) * B ^ 6 := mul_nonneg hr hB6
+    rw [e3]
+    nlinarith only [i6, hZi, h4, h2, e1, e2, p1, p2, hB6]
+
+/-- **Sixth moment of the row sums** (`a < N`, self-loop term included):
+    `E (Nε_a)⁶ ≤ 1952 N³ B⁶`, i.e. `E ε_a⁶ ≤ 1952 B⁶/N³`. -/
+theorem hrow_moment6 [IsProbabilityMeasure μ] [IsProbabilityMeasure ν]
+    (H : BVK μ ν X c κ₂ B c3 c4) (N a : ℕ) (ha : a < N) :
+    ∫ ω, Hrow c X N a ω ^ 6 ∂μ ≤ 1952 * (N : ℝ) ^ 3 * B ^ 6 := by
+  classical
+  have hB0 : 0 ≤ B := H.B_nonneg
+  have hN1 : (1 : ℝ) ≤ N := by exact_mod_cast (Nat.one_le_of_lt ha)
+  set R := (Finset.range N).erase a with hR
+  have haR : a ∉ R := Finset.notMem_erase a _
+  have hcardR : (R.card : ℝ) ≤ N := by
+    have : R.card ≤ N := (Finset.card_erase_le).trans (Finset.card_range N).le
+    exact_mod_cast this
+  have m6 := partial_moment6 H a R haR
+  obtain ⟨S, hS⟩ : ∃ S : Ω → ℝ, S = fun ω => ∑ v ∈ R, c (X a ω - X v ω) := ⟨_, rfl⟩
+  replace m6 : ∫ ω, S ω ^ 6 ∂μ ≤ 60 * (R.card : ℝ) ^ 3 * B ^ 6 := by rw [hS]; exact m6
+  have hsplit : ∀ ω, Hrow c X N a ω = c 0 + S ω := fun ω => by
+    unfold Hrow
+    rw [hS, ← Finset.add_sum_erase _ _ (Finset.mem_range.mpr ha), sub_self]
+  have bS : BM S := by rw [hS]; exact BM.sum _ _ fun v _ => H.bmc a v
+  have bH : BM (Hrow c X N a) := H.bmH N a
+  have hc0 : |c 0| ≤ B := H.bound 0
+  have hc06 : c 0 ^ 6 ≤ B ^ 6 := by
+    have e : |c 0| ^ 6 = c 0 ^ 6 := by
+      rw [show |c 0| ^ 6 = (|c 0| ^ 2) ^ 3 by ring, sq_abs]; ring
+    rw [← e]; exact pow_le_pow_left₀ (abs_nonneg _) hc0 6
+  have iS6 := (BiasSharp.bm_pow bS 6).integrable (μ := μ)
+  have iH6 := (BiasSharp.bm_pow bH 6).integrable (μ := μ)
+  have hpt : ∀ ω, Hrow c X N a ω ^ 6 ≤ 32 * B ^ 6 + 32 * S ω ^ 6 := fun ω => by
+    rw [hsplit]; have := pow6_add_le (c 0) (S ω); linarith only [this, hc06]
+  have := integral_mono iH6 (show Integrable (fun ω => 32 * B ^ 6 + 32 * S ω ^ 6) μ from
+    (integrable_const _).add (iS6.const_mul 32)) hpt
+  rw [integral_add (integrable_const _) (show Integrable (fun ω => 32 * S ω ^ 6) μ from
+    iS6.const_mul 32)] at this
+  simp only [integral_const, probReal_univ, one_smul, integral_const_mul, smul_eq_mul,
+    one_mul] at this
+  have hc3 : (R.card : ℝ) ^ 3 ≤ (N : ℝ) ^ 3 := pow_le_pow_left₀ (Nat.cast_nonneg _) hcardR 3
+  have hB6 : 0 ≤ B ^ 6 := by positivity
+  have h1 : 60 * (R.card : ℝ) ^ 3 * B ^ 6 ≤ 60 * (N : ℝ) ^ 3 * B ^ 6 := by
+    have := mul_le_mul_of_nonneg_right hc3 (by positivity : (0 : ℝ) ≤ 60 * B ^ 6)
+    linarith only [this]
+  have hN3 : (1 : ℝ) ≤ (N : ℝ) ^ 3 := one_le_pow₀ hN1
+  nlinarith only [this, m6, h1, hN3, hB6]
+
+end Sixth
+
+/-! ## Part 2: `prop:variance` for every `k ≥ 2` with self-loops, remainder `C N^{-5/2}` -/
+
+open WalkCount Function BiasGeneral BiasGeneral2 BiasGeneral3 BiasGeneral4 BiasGeneral5
+  BiasGeneral6 BiasVariance4 BiasSharp VarianceOne
+
+section Step1Sharp
+
+variable {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+
+/-- `(∑_{q<N} f q)² ≤ N ∑_{q<N} (f q)²`. -/
+theorem sq_sum_range_le (N : ℕ) (f : ℕ → ℝ) :
+    (∑ q ∈ Finset.range N, f q) ^ 2 ≤ N * ∑ q ∈ Finset.range N, f q ^ 2 := by
+  have h := Finset.sum_mul_sq_le_sq_mul_sq (Finset.range N) (fun _ => (1 : ℝ)) f
+  simp only [one_mul, one_pow, Finset.sum_const, Finset.card_range, nsmul_eq_mul,
+    mul_one] at h
+  exact h
+
+/-- **Step 1 of `prop:variance` with a cubic remainder, fixed event `1/8`**: for independent
+    uniform points, `N ≥ 1`, every `k = n + 1`:
+    `E (Tr P^k - QT)² ≤ (gK3 m₁)² · 1952 m₁⁶/N³ + (N + CQT)² P(max_a |ρ_a - 1| > 1/8)`. -/
+theorem trace_QT_sq3 [IsProbabilityMeasure μ] {d : ℕ} (X : ℕ → Ω → FlatTorus d)
+    (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) {σ : ℝ} (hσ : 0 < σ) (N : ℕ) (hN : 1 ≤ N)
+    (n : ℕ) :
+    ∫ ω, (((torusWalk d σ N (fun j => X j ω)) ^ (n + 1)).trace
+        - QT d σ N n (fun j => X j ω)) ^ 2 ∂μ
+      ≤ (gK3 n * torusM d σ 1) ^ 2 * (1952 * torusM d σ 1 ^ 6 / (N : ℝ) ^ 3)
+        + (N + CQT d σ n) ^ 2
+          * μ.real {ω | ¬ ∀ a : Fin N, |heatRho d σ N (fun j => X j ω) a - 1| ≤ 1 / 8} := by
+  have H := torus_bvk X h_indep hX hlaw hσ
+  have hN' : 0 < N := hN
+  have hN1 : (1 : ℝ) ≤ N := by exact_mod_cast hN
+  have hNpos : (0 : ℝ) < N := lt_of_lt_of_le zero_lt_one hN1
+  obtain ⟨M, hMd⟩ : ∃ M : ℝ, M = torusM d σ 1 := ⟨_, rfl⟩
+  have hM1 : 1 ≤ M := by rw [hMd]; exact torusM_one_ge hσ d
+  have hM0 : 0 ≤ M := zero_le_one.trans hM1
+  obtain ⟨bT, hTb⟩ := VarianceGeneral.trace_pow_bm hσ X hX N (n + 1)
+  have bQ := VarianceGeneral.QT_bm (μ := μ) hσ d X hX (N := N) (n := n)
+  have hGm : MeasurableSet {ω | ∀ a : Fin N,
+      |heatRho d σ N (fun j => X j ω) a - 1| ≤ 1 / 8} := by
+    rw [Set.setOf_forall]
+    exact MeasurableSet.iInter fun a => measurableSet_le
+      (continuous_abs.measurable.comp
+        ((heatRho_sample_measurable hσ d X hX N a).sub measurable_const)) measurable_const
+  obtain ⟨Gc, hGc⟩ : ∃ Gc : Set Ω,
+      Gc = {ω | ¬ ∀ a : Fin N, |heatRho d σ N (fun j => X j ω) a - 1| ≤ 1 / 8} := ⟨_, rfl⟩
+  have hGcm : MeasurableSet Gc := by rw [hGc]; exact hGm.compl
+  rw [← hGc, ← hMd]
+  have bS6 : BM (fun ω => ∑ q ∈ Finset.range N, Hrow (cK d σ) X N q ω ^ 6) :=
+    BM.sum _ _ fun q _ => bm_pow (H.bmH N q) 6
+  have hS6n : ∀ ω, 0 ≤ ∑ q ∈ Finset.range N, Hrow (cK d σ) X N q ω ^ 6 := fun ω =>
+    Finset.sum_nonneg fun q _ => by positivity
+  have hgK := gK3_nonneg n
+  obtain ⟨A, hA⟩ : ∃ A : ℝ, A = gK3 n * M := ⟨_, rfl⟩
+  have hA0 : 0 ≤ A := by rw [hA]; exact mul_nonneg hgK hM0
+  have hpt : ∀ ω, (((torusWalk d σ N (fun j => X j ω)) ^ (n + 1)).trace
+        - QT d σ N n (fun j => X j ω)) ^ 2
+      ≤ A ^ 2 * (1 / (N : ℝ) ^ 7 * ∑ q ∈ Finset.range N, Hrow (cK d σ) X N q ω ^ 6)
+        + (N + CQT d σ n) ^ 2 * Gc.indicator (fun _ => (1 : ℝ)) ω := by
+    intro ω
+    have hS0 : 0 ≤ 1 / (N : ℝ) ^ 7 * ∑ q ∈ Finset.range N, Hrow (cK d σ) X N q ω ^ 6 :=
+      mul_nonneg (by positivity) (hS6n ω)
+    by_cases hω : ∀ a : Fin N, |heatRho d σ N (fun j => X j ω) a - 1| ≤ 1 / 8
+    · have hnot : ω ∉ Gc := by rw [hGc]; exact fun h => h hω
+      rw [Set.indicator_of_notMem hnot, mul_zero, add_zero]
+      have h := trace_QT_good3 hσ hN' n (fun j => X j ω) hω
+      rw [eV_cube_sum σ hN' X ω] at h
+      obtain ⟨Y3, hY3⟩ : ∃ Y3 : ℝ,
+          Y3 = ∑ q ∈ Finset.range N, |Hrow (cK d σ) X N q ω| ^ 3 := ⟨_, rfl⟩
+      rw [← hY3] at h
+      have hY30 : 0 ≤ Y3 := by
+        rw [hY3]; exact Finset.sum_nonneg fun q _ => pow_nonneg (abs_nonneg _) 3
+      have h' : |((torusWalk d σ N (fun j => X j ω)) ^ (n + 1)).trace
+          - QT d σ N n (fun j => X j ω)| ≤ A * (1 / (N : ℝ) ^ 4 * Y3) := by
+        refine h.trans (le_of_eq ?_)
+        rw [hA, ← hMd]; unfold gK3; ring
+      have h1 : (((torusWalk d σ N (fun j => X j ω)) ^ (n + 1)).trace
+          - QT d σ N n (fun j => X j ω)) ^ 2 ≤ (A * (1 / (N : ℝ) ^ 4 * Y3)) ^ 2 := by
+        rw [← sq_abs]; exact pow_le_pow_left₀ (abs_nonneg _) h' 2
+      have hcs : Y3 ^ 2 ≤ N * ∑ q ∈ Finset.range N, Hrow (cK d σ) X N q ω ^ 6 := by
+        have := sq_sum_range_le N (fun q => |Hrow (cK d σ) X N q ω| ^ 3)
+        rw [← hY3] at this
+        refine this.trans (le_of_eq ?_)
+        congr 1
+        refine Finset.sum_congr rfl fun q _ => ?_
+        rw [← pow_mul, show (3 * 2 : ℕ) = 2 * 3 from rfl, pow_mul, sq_abs, ← pow_mul]
+      have e : (A * (1 / (N : ℝ) ^ 4 * Y3)) ^ 2 = A ^ 2 * (1 / (N : ℝ) ^ 8 * Y3 ^ 2) := by
+        field_simp
+      have h2 : A ^ 2 * (1 / (N : ℝ) ^ 8 * Y3 ^ 2)
+          ≤ A ^ 2 * (1 / (N : ℝ) ^ 8 * (N * ∑ q ∈ Finset.range N,
+            Hrow (cK d σ) X N q ω ^ 6)) :=
+        mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_left hcs (by positivity))
+          (_root_.sq_nonneg A)
+      have e2 : A ^ 2 * (1 / (N : ℝ) ^ 8 * (N * ∑ q ∈ Finset.range N,
+            Hrow (cK d σ) X N q ω ^ 6))
+          = A ^ 2 * (1 / (N : ℝ) ^ 7 * ∑ q ∈ Finset.range N, Hrow (cK d σ) X N q ω ^ 6) := by
+        field_simp
+      linarith only [h1, e, h2, e2]
+    · have hin : ω ∈ Gc := by rw [hGc]; exact hω
+      rw [Set.indicator_of_mem hin, mul_one]
+      have hq := QT_abs hσ d hN n (fun j => X j ω)
+      have h0 : 0 ≤ A ^ 2 * (1 / (N : ℝ) ^ 7 * ∑ q ∈ Finset.range N,
+          Hrow (cK d σ) X N q ω ^ 6) := mul_nonneg (_root_.sq_nonneg A) hS0
+      have hab : |((torusWalk d σ N (fun j => X j ω)) ^ (n + 1)).trace
+          - QT d σ N n (fun j => X j ω)| ≤ N + CQT d σ n :=
+        (abs_sub _ _).trans (add_le_add (hTb ω) hq)
+      have hsq : (((torusWalk d σ N (fun j => X j ω)) ^ (n + 1)).trace
+          - QT d σ N n (fun j => X j ω)) ^ 2 ≤ (N + CQT d σ n) ^ 2 := by
+        rw [← sq_abs]; exact pow_le_pow_left₀ (abs_nonneg _) hab 2
+      linarith only [hsq, h0]
+  have bg1 := BM.const_mul (A ^ 2) (BM.const_mul (1 / (N : ℝ) ^ 7) bS6)
+  have ig2 : Integrable (fun ω => (N + CQT d σ n) ^ 2 * Gc.indicator (fun _ => (1 : ℝ)) ω) μ :=
+    ((integrable_const (1 : ℝ)).indicator hGcm).const_mul _
+  have iL : Integrable (fun ω => (((torusWalk d σ N (fun j => X j ω)) ^ (n + 1)).trace
+        - QT d σ N n (fun j => X j ω)) ^ 2) μ := (bT.sub bQ).sqr.integrable
+  have ig : Integrable (fun ω => A ^ 2 * (1 / (N : ℝ) ^ 7 * ∑ q ∈ Finset.range N,
+          Hrow (cK d σ) X N q ω ^ 6)
+        + (N + CQT d σ n) ^ 2 * Gc.indicator (fun _ => (1 : ℝ)) ω) μ := bg1.integrable.add ig2
+  have hint := integral_mono iL ig hpt
+  rw [integral_add bg1.integrable ig2, integral_const_mul, integral_const_mul, integral_const_mul,
+    integral_indicator_const (1 : ℝ) hGcm, smul_eq_mul, mul_one] at hint
+  have hS6 : ∫ ω, ∑ q ∈ Finset.range N, Hrow (cK d σ) X N q ω ^ 6 ∂μ
+      ≤ N * (1952 * (N : ℝ) ^ 3 * M ^ 6) := by
+    rw [integral_finset_sum _ fun q _ => (bm_pow (H.bmH N q) 6).integrable]
+    have := Finset.sum_le_sum fun q (hq : q ∈ Finset.range N) =>
+      hrow_moment6 H N q (Finset.mem_range.mp hq)
+    rw [Finset.sum_const, Finset.card_range, nsmul_eq_mul] at this
+    rw [hMd]; exact this
+  have h1 : 1 / (N : ℝ) ^ 7 * ∫ ω, ∑ q ∈ Finset.range N, Hrow (cK d σ) X N q ω ^ 6 ∂μ
+      ≤ 1952 * M ^ 6 / (N : ℝ) ^ 3 := by
+    have h1 := mul_le_mul_of_nonneg_left hS6 (by positivity : (0 : ℝ) ≤ 1 / (N : ℝ) ^ 7)
+    have e : 1 / (N : ℝ) ^ 7 * (N * (1952 * (N : ℝ) ^ 3 * M ^ 6)) = 1952 * M ^ 6 / (N : ℝ) ^ 3 := by
+      field_simp
+    linarith only [h1, e]
+  have h2 := mul_le_mul_of_nonneg_left h1 (_root_.sq_nonneg A)
+  rw [hA] at h2 hint
+  linarith only [hint, h2]
+
+end Step1Sharp
+
+section VarSharp
+
+variable {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+
+/-- **`prop:variance` for every `k = n + 1`, fixed event `1/8`, cubic remainder.**  For
+    independent uniform points, `N ≥ 1`, `θ > 0`:
+    `|Var Tr P^k - v_k (N-1)/N³| ≤ θ v_k (N-1)/N³ + (1 + 1/θ)(2 E₁ + 2 R)` with
+    `E₁ = (gK3 m₁)² 1952 m₁⁶/N³ + (N + CQT)² P(max|ρ - 1| > 1/8)` and
+    `R = Cq cA B4²/N³`. -/
+theorem variance_sharp_event [IsProbabilityMeasure μ] {d : ℕ} (X : ℕ → Ω → FlatTorus d)
+    (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) {σ : ℝ} (hσ : 0 < σ) (N : ℕ) (hN : 1 ≤ N)
+    (n : ℕ) {θ : ℝ} (hθ : 0 < θ) :
+    |cv μ (fun ω => ((torusWalk d σ N (fun j => X j ω)) ^ (n + 1)).trace)
+        - VarianceGeneral.vk d σ (n + 1) * ((N : ℝ) - 1) / (N : ℝ) ^ 3|
+      ≤ θ * (VarianceGeneral.vk d σ (n + 1) * ((N : ℝ) - 1) / (N : ℝ) ^ 3)
+        + (1 + 1 / θ) * (2 * ((gK3 n * torusM d σ 1) ^ 2 * (1952 * torusM d σ 1 ^ 6 / (N : ℝ) ^ 3)
+          + (N + CQT d σ n) ^ 2
+            * μ.real {ω | ¬ ∀ a : Fin N, |heatRho d σ N (fun j => X j ω) a - 1| ≤ 1 / 8})
+          + 2 * (VarianceGeneral3.Cq n * (VarianceGeneral3.cA n * B4 d σ n ^ 2 / (N : ℝ) ^ 3))) := by
+  have hN' : 0 < N := hN
+  rw [← VarianceGeneral5.vq_eq_vk_ae hσ n]
+  obtain ⟨bU, hcvU⟩ := VarianceGeneral3.Uq_var X h_indep hX hlaw hσ n N
+  obtain ⟨bT, _⟩ := VarianceGeneral.trace_pow_bm hσ X hX N (n + 1)
+  have bQ := VarianceGeneral.QT_bm (μ := μ) hσ d X hX (N := N) (n := n)
+  have hsq := trace_QT_sq3 X h_indep hX hlaw hσ N hN n
+  obtain ⟨_, hR⟩ := VarianceGeneral3.QT_pair X h_indep hX hlaw hσ hN' n
+  have eU : ∀ ω, VarianceGeneral3.Uq d σ n X N ω
+      = 1 / (N : ℝ) ^ 2 * Soff (VarianceGeneral3.hQT d σ n) X N ω := fun ω => by
+    unfold VarianceGeneral3.Uq; rw [VarianceGeneral3.Soff_hS]
+  have hR' : cv μ (fun ω => QT d σ N n (fun j => X j ω) - VarianceGeneral3.Uq d σ n X N ω)
+      ≤ VarianceGeneral3.Cq n * (VarianceGeneral3.cA n * B4 d σ n ^ 2 / (N : ℝ) ^ 3) := by
+    simp_rw [eU]; exact hR
+  obtain ⟨E1, hE1⟩ : ∃ E1 : ℝ, E1 = (gK3 n * torusM d σ 1) ^ 2
+      * (1952 * torusM d σ 1 ^ 6 / (N : ℝ) ^ 3) + (N + CQT d σ n) ^ 2
+        * μ.real {ω | ¬ ∀ a : Fin N, |heatRho d σ N (fun j => X j ω) a - 1| ≤ 1 / 8} :=
+    ⟨_, rfl⟩
+  obtain ⟨R, hRd⟩ : ∃ R : ℝ,
+      R = VarianceGeneral3.Cq n * (VarianceGeneral3.cA n * B4 d σ n ^ 2 / (N : ℝ) ^ 3) :=
+    ⟨_, rfl⟩
+  rw [← hE1] at hsq ⊢
+  rw [← hRd] at hR' ⊢
+  have bTQ : BM (fun ω => ((torusWalk d σ N (fun j => X j ω)) ^ (n + 1)).trace
+      - QT d σ N n (fun j => X j ω)) := bT.sub bQ
+  have bQU : BM (fun ω => QT d σ N n (fun j => X j ω) - VarianceGeneral3.Uq d σ n X N ω) :=
+    bQ.sub bU
+  have hTQ := cv_le_sq (μ := μ) bTQ
+  have hg : cv μ (fun ω => ((torusWalk d σ N (fun j => X j ω)) ^ (n + 1)).trace
+      - VarianceGeneral3.Uq d σ n X N ω) ≤ 2 * E1 + 2 * R := by
+    have e : (fun ω => ((torusWalk d σ N (fun j => X j ω)) ^ (n + 1)).trace
+        - VarianceGeneral3.Uq d σ n X N ω)
+        = fun ω => (((torusWalk d σ N (fun j => X j ω)) ^ (n + 1)).trace
+          - QT d σ N n (fun j => X j ω))
+          + (QT d σ N n (fun j => X j ω) - VarianceGeneral3.Uq d σ n X N ω) := by
+      funext ω; ring
+    rw [e]
+    have := cv_add_le (μ := μ) bTQ bQU
+    linarith only [this, hTQ, hsq, hR']
+  have hper := cv_perturb (μ := μ) bU (bT.sub bU) hθ
+  have e : (fun ω => VarianceGeneral3.Uq d σ n X N ω
+      + (((torusWalk d σ N (fun j => X j ω)) ^ (n + 1)).trace
+        - VarianceGeneral3.Uq d σ n X N ω))
+      = fun ω => ((torusWalk d σ N (fun j => X j ω)) ^ (n + 1)).trace := by
+    funext ω; ring
+  rw [e, hcvU] at hper
+  have hθ' : 0 ≤ 1 + 1 / θ := by positivity
+  have := mul_le_mul_of_nonneg_left hg hθ'
+  linarith only [hper, this]
+
+/-- `x^k e^{-x} ≤ k^k` for `x ≥ 0`, `k ≥ 1`. -/
+theorem pow_exp_neg_le {x : ℝ} (hx : 0 ≤ x) {k : ℕ} (hk : 1 ≤ k) :
+    x ^ k * Real.exp (-x) ≤ (k : ℝ) ^ k := by
+  have hk0 : (0 : ℝ) < k := by exact_mod_cast hk
+  have h1 : x / k ≤ Real.exp (x / k) := by linarith [Real.add_one_le_exp (x / k)]
+  have h2 : (x / k) ^ k ≤ Real.exp (x / k) ^ k := pow_le_pow_left₀ (by positivity) h1 k
+  have h3 : Real.exp (x / k) ^ k = Real.exp x := by
+    rw [← Real.exp_nat_mul]; congr 1; field_simp
+  have h4 : x ^ k ≤ (k : ℝ) ^ k * Real.exp x := by
+    rw [div_pow, h3, div_le_iff₀ (by positivity)] at h2
+    linarith [mul_comm (Real.exp x) ((k : ℝ) ^ k)]
+  have h5 : Real.exp x * Real.exp (-x) = 1 := by
+    rw [← Real.exp_add, add_neg_cancel, Real.exp_zero]
+  have h6 := mul_le_mul_of_nonneg_right h4 (Real.exp_pos (-x)).le
+  calc x ^ k * Real.exp (-x) ≤ (k : ℝ) ^ k * Real.exp x * Real.exp (-x) := h6
+    _ = (k : ℝ) ^ k := by rw [mul_assoc, h5, mul_one]
+
+/-- **Task (2) of A117: `prop:variance` for every `k = n + 1` with self-loops, remainder
+    `C · N^{-5/2}` WITHOUT a logarithm.**  For independent uniform points on the flat torus,
+    the heat kernel of variance `σ > 0` and every `n`, there is `C` (depending on `d, σ, n`) such
+    that for all `N ≥ 1`: `|Var Tr P^{n+1} - v_{n+1} (N-1)/N³| ≤ C / (N² √N)`. -/
+theorem variance_sharp [IsProbabilityMeasure μ] {d : ℕ} (X : ℕ → Ω → FlatTorus d)
+    (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) {σ : ℝ} (hσ : 0 < σ) (n : ℕ) :
+    ∃ C : ℝ, ∀ N : ℕ, 1 ≤ N →
+      |cv μ (fun ω => ((torusWalk d σ N (fun j => X j ω)) ^ (n + 1)).trace)
+          - VarianceGeneral.vk d σ (n + 1) * ((N : ℝ) - 1) / (N : ℝ) ^ 3|
+        ≤ C / ((N : ℝ) ^ 2 * Real.sqrt N) := by
+  have hc : 0 < 2 * Real.pi ^ 2 * σ := by have := Real.pi_pos; positivity
+  obtain ⟨M, hMd⟩ : ∃ M : ℝ, M = torusM d σ 1 := ⟨_, rfl⟩
+  have hM1 : 1 ≤ M := by rw [hMd]; exact torusM_one_ge hσ d
+  have hM0 : 0 < M := lt_of_lt_of_le zero_lt_one hM1
+  obtain ⟨Lip, hLipd⟩ : ∃ Lip : ℝ, Lip = 2 * Real.pi * (2 / (2 * Real.pi ^ 2 * σ))
+      * (1 + Real.sqrt (2 * Real.pi / (2 * Real.pi ^ 2 * σ))) ^ d := ⟨_, rfl⟩
+  have hLip0 : 0 ≤ Lip := by rw [hLipd]; have := Real.pi_pos; positivity
+  obtain ⟨g, hgd⟩ : ∃ g : ℕ, g = ⌈32 * Lip⌉₊ + 1 := ⟨_, rfl⟩
+  have hg : 0 < g := by rw [hgd]; omega
+  have hgL : 32 * Lip ≤ g := by
+    rw [hgd]; push_cast; linarith [Nat.le_ceil (32 * Lip)]
+  have hMb : ∀ u, heatTorus d (2 * Real.pi ^ 2 * σ) u ≤ M := fun u => by
+    rw [hMd, torusM_one]; exact heatTorus_le_zero hc d _
+  have hLip : ∀ u u', |heatTorus d (2 * Real.pi ^ 2 * σ) u - heatTorus d (2 * Real.pi ^ 2 * σ) u'|
+      ≤ Lip * dist u u' := fun u u' => by rw [hLipd]; exact heatTorus_lipschitz hc d u u'
+  obtain ⟨a, had⟩ : ∃ a : ℝ, a = 1 / (1056 * M) := ⟨_, rfl⟩
+  have ha0 : 0 < a := by rw [had]; positivity
+  have hgd0 : (0 : ℝ) ≤ (g : ℝ) ^ d := by positivity
+  have hCQ := VarianceSharp.CQT_nonneg hσ d n
+  have hCq := VarianceSharp.Cq_nonneg n
+  have hcA := VarianceGeneral3.cA_nonneg n
+  have hB4 := B4_nonneg hσ d n
+  have hgK := gK3_nonneg n
+  obtain ⟨c, hcd⟩ : ∃ c : ℝ, c = 2 * ((gK3 n * M) ^ 2 * (1952 * M ^ 6))
+      + 2 * ((1 + CQT d σ n) ^ 2 * ((g : ℝ) ^ d * 2) * (3125 / a ^ 5))
+      + 2 * (VarianceGeneral3.Cq n * (VarianceGeneral3.cA n * B4 d σ n ^ 2)) := ⟨_, rfl⟩
+  have hc0 : 0 ≤ c := by rw [hcd]; positivity
+  refine ⟨VarianceGeneral.vk d σ (n + 1) + 2 * c, ?_⟩
+  intro N hN
+  have hN1 : (1 : ℝ) ≤ N := by exact_mod_cast hN
+  have hNpos : (0 : ℝ) < N := lt_of_lt_of_le zero_lt_one hN1
+  have hs : 0 < Real.sqrt N := Real.sqrt_pos.mpr hNpos
+  have hθ : 0 < 1 / Real.sqrt N := by positivity
+  have h := variance_sharp_event X h_indep hX hlaw hσ N hN n hθ
+  rw [one_div_one_div, ← hMd] at h
+  have hp := VarianceOne.p8_le hσ d X h_indep hX hlaw N hN hg hMb hLip hLip0 hgL
+  obtain ⟨P, hPd⟩ : ∃ P : ℝ,
+      P = μ.real {ω | ¬ ∀ a : Fin N, |heatRho d σ N (fun j => X j ω) a - 1| ≤ 1 / 8} := ⟨_, rfl⟩
+  rw [← hPd] at h hp
+  have hP0 : 0 ≤ P := by rw [hPd]; exact measureReal_nonneg
+  have hexp : -((N : ℝ) / 16) ^ 2 / (4 * (N * M) + 2 * M * ((N : ℝ) / 16)) = -(a * N) := by
+    have hden : 4 * ((N : ℝ) * M) + 2 * M * ((N : ℝ) / 16) ≠ 0 := by positivity
+    rw [had]; field_simp [hden, hM0.ne']; ring
+  rw [hexp] at hp
+  -- the probability term
+  have hPN : (N + CQT d σ n) ^ 2 * P
+      ≤ (1 + CQT d σ n) ^ 2 * ((g : ℝ) ^ d * 2) * (3125 / a ^ 5) / (N : ℝ) ^ 3 := by
+    have h1 : ((N : ℝ) + CQT d σ n) ^ 2 ≤ (1 + CQT d σ n) ^ 2 * (N : ℝ) ^ 2 := by
+      have : (N : ℝ) + CQT d σ n ≤ (1 + CQT d σ n) * N := by nlinarith only [hN1, hCQ]
+      have := pow_le_pow_left₀ (by positivity) this 2
+      linarith only [this, show ((1 + CQT d σ n) * N) ^ 2 = (1 + CQT d σ n) ^ 2 * (N : ℝ) ^ 2
+        by ring]
+    have h5 : (N : ℝ) ^ 5 * Real.exp (-(a * N)) ≤ 3125 / a ^ 5 := by
+      have := pow_exp_neg_le (mul_nonneg ha0.le hNpos.le) (k := 5) (by norm_num)
+      rw [le_div_iff₀ (by positivity)]
+      have e : (a * N) ^ 5 = (N : ℝ) ^ 5 * a ^ 5 := by ring
+      have e5 : ((5 : ℕ) : ℝ) ^ 5 = 3125 := by norm_num
+      rw [e5, e] at this; linarith only [this]
+    have h2 : P ≤ (g : ℝ) ^ d * 2 * Real.exp (-(a * N)) := by linarith only [hp]
+    rw [le_div_iff₀ (by positivity)]
+    calc (N + CQT d σ n) ^ 2 * P * (N : ℝ) ^ 3
+        ≤ ((1 + CQT d σ n) ^ 2 * (N : ℝ) ^ 2) * ((g : ℝ) ^ d * 2 * Real.exp (-(a * N)))
+            * (N : ℝ) ^ 3 := by gcongr
+      _ = (1 + CQT d σ n) ^ 2 * ((g : ℝ) ^ d * 2) * ((N : ℝ) ^ 5 * Real.exp (-(a * N))) := by
+          ring
+      _ ≤ (1 + CQT d σ n) ^ 2 * ((g : ℝ) ^ d * 2) * (3125 / a ^ 5) := by gcongr
+  have hX : 2 * ((gK3 n * M) ^ 2 * (1952 * M ^ 6 / (N : ℝ) ^ 3) + (N + CQT d σ n) ^ 2 * P)
+      + 2 * (VarianceGeneral3.Cq n * (VarianceGeneral3.cA n * B4 d σ n ^ 2 / (N : ℝ) ^ 3))
+      ≤ c * 1 / (N : ℝ) ^ 3 := by
+    rw [hcd]
+    have e1 : (gK3 n * M) ^ 2 * (1952 * M ^ 6 / (N : ℝ) ^ 3)
+        = (gK3 n * M) ^ 2 * (1952 * M ^ 6) / (N : ℝ) ^ 3 := by ring
+    have e2 : VarianceGeneral3.Cq n * (VarianceGeneral3.cA n * B4 d σ n ^ 2 / (N : ℝ) ^ 3)
+        = VarianceGeneral3.Cq n * (VarianceGeneral3.cA n * B4 d σ n ^ 2) / (N : ℝ) ^ 3 := by
+      ring
+    rw [e1, e2]
+    have e3 : (2 * ((gK3 n * M) ^ 2 * (1952 * M ^ 6))
+        + 2 * ((1 + CQT d σ n) ^ 2 * ((g : ℝ) ^ d * 2) * (3125 / a ^ 5))
+        + 2 * (VarianceGeneral3.Cq n * (VarianceGeneral3.cA n * B4 d σ n ^ 2))) * 1
+          / (N : ℝ) ^ 3
+        = 2 * ((gK3 n * M) ^ 2 * (1952 * M ^ 6) / (N : ℝ) ^ 3)
+          + 2 * ((1 + CQT d σ n) ^ 2 * ((g : ℝ) ^ d * 2) * (3125 / a ^ 5) / (N : ℝ) ^ 3)
+          + 2 * (VarianceGeneral3.Cq n * (VarianceGeneral3.cA n * B4 d σ n ^ 2)
+            / (N : ℝ) ^ 3) := by ring
+    rw [e3]
+    linarith only [hPN]
+  have hs1 : 1 ≤ Real.sqrt N := by
+    rw [show (1 : ℝ) = Real.sqrt 1 from Real.sqrt_one.symm]
+    exact Real.sqrt_le_sqrt hN1
+  have hsN : Real.sqrt N ^ 2 = N := Real.sq_sqrt hNpos.le
+  have := VarianceSharp.rate_alg hs1 hsN le_rfl (VarianceGeneral.vk_nonneg d σ (n + 1)) hc0 hX
+  rw [mul_one] at this
+  exact h.trans this
+
+end VarSharp
+
+/-! ## Part 3: `prop:bias` for `k = 1` with self-loops, remainder `C N^{-3/2}` -/
+
+section K1Det
+
+/-- **`k = 1`, deterministic, cubic remainder** (fixed threshold `1/8`): with the notation of
+    `BiasVariance.trace_one_expansion`,
+    `|Tr P - m (1 - ε̄ + (1/N) ∑_i (3ε_i² - 3ε_i b_i + b_i²))| ≤ 256 m (1/N) ∑_i |ε_i|³`. -/
+theorem trace_one_expansion3 {N : ℕ} (hN : 0 < N) (K : Fin N → Fin N → ℝ) (ρ ε : Fin N → ℝ)
+    {m : ℝ} (hK0 : ∀ i j, 0 ≤ K i j) (hsym : ∀ i j, K i j = K j i) (hd : ∀ i, K i i = m)
+    (hρ : ∀ i, ∑ l, K i l = N * ρ i) (hε : ∀ i, ε i = ρ i - 1) (hm : 0 ≤ m)
+    (hεδ : ∀ i, |ε i| ≤ 1 / 8) :
+    |(walkMatrix K ρ).trace
+        - m * (1 - 1 / (N : ℝ) * ∑ i, ε i
+            + 1 / (N : ℝ) * ∑ i, (3 * ε i ^ 2 - 3 * ε i * (1 / (N : ℝ) * ∑ l, K i l * ε l)
+                + (1 / (N : ℝ) * ∑ l, K i l * ε l) ^ 2))|
+      ≤ 256 * m * (1 / (N : ℝ) * ∑ i, |ε i| ^ 3) := by
+  have hNpos : (0 : ℝ) < N := by exact_mod_cast hN
+  have hN0 : (N : ℝ) ≠ 0 := hNpos.ne'
+  have hl : ∀ l, -(1 / 8 : ℝ) ≤ ε l ∧ ε l ≤ 1 / 8 := fun l => abs_le.mp (hεδ l)
+  have hρe : ∀ l, ρ l = 1 + ε l := fun l => by rw [hε l]; ring
+  have hρlo : ∀ l, 7 / 8 ≤ ρ l := fun l => by rw [hρe l]; linarith only [(hl l).1]
+  have hρhi : ∀ l, ρ l ≤ 9 / 8 := fun l => by rw [hρe l]; linarith only [(hl l).2]
+  have hρ0 : ∀ l, ρ l ≠ 0 := fun l => by linarith only [hρlo l]
+  obtain ⟨bv, hbv⟩ : ∃ bv : Fin N → ℝ, bv = fun i => 1 / (N : ℝ) * ∑ l, K i l * ε l := ⟨_, rfl⟩
+  obtain ⟨sv, hsv⟩ : ∃ sv : Fin N → ℝ, sv = fun i => 1 / (N : ℝ) * ∑ l, K i l * ε l ^ 2 :=
+    ⟨_, rfl⟩
+  obtain ⟨tv, htv⟩ : ∃ tv : Fin N → ℝ, tv = fun i => 1 / (N : ℝ) * ∑ l, K i l * |ε l| ^ 3 :=
+    ⟨_, rfl⟩
+  obtain ⟨γ, hγd⟩ : ∃ γ : Fin N → ℝ,
+      γ = fun i => 1 / ρ i * (1 / (1 / (N : ℝ) * ∑ l, K i l / ρ l)) := ⟨_, rfl⟩
+  obtain ⟨Qf, hQf⟩ : ∃ Qf : Fin N → ℝ,
+      Qf = fun i => 3 * ε i ^ 2 - 3 * ε i * bv i + bv i ^ 2 := ⟨_, rfl⟩
+  have hv : ∀ i, |γ i - (1 - 2 * ε i + bv i + Qf i - sv i)| ≤ 120 * (|ε i| ^ 3 + tv i) := by
+    intro i
+    have V := BiasSharp.vertex_cubic hN K ρ ε hK0 hρ hε hεδ i (b := bv i) (s := sv i)
+      (t := tv i) (γ := γ i) (W := 120 * (|ε i| ^ 3 + tv i)) (by rw [hbv]) (by rw [hsv])
+      (by rw [htv]) (by rw [hγd]) rfl
+    have e : 1 - 2 * ε i + bv i + Qf i - sv i
+        = 1 + (-2 * ε i + bv i) + (3 * ε i ^ 2 - 3 * ε i * bv i + bv i ^ 2 - sv i) := by
+      rw [hQf]; ring
+    rw [e]; exact V.1
+  have ht0 : ∀ i, 0 ≤ tv i := fun i => by
+    rw [htv]; exact mul_nonneg (by positivity) (Finset.sum_nonneg fun l _ =>
+      mul_nonneg (hK0 i l) (pow_nonneg (abs_nonneg _) 3))
+  -- the trace
+  have htr : (walkMatrix K ρ).trace = m / N * ∑ i, γ i := by
+    have e := BiasVariance2.trace_pow_gamma K ρ hρ0 1
+    rw [pow_one, pow_one, ← hγd] at e
+    rw [e]
+    simp only [Matrix.trace, Matrix.diag_apply, Matrix.mul_diagonal, Matrix.of_apply, hd]
+    rw [Finset.mul_sum]
+  -- column sums
+  have hcol : ∀ f : Fin N → ℝ,
+      ∑ i, 1 / (N : ℝ) * ∑ l, K i l * f l = ∑ l, ρ l * f l := by
+    intro f
+    rw [← Finset.mul_sum, Finset.sum_comm, Finset.mul_sum]
+    refine Finset.sum_congr rfl fun l _ => ?_
+    rw [← Finset.sum_mul]
+    have : ∑ i, K i l = N * ρ l := by
+      rw [← hρ l]; exact Finset.sum_congr rfl fun i _ => hsym i l
+    rw [this]; field_simp
+  obtain ⟨Se, hSe⟩ : ∃ Se : ℝ, Se = ∑ i, ε i := ⟨_, rfl⟩
+  obtain ⟨Se2, hSe2⟩ : ∃ Se2 : ℝ, Se2 = ∑ i, ε i ^ 2 := ⟨_, rfl⟩
+  obtain ⟨Se3, hSe3⟩ : ∃ Se3 : ℝ, Se3 = ∑ i, ε i ^ 3 := ⟨_, rfl⟩
+  obtain ⟨SA, hSA⟩ : ∃ SA : ℝ, SA = ∑ i, |ε i| ^ 3 := ⟨_, rfl⟩
+  obtain ⟨SQ, hSQ⟩ : ∃ SQ : ℝ, SQ = ∑ i, Qf i := ⟨_, rfl⟩
+  have hSb : ∑ i, bv i = Se + Se2 := by
+    rw [hbv, hcol ε, hSe, hSe2, ← Finset.sum_add_distrib]
+    exact Finset.sum_congr rfl fun l _ => by rw [hρe l]; ring
+  have hSs : ∑ i, sv i = Se2 + Se3 := by
+    rw [hsv, hcol (fun l => ε l ^ 2), hSe2, hSe3, ← Finset.sum_add_distrib]
+    exact Finset.sum_congr rfl fun l _ => by rw [hρe l]; ring
+  have hSt : ∑ i, tv i ≤ 9 / 8 * SA := by
+    rw [htv, hcol (fun l => |ε l| ^ 3), hSA, Finset.mul_sum]
+    exact Finset.sum_le_sum fun l _ =>
+      mul_le_mul_of_nonneg_right (hρhi l) (pow_nonneg (abs_nonneg _) 3)
+  have hST : ∑ i, (1 - 2 * ε i + bv i + Qf i - sv i) = N - Se + SQ - Se3 := by
+    simp only [Finset.sum_sub_distrib, Finset.sum_add_distrib, Finset.sum_const,
+      Finset.card_univ, Fintype.card_fin, nsmul_eq_mul, mul_one, ← Finset.mul_sum]
+    rw [hSb, hSs, ← hSe, ← hSQ]; ring
+  have hgoal : (walkMatrix K ρ).trace
+        - m * (1 - 1 / (N : ℝ) * ∑ i, ε i
+            + 1 / (N : ℝ) * ∑ i, (3 * ε i ^ 2 - 3 * ε i * (1 / (N : ℝ) * ∑ l, K i l * ε l)
+                + (1 / (N : ℝ) * ∑ l, K i l * ε l) ^ 2))
+      = m / N * (∑ i, (γ i - (1 - 2 * ε i + bv i + Qf i - sv i)) - Se3) := by
+    have eQ : ∑ i, (3 * ε i ^ 2 - 3 * ε i * (1 / (N : ℝ) * ∑ l, K i l * ε l)
+                + (1 / (N : ℝ) * ∑ l, K i l * ε l) ^ 2) = SQ := by
+      rw [hSQ, hQf, hbv]
+    rw [eQ, htr, Finset.sum_sub_distrib, hST, ← hSe]
+    field_simp; ring
+  rw [hgoal]
+  have hG : |∑ i, (γ i - (1 - 2 * ε i + bv i + Qf i - sv i))| ≤ 120 * (SA + ∑ i, tv i) := by
+    refine (Finset.abs_sum_le_sum_abs _ _).trans ?_
+    rw [hSA, ← Finset.sum_add_distrib, Finset.mul_sum]
+    exact Finset.sum_le_sum fun i _ => hv i
+  have h3 : |Se3| ≤ SA := by
+    rw [hSe3, hSA]
+    refine (Finset.abs_sum_le_sum_abs _ _).trans (le_of_eq (Finset.sum_congr rfl fun i _ => ?_))
+    rw [abs_pow]
+  have hmN : 0 ≤ m / N := div_nonneg hm hNpos.le
+  rw [abs_mul, abs_of_nonneg hmN]
+  obtain ⟨g1, g2⟩ := abs_le.mp hG
+  obtain ⟨t1, t2⟩ := abs_le.mp h3
+  have hSA0 : 0 ≤ SA := by rw [hSA]; exact Finset.sum_nonneg fun i _ => pow_nonneg (abs_nonneg _) 3
+  have hfin : |∑ i, (γ i - (1 - 2 * ε i + bv i + Qf i - sv i)) - Se3| ≤ 256 * SA := by
+    rw [abs_le]; constructor <;> linarith only [g1, g2, t1, t2, hSt, hSA0]
+  have := mul_le_mul_of_nonneg_left hfin hmN
+  have e : m / N * (256 * SA) = 256 * m * (1 / (N : ℝ) * SA) := by ring
+  rw [← hSA, ← e]; exact this
+
+end K1Det
+
+section K1
+
+variable {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+
+theorem trace_Q1_good3 {d : ℕ} {σ : ℝ} (hσ : 0 < σ) (N : ℕ) (hN : 0 < N)
+    (X : ℕ → Ω → FlatTorus d) (ω : Ω)
+    (hρ : ∀ a : Fin N, |heatRho d σ N (fun j => X j ω) a - 1| ≤ 1 / 8) :
+    |(torusWalk d σ N (fun j => X j ω)).trace - Q1 d σ N X ω|
+      ≤ 256 * torusM d σ 1 * (1 / (N : ℝ) ^ 4
+          * ∑ q ∈ Finset.range N, |Hrow (cK d σ) X N q ω| ^ 3) := by
+  have hc : 0 < 2 * Real.pi ^ 2 * σ := by have := Real.pi_pos; positivity
+  have hM0 : 0 ≤ torusM d σ 1 := zero_le_one.trans (torusM_one_ge hσ d)
+  have h := trace_one_expansion3 hN (torusK d σ N (fun j => X j ω))
+    (torusRho d σ N (fun j => X j ω)) (fun a : Fin N => heatRho d σ N (fun j => X j ω) a - 1)
+    (m := torusM d σ 1)
+    (fun i j => heatTorus_nonneg hc d _)
+    (fun i j => by
+      show heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X j ω)
+        = heatTorus d (2 * Real.pi ^ 2 * σ) (X j ω - X i ω)
+      rw [← neg_sub (X j ω) (X i ω), heatTorus_even])
+    (fun i => by
+      show heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X i ω) = torusM d σ 1
+      rw [sub_self, torusM_one])
+    (fun i => by
+      show ∑ l : Fin N, heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X l ω)
+        = N * heatRho d σ N (fun j => X j ω) i
+      rw [Fin.sum_univ_eq_sum_range
+        (fun l => heatTorus d (2 * Real.pi ^ 2 * σ) (X i ω - X l ω)) N]
+      unfold heatRho
+      field_simp)
+    (fun i => rfl) hM0 hρ
+  rw [Q1_eq σ N hN X ω] at h
+  have e : 1 / (N : ℝ) * ∑ i : Fin N, |heatRho d σ N (fun j => X j ω) i - 1| ^ 3
+      = 1 / (N : ℝ) ^ 4 * ∑ q ∈ Finset.range N, |Hrow (cK d σ) X N q ω| ^ 3 := by
+    have hε := fun q => SecondStageTrace2.eps_eq_Hrow d σ N hN X ω q
+    simp_rw [hε]
+    rw [Fin.sum_univ_eq_sum_range (fun i => |1 / (N : ℝ) * Hrow (cK d σ) X N i ω| ^ 3) N,
+      Finset.mul_sum, Finset.mul_sum]
+    have hNpos : (0 : ℝ) < N := by exact_mod_cast hN
+    refine Finset.sum_congr rfl fun q _ => ?_
+    rw [abs_mul, abs_of_pos (by positivity : (0 : ℝ) < 1 / (N : ℝ))]
+    field_simp
+  rw [e] at h
+  exact h
+
+/-- **`prop:bias` for `k = 1` with self-loops, fixed event `1/8`, no logarithm.** For
+    independent uniform points and `N ≥ 1`:
+    `|E Tr P - m₁ - β₁/N| ≤ 8704 m₁⁴/(N √N) + 60 m₁⁵/N² + (N + 9m₁⁵) P(max|ρ - 1| > 1/8)`,
+    `β₁ = m₁ (m₄ - 3m₃ + 3m₂ - m₁)`. -/
+theorem bias_one_sharp_event [IsProbabilityMeasure μ] {d : ℕ} (X : ℕ → Ω → FlatTorus d)
+    (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) {σ : ℝ} (hσ : 0 < σ) (N : ℕ) (hN : 1 ≤ N) :
+    |∫ ω, (torusWalk d σ N (fun j => X j ω)).trace ∂μ
+        - (torusM d σ 1 + torusM d σ 1
+          * (torusM d σ 4 - 3 * torusM d σ 3 + 3 * torusM d σ 2 - torusM d σ 1) / N)|
+      ≤ 8704 * torusM d σ 1 ^ 4 / (N * Real.sqrt N) + 60 * torusM d σ 1 ^ 5 / (N : ℝ) ^ 2
+        + (N + 9 * torusM d σ 1 ^ 5)
+          * μ.real {ω | ¬ ∀ a : Fin N, |heatRho d σ N (fun j => X j ω) a - 1| ≤ 1 / 8} := by
+  have H := torus_bvk X h_indep hX hlaw hσ
+  have hN' : 0 < N := hN
+  have hN1 : (1 : ℝ) ≤ N := by exact_mod_cast hN
+  have hNpos : (0 : ℝ) < N := lt_of_lt_of_le zero_lt_one hN1
+  have hc : 0 < 2 * Real.pi ^ 2 * σ := by have := Real.pi_pos; positivity
+  obtain ⟨M, hMd⟩ : ∃ M : ℝ, M = torusM d σ 1 := ⟨_, rfl⟩
+  have hM1 : 1 ≤ M := by rw [hMd]; exact torusM_one_ge hσ d
+  have hM0 : 0 ≤ M := zero_le_one.trans hM1
+  obtain ⟨bQ, hQm⟩ := Q1_mean X h_indep hX hlaw hσ N hN
+  rw [← hMd] at hQm ⊢
+  have hT01 : ∀ ω (a : Fin N), 0 ≤ torusWalk d σ N (fun j => X j ω) a a
+      ∧ torusWalk d σ N (fun j => X j ω) a a ≤ 1 := fun ω a =>
+    walk_diag_unit _ _ (fun i j => heatTorus_nonneg hc d _)
+      (fun i => div_nonneg (Finset.sum_nonneg fun l _ => heatTorus_nonneg hc d _)
+        (Nat.cast_nonneg N)) a
+  have hTb : ∀ ω, |(torusWalk d σ N (fun j => X j ω)).trace| ≤ N := by
+    intro ω
+    have h0 : 0 ≤ (torusWalk d σ N (fun j => X j ω)).trace :=
+      Finset.sum_nonneg fun a _ => (hT01 ω a).1
+    rw [abs_of_nonneg h0]
+    calc (torusWalk d σ N (fun j => X j ω)).trace
+        ≤ ∑ _a : Fin N, (1 : ℝ) := Finset.sum_le_sum fun a _ => (hT01 ω a).2
+      _ = N := by simp
+  have bT : BM (fun ω => (torusWalk d σ N (fun j => X j ω)).trace) :=
+    ⟨Finset.measurable_sum _ fun a _ => walk_entry_measurable hσ d X hX N a a, N, hTb⟩
+  have hGm : MeasurableSet {ω | ∀ a : Fin N,
+      |heatRho d σ N (fun j => X j ω) a - 1| ≤ 1 / 8} := by
+    rw [Set.setOf_forall]
+    exact MeasurableSet.iInter fun a => measurableSet_le
+      (continuous_abs.measurable.comp
+        ((heatRho_sample_measurable hσ d X hX N a).sub measurable_const)) measurable_const
+  obtain ⟨Gc, hGc⟩ : ∃ Gc : Set Ω,
+      Gc = {ω | ¬ ∀ a : Fin N, |heatRho d σ N (fun j => X j ω) a - 1| ≤ 1 / 8} := ⟨_, rfl⟩
+  have hGcm : MeasurableSet Gc := by rw [hGc]; exact hGm.compl
+  rw [← hGc]
+  have bS3 : BM (fun ω => ∑ q ∈ Finset.range N, |Hrow (cK d σ) X N q ω| ^ 3) :=
+    BM.sum _ _ fun q _ => BiasSharp.bm_pow (H.bmH N q).absv 3
+  have hS3n : ∀ ω, 0 ≤ ∑ q ∈ Finset.range N, |Hrow (cK d σ) X N q ω| ^ 3 := fun ω =>
+    Finset.sum_nonneg fun q _ => pow_nonneg (abs_nonneg _) 3
+  have hpt : ∀ ω, |(torusWalk d σ N (fun j => X j ω)).trace - Q1 d σ N X ω|
+      ≤ 256 * M * (1 / (N : ℝ) ^ 4 * ∑ q ∈ Finset.range N, |Hrow (cK d σ) X N q ω| ^ 3)
+        + (N + 9 * M ^ 5) * Gc.indicator (fun _ => (1 : ℝ)) ω := by
+    intro ω
+    by_cases hω : ∀ a : Fin N, |heatRho d σ N (fun j => X j ω) a - 1| ≤ 1 / 8
+    · have hnot : ω ∉ Gc := by rw [hGc]; exact fun h => h hω
+      rw [Set.indicator_of_notMem hnot, mul_zero, add_zero, hMd]
+      exact trace_Q1_good3 hσ N hN' X ω hω
+    · have hin : ω ∈ Gc := by rw [hGc]; exact hω
+      rw [Set.indicator_of_mem hin, mul_one]
+      have hq := Q1_abs_le hσ N hN' X ω
+      rw [← hMd] at hq
+      have h0 : 0 ≤ 256 * M * (1 / (N : ℝ) ^ 4 * ∑ q ∈ Finset.range N,
+          |Hrow (cK d σ) X N q ω| ^ 3) :=
+        mul_nonneg (mul_nonneg (by norm_num) hM0) (mul_nonneg (by positivity) (hS3n ω))
+      obtain ⟨q1, q2⟩ := abs_le.mp hq
+      obtain ⟨s1, s2⟩ := abs_le.mp (hTb ω)
+      rw [abs_le]; constructor <;> linarith only [q1, q2, s1, s2, h0]
+  have bg1 := BM.const_mul (256 * M) (BM.const_mul (1 / (N : ℝ) ^ 4) bS3)
+  have ig2 : Integrable (fun ω => (N + 9 * M ^ 5) * Gc.indicator (fun _ => (1 : ℝ)) ω) μ :=
+    ((integrable_const (1 : ℝ)).indicator hGcm).const_mul _
+  obtain ⟨g1, hg1⟩ : ∃ g1 : Ω → ℝ, g1 = fun ω => 256 * M * (1 / (N : ℝ) ^ 4
+      * ∑ q ∈ Finset.range N, |Hrow (cK d σ) X N q ω| ^ 3) := ⟨_, rfl⟩
+  obtain ⟨g2, hg2⟩ : ∃ g2 : Ω → ℝ,
+      g2 = fun ω => (N + 9 * M ^ 5) * Gc.indicator (fun _ => (1 : ℝ)) ω := ⟨_, rfl⟩
+  have ig1' : Integrable g1 μ := by rw [hg1]; exact bg1.integrable
+  have ig2' : Integrable g2 μ := by rw [hg2]; exact ig2
+  have ig : Integrable (fun ω => g1 ω + g2 ω) μ := ig1'.add ig2'
+  have hpt' : ∀ ω, |(torusWalk d σ N (fun j => X j ω)).trace - Q1 d σ N X ω|
+      ≤ g1 ω + g2 ω := by rw [hg1, hg2]; exact hpt
+  have hint := abs_int_le_int ((bT.sub bQ).integrable (μ := μ)) ig hpt'
+  rw [integral_sub bT.integrable bQ.integrable, integral_add ig1' ig2', hg1, hg2,
+    integral_const_mul, integral_const_mul, integral_const_mul,
+    integral_indicator_const (1 : ℝ) hGcm, smul_eq_mul, mul_one] at hint
+  have hS3 : ∫ ω, ∑ q ∈ Finset.range N, |Hrow (cK d σ) X N q ω| ^ 3 ∂μ
+      ≤ N * (34 * (N * Real.sqrt N) * M ^ 3) := by
+    rw [integral_finset_sum _ fun q _ => (BiasSharp.bm_pow (H.bmH N q).absv 3).integrable]
+    have := Finset.sum_le_sum fun q (hq : q ∈ Finset.range N) =>
+      (BiasSharp.hrow_moments H N q (Finset.mem_range.mp hq)).2.2
+    rw [Finset.sum_const, Finset.card_range, nsmul_eq_mul] at this
+    rw [hMd]; exact this
+  have hsq : 0 < Real.sqrt N := Real.sqrt_pos.mpr hNpos
+  have hfirst : 256 * M * (1 / (N : ℝ) ^ 4 * ∫ ω, ∑ q ∈ Finset.range N,
+      |Hrow (cK d σ) X N q ω| ^ 3 ∂μ) ≤ 8704 * M ^ 4 / (N * Real.sqrt N) := by
+    have h1 : 1 / (N : ℝ) ^ 4 * ∫ ω, ∑ q ∈ Finset.range N, |Hrow (cK d σ) X N q ω| ^ 3 ∂μ
+        ≤ 1 / (N : ℝ) ^ 4 * (N * (34 * (N * Real.sqrt N) * M ^ 3)) :=
+      mul_le_mul_of_nonneg_left hS3 (by positivity)
+    have h2 := mul_le_mul_of_nonneg_left h1 (mul_nonneg (by norm_num) hM0 : (0 : ℝ) ≤ 256 * M)
+    have e : 256 * M * (1 / (N : ℝ) ^ 4 * (N * (34 * (N * Real.sqrt N) * M ^ 3)))
+        = 8704 * M ^ 4 / (N * Real.sqrt N) := by
+      have hs' : Real.sqrt N ≠ 0 := hsq.ne'
+      field_simp
+      rw [Real.sq_sqrt hNpos.le]; ring
+    linarith only [h2, e]
+  obtain ⟨i1, i2⟩ := abs_le.mp hint
+  obtain ⟨m1, m2⟩ := abs_le.mp hQm
+  rw [abs_le]; constructor <;> linarith only [i1, i2, m1, m2, hfirst]
+
+end K1
+
+section K1Closing
+
+variable {Ω : Type*} {mΩ : MeasurableSpace Ω} {μ : Measure Ω}
+
+/-- **Task (3): `prop:bias` for every `k = n + 1 ≥ 2` with self-loops on the flat torus with the
+    heat kernel, remainder `C · N^{-3/2}` WITHOUT a logarithm.**  For independent uniform points
+    and fixed `σ > 0`, `n ≥ 1` there is a constant `C` (depending on `d, σ, n`) such that for every
+    `N ≥ 1`:  `|E Tr P^{n+1} - m_{n+1} - β_{n+1}/N| ≤ C / (N √N)`, with `β = betaK`. -/
+theorem bias_one_sharp [IsProbabilityMeasure μ] {d : ℕ} (X : ℕ → Ω → FlatTorus d)
+    (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) {σ : ℝ} (hσ : 0 < σ) :
+    ∃ C : ℝ, ∀ N : ℕ, 1 ≤ N →
+      |∫ ω, (torusWalk d σ N (fun j => X j ω)).trace ∂μ
+          - (torusM d σ 1 + torusM d σ 1
+          * (torusM d σ 4 - 3 * torusM d σ 3 + 3 * torusM d σ 2 - torusM d σ 1) / N)| ≤ C / (N * Real.sqrt N) := by
+  have hc : 0 < 2 * Real.pi ^ 2 * σ := by have := Real.pi_pos; positivity
+  obtain ⟨M, hMd⟩ : ∃ M : ℝ, M = torusM d σ 1 := ⟨_, rfl⟩
+  have hM1 : 1 ≤ M := by rw [hMd]; exact torusM_one_ge hσ d
+  have hM0 : 0 < M := lt_of_lt_of_le zero_lt_one hM1
+  obtain ⟨Lip, hLipd⟩ : ∃ Lip : ℝ, Lip = 2 * Real.pi * (2 / (2 * Real.pi ^ 2 * σ))
+      * (1 + Real.sqrt (2 * Real.pi / (2 * Real.pi ^ 2 * σ))) ^ d := ⟨_, rfl⟩
+  have hLip0 : 0 ≤ Lip := by rw [hLipd]; have := Real.pi_pos; positivity
+  obtain ⟨g, hgd⟩ : ∃ g : ℕ, g = ⌈32 * Lip⌉₊ + 1 := ⟨_, rfl⟩
+  have hg : 0 < g := by rw [hgd]; omega
+  have hgL : 32 * Lip ≤ g := by
+    rw [hgd]; push_cast; linarith [Nat.le_ceil (32 * Lip)]
+  have hMb : ∀ u, heatTorus d (2 * Real.pi ^ 2 * σ) u ≤ M := fun u => by
+    rw [hMd, torusM_one]; exact heatTorus_le_zero hc d _
+  have hLip : ∀ u u', |heatTorus d (2 * Real.pi ^ 2 * σ) u - heatTorus d (2 * Real.pi ^ 2 * σ) u'|
+      ≤ Lip * dist u u' := fun u u' => by rw [hLipd]; exact heatTorus_lipschitz hc d u u'
+  obtain ⟨a, had⟩ : ∃ a : ℝ, a = 1 / (1056 * M) := ⟨_, rfl⟩
+  have ha0 : 0 < a := by rw [had]; positivity
+  have hgd0 : (0 : ℝ) ≤ (g : ℝ) ^ d := by positivity
+  refine ⟨8704 * M ^ 4 + |(60 * M ^ 5)|
+    + (1 + |(9 * M ^ 5)|) * ((g : ℝ) ^ d * 2) * (27 / a ^ 3), ?_⟩
+  intro N hN
+  have hN1 : (1 : ℝ) ≤ N := by exact_mod_cast hN
+  have hNpos : (0 : ℝ) < N := lt_of_lt_of_le zero_lt_one hN1
+  have hsq : 0 < Real.sqrt N := Real.sqrt_pos.mpr hNpos
+  have hsqN : Real.sqrt N ≤ N := by
+    rw [Real.sqrt_le_left hNpos.le]; nlinarith only [hN1]
+  have hD : 0 < (N : ℝ) * Real.sqrt N := mul_pos hNpos hsq
+  have h := bias_one_sharp_event X h_indep hX hlaw hσ N hN
+  have hp := VarianceOne.p8_le hσ d X h_indep hX hlaw N hN hg hMb hLip hLip0 hgL
+  rw [← hMd] at h ⊢
+  obtain ⟨P, hPd⟩ : ∃ P : ℝ,
+      P = μ.real {ω | ¬ ∀ a : Fin N, |heatRho d σ N (fun j => X j ω) a - 1| ≤ 1 / 8} := ⟨_, rfl⟩
+  rw [← hPd] at h hp
+  have hP0 : 0 ≤ P := by rw [hPd]; exact measureReal_nonneg
+  have hexp : -((N : ℝ) / 16) ^ 2 / (4 * (N * M) + 2 * M * ((N : ℝ) / 16)) = -(a * N) := by
+    have hden : 4 * ((N : ℝ) * M) + 2 * M * ((N : ℝ) / 16) ≠ 0 := by positivity
+    rw [had]; field_simp [hden, hM0.ne']; ring
+  rw [hexp] at hp
+  -- the three terms
+  have t1 : 8704 * M ^ 4 / (N * Real.sqrt N) = (8704 * M ^ 4) / (N * Real.sqrt N) :=
+    rfl
+  have t2 : (60 * M ^ 5) / (N : ℝ) ^ 2 ≤ |(60 * M ^ 5)| / (N * Real.sqrt N) := by
+    have hNN : (N : ℝ) * Real.sqrt N ≤ (N : ℝ) ^ 2 := by
+      rw [sq]; exact mul_le_mul_of_nonneg_left hsqN hNpos.le
+    calc (60 * M ^ 5) / (N : ℝ) ^ 2 ≤ |(60 * M ^ 5)| / (N : ℝ) ^ 2 :=
+          div_le_div_of_nonneg_right (le_abs_self _) (by positivity)
+      _ ≤ |(60 * M ^ 5)| / (N * Real.sqrt N) :=
+          div_le_div_of_nonneg_left (abs_nonneg _) hD hNN
+  have t3 : (N + (9 * M ^ 5)) * P
+      ≤ (1 + |(9 * M ^ 5)|) * ((g : ℝ) ^ d * 2) * (27 / a ^ 3) / (N * Real.sqrt N) := by
+    have hq : (N + (9 * M ^ 5)) * P ≤ (1 + |(9 * M ^ 5)|) * N * P := by
+      have : (N : ℝ) + (9 * M ^ 5) ≤ (1 + |(9 * M ^ 5)|) * N := by
+        have := le_abs_self ((9 * M ^ 5))
+        nlinarith only [this, hN1, abs_nonneg ((9 * M ^ 5))]
+      exact mul_le_mul_of_nonneg_right this hP0
+    have hcube : (N : ℝ) ^ 3 * Real.exp (-(a * N)) ≤ 27 / a ^ 3 := by
+      have := BiasSharp.cube_exp_neg_le (mul_nonneg ha0.le hNpos.le)
+      rw [le_div_iff₀ (by positivity)]
+      have e : (a * N) ^ 3 = (N : ℝ) ^ 3 * a ^ 3 := by ring
+      rw [e] at this; linarith only [this]
+    have hNP : (N : ℝ) * P * (N * Real.sqrt N) ≤ (g : ℝ) ^ d * 2 * (27 / a ^ 3) := by
+      have h1 : (N : ℝ) * (N * Real.sqrt N) ≤ (N : ℝ) ^ 3 := by
+        have := mul_le_mul_of_nonneg_left hsqN (mul_nonneg hNpos.le hNpos.le)
+        nlinarith only [this]
+      have h2 : P ≤ (g : ℝ) ^ d * 2 * Real.exp (-(a * N)) := by linarith only [hp]
+      calc (N : ℝ) * P * (N * Real.sqrt N) = P * (N * (N * Real.sqrt N)) := by ring
+        _ ≤ ((g : ℝ) ^ d * 2 * Real.exp (-(a * N))) * (N : ℝ) ^ 3 :=
+            mul_le_mul h2 h1 (by positivity) (by positivity)
+        _ = (g : ℝ) ^ d * 2 * ((N : ℝ) ^ 3 * Real.exp (-(a * N))) := by ring
+        _ ≤ (g : ℝ) ^ d * 2 * (27 / a ^ 3) :=
+            mul_le_mul_of_nonneg_left hcube (by positivity)
+    have hfin : (1 + |(9 * M ^ 5)|) * N * P
+        ≤ (1 + |(9 * M ^ 5)|) * ((g : ℝ) ^ d * 2) * (27 / a ^ 3) / (N * Real.sqrt N) := by
+      rw [le_div_iff₀ hD]
+      have hc1 : 0 ≤ 1 + |(9 * M ^ 5)| := by positivity
+      have := mul_le_mul_of_nonneg_left hNP hc1
+      calc (1 + |(9 * M ^ 5)|) * N * P * (N * Real.sqrt N)
+          = (1 + |(9 * M ^ 5)|) * ((N : ℝ) * P * (N * Real.sqrt N)) := by ring
+        _ ≤ (1 + |(9 * M ^ 5)|) * ((g : ℝ) ^ d * 2 * (27 / a ^ 3)) := this
+        _ = (1 + |(9 * M ^ 5)|) * ((g : ℝ) ^ d * 2) * (27 / a ^ 3) := by ring
+    exact hq.trans hfin
+  have hsum : (8704 * M ^ 4 + |(60 * M ^ 5)|
+      + (1 + |(9 * M ^ 5)|) * ((g : ℝ) ^ d * 2) * (27 / a ^ 3)) / (N * Real.sqrt N)
+      = 8704 * M ^ 4 / (N * Real.sqrt N) + |(60 * M ^ 5)| / (N * Real.sqrt N)
+        + (1 + |(9 * M ^ 5)|) * ((g : ℝ) ^ d * 2) * (27 / a ^ 3) / (N * Real.sqrt N) := by
+    rw [add_div, add_div]
+  rw [hsum]
+  linarith only [h, t2, t3]
+
+/-- **Task (3), the limit:** `N (E Tr P^{n+1} - m_{n+1}) → β_{n+1}` as `N → ∞` (for `n ≥ 1`,
+    fixed `σ > 0`, self-loops, independent uniform points on the flat torus). -/
+theorem bias_one_sharp_limit [IsProbabilityMeasure μ] {d : ℕ} (X : ℕ → Ω → FlatTorus d)
+    (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = flatTorusMeasure d) {σ : ℝ} (hσ : 0 < σ) :
+    Filter.Tendsto (fun N : ℕ => (N : ℝ)
+        * (∫ ω, (torusWalk d σ N (fun j => X j ω)).trace ∂μ - torusM d σ 1))
+      Filter.atTop (nhds (torusM d σ 1
+        * (torusM d σ 4 - 3 * torusM d σ 3 + 3 * torusM d σ 2 - torusM d σ 1))) := by
+  obtain ⟨C, hC⟩ := bias_one_sharp X h_indep hX hlaw hσ
+  rw [Metric.tendsto_atTop]
+  intro ε hε
+  obtain ⟨N0, hN0⟩ := exists_nat_gt ((|C| / ε) ^ 2)
+  refine ⟨max 1 N0, fun N hN => ?_⟩
+  have hN1' : 1 ≤ N := le_of_max_le_left hN
+  have hN0' : N0 ≤ N := le_of_max_le_right hN
+  have hN1 : (1 : ℝ) ≤ N := by exact_mod_cast hN1'
+  have hNpos : (0 : ℝ) < N := lt_of_lt_of_le zero_lt_one hN1
+  have hsq : 0 < Real.sqrt N := Real.sqrt_pos.mpr hNpos
+  have hb := hC N hN1'
+  rw [Real.dist_eq]
+  have e : (N : ℝ) * (∫ ω, (torusWalk d σ N (fun j => X j ω)).trace ∂μ
+        - torusM d σ 1) - torusM d σ 1
+        * (torusM d σ 4 - 3 * torusM d σ 3 + 3 * torusM d σ 2 - torusM d σ 1)
+      = N * (∫ ω, (torusWalk d σ N (fun j => X j ω)).trace ∂μ
+        - (torusM d σ 1 + torusM d σ 1
+          * (torusM d σ 4 - 3 * torusM d σ 3 + 3 * torusM d σ 2 - torusM d σ 1) / N)) := by
+    field_simp; ring
+  rw [e, abs_mul, abs_of_pos hNpos]
+  have h1 : (N : ℝ) * |∫ ω, (torusWalk d σ N (fun j => X j ω)).trace ∂μ
+        - (torusM d σ 1 + torusM d σ 1
+          * (torusM d σ 4 - 3 * torusM d σ 3 + 3 * torusM d σ 2 - torusM d σ 1) / N)| ≤ N * (C / (N * Real.sqrt N)) :=
+    mul_le_mul_of_nonneg_left hb hNpos.le
+  have e2 : (N : ℝ) * (C / (N * Real.sqrt N)) = C / Real.sqrt N := by
+    field_simp
+  rw [e2] at h1
+  have hgt : |C| / ε < Real.sqrt N := by
+    rw [Real.lt_sqrt (div_nonneg (abs_nonneg C) hε.le)]
+    have : (N0 : ℝ) ≤ N := by exact_mod_cast hN0'
+    linarith
+  have h2 : C / Real.sqrt N ≤ |C| / Real.sqrt N :=
+    div_le_div_of_nonneg_right (le_abs_self C) hsq.le
+  have h3 : |C| / Real.sqrt N < ε := by
+    rw [div_lt_iff₀ hsq]
+    rw [div_lt_iff₀ hε] at hgt
+    linarith
+  linarith
+
+end K1Closing
+
+end VarianceSharp2
+
 end CTG.Reals2
