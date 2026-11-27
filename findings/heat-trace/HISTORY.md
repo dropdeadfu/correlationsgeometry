@@ -1,3 +1,5 @@
+> **Historical working log.** This was the README of this folder while the material was being written (17–26 November 2026). It is kept unchanged below as a record. Where it says "this branch", the working branch `mesh/heat-trace-findings` is meant; the excerpt files it mentions are now in `archive/`; the current overview is [`README.md`](README.md).
+
 # Heat trace of the sampled graph: findings of 17 November 2026
 
 Working material on Appendix G of M. Neuberger, *From Correlations to Geometry* (the version with

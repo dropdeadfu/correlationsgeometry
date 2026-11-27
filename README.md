@@ -1,13 +1,58 @@
-# CorrelationsGeometry
+# From Correlations to Geometry
 
-> **Version 4 of the paper (27 November 2026)** — M. Neuberger and C. Heuwieser, *From Correlations to Geometry.
-> A Conditional Spectral Reconstruction*, doi:[10.5281/zenodo.24580848](https://doi.org/10.5281/zenodo.24580848).
-> The paper (PDF and source), 56 Lean files with the machine-checked forms of its statements, and the numerics are in
-> [`findings/heat-trace/`](findings/heat-trace/README.md); start with the README there. No proof has been checked by a
-> person independently of the AI sessions with which the paper was written.
+**M. Neuberger and C. Heuwieser, *From Correlations to Geometry. A Conditional Spectral Reconstruction*.**
+Version 4, 27 November 2026 — doi:[10.5281/zenodo.24580848](https://doi.org/10.5281/zenodo.24580848)
+(all versions: [10.5281/zenodo.16605659](https://doi.org/10.5281/zenodo.16605659)).
 
-The rest of this file describes the Mathlib project at the root of the repository, which was written independently of
-the files in `findings/heat-trace/lean-core/` and refers to an earlier, shorter version of the paper.
+This repository holds the paper, the Lean 4 files with machine-checked forms of its statements, and the numerics.
+
+| | |
+|---|---|
+| **Paper** (PDF, 181 pages) | [`findings/heat-trace/paper/correlations_to_geometry.pdf`](findings/heat-trace/paper/correlations_to_geometry.pdf) |
+| **Lean files accompanying version 4** (56 files, Lean 4.29 / Mathlib v4.29) | [`findings/heat-trace/lean-core/`](findings/heat-trace/lean-core/) — overview and table of all files in [`findings/heat-trace/README.md`](findings/heat-trace/README.md) |
+| **Numerics** (every number in the paper comes from one of these scripts) | [`findings/heat-trace/scripts/`](findings/heat-trace/scripts/) |
+| **Mathlib project** (independent formalisation of selected results, Lean 4.36) | [`CorrelationsGeometry/`](CorrelationsGeometry/), described [below](#the-mathlib-project-correlationsgeometry) |
+| **Licences** | [`findings/heat-trace/LICENSE.md`](findings/heat-trace/LICENSE.md) |
+
+## What the paper is about
+
+The paper asks which parts of the programme "geometry from correlations" can be proved with present means. The input
+is a matrix of mutual informations between subsystems; a diffusion-map pipeline reconstructs the Laplace–Beltrami
+operator, its spectrum, a spectral embedding and curvature invariants. Appendix G treats the heat trace of the sampled
+graph (on the flat torus: uniform control of the powers of the sampled walk, rates, eigenvalues, bias and variance);
+Appendix H asks which additional data fix the extrinsic curvature and the lapse. Every statement carries a status in
+Table 1 of the paper: proven / cited / proof in outline / conditional / numerics / open.
+
+## Read this before quoting anything
+
+* **No proof has been checked by a person independently of the AI sessions with which the paper was written.** This
+  is stated in the abstract. The paper was written by the authors working with sessions of an AI system (Claude).
+* **The Lean files prove *forms* of statements of the paper, not the statements in their wording** — typically for the
+  flat torus or the sphere with the Gaussian profile, with explicit and large constants, exceptional events of their
+  own, and often by a different proof. Remark G.49 of the paper and
+  [`findings/heat-trace/README.md`](findings/heat-trace/README.md) say for each item what is covered and what is not.
+* **Not formalised in any form:** the reconstruction theorems on general manifolds, and anything about field
+  equations (the paper derives none).
+
+## Layout
+
+```
+findings/heat-trace/
+  paper/            the paper: PDF, TeX source, figures
+  lean-core/        Lean files accompanying version 4, one check script per file
+  scripts/          numerics
+  second-session/   contributions and cross-reading of the session on C. Heuwieser's side
+  HISTORY.md        how the material grew, day by day
+  archive/          superseded excerpts
+CorrelationsGeometry/   the Mathlib project (Lean 4.36), with HANDOVER.md and PLAN.md at the root
+vendor/                 third-party files, each folder with its own README and licence note
+```
+
+The two Lean developments are independent of each other: the files in `findings/heat-trace/lean-core/` were written
+alongside the paper and use Lean 4.29 with Mathlib v4.29; the project in `CorrelationsGeometry/` was written
+separately, uses Lean 4.36, and refers to an earlier, shorter version of the paper.
+
+## The Mathlib project `CorrelationsGeometry/`
 
 Lean 4 / Mathlib proofs of selected results from M. Neuberger, *From Correlations to Geometry:
 A Conditional Spectral Reconstruction* (November 2026).
@@ -21,7 +66,7 @@ results or the physical interpretation; Mathlib does not yet contain the mathema
 `vendor/openai-math/` holds 26 files copied from github.com/openai/math for that work; nothing in
 `CorrelationsGeometry/` imports them yet.
 
-## Status
+### Status
 
 `lake build` completes with no errors and no `sorry`. `CorrelationsGeometry/Audit.lean` prints the
 axioms behind every main theorem; all depend only on Lean's standard axioms `propext`,
@@ -29,7 +74,7 @@ axioms behind every main theorem; all depend only on Lean's standard axioms `pro
 
 Toolchain: `leanprover/lean4:v4.36.0-rc2`, Mathlib `v4.36.0-rc2`.
 
-## What is proven
+### What is proven
 
 | Paper | Lean | File |
 |---|---|---|
@@ -51,7 +96,7 @@ Toolchain: `leanprover/lean4:v4.36.0-rc2`, Mathlib `v4.36.0-rc2`.
 | Cor. 9.19 | `Content.a_eq_zero_of_covariant_of_str1`, `Masses.a_eq_zero_of_covariant`, `Masses.ratio_of_covariant`, `Masses.a_eq_zero_of_covariant_profile` | `FieldContent.lean` |
 | Prop. 9.15, table entries from the cutoff integrals | `MassTerms.scalar_leading`, `scalar_finite`, `scalar_log`, `dirac_all`, `vector_all` | `FieldContent.lean` |
 
-## What is taken as input
+### What is taken as input
 
 Lean checks that each theorem follows from its stated hypotheses and definitions. It does not check
 that those match the physics. The inputs are:
@@ -69,7 +114,7 @@ that those match the physics. The inputs are:
   (9.18), (9.23) after angular averaging.
 * **Proposition 9.13**: the Hodge heat coefficient and the recursion between exact and coexact forms.
 
-## Building
+### Building
 
 ```
 lake exe cache get

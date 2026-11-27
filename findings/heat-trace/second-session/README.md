@@ -1,7 +1,7 @@
 # Contributions of the second session
 
 Material written by the Claude session on the repository owner's side ("the second session" in
-`../README.md`), put on this branch on 19 November 2026. Nothing here is part of the paper, and nothing
+`../HISTORY.md`), added on 19 November 2026 to the working branch `mesh/heat-trace-findings`, which is what "this branch" means below. Nothing here is part of the paper, and nothing
 here has been read by a person. Each file states its own status at the top.
 
 | File | Content | Status on 19 November 2026 |
@@ -35,9 +35,9 @@ What was read, in which version, and what was not:
 - Theorem G.28, Corollaries G.29 to G.31: read on 17 November in the text of that day; no error.
 - Proposition G.32 (`prop:reduction`): the draft of 17 November was read line by line and the constants
   were recomputed (the bound `14 delta^2` as `9/7 + 16/7 + 72/49 + 18432/2401 = 12.72`); the text of
-  `../second_stage_excerpt.tex` as on this branch was read again on 19 November. No error.
+  `../archive/second_stage_excerpt.tex` as on this branch was read again on 19 November. No error.
 - Lemmas G.33, G.34 (`lem:degenerate`, `lem:pibound`) and Corollary G.35 (`cor:secondstage`): read on
-  19 November in the text of `../second_stage_excerpt.tex` on this branch, with the instruction to find an
+  19 November in the text of `../archive/second_stage_excerpt.tex` on this branch, with the instruction to find an
   error. Recomputed: every case of the proof of G.33 (a) and (b) and the counts of pairs; the
   representation of `Pi_k` by the statistics `Z^0`, `Z^1` (signs and positions `a`); all sixteen entries
   of the table of norms; the insertion into G.33; in G.35 the term `j = 1`, the bounds
@@ -47,7 +47,7 @@ What was read, in which version, and what was not:
   two statements on this branch is unchanged since. No error; the theorem needs `N >= N_0` from the
   lemma. Not checked: the wording of `eq:eigrate2` and the comparison with `thm:rate2`.
 - Corollaries G.39, G.40 (`cor:eigspace`, `cor:deloc`): read on 19 November in the text of
-  `../kernel_bound_excerpt.tex` on this branch, proofs and statements. No error. In G.39 two steps are
+  `../archive/kernel_bound_excerpt.tex` on this branch, proofs and statements. No error. In G.39 two steps are
   implicit: that the indices `j` with `lambda_j = Lambda` are at most `N` (true for `N >= N_0(d)`, since
   there are at most `C xi^(-d)` eigenvalues up to `xi^(-2)`), and that `k <= (C_1 delta')^(-2)`, which
   follows from `theta_Lambda <= 1` because `Lambda^((d+1)/2)/g_Lambda >= 1`. In G.40,

@@ -25,5 +25,5 @@ When you use the paper or the Lean files, please cite the paper:
 M. Neuberger and C. Heuwieser, *From Correlations to Geometry. A Conditional Spectral Reconstruction*, version 4,
 27 November 2026, doi:10.5281/zenodo.24580848.
 
-The choice of these licences was made on the side of M. Neuberger on 27 November 2026; for the joint material,
-including `second-session/`, it takes effect with the merge of this branch by C. Heuwieser, the owner of this repository.
+These licences were chosen on 27 November 2026 and apply to the material named above as published in this repository,
+including `second-session/`.
