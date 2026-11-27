@@ -7,7 +7,7 @@ all versions: [10.5281/zenodo.16605659](https://doi.org/10.5281/zenodo.16605659)
 | What | Where |
 |---|---|
 | The paper (181 pages) | [`paper/correlations_to_geometry.pdf`](paper/correlations_to_geometry.pdf), source `paper/correlations_to_geometry.tex`, figures `paper/figures/` |
-| Lean 4 files (56 files, 4741 accepted statements) | [`lean-core/`](lean-core/), one check script per file |
+| Lean 4 files (56 files, 4745 accepted statements) | [`lean-core/`](lean-core/), one check script per file |
 | Numerics (every number in the paper comes from one of these) | [`scripts/`](scripts/) |
 | Contributions and cross-reading of the second session | [`second-session/`](second-session/) |
 | How the material grew, day by day (the former README) | [`HISTORY.md`](HISTORY.md) |
@@ -107,7 +107,7 @@ each script names it. The large files need about 2.5 GB of memory and up to 50 m
 | `lean-core/CorrelationsToGeometryFlatNPointGaussLattice.lean` | 24 | Sharper comparison; kernel summed over all lattice images on the sample side |
 | `lean-core/CorrelationsToGeometryFlatNPointLatticePop.lean` | 18 | Population operator of the lattice-sum kernel (unfolding) |
 | `lean-core/CorrelationsToGeometryFlatNPointLatticeDirect.lean` | 67 | The statement directly for the periodised Gaussian kernel, no cut-off (`flat_npoint_lattice_direct`) |
-| `lean-core/CorrelationsToGeometryGaussMoment.lean` | 6 | Second moment of the Gaussian profile is 1; final form `flat_npoint_lattice_final` |
+| `lean-core/CorrelationsToGeometryGaussMoment.lean` | 10 | Second moment of the Gaussian profile is 1; final form `flat_npoint_lattice_final` and measurability of its exceptional set |
 
 **The sphere S^2**
 
@@ -160,7 +160,8 @@ This is a different project from the Mathlib project in `CorrelationsGeometry/` 
 
 ## Licence
 
-No licence has been chosen for this repository yet; until one is, all rights in the authors' material are reserved.
+Lean files and scripts: Apache License 2.0. Paper and figures: CC BY 4.0. Third-party material is excluded.
+Details and exceptions: [`LICENSE.md`](LICENSE.md).
 
 ## Contact
 

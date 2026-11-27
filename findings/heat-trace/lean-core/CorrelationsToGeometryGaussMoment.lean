@@ -7,6 +7,8 @@ radial integration formula of Mathlib; `second_moment`: `(∫ ‖z‖² g)/(n �
 `flat_npoint_lattice_direct` (the normalisation `c_h = 1` of the paper for the Gaussian profile).
 `flat_npoint_lattice_final`: the statement of the fifty-second file with `m₂ = 1` and with the population
 operator of the same lattice-sum kernel on the population side.
+`latK_measurable`, `LNK_measurable`, `exc_measurable`, `flat_npoint_lattice_final_set_measurable`: the exceptional
+set of the final form is measurable.
 No hypothesis in the moment statements.  No sorry, no axiom, no native_decide.
 Written by the author-side AI session on 27 November 2026; read by nobody.
 -/
@@ -126,5 +128,89 @@ theorem flat_npoint_lattice_final (hn : 1 ≤ n) {Ω : Type*} {mΩ : MeasurableS
     fun τ x => Lmet_pop_lat 1 S (lt_of_lt_of_le ha₀ (ha τ)) hξ hf.continuous hB hper x
   simp only [e] at h
   exact h
+
+
+/-! ### Measurability of the exceptional set -/
+
+open Filter Topology in
+/-- The lattice-sum kernel is jointly measurable. -/
+theorem latK_measurable (S : E ≃L[ℝ] E) {ξ a a₀ : ℝ} (hξ : 0 < ξ) (ha₀ : 0 < a₀) (ha : a₀ ≤ a) :
+    Measurable fun p : E × E => latK S (ξ / a) p.1 p.2 := by
+  have hterm : ∀ m : Fin n → ℤ, Measurable fun p : E × E =>
+      gauss (‖S.symm (fr (p.2 - p.1) + latV m)‖ / (ξ / a)) := fun m =>
+    CTG.FlatNPointGauss.gauss_continuous.measurable.comp
+      (((continuous_norm.comp S.symm.continuous).measurable.comp
+        ((fr_measurable.comp (measurable_snd.sub measurable_fst)).add_const _)).div_const _)
+  refine measurable_of_tendsto_metrizable' atTop
+    (f := fun (s : Finset (Fin n → ℤ)) (p : E × E) =>
+      ∑ m ∈ s, gauss (‖S.symm (fr (p.2 - p.1) + latV m)‖ / (ξ / a)))
+    (fun s => Finset.measurable_sum _ fun m _ => hterm m) ?_
+  rw [tendsto_pi_nhds]
+  intro p
+  exact (latK_summable S hξ ha₀ ha p.1 p.2).hasSum
+
+theorem LNK_measurable {Ω : Type*} {mΩ : MeasurableSpace Ω} (X : ℕ → Ω → E)
+    (hX : ∀ j, Measurable (X j)) (N : ℕ) {K : E → E → ℝ}
+    (hK : Measurable fun p : E × E => K p.1 p.2) (m₂ ξ : ℝ) {f : E → ℝ} (hfc : Continuous f) (i : ℕ) :
+    Measurable fun ω => LNK X N K m₂ ξ f i ω := by
+  have hg : Measurable fun p : E × E => gd f p.1 p.2 :=
+    (hfc.measurable.comp measurable_snd).sub (hfc.measurable.comp measurable_fst)
+  unfold LNK
+  exact ((sampW_measurable X hX N hK hg i).div
+    (sampW_measurable X hX N hK measurable_const i)).const_mul _
+
+/-- generic shape of the exceptional sets. -/
+theorem exc_measurable {Ω : Type*} {mΩ : MeasurableSpace Ω} (N : ℕ) (A B G : ℕ → Ω → ℝ)
+    (hA : ∀ i, Measurable (A i)) (hB : ∀ i, Measurable (B i)) (hG : ∀ i, Measurable (G i))
+    (c₁ c₂ : ℝ) :
+    MeasurableSet {ω | ∃ i < N, ¬ (|A i ω - B i ω| ≤ c₁ ∧ |A i ω + G i ω| ≤ c₂)} := by
+  have e : {ω | ∃ i < N, ¬ (|A i ω - B i ω| ≤ c₁ ∧ |A i ω + G i ω| ≤ c₂)}
+      = ⋃ i : ℕ, {ω | i < N ∧ ¬ (|A i ω - B i ω| ≤ c₁ ∧ |A i ω + G i ω| ≤ c₂)} := by
+    ext ω; simp only [Set.mem_setOf_eq, Set.mem_iUnion]
+  rw [e]
+  refine MeasurableSet.iUnion fun i => (MeasurableSet.const (i < N)).inter ?_
+  refine MeasurableSet.compl (MeasurableSet.inter ?_ ?_)
+  · exact measurableSet_le ((hA i).sub (hB i)).abs measurable_const
+  · exact measurableSet_le ((hA i).add (hG i)).abs measurable_const
+
+/-- **The exceptional set of `flat_npoint_lattice_final` is measurable.** -/
+theorem flat_npoint_lattice_final_set_measurable {Ω : Type*} {mΩ : MeasurableSpace Ω}
+    (X : ℕ → Ω → E) (hX : ∀ j, Measurable (X j)) (N : ℕ)
+    {f : E → ℝ} (hf : ContDiff ℝ 4 f) {M₄ Lip B : ℝ} (hper : Per f) (hB : ∀ y, |f y| ≤ B)
+    (S : E ≃L[ℝ] E) (a : ℝ → ℝ) {a₀ La ξ : ℝ}
+    (ha₀ : 0 < a₀) (ha : ∀ τ, a₀ ≤ a τ) (hξ : 0 < ξ) (τa τb : ℝ) (a₁ : ℝ) :
+    MeasurableSet {ω | ∃ i < N, ¬ (
+        |(LNK X N (latK S (ξ / a τb)) (1 : ℝ) ξ f i ω
+              - LNK X N (latK S (ξ / a τa)) (1 : ℝ) ξ f i ω) / (τb - τa)
+          - (LPK mT (latK S (ξ / a τb)) (1 : ℝ) ξ f (X i ω)
+              - LPK mT (latK S (ξ / a τa)) (1 : ℝ) ξ f (X i ω)) / (τb - τa)|
+        ≤ 7320000 * CTG.FlatNPointLatticeDirect.dLam S a₀ a₁ La Lip ^ 20 / (1 : ℝ)
+            * Real.sqrt (3 * Real.log N / (N * ξ ^ n)) / ξ
+      ∧ |(LNK X N (latK S (ξ / a τb)) (1 : ℝ) ξ f i ω
+              - LNK X N (latK S (ξ / a τa)) (1 : ℝ) ξ f i ω) / (τb - τa)
+          + (lapG S f (X i ω) / a τb ^ 2 - lapG S f (X i ω) / a τa ^ 2) / (τb - τa)|
+        ≤ 7320000 * CTG.FlatNPointLatticeDirect.dLam S a₀ a₁ La Lip ^ 20 / (1 : ℝ)
+            * Real.sqrt (3 * Real.log N / (N * ξ ^ n)) / ξ
+          + ξ ^ 2 * min (M₄ * ‖(S : E →L[ℝ] E)‖ ^ 4 * CTG.FlatNPointLatticeDirect.gaμ₄ n
+                / (6 * (1 : ℝ) * CTG.FlatNPointLatticeDirect.gaK₀ n * a₀ ^ 4) / |τb - τa|)
+              (M₄ * ‖(S : E →L[ℝ] E)‖ ^ 4 * CTG.FlatNPointLatticeDirect.gaμ₄ n * La / (3 * (1 : ℝ) * CTG.FlatNPointLatticeDirect.gaK₀ n * a₀ ^ 5)))} := by
+  have hfc : Continuous f := hf.continuous
+  have hLN : ∀ τ i, Measurable fun ω => LNK X N (latK S (ξ / a τ)) (1 : ℝ) ξ f i ω := fun τ i =>
+    LNK_measurable X hX N (latK_measurable S hξ ha₀ (ha τ)) 1 ξ hfc i
+  have hLP : ∀ τ, Measurable fun x => LPK mT (latK S (ξ / a τ)) (1 : ℝ) ξ f x := by
+    intro τ
+    have e : (fun x => LPK mT (latK S (ξ / a τ)) (1 : ℝ) ξ f x) = Lmet gauss (1 : ℝ) S (a τ) ξ f :=
+      funext fun x => (Lmet_pop_lat 1 S (lt_of_lt_of_le ha₀ (ha τ)) hξ hfc hB hper x).symm
+    rw [e]; exact Lmet_measurable CTG.FlatNPointGauss.gauss_continuous.measurable 1 S (a τ) ξ hfc
+  have hG := fun i => (lapG_measurable S hf).comp (hX i)
+  exact exc_measurable N
+    (fun i ω => (LNK X N (latK S (ξ / a τb)) (1 : ℝ) ξ f i ω
+      - LNK X N (latK S (ξ / a τa)) (1 : ℝ) ξ f i ω) / (τb - τa))
+    (fun i ω => (LPK mT (latK S (ξ / a τb)) (1 : ℝ) ξ f (X i ω)
+      - LPK mT (latK S (ξ / a τa)) (1 : ℝ) ξ f (X i ω)) / (τb - τa))
+    (fun i ω => (lapG S f (X i ω) / a τb ^ 2 - lapG S f (X i ω) / a τa ^ 2) / (τb - τa))
+    (fun i => ((hLN τb i).sub (hLN τa i)).div_const _)
+    (fun i => ((((hLP τb).comp (hX i)).sub ((hLP τa).comp (hX i)))).div_const _)
+    (fun i => (((hG i).div_const _).sub ((hG i).div_const _)).div_const _) _ _
 
 end CTG.GaussMoment
