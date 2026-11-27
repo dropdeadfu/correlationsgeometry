@@ -147,6 +147,14 @@ each script names it. The large files need about 2.5 GB of memory and up to 50 m
 This is a different project from the Mathlib project in `CorrelationsGeometry/` at the root of this repository
 (Lean 4.36, written independently, see the root `README.md`); the two are not merged.
 
+## After version 4
+
+Lean files added after the text of version 4 was fixed; they are not yet described in the paper.
+
+| File | Statements | Content |
+|---|---:|---|
+| `lean-core/CorrelationsToGeometryFlatNPointLatticeWindow.lean` | 26 | The two-time statement for the periodised Gaussian kernel for ALL pairs of times of a window on one event (`flat_npoint_lattice_window`), and without free parameters with exceptional probability at most 32 D²/N² (`flat_npoint_lattice_window_N2`); measurability of that exceptional set and pairs of times closer than η₀ are not shown; read by nobody |
+
 ## Third-party material
 
 * `lean-core/ports/alpoge-rh/`: two files (`HilbertSchmidt.lean`, `TraceClass.lean`) from the Lean archive that
