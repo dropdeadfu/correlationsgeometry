@@ -173,7 +173,7 @@ Lean files added after the text of version 4 was fixed; they are not yet describ
 
 ## Licence
 
-Lean files and scripts: Apache License 2.0. Paper and figures: CC BY 4.0. Third-party material is excluded.
+Lean files and scripts: Apache License 2.0. Paper and figures: CC BY-NC 4.0 (as on Zenodo). Third-party material is excluded.
 Details and exceptions: [`LICENSE.md`](LICENSE.md).
 
 ## Contact
