@@ -149,7 +149,9 @@ This is a different project from the Mathlib project in `CorrelationsGeometry/` 
 
 ## After version 4
 
-Lean files added after the text of version 4 was fixed; they are not yet described in the paper.
+Lean files added after the text of version 4 was fixed. They are described in the working text after version 4,
+[`paper/after-v4/correlations_to_geometry.pdf`](paper/after-v4/correlations_to_geometry.pdf), in paragraphs marked "after version 4"; the
+paper in `paper/` is the deposited version 4 and is unchanged.
 
 | File | Statements | Content |
 |---|---:|---|
