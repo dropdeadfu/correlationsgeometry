@@ -11,9 +11,10 @@ Notation: `t_m = ga c m = exp(−c|m|²)`, `fc J` the coefficients of `1 − √
 `local_response_sum`: `Σ_j fc(j+1) · brk c n j = Σ_m cl(t_m, t_{m+n})`.
 Together with `kpow_diag_torus` this is the sum over the powers of the first-order local responses of the iterated
 kernels, weighted with the coefficients of `1 − √(1−s)`.
+`cl_symmetrised`, `local_response_sum_symm`: the same with `½ Σ_m (t_m + t_{m+n})/(w_m + w_{m+n})`, `w = √(1−t)`.
 NOT formalised: that this sum is the derivative of the corresponding sum of the perturbed iterated kernels (exchange
 of the derivative in the density with the sum over the powers; needs remainders of second order uniform in the
-power); the symmetrised form `½ Σ_m (t_m + t_{m+n})/(w_m + w_{m+n})`; the coefficient `c(a)`, the passage to the
+power); the coefficient `c(a)`, the passage to the
 continuum integral `I(a)` and the limit `3 (aξ)²`.  No hypothesis.  No sorry, no axiom, no native_decide.
 Written by the author-side AI session on 27 November 2026; read by nobody.
 -/
@@ -207,5 +208,59 @@ theorem local_response_sum {c : ℝ} (hc : 0 < c) {n : Fin d → ℤ} (hn : n �
       = fun j : ℕ => fc (j + 1) * ∑' m : Fin d → ℤ, hJ (ga c m) (ga c (m + n)) (j + 1) := by
     funext j; rw [brk_eq hc n j]
   rw [e]; exact h1
+
+
+/-! ### The symmetrised form -/
+
+lemma cl_add_swap (u v : ℝ) :
+    cl u v + cl v u = (u + v) / (Real.sqrt (1 - u) + Real.sqrt (1 - v)) := by
+  unfold cl
+  by_cases h : u = v
+  · subst h; rw [if_pos rfl]; ring
+  · rw [if_neg h, if_neg (Ne.symm h)]; ring
+
+lemma ga_neg' (c : ℝ) (m : Fin d → ℤ) : ga c (-m) = ga c m :=
+  CTG.DensityResponseCont.Local.ga_neg c m
+
+/-- reindexing `m ↦ −m − n` swaps the two arguments. -/
+lemma cl_swap_tsum (c : ℝ) (n : Fin d → ℤ) :
+    ∑' m : Fin d → ℤ, cl (ga c (m + n)) (ga c m) = ∑' m : Fin d → ℤ, cl (ga c m) (ga c (m + n)) := by
+  have h := ((Equiv.neg (Fin d → ℤ)).trans (Equiv.subRight n)).tsum_eq
+    (fun m : Fin d → ℤ => cl (ga c m) (ga c (m + n)))
+  rw [← h]
+  refine tsum_congr fun m => ?_
+  simp only [Equiv.trans_apply, Equiv.neg_apply, Equiv.subRight_apply]
+  rw [show -m - n = -(m + n) by ring, ga_neg', show -(m + n) + n = -m by ring, ga_neg']
+
+lemma cl_swap_summable {c : ℝ} (hc : 0 < c) (n : Fin d → ℤ) :
+    Summable fun m : Fin d → ℤ => cl (ga c (m + n)) (ga c m) := by
+  have h := (((Equiv.neg (Fin d → ℤ)).trans (Equiv.subRight n)).summable_iff
+    (f := fun m : Fin d → ℤ => cl (ga c m) (ga c (m + n)))).mpr (cl_summable hc n)
+  refine h.congr fun m => ?_
+  simp only [Function.comp, Equiv.trans_apply, Equiv.neg_apply, Equiv.subRight_apply]
+  rw [show -m - n = -(m + n) by ring, ga_neg', show -(m + n) + n = -m by ring, ga_neg']
+
+/-- **Symmetrised form:** `Σ_m cl(t_m, t_{m+n}) = ½ Σ_m (t_m + t_{m+n})/(√(1−t_m) + √(1−t_{m+n}))`. -/
+theorem cl_symmetrised {c : ℝ} (hc : 0 < c) (n : Fin d → ℤ) :
+    ∑' m : Fin d → ℤ, cl (ga c m) (ga c (m + n))
+      = (1 / 2) * ∑' m : Fin d → ℤ, (ga c m + ga c (m + n))
+          / (Real.sqrt (1 - ga c m) + Real.sqrt (1 - ga c (m + n))) := by
+  have h1 := cl_summable hc n
+  have h2 := cl_swap_summable hc n
+  have h3 := h1.tsum_add h2
+  rw [cl_swap_tsum] at h3
+  have e : (fun m : Fin d → ℤ => cl (ga c m) (ga c (m + n)) + cl (ga c (m + n)) (ga c m))
+      = fun m => (ga c m + ga c (m + n))
+          / (Real.sqrt (1 - ga c m) + Real.sqrt (1 - ga c (m + n))) := by
+    funext m; exact cl_add_swap _ _
+  rw [e] at h3
+  rw [h3]; ring
+
+/-- The local response summed over the powers, in the symmetrised form. -/
+theorem local_response_sum_symm {c : ℝ} (hc : 0 < c) {n : Fin d → ℤ} (hn : n ≠ 0) :
+    HasSum (fun j : ℕ => fc (j + 1) * brk c n j)
+      ((1 / 2) * ∑' m : Fin d → ℤ, (ga c m + ga c (m + n))
+          / (Real.sqrt (1 - ga c m) + Real.sqrt (1 - ga c (m + n)))) := by
+  rw [← cl_symmetrised hc n]; exact local_response_sum hc hn
 
 end CTG.DensityResponseSum
