@@ -6,6 +6,8 @@ Copyright 2025–2026 Michael Neuberger and Christoph Heuwieser, unless stated o
 |---|---|
 | **Software**: the Lean files `lean-core/CorrelationsToGeometry*.lean`, their check scripts, and the Python scripts in `scripts/` | **Apache License, Version 2.0** — full text in `LICENSE-APACHE-2.0`, https://www.apache.org/licenses/LICENSE-2.0 |
 | **The paper**: `paper/correlations_to_geometry.tex`, the PDF built from it, and the figures in `paper/figures/` | **Creative Commons Attribution 4.0 International (CC BY 4.0)** — https://creativecommons.org/licenses/by/4.0/ |
+| **`second-session/`**: the `.lean` files there | Apache License, Version 2.0 |
+| **`second-session/`**: the `.tex` files and the review notes in `openai-math-review/` (declarations quoted there from github.com/openai/math remain under that project's Apache License 2.0) | CC BY 4.0 |
 
 Why these two: Apache 2.0 is the licence of Lean's mathematical library Mathlib, so the Lean files can be combined
 with it, reused and upstreamed without restriction, and it contains an explicit patent grant; CC BY 4.0 is the usual
