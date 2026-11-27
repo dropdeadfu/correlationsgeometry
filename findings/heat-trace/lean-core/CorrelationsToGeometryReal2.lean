@@ -16288,11 +16288,14 @@ NOT the corollary of the paper: fixed `N` (no "almost surely for all large `N`")
 integer with `C₁ δ' √J ≤ 1` (the paper takes `J = ⌈8τ⌉ + ⌈2 log N⌉`); the comparison of the walk
 without self-loops goes through the walk WITH self-loops (perturbation), which produces the
 additional term `96 (M²/N) τ` instead of the constant `C₁' = C₁ + 3·2^{d/2}` of the paper; the
-constant `C₁ = kernelC1 d` and the exceptional event are those of the file; that
+constant `C₁ = kernelC1 d` and the exceptional event are those of the file; the tail term is
+`5M/N²` where the paper has `4M/N²`; that
 `Tr exp(τ(S° - 1))` is `Tr e^{-tL°}` with `τ = 2t/ξ²` and that `poissonMean` is `T_σ(t)` are not
-statements of the file; the last assertion of the corollary (`τ e^{-τ} M ≤ C τ^{1+d/2} e^{-τ} Θ`,
-and the statements on the rate) is not formalised; the exceptional sets are not shown to be
-measurable (the bounds are bounds for the outer measure). -/
+statements of this file; the last assertion of the corollary (`τ e^{-τ} M ≤ C τ^{1+d/2} e^{-τ} Θ`)
+is not in this file (it is `CorrectedRate.noloop_subtraction` of `CorrelationsToGeometryReal3.lean`),
+and the statements on the rate are not formalised; the measurability of the exceptional sets is
+not shown here (for `noloop_heat_trace_ratio` it is in `Reals2Sets` below, for the other two
+statements in `Reals3Sets` of `CorrelationsToGeometryReal3.lean`). -/
 
 namespace NoLoopsTrace
 

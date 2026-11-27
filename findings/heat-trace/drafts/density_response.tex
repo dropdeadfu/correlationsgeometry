@@ -1,0 +1,123 @@
+% A151 -- density response of the node energy on a flat slice (population level).
+% Fragment, not part of the paper. Written by an AI session on 26 November 2026; read by nobody.
+% Every number below is reproduced by .tools/scratch/a151_check.py (deterministic, a few seconds).
+% Status labels: [derived] = calculation given here; [numerical] = only computed;
+% [asymptotic] = derived by an asymptotic argument that is not written as a full proof; [not shown].
+
+\paragraph{Density response of the node energy on a flat slice.}
+\emph{Setting.} Population level on $\mathbb{R}^D$ (or a flat torus), Gaussian kernel
+$g(x)=e^{-|x|^2/2\xi^2}$, $G=\int g=(2\pi\xi^2)^{D/2}$, node density $n=n_0e^{\phi}$ with $\phi$ small and smooth,
+$q=g*n$, $W(x,y)=g(x-y)/q(x)q(y)$, $D(x)=\int W(x,y)n(y)\,dy$, $s(x,y)=W(x,y)/\sqrt{D(x)D(y)}$, acting on
+$L^2(n\,dy)$. The return quantity of the paper is $(S^j)_{ii}=s^{(j)}(x_i,x_i)$, the diagonal of the $j$-th power
+with respect to the node measure. The energy per volume is
+$u=n\,(\langle h\rangle-\tfrac12\omega_\infty)=-\tfrac12\omega_\infty\sum_{j\ge1}c_j\,r_j$ with the
+\emph{return density} $r_j(x)=n(x)\,s^{(j)}(x,x)$.
+
+\smallskip\noindent\textbf{Step 1 (unitary form) [derived].} Conjugation by $\sqrt n$ maps $L^2(n\,dy)$ to $L^2(dy)$ and
+$s$ to $T(x,y)=\sqrt{n(x)}\,s(x,y)\sqrt{n(y)}=A(x)\,g(x-y)\,A(y)$ with $A=\sqrt n/(q\sqrt D)$. Hence
+$r_j(x)=T^j(x,x)$: the factor $n$ between ``per node'' and ``per volume'' is exactly absorbed. Under $n\mapsto\lambda n$
+one has $q\mapsto\lambda q$, $D\mapsto D/\lambda$, $A\mapsto A$, so $r_j$ does not depend on $n_0$ and
+$r_j=(2\pi j\xi^2)^{-D/2}$ for constant density; in Fourier variables $T_0$ is multiplication by
+$t_k=e^{-\xi^2k^2/2}$.
+
+\smallskip\noindent\textbf{Step 2 (the multiplier $A$) [derived, exact at first order].} Let $\mathcal G=G^{-1}g*$ (symbol
+$\gamma_k=e^{-\xi^2k^2/2}$) and $Q=\mathcal G e^{\phi}$. Then $q=Gn_0Q$, $D=(Gn_0Q)^{-1}\mathcal G[e^\phi/Q]$ and
+\begin{equation}\label{eq:A151-lnA}
+\ln A=\mathrm{const}+\tfrac12\phi-\tfrac12\ln Q-\tfrac12\ln\mathcal G\big[e^{\phi}/Q\big].
+\end{equation}
+To first order, $\ln Q=\mathcal G\phi$ and $\ln\mathcal G[e^\phi/Q]=\mathcal G(1-\mathcal G)\phi$, so
+\begin{equation}\label{eq:A151-alpha}
+A=A_0\,\big(1+\tfrac12(1-\mathcal G)^2\phi\big),\qquad\text{for }\phi=\epsilon e^{ia\cdot x}:\quad
+\alpha(a)=\tfrac12\big(1-e^{-\xi^2a^2/2}\big)^2=\tfrac18(a\xi)^4+O((a\xi)^6).
+\end{equation}
+At first order the operator $T$ therefore depends on the density only through the \emph{fourth-order} operator
+$\tfrac12(1-\mathcal G)^2\phi$. This alone excludes a term with two derivatives, for every $j$ separately and for
+every spectral function of $T$; in particular $c_2=0$.
+\emph{Numerical check} (D$=1$, quadrature with 400 points, $\xi=0.05$, $\epsilon=\pm10^{-3}$): the first-order
+coefficient of $A/A_0-1$ agrees with $\alpha(a)$ to a relative $8\times10^{-7}$ (the size of $\epsilon^2$) for
+$(a\xi)^2=0.099,\,0.395,\,0.888,\,2.47$.
+
+\smallskip\noindent\textbf{Step 3 (return densities) [derived].} With $T=T_0+T_1$, $T_1=MT_0+T_0M$, $M=\alpha\epsilon
+e^{ia\cdot x}$, and $(T_0^mMT_0^{l})(x,x)=\alpha\epsilon e^{ia\cdot x}\int\!\frac{dk}{(2\pi)^D}\,t_{k+a}^m t_k^l$,
+\begin{equation}\label{eq:A151-rj}
+\delta r_j(x)=\alpha(a)\,\epsilon e^{ia\cdot x}\int\!\frac{dk}{(2\pi)^D}\,
+(t_k+t_{k+a})\,\frac{t_{k+a}^j-t_k^j}{t_{k+a}-t_k}.
+\end{equation}
+Summing with $c_j\ge0$ (absolutely convergent) gives the divided difference of $F(s)=1-\sqrt{1-s}$, which is
+elementary: with $w_k=\sqrt{1-t_k}$, $[F(t_{k+a})-F(t_k)]/(t_{k+a}-t_k)=1/(w_k+w_{k+a})$.
+\emph{Numerical check} (same D$=1$ quadrature, torus sums over $k\in2\pi\mathbb Z$): $\delta r_j$ for $j=1,\dots,4$ and
+$\delta\sum_jc_jr_j$ (from the eigen-decomposition) agree with \eqref{eq:A151-rj} to a relative $8\times10^{-7}$ at
+$q=1$ and $q=3$.
+
+\smallskip\noindent\textbf{Step 4 (the coefficient) [derived].} Writing $u=\rho_{\mathrm{eff}}+c(a)\,\Delta\phi$ (in
+Fourier, $\Delta\to-a^2$),
+\begin{equation}\label{eq:A151-c}
+c(a)=\frac{\alpha(a)\,I(a)}{\sqrt2\,\xi\,a^2},\qquad
+I(a)=\int\!\frac{dk}{(2\pi)^D}\,\frac{t_k+t_{k+a}}{w_k+w_{k+a}}.
+\end{equation}
+For a density that varies in one direction the transverse integral can be done exactly; in $D=3$,
+$I(a)=(2\pi\xi^2)^{-1}\int\frac{dk}{2\pi}\,(u+v)\,\frac{\Phi(v)-\Phi(u)}{v-u}$ with $u=t_k$, $v=t_{k+a}$ ($k$ now scalar)
+and $\Phi(\lambda)=\sum_jc_j\lambda^j/j=2\ln\frac{1+\sqrt{1-\lambda}}2+2(1-\sqrt{1-\lambda})$. On the unit torus the
+integral is replaced by the sum over $k\in2\pi\mathbb Z^D$.
+
+\smallskip\noindent\textbf{Step 5 (long wavelengths) [derived for $D\ge2$].} By dominated convergence
+($(t_k+t_{k+a})/(w_k+w_{k+a})\le(t_k+t_{k+a})/w_k$, and $1/w_k\sim\sqrt2/\xi|k|$ is integrable for $D\ge2$),
+$I(a)\to I(0)=\int t_k/w_k=2\sum_j jc_j\int t_k^j=2(2\pi\xi^2)^{-D/2}\zeta_{D/2-1}$ ($\zeta_{D/2-1}<\infty$ for
+$D\ge2$). With $\alpha\simeq(a\xi)^4/8$ and $b_R=\zeta_{D/2-1}\xi/(12\sqrt2(2\pi\xi^2)^{D/2})$:
+\begin{equation}\label{eq:A151-limit}
+\frac{c(a)}{b_R}=3\,(a\xi)^2\,\big(1+o(1)\big),\qquad\text{i.e.}\qquad
+u=\rho_{\mathrm{eff}}-3\,b_R\,\xi^2\,\Delta^2\phi+\dots\quad(\text{linear part in }\phi),
+\end{equation}
+for every $D\ge2$. ($D=1$: $\zeta_{-1/2}=\infty$, $I(a)\sim\log(1/a\xi)$; not treated.)
+
+\smallskip\noindent\textbf{Step 6 (next order, $D=3$) [asymptotic + numerical].} The function $1/(w_k+w_{k+a})$ is not
+analytic in $a$ near $k=0$, where $w_k\simeq\xi|k|/\sqrt2$. Expanding $1/(|k|+|k+a|)$ for $|k|\gg a$ and averaging
+over directions gives $1/(2|k|)-a^2/(24|k|^3)$; integrated over $a\lesssim|k|\lesssim1/\xi$ this yields
+$I(a)/I(0)-1=-\,x\ln(1/x)/(24\sqrt\pi\,\zeta_{1/2})+B\,x+o(x)$, $x=(a\xi)^2$, hence
+\begin{equation}\label{eq:A151-next}
+\frac{c(a)}{b_R\,x}=3-\frac{x\ln(1/x)}{8\sqrt\pi\,\zeta_{1/2}}-\Big(\tfrac32-3B\Big)x+o(x)
+=3-0.09944\,x\ln\tfrac1x-1.7396\,x+o(x).
+\end{equation}
+The coefficient of $x\ln(1/x)$ is derived by the asymptotic argument just sketched (not written as a full proof) and
+confirmed numerically (fit of high-precision values at $x=10^{-6},10^{-5}$: $0.0331455$ against
+$1/(24\sqrt\pi\zeta_{1/2})=0.0331455$); $B=-0.0799$ is \emph{numerical only}. The energy per volume is therefore not
+a local functional of $\phi$ beyond the leading term (a consequence of the massless mode, $F$ singular at $s=1$).
+
+\smallskip\noindent\textbf{Step 7 (comparison with \texttt{scripts/density\_response\_flat.py}) [numerical].}
+$D=3$, $\xi=0.05$, $x=(2\pi q\xi)^2$:
+\begin{center}\small
+\begin{tabular}{cccccc}
+$q$ & $x$ & \eqref{eq:A151-c}, continuum & \eqref{eq:A151-c}, unit torus & direct, $\epsilon=0.02$ & paper note\\
+1 & 0.0987 & 0.27753 & 0.27926 & 0.27965 & 0.280\\
+2 & 0.3948 & 0.93273 & 0.93434 & 0.93501 & 0.935\\
+3 & 0.8883 & 1.60731 & 1.60861 & 1.60912 & 1.609
+\end{tabular}
+\end{center}
+(``direct'' is an independent computation in the setting of that script: deformed nodes in direction 1, transverse
+directions uniform, exact eigen-decomposition; with $\epsilon=0.005$ it gives $0.27928$, $0.93438$, $1.60864$, i.e.
+the torus formula as $\epsilon\to0$.) The values of the paper note are reproduced to their three digits; they exceed
+the continuum values by $0.6\%$, $0.2\%$, $0.1\%$ through the finite size of the unit torus (the direct values at
+$\epsilon=0.02$ lie a further $0.14\%$, $0.07\%$, $0.03\%$ higher, an $\epsilon^2$ effect). The flat value $-4083.93$ of that script is likewise exactly the mode sum on the unit torus;
+its difference from $\rho_{\mathrm{eff}}=-4083.09$ is a finite-size effect, not an error.
+
+\smallskip\noindent\textbf{Step 8 (second order, total energy) [derived up to an explicit formula; numerical check].}
+Expanding \eqref{eq:A151-lnA} to second order and averaging over space ($\mathcal G$ preserves means):
+$\langle\ln A\rangle_2=-\tfrac14\sum_k|\hat\phi_k|^2(1-\gamma_k)^2(1-\gamma_k^2)$. Since $\operatorname{tr}f(T)=
+\operatorname{tr}f(T_0^{1/2}e^{2\ln A}T_0^{1/2})$, the total energy per volume at second order is
+$E_2=\tfrac18\omega_\infty I(0)\sum_k|\hat\phi_k|^2(1-\gamma_k)^2(1-\gamma_k^2)+O(\alpha^2)$, with the $O(\alpha^2)$
+terms explicit (script, function \texttt{E2\_formula}). For long wavelengths
+$E_2\simeq\tfrac32\,b_R\,\xi^4\int|\nabla\Delta\phi|^2$: \emph{six} derivatives, positive; no $(\nabla\phi)^2$ or
+$(\Delta\phi)^2$ term in the total energy. The full formula agrees with direct second-order computations ($D=3$, unit
+torus, $\xi=0.05,0.025,0.0125$) to $0.02$--$0.1\%$ (one case $1.2\%$, the smallest energy difference).
+
+\smallskip\noindent\textbf{What follows and what does not.} [derived] On a flat slice, at first order in the density
+contrast, the energy per volume of this node system contains no term with two derivatives of the density; the
+leading term is $-3b_R\xi^2\Delta^2\phi$. With $b_{\mathrm{loc}}=b_{\mathrm{int}}-\tfrac34c$ (script
+\texttt{static\_response\_gamma.py}) this gives $1-\gamma=\tfrac94(b_R/b_{\mathrm{int}})(a\xi)^2+\dots$, and $\gamma\to1$
+as $a\xi\to0$ \emph{as far as the pure density term is concerned}. [numerical] With $b_{\mathrm{int}}/b_R=1.83$ from the
+paper note, the predicted $\gamma$ is $0.975$, $0.963$, $0.943$, $0.902$, $0.886$, $0.859$, $0.790$ at
+$x=0.021,\dots,0.193$, against $0.982$, $0.961$, $0.934$, $0.887$, $0.880$, $0.852$, $0.815$ in the note; the residuals
+(up to $0.025$) are not explained here. [not shown] Terms mixing metric and density on a \emph{curved} slice (the flat
+calculation does not see them), the value $b_{\mathrm{int}}/b_R$ itself, second-order density terms in the
+\emph{local} energy, sampling fluctuations, and any statement for $D=1$ or for other profiles (Step~2 holds for any
+profile with $\gamma$ the normalised Fourier transform, but Steps~4--6 use the Gaussian).
