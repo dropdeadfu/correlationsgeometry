@@ -153,8 +153,10 @@ Lean files added after the text of version 4 was fixed; they are not yet describ
 
 | File | Statements | Content |
 |---|---:|---|
-| `lean-core/CorrelationsToGeometryFlatNPointLatticeWindow.lean` | 26 | The two-time statement for the periodised Gaussian kernel for ALL pairs of times of a window on one event (`flat_npoint_lattice_window`), and without free parameters with exceptional probability at most 32 D²/N² (`flat_npoint_lattice_window_N2`); measurability of that exceptional set and pairs of times closer than η₀ are not shown; read by nobody |
+| `lean-core/CorrelationsToGeometryFlatNPointLatticeWindow.lean` | 26 | The two-time statement for the periodised Gaussian kernel for ALL pairs of times of a window on one event (`flat_npoint_lattice_window`), and without free parameters with exceptional probability at most 32 D²/N² (`flat_npoint_lattice_window_N2`); pairs of times closer than η₀ are not shown (measurability: next file); read by nobody |
 | `lean-core/CorrelationsToGeometryDensityResponseExchange.lean` | 12 | Exchange of the derivative in the density with the sum over the powers, finite-dimensional and abstract: after splitting off the top mode, under a uniform spectral gap (a hypothesis), the sum of the termwise derivatives is the derivative (`deriv_sum_powers`); `r = sqrt(n D)` is the top eigenfunction of the symmetrised kernel (`Sc_top_eigen`). The flat torus (infinite-dimensional, gap for small perturbations) is not formalised; read by nobody |
+| `lean-core/CorrelationsToGeometryFlatNPointLatticeWindowFinal.lean` | 15 | Final form of the window statement for the periodised Gaussian kernel: second moment 1 inserted, the same kernel in the sample and in the population operator (`flat_npoint_lattice_window_final`), and measurability of its exceptional set (`flat_npoint_lattice_window_final_set_measurable`); pairs of times closer than η₀ are not treated; read by nobody |
+| `lean-core/CorrelationsToGeometryDensityResponseExchangeGraph.lean` | 20 | The exchange of derivative and sum over the powers for the concrete finite kernel graph: top eigenvector, smoothness in the density, gap for small perturbations from the gap of the background (the background gap is a hypothesis), `graph_deriv_sum_powers`; the continuum case is not formalised; read by nobody |
 
 ## Third-party material
 
