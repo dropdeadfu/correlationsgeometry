@@ -5,7 +5,9 @@ Namespace `CTG.GaussMoment`; imports the fifty-second file (compiled module); ch
 radial integration formula of Mathlib; `second_moment`: `(∫ ‖z‖² g)/(n ∫ g) = 1` for `n ≥ 1`;
 `gam₂_eq_one`: the constant `gam₂ n` of the fifty-second file equals `1`, so that `m₂ = 1` in
 `flat_npoint_lattice_direct` (the normalisation `c_h = 1` of the paper for the Gaussian profile).
-No hypothesis.  No sorry, no axiom, no native_decide.
+`flat_npoint_lattice_final`: the statement of the fifty-second file with `m₂ = 1` and with the population
+operator of the same lattice-sum kernel on the population side.
+No hypothesis in the moment statements.  No sorry, no axiom, no native_decide.
 Written by the author-side AI session on 27 November 2026; read by nobody.
 -/
 import CorrelationsToGeometryFlatNPointLatticeDirect
@@ -80,5 +82,49 @@ theorem second_moment (hn : 1 ≤ n) :
 theorem gam₂_eq_one (hn : 1 ≤ n) : CTG.FlatNPointLatticeDirect.gam₂ n = 1 := by
   unfold CTG.FlatNPointLatticeDirect.gam₂ CTG.FlatNPointLatticeDirect.gaK₀
   exact second_moment hn
+
+
+open CTG.NPoint CTG.NPointSharp CTG.NPointLip CTG.FlatLB CTG.FlatLB2 CTG.FlatLB3 CTG.FlatLB4
+  CTG.FlatNPoint CTG.FlatNPointRate CTG.FlatNPointFinal CTG.FlatNPointGaussLattice CTG.FlatNPointLatticePop
+open ProbabilityTheory
+
+/-- **Final flat form.** `flat_npoint_lattice_direct` with the normalisation `m₂ = 1` inserted
+(`gam₂_eq_one`) and the population operator written as the normalised population operator `LPK` of the SAME
+lattice-sum kernel (`Lmet_pop_lat`): Proposition `prop:dotLN-diff`, both inequalities in the rate form, for the
+periodised Gaussian kernel on the flat torus with the metrics `a(τ)² g₀`. -/
+theorem flat_npoint_lattice_final (hn : 1 ≤ n) {Ω : Type*} {mΩ : MeasurableSpace Ω}
+    {μ : Measure Ω} [IsProbabilityMeasure μ]
+    (X : ℕ → Ω → E) (h_indep : iIndepFun X μ) (hX : ∀ j, Measurable (X j))
+    (hlaw : ∀ j, μ.map (X j) = mT) (N : ℕ) (hN : 2 ≤ N)
+    {f : E → ℝ} (hf : ContDiff ℝ 4 f) {M₄ Lip B : ℝ} (hM : ∀ y, ‖iteratedFDeriv ℝ 4 f y‖ ≤ M₄)
+    (hM₄ : 0 ≤ M₄) (hper : Per f) (hLip0 : 0 ≤ Lip) (hLip : ∀ x y, |f y - f x| ≤ Lip * ‖y - x‖)
+    (hB : ∀ y, |f y| ≤ B)
+    (S : E ≃L[ℝ] E) (a a' : ℝ → ℝ) (hda : ∀ τ, HasDerivAt a (a' τ) τ) {a₀ a₁ La ξ : ℝ}
+    (ha₀ : 0 < a₀) (ha : ∀ τ, a₀ ≤ a τ) (ha₁ : ∀ τ, a τ ≤ a₁) (hLa : ∀ τ, |a' τ| ≤ La)
+    (hξ : 0 < ξ) (hξ1 : ξ ≤ 1) (τa τb : ℝ) (hne : τb ≠ τa)
+    (hNL : 92416 * CTG.FlatNPointLatticeDirect.dLam S a₀ a₁ La Lip ^ 14 * (3 * Real.log N) ≤ N * ξ ^ n) :
+    μ.real {ω | ∃ i < N, ¬ (
+        |(LNK X N (latK S (ξ / a τb)) (1 : ℝ) ξ f i ω
+              - LNK X N (latK S (ξ / a τa)) (1 : ℝ) ξ f i ω) / (τb - τa)
+          - (LPK mT (latK S (ξ / a τb)) (1 : ℝ) ξ f (X i ω)
+              - LPK mT (latK S (ξ / a τa)) (1 : ℝ) ξ f (X i ω)) / (τb - τa)|
+        ≤ 7320000 * CTG.FlatNPointLatticeDirect.dLam S a₀ a₁ La Lip ^ 20 / (1 : ℝ)
+            * Real.sqrt (3 * Real.log N / (N * ξ ^ n)) / ξ
+      ∧ |(LNK X N (latK S (ξ / a τb)) (1 : ℝ) ξ f i ω
+              - LNK X N (latK S (ξ / a τa)) (1 : ℝ) ξ f i ω) / (τb - τa)
+          + (lapG S f (X i ω) / a τb ^ 2 - lapG S f (X i ω) / a τa ^ 2) / (τb - τa)|
+        ≤ 7320000 * CTG.FlatNPointLatticeDirect.dLam S a₀ a₁ La Lip ^ 20 / (1 : ℝ)
+            * Real.sqrt (3 * Real.log N / (N * ξ ^ n)) / ξ
+          + ξ ^ 2 * min (M₄ * ‖(S : E →L[ℝ] E)‖ ^ 4 * CTG.FlatNPointLatticeDirect.gaμ₄ n
+                / (6 * (1 : ℝ) * CTG.FlatNPointLatticeDirect.gaK₀ n * a₀ ^ 4) / |τb - τa|)
+              (M₄ * ‖(S : E →L[ℝ] E)‖ ^ 4 * CTG.FlatNPointLatticeDirect.gaμ₄ n * La / (3 * (1 : ℝ) * CTG.FlatNPointLatticeDirect.gaK₀ n * a₀ ^ 5)))}
+      ≤ 30 / (N : ℝ) ^ 2 := by
+  have h := CTG.FlatNPointLatticeDirect.flat_npoint_lattice_direct hn X h_indep hX hlaw N hN hf hM hM₄ hper
+    hLip0 hLip hB S a a' hda ha₀ ha ha₁ hLa hξ hξ1 τa τb hne hNL
+  rw [gam₂_eq_one hn] at h
+  have e : ∀ τ x, Lmet gauss (1 : ℝ) S (a τ) ξ f x = LPK mT (latK S (ξ / a τ)) (1 : ℝ) ξ f x :=
+    fun τ x => Lmet_pop_lat 1 S (lt_of_lt_of_le ha₀ (ha τ)) hξ hf.continuous hB hper x
+  simp only [e] at h
+  exact h
 
 end CTG.GaussMoment
