@@ -1,5 +1,14 @@
 # CorrelationsGeometry
 
+> **Version 4 of the paper (27 November 2026)** — M. Neuberger and C. Heuwieser, *From Correlations to Geometry.
+> A Conditional Spectral Reconstruction*, doi:[10.5281/zenodo.24580848](https://doi.org/10.5281/zenodo.24580848).
+> The paper (PDF and source), 56 Lean files with the machine-checked forms of its statements, and the numerics are in
+> [`findings/heat-trace/`](findings/heat-trace/README.md); start with the README there. No proof has been checked by a
+> person independently of the AI sessions with which the paper was written.
+
+The rest of this file describes the Mathlib project at the root of the repository, which was written independently of
+the files in `findings/heat-trace/lean-core/` and refers to an earlier, shorter version of the paper.
+
 Lean 4 / Mathlib proofs of selected results from M. Neuberger, *From Correlations to Geometry:
 A Conditional Spectral Reconstruction* (November 2026).
 
